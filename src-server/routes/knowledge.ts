@@ -1,16 +1,28 @@
 import type { KnowledgeNamespaceConfig } from '@stallion-ai/shared';
+import type { Context } from 'hono';
 import { Hono } from 'hono';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { KnowledgeService } from '../services/knowledge-service.js';
 import type { ProviderService } from '../services/provider-service.js';
 import { knowledgeOps } from '../telemetry/metrics.js';
+import {
+  errorMessage,
+  getBody,
+  knowledgeBulkDeleteSchema,
+  knowledgeNamespaceCreateSchema,
+  knowledgeNamespaceUpdateSchema,
+  knowledgeSearchSchema,
+  knowledgeUploadSchema,
+  param,
+  validate,
+} from './schemas.js';
 
 // ── Shared route handlers (used by both default and namespaced routes) ──
 
 function knowledgeHandlers(
   knowledgeService: KnowledgeService,
-  getSlug: (c: any) => string,
-  getNs: (c: any) => string | undefined,
+  getSlug: (c: Context) => string,
+  getNs: (c: Context) => string | undefined,
 ) {
   const app = new Hono();
 
@@ -18,8 +30,8 @@ function knowledgeHandlers(
     try {
       const data = await knowledgeService.listDocuments(getSlug(c), getNs(c));
       return c.json({ success: true, data });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
@@ -46,19 +58,14 @@ function knowledgeHandlers(
           namespace: ns ?? 'all',
         },
       });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
-  app.post('/upload', async (c) => {
+  app.post('/upload', validate(knowledgeUploadSchema), async (c) => {
     try {
-      const { filename, content, metadata } = await c.req.json();
-      if (!filename || !content)
-        return c.json(
-          { success: false, error: 'filename and content required' },
-          400,
-        );
+      const { filename, content, metadata } = getBody(c);
       const data = await knowledgeService.uploadDocument(
         getSlug(c),
         filename,
@@ -69,8 +76,8 @@ function knowledgeHandlers(
       );
       knowledgeOps.add(1, { op: 'upload' });
       return c.json({ success: true, data }, 201);
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
@@ -92,16 +99,14 @@ function knowledgeHandlers(
       );
       knowledgeOps.add(1, { op: 'scan' });
       return c.json({ success: true, data });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
-  app.post('/search', async (c) => {
+  app.post('/search', validate(knowledgeSearchSchema), async (c) => {
     try {
-      const { query, topK } = await c.req.json();
-      if (!query)
-        return c.json({ success: false, error: 'query required' }, 400);
+      const { query, topK } = getBody(c);
       const data = await knowledgeService.searchDocuments(
         getSlug(c),
         query,
@@ -110,16 +115,14 @@ function knowledgeHandlers(
       );
       knowledgeOps.add(1, { op: 'search' });
       return c.json({ success: true, data });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
-  app.post('/bulk-delete', async (c) => {
+  app.post('/bulk-delete', validate(knowledgeBulkDeleteSchema), async (c) => {
     try {
-      const { ids } = (await c.req.json()) as { ids: string[] };
-      if (!ids?.length)
-        return c.json({ success: false, error: 'ids array required' }, 400);
+      const { ids } = getBody(c);
       const slug = getSlug(c);
       const ns = getNs(c);
       let deleted = 0;
@@ -133,8 +136,8 @@ function knowledgeHandlers(
       }
       knowledgeOps.add(1, { op: 'bulk_delete' });
       return c.json({ success: true, data: { deleted } });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
@@ -142,12 +145,12 @@ function knowledgeHandlers(
     try {
       const content = await knowledgeService.getDocumentContent(
         getSlug(c),
-        c.req.param('docId'),
+        param(c, 'docId'),
         getNs(c),
       );
       return c.json({ success: true, data: { content } });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
@@ -155,13 +158,13 @@ function knowledgeHandlers(
     try {
       await knowledgeService.deleteDocument(
         getSlug(c),
-        c.req.param('docId'),
+        param(c, 'docId'),
         getNs(c),
       );
       knowledgeOps.add(1, { op: 'delete' });
       return c.json({ success: true });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
@@ -174,8 +177,8 @@ function knowledgeHandlers(
         await knowledgeService.deleteDocument(slug, doc.id, ns);
       }
       return c.json({ success: true, data: { deleted: docs.length } });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
@@ -197,49 +200,47 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
     try {
       const data = knowledgeService.listNamespaces(c.get('slug'));
       return c.json({ success: true, data });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
-  app.post('/namespaces', async (c) => {
-    try {
-      const body = (await c.req.json()) as KnowledgeNamespaceConfig;
-      if (!body.id || !body.label || !body.behavior) {
-        return c.json(
-          { success: false, error: 'id, label, and behavior required' },
-          400,
-        );
+  app.post(
+    '/namespaces',
+    validate(knowledgeNamespaceCreateSchema),
+    async (c) => {
+      try {
+        const body = getBody(c) as KnowledgeNamespaceConfig;
+        knowledgeService.registerNamespace(c.get('slug'), body);
+        return c.json({ success: true }, 201);
+      } catch (e: unknown) {
+        return c.json({ success: false, error: errorMessage(e) }, 500);
       }
-      knowledgeService.registerNamespace(c.get('slug'), body);
-      return c.json({ success: true }, 201);
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
-    }
-  });
+    },
+  );
 
   app.delete('/namespaces/:nsId', (c) => {
     try {
-      knowledgeService.removeNamespace(c.get('slug'), c.req.param('nsId'));
+      knowledgeService.removeNamespace(c.get('slug'), param(c, 'nsId'));
       return c.json({ success: true });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
-  app.put('/namespaces/:nsId', async (c) => {
-    try {
-      const body = await c.req.json();
-      knowledgeService.updateNamespace(
-        c.get('slug'),
-        c.req.param('nsId'),
-        body,
-      );
-      return c.json({ success: true });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
-    }
-  });
+  app.put(
+    '/namespaces/:nsId',
+    validate(knowledgeNamespaceUpdateSchema),
+    async (c) => {
+      try {
+        const body = getBody(c);
+        knowledgeService.updateNamespace(c.get('slug'), param(c, 'nsId'), body);
+        return c.json({ success: true });
+      } catch (e: unknown) {
+        return c.json({ success: false, error: errorMessage(e) }, 500);
+      }
+    },
+  );
 
   // Namespaced document routes: /ns/:namespace/*
   app.route(
@@ -316,16 +317,14 @@ export function createCrossProjectKnowledgeRoutes(
           stats: { totalDocuments, totalChunks, projectCount: projects.length },
         },
       });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
-  app.post('/search', async (c) => {
+  app.post('/search', validate(knowledgeSearchSchema), async (c) => {
     try {
-      const { query, topK = 5, namespace } = await c.req.json();
-      if (!query)
-        return c.json({ success: false, error: 'query required' }, 400);
+      const { query, topK = 5, namespace } = getBody(c);
 
       const projects = storageAdapter.listProjects();
       const allResults: Array<{ projectSlug: string; results: any[] }> = [];
@@ -343,8 +342,8 @@ export function createCrossProjectKnowledgeRoutes(
       }
 
       return c.json({ success: true, data: allResults });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 

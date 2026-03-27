@@ -2,8 +2,8 @@ import { Hono } from 'hono';
 import { ACPStatus } from '../domain/types.js';
 import { listProviders } from '../providers/registry.js';
 import type { RuntimeContext } from '../runtime/types.js';
-import { acpConnectionSchema, getBody, param, validate } from './schemas.js';
 import { acpOps } from '../telemetry/metrics.js';
+import { acpConnectionSchema, getBody, param, validate } from './schemas.js';
 
 export function createACPRoutes(ctx: RuntimeContext) {
   const app = new Hono();
@@ -14,7 +14,10 @@ export function createACPRoutes(ctx: RuntimeContext) {
 
   app.get('/commands/:slug', (c) => {
     const slug = param(c, 'slug');
-    return c.json({ success: true, data: ctx.acpBridge.getSlashCommands(slug) });
+    return c.json({
+      success: true,
+      data: ctx.acpBridge.getSlashCommands(slug),
+    });
   });
 
   app.get('/commands/:slug/options', async (c) => {
@@ -53,11 +56,17 @@ export function createACPRoutes(ctx: RuntimeContext) {
   app.post('/connections', validate(acpConnectionSchema), async (c) => {
     const body = getBody(c);
     if (!body.id || !body.command) {
-      return c.json({ success: false, error: 'id and command are required' }, 400);
+      return c.json(
+        { success: false, error: 'id and command are required' },
+        400,
+      );
     }
     const config = await ctx.configLoader.loadACPConfig();
     if (config.connections.some((conn) => conn.id === body.id)) {
-      return c.json({ success: false, error: `Connection '${body.id}' already exists` }, 409);
+      return c.json(
+        { success: false, error: `Connection '${body.id}' already exists` },
+        409,
+      );
     }
     const newConn = {
       id: body.id,
@@ -65,6 +74,7 @@ export function createACPRoutes(ctx: RuntimeContext) {
       command: body.command,
       args: body.args || [],
       icon: body.icon || '🔌',
+      cwd: body.cwd,
       enabled: body.enabled !== false,
     };
     config.connections.push(newConn);
@@ -74,19 +84,25 @@ export function createACPRoutes(ctx: RuntimeContext) {
     return c.json({ success: true, data: newConn });
   });
 
-  app.put('/connections/:id', validate(acpConnectionSchema.partial()), async (c) => {
-    const id = param(c, 'id');
-    const body = getBody(c);
-    const config = await ctx.configLoader.loadACPConfig();
-    const idx = config.connections.findIndex((conn) => conn.id === id);
-    if (idx === -1) return c.json({ success: false, error: 'Connection not found' }, 404);
-    config.connections[idx] = { ...config.connections[idx], ...body, id };
-    await ctx.configLoader.saveACPConfig(config);
-    await ctx.acpBridge.removeConnection(id);
-    if (config.connections[idx].enabled) await ctx.acpBridge.addConnection(config.connections[idx]);
-    acpOps.add(1, { op: 'update' });
-    return c.json({ success: true, data: config.connections[idx] });
-  });
+  app.put(
+    '/connections/:id',
+    validate(acpConnectionSchema.partial()),
+    async (c) => {
+      const id = param(c, 'id');
+      const body = getBody(c);
+      const config = await ctx.configLoader.loadACPConfig();
+      const idx = config.connections.findIndex((conn) => conn.id === id);
+      if (idx === -1)
+        return c.json({ success: false, error: 'Connection not found' }, 404);
+      config.connections[idx] = { ...config.connections[idx], ...body, id };
+      await ctx.configLoader.saveACPConfig(config);
+      await ctx.acpBridge.removeConnection(id);
+      if (config.connections[idx].enabled)
+        await ctx.acpBridge.addConnection(config.connections[idx]);
+      acpOps.add(1, { op: 'update' });
+      return c.json({ success: true, data: config.connections[idx] });
+    },
+  );
 
   app.delete('/connections/:id', async (c) => {
     const id = param(c, 'id');

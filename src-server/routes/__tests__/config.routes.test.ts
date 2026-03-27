@@ -17,9 +17,16 @@ function createMockConfigLoader() {
   };
 }
 
-const mockLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+const mockLogger = {
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+};
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Config Routes', () => {
   test('GET /app returns config', async () => {
@@ -52,7 +59,9 @@ describe('Config Routes', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ region: 'us-west-2' }),
     });
-    expect(eventBus.emit).toHaveBeenCalledWith('system:status-changed', { source: 'config' });
+    expect(eventBus.emit).toHaveBeenCalledWith('system:status-changed', {
+      source: 'config',
+    });
   });
 
   test('PUT /app calls onConfigChanged callback', async () => {

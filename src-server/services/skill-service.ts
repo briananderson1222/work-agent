@@ -9,21 +9,25 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { readdir, readFile, mkdir, rm, } from 'node:fs/promises';
-import { join, extname } from 'node:path';
+import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { dirname, extname, join } from 'node:path';
 import {
-  type ResolvedSkill,
-  type SkillResource,
+  extractResourceLinks,
   handleSkillRead,
   parseFrontmatter,
   parseSkillContent,
+  type ResolvedSkill,
+  type SkillResource,
   toDisclosureInstructions,
   toDisclosurePrompt,
   toReadToolSchema,
-  extractResourceLinks,
 } from 'agent-skills-ts-sdk';
+import {
+  skillActivationDuration,
+  skillActivations,
+  skillDiscoveries,
+} from '../telemetry/metrics.js';
 import { createLogger } from '../utils/logger.js';
-import { skillDiscoveries, skillActivations, skillActivationDuration } from '../telemetry/metrics.js';
 
 const logger = createLogger({ name: 'skills' });
 
@@ -56,7 +60,10 @@ export async function discoverSkills(
   }
 
   logger.info('Skills discovered', { count: registry.size, projectSlug });
-  skillDiscoveries.add(1, { count: registry.size, projectSlug: projectSlug || 'global' });
+  skillDiscoveries.add(1, {
+    count: registry.size,
+    projectSlug: projectSlug || 'global',
+  });
 }
 
 async function scanDirectory(dir: string, depth = 0): Promise<void> {
@@ -80,7 +87,11 @@ async function scanDirectory(dir: string, depth = 0): Promise<void> {
           const resourcePath = join(dir, entry.name, link.path);
           if (existsSync(resourcePath)) {
             const resourceContent = await readFile(resourcePath, 'utf-8');
-            resources.push({ name: link.name, path: link.path, content: resourceContent });
+            resources.push({
+              name: link.name,
+              path: link.path,
+              content: resourceContent,
+            });
           }
         }
 
@@ -116,9 +127,10 @@ export function getSkillCatalogPrompt(skillNames?: string[]): string {
   }
 
   const allSkills = Array.from(registry.values());
-  const filtered = skillNames !== undefined
-    ? allSkills.filter((s) => skillNames.includes(s.name))
-    : allSkills;
+  const filtered =
+    skillNames !== undefined
+      ? allSkills.filter((s) => skillNames.includes(s.name))
+      : allSkills;
   if (filtered.length === 0) return '';
 
   const entries = filtered.map((s) => ({
@@ -145,9 +157,10 @@ export function getSkillTool(skillNames?: string[]): {
   execute: (input: any) => Promise<any>;
 } | null {
   const allSkills = Array.from(registry.values());
-  const skills = skillNames !== undefined
-    ? allSkills.filter((s) => skillNames.includes(s.name))
-    : allSkills;
+  const skills =
+    skillNames !== undefined
+      ? allSkills.filter((s) => skillNames.includes(s.name))
+      : allSkills;
   if (skills.length === 0) return null;
   const schema = toReadToolSchema(skills, { toolName: 'activate_skill' });
 
@@ -162,7 +175,9 @@ export function getSkillTool(skillNames?: string[]): {
         resource: input.resource,
       });
       skillActivations.add(1, { skill: input.name || 'unknown' });
-      skillActivationDuration.record(Date.now() - start, { skill: input.name || 'unknown' });
+      skillActivationDuration.record(Date.now() - start, {
+        skill: input.name || 'unknown',
+      });
       if (!result.ok) {
         return { error: (result as any).error };
       }
@@ -186,11 +201,23 @@ export function getSkillTool(skillNames?: string[]): {
 
 // ── API Helpers ─────────────────────────────────────────
 
-export function listSkills(): Array<{ name: string; description: string }> {
-  return Array.from(registry.values()).map((s) => ({
-    name: s.name,
-    description: s.description,
-  }));
+export function listSkills(): Array<{
+  name: string;
+  description: string;
+  version?: string;
+}> {
+  return Array.from(registry.values()).map((s) => {
+    let version: string | undefined;
+    if (s.location) {
+      const metaPath = join(dirname(s.location), '.stallion-meta.json');
+      if (existsSync(metaPath)) {
+        try {
+          version = JSON.parse(readFileSync(metaPath, 'utf-8')).version;
+        } catch {}
+      }
+    }
+    return { name: s.name, description: s.description, version };
+  });
 }
 
 export function getSkillCount(): number {
@@ -206,9 +233,13 @@ const SCRIPT_EXTS = new Set(['.py', '.sh', '.js', '.ts']);
  * These are returned alongside the skill body so the agent knows
  * executable scripts are available.
  */
-function getScriptToolDefs(skill: ResolvedSkill): Array<{ name: string; description: string; path: string }> {
+function getScriptToolDefs(
+  skill: ResolvedSkill,
+): Array<{ name: string; description: string; path: string }> {
   return skill.resources
-    .filter((r) => r.path.startsWith('scripts/') && SCRIPT_EXTS.has(extname(r.path)))
+    .filter(
+      (r) => r.path.startsWith('scripts/') && SCRIPT_EXTS.has(extname(r.path)),
+    )
     .map((r) => ({
       name: `${skill.name}/${r.name}`,
       description: `Script from ${skill.name} skill: ${r.name}`,
@@ -228,7 +259,10 @@ function getAllowedTools(skill: ResolvedSkill): string | undefined {
     const { metadata } = parseFrontmatter(content);
     return metadata['allowed-tools'] || undefined;
   } catch (e) {
-    logger.debug('Failed to parse skill frontmatter for allowed-tools', { location, error: e });
+    logger.debug('Failed to parse skill frontmatter for allowed-tools', {
+      location,
+      error: e,
+    });
     return undefined;
   }
 }
@@ -243,23 +277,46 @@ export async function installSkill(
   projectHomeDir: string,
   projectSlug?: string,
 ): Promise<{ success: boolean; message: string }> {
-  const { getSkillRegistryProvider } = await import('../providers/registry.js');
-  const provider = getSkillRegistryProvider();
-  if (!provider) return { success: false, message: 'No skill registry configured' };
+  const { getSkillRegistryProviders } = await import(
+    '../providers/registry.js'
+  );
+  const entries = getSkillRegistryProviders();
+  if (entries.length === 0)
+    return { success: false, message: 'No skill registry configured' };
 
   const targetDir = projectSlug
     ? join(projectHomeDir, 'projects', projectSlug, 'skills')
     : join(projectHomeDir, 'skills');
 
   await mkdir(targetDir, { recursive: true });
-  const result = await provider.install(name, targetDir);
 
-  if (result.success) {
-    // Re-discover skills to pick up the new one
-    await discoverSkills(projectHomeDir, projectSlug);
+  for (const { provider } of entries) {
+    const result = await provider.install(name, targetDir);
+    if (result.success) {
+      // Write version metadata
+      try {
+        const items = await provider.listAvailable().catch(() => []);
+        const item = items.find((i: any) => i.id === name);
+        const version = item?.version ?? 'unknown';
+        await writeFile(
+          join(targetDir, name, '.stallion-meta.json'),
+          JSON.stringify({
+            version,
+            installedAt: new Date().toISOString(),
+            source: 'registry',
+          }),
+        );
+      } catch {}
+      // Re-discover skills to pick up the new one
+      await discoverSkills(projectHomeDir, projectSlug);
+      return result;
+    }
   }
 
-  return result;
+  return {
+    success: false,
+    message: `No skill registry provider could install ${name}`,
+  };
 }
 
 /**
@@ -274,7 +331,8 @@ export async function uninstallSkill(
     ? join(projectHomeDir, 'projects', projectSlug, 'skills', name)
     : join(projectHomeDir, 'skills', name);
 
-  if (!existsSync(targetDir)) return { success: false, message: `Skill '${name}' not found` };
+  if (!existsSync(targetDir))
+    return { success: false, message: `Skill '${name}' not found` };
 
   await rm(targetDir, { recursive: true, force: true });
 

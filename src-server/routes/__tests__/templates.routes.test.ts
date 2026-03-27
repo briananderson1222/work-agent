@@ -16,7 +16,9 @@ function createMockStorageAdapter() {
   };
 }
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Template Routes', () => {
   test('GET / returns empty list', async () => {
@@ -32,7 +34,11 @@ describe('Template Routes', () => {
     const res = await app.request('/', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Test', description: 'A test', type: 'agent' }),
+      body: JSON.stringify({
+        name: 'Test',
+        description: 'A test',
+        type: 'agent',
+      }),
     });
     const body = await json(res);
     expect(res.status).toBe(201);

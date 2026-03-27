@@ -1,15 +1,15 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'vitest';
 import {
   getPermissionTier,
-  needsConsent,
   getPluginGrants,
   grantPermissions,
-  revokeAllGrants,
   hasGrant,
+  needsConsent,
   processInstallPermissions,
+  revokeAllGrants,
 } from '../plugin-permissions.js';
 
 describe('permission tiers', () => {
@@ -66,7 +66,9 @@ describe('grants storage', () => {
   test('grantPermissions is additive', () => {
     grantPermissions(dir, 'p', ['a']);
     grantPermissions(dir, 'p', ['b']);
-    expect(getPluginGrants(dir, 'p')).toEqual(expect.arrayContaining(['a', 'b']));
+    expect(getPluginGrants(dir, 'p')).toEqual(
+      expect.arrayContaining(['a', 'b']),
+    );
   });
 
   test('revokeAllGrants removes all', () => {

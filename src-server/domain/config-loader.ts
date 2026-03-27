@@ -181,11 +181,13 @@ export class ConfigLoader {
   ): Promise<{ slug: string; spec: AgentSpec }> {
     validator.validateAgentSpec(spec);
 
-    // Generate slug from name
-    const slug = spec.name
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-+|-+$/g, '');
+    // Use provided slug or generate from name
+    const slug =
+      (spec as any).slug?.trim() ||
+      spec.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
 
     if (!slug) {
       throw new Error(
@@ -198,8 +200,9 @@ export class ConfigLoader {
       throw new Error(`Agent with slug '${slug}' already exists`);
     }
 
-    await this.saveAgent(slug, spec);
-    return { slug, spec };
+    const { slug: _s, ...cleanSpec } = spec as any;
+    await this.saveAgent(slug, cleanSpec);
+    return { slug, spec: cleanSpec };
   }
 
   /**
@@ -588,7 +591,10 @@ export class ConfigLoader {
           map[toolId].push(spec.name || entry.name);
         }
       } catch (e) {
-        logger.debug('Failed to load agent for tool map', { agent: entry.name, error: e });
+        logger.debug('Failed to load agent for tool map', {
+          agent: entry.name,
+          error: e,
+        });
         /* skip broken agents */
       }
     }

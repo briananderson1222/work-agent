@@ -1,5 +1,9 @@
 import type { EventEmitter } from 'node:events';
-import type { MonitoringEvent, HealthIntegration, GenAiOperationName } from './schema.js';
+import type {
+  GenAiOperationName,
+  HealthIntegration,
+  MonitoringEvent,
+} from './schema.js';
 import { K, OP, SPAN } from './schema.js';
 
 type PersistFn = (event: MonitoringEvent) => Promise<void>;
@@ -31,8 +35,13 @@ export class MonitoringEmitter {
   }
 
   emitAgentStart(opts: {
-    slug: string; conversationId: string; userId: string; traceId: string;
-    input: string; model?: string; provider?: string;
+    slug: string;
+    conversationId: string;
+    userId: string;
+    traceId: string;
+    input: string;
+    model?: string;
+    provider?: string;
   }): void {
     this.emit({
       ...base(OP.INVOKE_AGENT, SPAN.START, opts.traceId),
@@ -46,11 +55,23 @@ export class MonitoringEmitter {
   }
 
   emitAgentComplete(opts: {
-    slug: string; conversationId: string; userId: string; traceId: string;
-    reason: string; steps?: number; maxSteps?: number; toolCallCount?: number;
-    inputChars?: number; outputChars?: number;
-    usage?: { inputTokens?: number; outputTokens?: number; totalTokens?: number };
-    artifacts?: MonitoringEvent[typeof K.ARTIFACTS]; model?: string;
+    slug: string;
+    conversationId: string;
+    userId: string;
+    traceId: string;
+    reason: string;
+    steps?: number;
+    maxSteps?: number;
+    toolCallCount?: number;
+    inputChars?: number;
+    outputChars?: number;
+    usage?: {
+      inputTokens?: number;
+      outputTokens?: number;
+      totalTokens?: number;
+    };
+    artifacts?: MonitoringEvent[typeof K.ARTIFACTS];
+    model?: string;
   }): void {
     this.emit({
       ...base(OP.INVOKE_AGENT, SPAN.END, opts.traceId),
@@ -70,8 +91,14 @@ export class MonitoringEmitter {
   }
 
   emitToolCall(opts: {
-    slug: string; conversationId: string; userId: string; traceId: string;
-    toolName: string; toolCallId: string; input?: unknown; toolCallNumber?: number;
+    slug: string;
+    conversationId: string;
+    userId: string;
+    traceId: string;
+    toolName: string;
+    toolCallId: string;
+    input?: unknown;
+    toolCallNumber?: number;
   }): void {
     this.emit({
       ...base(OP.EXECUTE_TOOL, SPAN.START, opts.traceId),
@@ -85,8 +112,13 @@ export class MonitoringEmitter {
   }
 
   emitToolResult(opts: {
-    slug: string; conversationId: string; userId: string; traceId: string;
-    toolName: string; toolCallId: string; result?: unknown;
+    slug: string;
+    conversationId: string;
+    userId: string;
+    traceId: string;
+    toolName: string;
+    toolCallId: string;
+    result?: unknown;
   }): void {
     this.emit({
       ...base(OP.EXECUTE_TOOL, SPAN.END, opts.traceId),
@@ -100,7 +132,11 @@ export class MonitoringEmitter {
   }
 
   emitReasoning(opts: {
-    slug: string; conversationId: string; userId: string; traceId: string; text: string;
+    slug: string;
+    conversationId: string;
+    userId: string;
+    traceId: string;
+    text: string;
   }): void {
     this.emit({
       ...base(OP.CHAT, SPAN.EVENT, opts.traceId),
@@ -112,8 +148,12 @@ export class MonitoringEmitter {
   }
 
   emitHealth(opts: {
-    slug: string; userId: string; traceId: string;
-    healthy: boolean; checks?: Record<string, boolean>; integrations?: HealthIntegration[];
+    slug: string;
+    userId: string;
+    traceId: string;
+    healthy: boolean;
+    checks?: Record<string, boolean>;
+    integrations?: HealthIntegration[];
   }): void {
     this.emit({
       ...base(OP.INVOKE_AGENT, SPAN.LOG, opts.traceId),

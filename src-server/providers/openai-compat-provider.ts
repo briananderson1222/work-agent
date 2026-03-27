@@ -79,7 +79,10 @@ export class OpenAICompatLLMProvider implements ILLMProvider {
               finishReason: chunk.choices[0].finish_reason,
             };
         } catch (e) {
-          console.debug('Failed to parse SSE chunk from OpenAI-compat stream:', e);
+          console.debug(
+            'Failed to parse SSE chunk from OpenAI-compat stream:',
+            e,
+          );
           /* skip malformed */
         }
       }
@@ -142,7 +145,10 @@ export class OpenAICompatEmbeddingProvider implements IEmbeddingProvider {
       });
       return res.ok;
     } catch (e) {
-      console.debug('Failed to check OpenAI-compat embedding provider health:', e);
+      console.debug(
+        'Failed to check OpenAI-compat embedding provider health:',
+        e,
+      );
       return false;
     }
   }

@@ -100,7 +100,11 @@ export class JsonManifestRegistryProvider
           installed: true,
         });
       } catch (e) {
-        console.debug('Failed to read installed plugin manifest:', entry.name, e);
+        console.debug(
+          'Failed to read installed plugin manifest:',
+          entry.name,
+          e,
+        );
         // Skip invalid manifests
       }
     }
@@ -127,7 +131,7 @@ export class JsonManifestRegistryProvider
       if (branch) cloneArgs.push('--branch', branch);
       cloneArgs.push(url, targetDir);
 
-      execFileSync('git', cloneArgs, { timeout: 30000 });
+      execFileSync('git', cloneArgs, { timeout: 30000, windowsHide: true });
     } else {
       throw new Error('Only git sources are supported');
     }

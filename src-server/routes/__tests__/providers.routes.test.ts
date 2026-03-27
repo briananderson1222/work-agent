@@ -3,11 +3,30 @@ import { describe, expect, test, vi } from 'vitest';
 vi.mock('../../telemetry/metrics.js', () => ({
   providerOps: { add: vi.fn() },
 }));
-vi.mock('../../providers/bedrock-llm-provider.js', () => ({ BedrockLLMProvider: vi.fn().mockImplementation(() => ({ healthCheck: async () => true, listModels: async () => [] })) }));
-vi.mock('../../providers/ollama-provider.js', () => ({ OllamaLLMProvider: vi.fn().mockImplementation(() => ({ healthCheck: async () => true })), OllamaEmbeddingProvider: vi.fn() }));
-vi.mock('../../providers/openai-compat-provider.js', () => ({ OpenAICompatLLMProvider: vi.fn().mockImplementation(() => ({ healthCheck: async () => true })), OpenAICompatEmbeddingProvider: vi.fn() }));
-vi.mock('../../providers/bedrock-embedding-provider.js', () => ({ BedrockEmbeddingProvider: vi.fn() }));
-vi.mock('../../providers/lancedb-provider.js', () => ({ LanceDBProvider: vi.fn() }));
+vi.mock('../../providers/bedrock-llm-provider.js', () => ({
+  BedrockLLMProvider: vi.fn().mockImplementation(() => ({
+    healthCheck: async () => true,
+    listModels: async () => [],
+  })),
+}));
+vi.mock('../../providers/ollama-provider.js', () => ({
+  OllamaLLMProvider: vi
+    .fn()
+    .mockImplementation(() => ({ healthCheck: async () => true })),
+  OllamaEmbeddingProvider: vi.fn(),
+}));
+vi.mock('../../providers/openai-compat-provider.js', () => ({
+  OpenAICompatLLMProvider: vi
+    .fn()
+    .mockImplementation(() => ({ healthCheck: async () => true })),
+  OpenAICompatEmbeddingProvider: vi.fn(),
+}));
+vi.mock('../../providers/bedrock-embedding-provider.js', () => ({
+  BedrockEmbeddingProvider: vi.fn(),
+}));
+vi.mock('../../providers/lancedb-provider.js', () => ({
+  LanceDBProvider: vi.fn(),
+}));
 
 const { createProviderRoutes } = await import('../providers.js');
 
@@ -24,7 +43,9 @@ function createMockProviderService() {
   };
 }
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Provider Routes', () => {
   test('GET / returns empty list', async () => {

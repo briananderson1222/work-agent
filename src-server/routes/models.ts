@@ -4,8 +4,9 @@ import {
 } from '@aws-sdk/client-bedrock';
 import { GetProductsCommand, PricingClient } from '@aws-sdk/client-pricing';
 import { Hono } from 'hono';
-import { createLogger } from '../utils/logger.js';
 import { bedrockOps } from '../telemetry/metrics.js';
+import { createLogger } from '../utils/logger.js';
+import { errorMessage, param } from './schemas.js';
 
 const logger = createLogger({ name: 'models' });
 
@@ -20,7 +21,7 @@ app.get('/capabilities', async (c) => {
   try {
     // Return cached data if fresh
     if (modelCache && Date.now() - cacheTimestamp < CACHE_TTL) {
-      return c.json({ data: modelCache });
+      return c.json({ success: true, data: modelCache });
     }
     bedrockOps.add(1, { op: 'list_capabilities' });
     const region = process.env.AWS_REGION || 'us-east-1';
@@ -61,28 +62,32 @@ app.get('/capabilities', async (c) => {
     modelCache = capabilities;
     cacheTimestamp = Date.now();
 
-    return c.json({ data: capabilities });
-  } catch (error: any) {
+    return c.json({ success: true, data: capabilities });
+  } catch (error: unknown) {
     logger.error('Error fetching model capabilities', { error });
 
     // Return 401 for credential errors
     if (
-      error.name === 'CredentialsProviderError' ||
-      error.message?.includes('credentials')
+      (error instanceof Error && error.name === 'CredentialsProviderError') ||
+      errorMessage(error)?.includes('credentials')
     ) {
       return c.json(
-        { error: 'AWS credentials not configured', details: error.message },
+        {
+          success: false,
+          error: 'AWS credentials not configured',
+          details: errorMessage(error),
+        },
         401,
       );
     }
 
-    return c.json({ error: error.message }, 500);
+    return c.json({ success: false, error: errorMessage(error) }, 500);
   }
 });
 
 app.get('/pricing/:modelId', async (c) => {
   try {
-    const modelId = c.req.param('modelId');
+    const modelId = param(c, 'modelId');
     const region =
       c.req.query('region') || process.env.AWS_REGION || 'us-east-1';
     bedrockOps.add(1, { op: 'get_pricing' });
@@ -138,10 +143,10 @@ app.get('/pricing/:modelId', async (c) => {
       }
     }
 
-    return c.json({ data: modelPricing });
-  } catch (error: any) {
+    return c.json({ success: true, data: modelPricing });
+  } catch (error: unknown) {
     logger.error('Error fetching model pricing', { error });
-    return c.json({ error: error.message }, 500);
+    return c.json({ success: false, error: errorMessage(error) }, 500);
   }
 });
 

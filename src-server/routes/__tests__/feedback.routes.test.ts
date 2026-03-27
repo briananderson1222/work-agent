@@ -10,7 +10,9 @@ vi.mock('../../telemetry/metrics.js', () => ({
 const { createFeedbackRoutes } = await import('../feedback.js');
 const { FeedbackService } = await import('../../services/feedback-service.js');
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Feedback Routes', () => {
   let dir: string;
@@ -38,7 +40,12 @@ describe('Feedback Routes', () => {
     const res = await app.request('/rate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId: 'c1', messageIndex: 0, messagePreview: 'test', rating: 'thumbs_up' }),
+      body: JSON.stringify({
+        conversationId: 'c1',
+        messageIndex: 0,
+        messagePreview: 'test',
+        rating: 'thumbs_up',
+      }),
     });
     const body = await json(res);
     expect(body.success).toBe(true);
@@ -46,7 +53,13 @@ describe('Feedback Routes', () => {
   });
 
   test('DELETE /rate removes a rating', async () => {
-    svc.rateMessage({ agentSlug: 'a', conversationId: 'c1', messageIndex: 0, messagePreview: 'x', rating: 'thumbs_up' });
+    svc.rateMessage({
+      agentSlug: 'a',
+      conversationId: 'c1',
+      messageIndex: 0,
+      messagePreview: 'x',
+      rating: 'thumbs_up',
+    });
     const res = await app.request('/rate', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
@@ -70,7 +83,9 @@ describe('Feedback Routes', () => {
   });
 
   test('POST /clear-analysis resets analysis', async () => {
-    const body = await json(await app.request('/clear-analysis', { method: 'POST' }));
+    const body = await json(
+      await app.request('/clear-analysis', { method: 'POST' }),
+    );
     expect(body.success).toBe(true);
   });
 });

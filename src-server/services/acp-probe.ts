@@ -4,11 +4,12 @@ import { ACPProcess } from './acp-process.js';
 
 const noopClient: Client = {
   sessionUpdate: async () => {},
-  requestPermission: async () => ({ granted: false, outcome: { outcome: 'cancelled' } } as any),
+  requestPermission: async () =>
+    ({ granted: false, outcome: { outcome: 'cancelled' } }) as any,
   readTextFile: async () => ({ content: '' }),
-  writeTextFile: async () => ({} as any),
+  writeTextFile: async () => ({}) as any,
   createTerminal: async () => ({ terminalId: '' }),
-  terminalOutput: async () => ({} as any),
+  terminalOutput: async () => ({}) as any,
   releaseTerminal: async () => {},
   waitForTerminalExit: async () => ({ exitCode: 0 }),
   killTerminal: async () => {},
@@ -44,11 +45,15 @@ export class ACPProbe {
 
       this.cachedModes = sessionResult.modes?.availableModes ?? [];
       this.cachedConfigOptions = sessionResult.configOptions ?? [];
-      this.cachedCapabilities = initResult.agentCapabilities?.promptCapabilities ?? null;
+      this.cachedCapabilities =
+        initResult.agentCapabilities?.promptCapabilities ?? null;
       this.lastSuccess = true;
     } catch (err) {
       if (this.lastSuccess) {
-        this.logger.warn({ err, id: this.config.id }, 'ACPProbe failed; retaining stale cache');
+        this.logger.warn(
+          { err, id: this.config.id },
+          'ACPProbe failed; retaining stale cache',
+        );
       } else {
         this.cachedModes = [];
         this.cachedConfigOptions = [];
@@ -63,8 +68,16 @@ export class ACPProbe {
     return this.lastSuccess;
   }
 
-  getModes() { return this.cachedModes; }
-  getConfigOptions() { return this.cachedConfigOptions; }
-  getCapabilities() { return this.cachedCapabilities; }
-  isAvailable() { return this.lastSuccess; }
+  getModes() {
+    return this.cachedModes;
+  }
+  getConfigOptions() {
+    return this.cachedConfigOptions;
+  }
+  getCapabilities() {
+    return this.cachedCapabilities;
+  }
+  isAvailable() {
+    return this.lastSuccess;
+  }
 }

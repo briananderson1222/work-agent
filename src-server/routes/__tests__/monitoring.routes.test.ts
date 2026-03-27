@@ -10,13 +10,20 @@ const { createMonitoringRoutes } = await import('../monitoring.js');
 
 function createMockDeps() {
   return {
-    activeAgents: new Map([['default', { name: 'Default', model: 'claude-3' }]]),
+    activeAgents: new Map([
+      ['default', { name: 'Default', model: 'claude-3' }],
+    ]),
     agentStats: new Map(),
     agentStatus: new Map([['default', 'idle']]),
-    memoryAdapters: new Map([['default', {
-      getConversations: vi.fn().mockResolvedValue([]),
-      getMessages: vi.fn().mockResolvedValue([]),
-    }]]),
+    memoryAdapters: new Map([
+      [
+        'default',
+        {
+          getConversations: vi.fn().mockResolvedValue([]),
+          getMessages: vi.fn().mockResolvedValue([]),
+        },
+      ],
+    ]),
     metricsLog: [] as any[],
     monitoringEvents: new EventEmitter(),
     queryEventsFromDisk: vi.fn().mockResolvedValue([]),
@@ -24,7 +31,9 @@ function createMockDeps() {
   };
 }
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Monitoring Routes', () => {
   test('GET /stats returns agent stats', async () => {
@@ -38,7 +47,12 @@ describe('Monitoring Routes', () => {
 
   test('GET /metrics returns filtered metrics', async () => {
     const deps = createMockDeps();
-    deps.metricsLog.push({ timestamp: Date.now(), agentSlug: 'default', event: 'chat', messageCount: 5 });
+    deps.metricsLog.push({
+      timestamp: Date.now(),
+      agentSlug: 'default',
+      event: 'chat',
+      messageCount: 5,
+    });
     const app = createMonitoringRoutes(deps as any);
     const body = await json(await app.request('/metrics?range=today'));
     expect(body.success).toBe(true);
@@ -47,9 +61,13 @@ describe('Monitoring Routes', () => {
 
   test('GET /events with time range returns historical JSON', async () => {
     const deps = createMockDeps();
-    deps.queryEventsFromDisk.mockResolvedValue([{ type: 'test', timestamp: Date.now() }]);
+    deps.queryEventsFromDisk.mockResolvedValue([
+      { type: 'test', timestamp: Date.now() },
+    ]);
     const app = createMonitoringRoutes(deps as any);
-    const body = await json(await app.request('/events?start=2026-01-01&end=2026-12-31'));
+    const body = await json(
+      await app.request('/events?start=2026-01-01&end=2026-12-31'),
+    );
     expect(body.success).toBe(true);
     expect(body.data).toHaveLength(1);
   });

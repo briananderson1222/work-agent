@@ -5,13 +5,13 @@
 import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { streamText } from 'ai';
+import { checkBedrockCredentials } from './bedrock.js';
 import type {
   ILLMProvider,
   LLMModel,
   LLMStreamChunk,
   LLMStreamOpts,
 } from './types.js';
-import { checkBedrockCredentials } from './bedrock.js';
 
 export class BedrockLLMProvider implements ILLMProvider {
   readonly id = 'bedrock';
@@ -45,7 +45,10 @@ export class BedrockLLMProvider implements ILLMProvider {
           supportsVision: m.inputModalities?.includes('IMAGE'),
         }));
     } catch (e) {
-      console.debug('Failed to list Bedrock foundation models, using fallback list:', e);
+      console.debug(
+        'Failed to list Bedrock foundation models, using fallback list:',
+        e,
+      );
       // Fallback: return common models
       return [
         {
@@ -117,7 +120,9 @@ export class BedrockLLMProvider implements ILLMProvider {
     }
   }
 
-  async getPrerequisites(): Promise<import('@stallion-ai/shared').Prerequisite[]> {
+  async getPrerequisites(): Promise<
+    import('@stallion-ai/shared').Prerequisite[]
+  > {
     const hasCreds = await checkBedrockCredentials();
     return [
       {

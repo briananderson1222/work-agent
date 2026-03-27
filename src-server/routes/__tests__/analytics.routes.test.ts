@@ -8,14 +8,18 @@ const { createAnalyticsRoutes } = await import('../analytics.js');
 
 function createMockAggregator() {
   return {
-    loadStats: vi.fn().mockResolvedValue({ byDate: {}, totalMessages: 0, totalCost: 0 }),
+    loadStats: vi
+      .fn()
+      .mockResolvedValue({ byDate: {}, totalMessages: 0, totalCost: 0 }),
     getAchievements: vi.fn().mockResolvedValue([]),
     fullRescan: vi.fn().mockResolvedValue({ byDate: {} }),
     reset: vi.fn().mockResolvedValue(undefined),
   };
 }
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Analytics Routes', () => {
   test('GET /usage returns stats', async () => {
@@ -34,10 +38,15 @@ describe('Analytics Routes', () => {
   test('GET /usage with date range filters', async () => {
     const agg = createMockAggregator();
     agg.loadStats.mockResolvedValue({
-      byDate: { '2026-03-20': { messages: 5, cost: 0.1 }, '2026-03-21': { messages: 3, cost: 0.05 } },
+      byDate: {
+        '2026-03-20': { messages: 5, cost: 0.1 },
+        '2026-03-21': { messages: 3, cost: 0.05 },
+      },
     });
     const app = createAnalyticsRoutes(agg as any);
-    const body = await json(await app.request('/usage?from=2026-03-21&to=2026-03-21'));
+    const body = await json(
+      await app.request('/usage?from=2026-03-21&to=2026-03-21'),
+    );
     expect(Object.keys(body.data.byDate)).toEqual(['2026-03-21']);
     expect(body.data.rangeSummary).toBeDefined();
   });

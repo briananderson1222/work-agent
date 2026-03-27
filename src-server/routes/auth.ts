@@ -1,5 +1,5 @@
-import { Hono } from 'hono';
 import { userInfo } from 'node:os';
+import { Hono } from 'hono';
 import {
   getAuthProvider,
   getUserDirectoryProvider,
@@ -8,6 +8,7 @@ import {
 import type { UserIdentity } from '../providers/types.js';
 import { authOps } from '../telemetry/metrics.js';
 import { createLogger } from '../utils/logger.js';
+import { errorMessage, param } from './schemas.js';
 
 const logger = createLogger({ name: 'auth' });
 
@@ -61,8 +62,8 @@ export function createAuthRoutes() {
     try {
       const result = await getAuthProvider().renew();
       return c.json(result);
-    } catch (error: any) {
-      return c.json({ success: false, message: error.message }, 500);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -70,13 +71,13 @@ export function createAuthRoutes() {
     try {
       const result = await getAuthProvider().renew();
       return c.json(result);
-    } catch (error: any) {
-      return c.json({ success: false, message: error.message }, 500);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
   app.get('/badge-photo/:id', async (c) => {
-    const id = c.req.param('id');
+    const id = param(c, 'id');
     const provider = getAuthProvider();
     if (!provider.getBadgePhoto) {
       return c.body(null, 404);
@@ -112,11 +113,11 @@ export function createUserRoutes() {
   });
 
   app.get('/:alias', async (c) => {
-    const alias = c.req.param('alias');
+    const alias = param(c, 'alias');
     try {
       return c.json(await getUserDirectoryProvider().lookupPerson(alias));
-    } catch (error: any) {
-      return c.json({ alias, name: alias, error: error.message }, 404);
+    } catch (error: unknown) {
+      return c.json({ alias, name: alias, error: errorMessage(error) }, 404);
     }
   });
 

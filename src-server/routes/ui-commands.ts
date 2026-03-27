@@ -8,7 +8,10 @@ export function createUICommandRoutes(eventBus: EventBus) {
   const app = new Hono();
 
   app.post('/', async (c) => {
-    const { command, payload } = await c.req.json<{ command: string; payload: Record<string, unknown> }>();
+    const { command, payload } = await c.req.json<{
+      command: string;
+      payload: Record<string, unknown>;
+    }>();
     uiCommandOps.add(1, { op: 'execute' });
 
     if (command === 'navigate') {
@@ -21,13 +24,19 @@ export function createUICommandRoutes(eventBus: EventBus) {
         path.startsWith('https:') ||
         INVALID_PATH.test(path)
       ) {
-        return c.json({ error: 'Invalid navigation path' }, 400);
+        return c.json(
+          { success: false, error: 'Invalid navigation path' },
+          400,
+        );
       }
       eventBus.emit('ui:navigate', { path });
       return c.json({ success: true });
     }
 
-    return c.json({ error: `Unknown command: ${command}` }, 400);
+    return c.json(
+      { success: false, error: `Unknown command: ${command}` },
+      400,
+    );
   });
 
   return app;

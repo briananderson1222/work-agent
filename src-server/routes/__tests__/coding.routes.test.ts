@@ -8,7 +8,9 @@ vi.mock('../../telemetry/metrics.js', () => ({
 const { createCodingRoutes } = await import('../coding.js');
 const { FileTreeService } = await import('../../services/file-tree-service.js');
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Coding Routes', () => {
   test('GET /files returns file tree', async () => {

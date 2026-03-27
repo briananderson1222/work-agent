@@ -15,7 +15,10 @@ function createMockStorageAdapter() {
       const idx = connections.findIndex((c) => c.id === id);
       if (idx >= 0) connections.splice(idx, 1);
     }),
-    getProject: vi.fn().mockResolvedValue({ defaultProviderId: 'bedrock', defaultModel: 'claude-3' }),
+    getProject: vi.fn().mockResolvedValue({
+      defaultProviderId: 'bedrock',
+      defaultModel: 'claude-3',
+    }),
     listProjects: vi.fn(() => []),
   };
 }
@@ -23,7 +26,11 @@ function createMockStorageAdapter() {
 describe('ProviderService', () => {
   test('listProviderConnections delegates', () => {
     const adapter = createMockStorageAdapter();
-    const svc = new ProviderService(adapter as any, async () => ({ defaultLLMProvider: 'bedrock', defaultModel: 'claude-3' }) as any);
+    const svc = new ProviderService(
+      adapter as any,
+      async () =>
+        ({ defaultLLMProvider: 'bedrock', defaultModel: 'claude-3' }) as any,
+    );
     svc.listProviderConnections();
     expect(adapter.listProviderConnections).toHaveBeenCalled();
   });
@@ -32,7 +39,10 @@ describe('ProviderService', () => {
     const adapter = createMockStorageAdapter();
     const svc = new ProviderService(adapter as any, async () => ({}) as any);
     svc.saveProviderConnection({ id: 'p1', type: 'bedrock' } as any);
-    expect(adapter.saveProviderConnection).toHaveBeenCalledWith({ id: 'p1', type: 'bedrock' });
+    expect(adapter.saveProviderConnection).toHaveBeenCalledWith({
+      id: 'p1',
+      type: 'bedrock',
+    });
   });
 
   test('deleteProviderConnection removes', () => {
@@ -45,7 +55,10 @@ describe('ProviderService', () => {
   test('resolveProvider uses conversation-level override', async () => {
     const adapter = createMockStorageAdapter();
     const svc = new ProviderService(adapter as any, async () => ({}) as any);
-    const result = await svc.resolveProvider({ conversationProviderId: 'openai', conversationModel: 'gpt-4' });
+    const result = await svc.resolveProvider({
+      conversationProviderId: 'openai',
+      conversationModel: 'gpt-4',
+    });
     expect(result).toEqual({ providerId: 'openai', model: 'gpt-4' });
   });
 
@@ -59,7 +72,14 @@ describe('ProviderService', () => {
   test('resolveProvider falls back to app config', async () => {
     const adapter = createMockStorageAdapter();
     adapter.getProject.mockRejectedValue(new Error('not found'));
-    const svc = new ProviderService(adapter as any, async () => ({ defaultLLMProvider: 'anthropic', defaultModel: 'claude-3.5' }) as any);
+    const svc = new ProviderService(
+      adapter as any,
+      async () =>
+        ({
+          defaultLLMProvider: 'anthropic',
+          defaultModel: 'claude-3.5',
+        }) as any,
+    );
     const result = await svc.resolveProvider({ projectSlug: 'missing' });
     expect(result).toEqual({ providerId: 'anthropic', model: 'claude-3.5' });
   });

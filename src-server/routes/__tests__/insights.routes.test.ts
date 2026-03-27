@@ -9,7 +9,9 @@ vi.mock('../../telemetry/metrics.js', () => ({
 
 const { createInsightsRoutes } = await import('../insights.js');
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Insights Routes', () => {
   let dir: string;
@@ -22,25 +24,38 @@ describe('Insights Routes', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  test('GET /insights returns empty data when no monitoring dir', async () => {
+  test('GET / returns empty data when no monitoring dir', async () => {
     const app = createInsightsRoutes(join(dir, 'nope'));
-    const body = await json(await app.request('/insights'));
+    const body = await json(await app.request('/'));
     expect(body.data.totalChats).toBe(0);
     expect(body.data.hourlyActivity).toHaveLength(24);
   });
 
-  test('GET /insights parses ndjson events', async () => {
+  test('GET / parses ndjson events', async () => {
     mkdirSync(dir, { recursive: true });
     const now = Date.now();
     const events = [
-      JSON.stringify({ type: 'agent-start', agentSlug: 'default', timestampMs: now }),
-      JSON.stringify({ type: 'tool-call', toolName: 'read_file', timestampMs: now }),
-      JSON.stringify({ type: 'agent-complete', agentSlug: 'default', timestampMs: now, usage: { promptTokens: 100, completionTokens: 50, model: 'claude-3' } }),
+      JSON.stringify({
+        type: 'agent-start',
+        agentSlug: 'default',
+        timestampMs: now,
+      }),
+      JSON.stringify({
+        type: 'tool-call',
+        toolName: 'read_file',
+        timestampMs: now,
+      }),
+      JSON.stringify({
+        type: 'agent-complete',
+        agentSlug: 'default',
+        timestampMs: now,
+        usage: { promptTokens: 100, completionTokens: 50, model: 'claude-3' },
+      }),
     ];
     writeFileSync(join(dir, 'events-2026-03-23.ndjson'), events.join('\n'));
 
     const app = createInsightsRoutes(dir);
-    const body = await json(await app.request('/insights?days=1'));
+    const body = await json(await app.request('/?days=1'));
     expect(body.data.totalChats).toBe(1);
     expect(body.data.totalToolCalls).toBe(1);
     expect(body.data.agentUsage.default.chats).toBe(1);

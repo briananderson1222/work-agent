@@ -5,7 +5,6 @@
 
 import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { resolveHomeDir } from '../utils/paths.js';
 import type {
   AddJobOpts,
   ISchedulerProvider,
@@ -16,11 +15,14 @@ import type {
   SchedulerProviderStatus,
 } from '../providers/types.js';
 import {
+  schedulerHealthy,
   schedulerJobDuration,
   schedulerJobRuns,
 } from '../telemetry/metrics.js';
+import { resolveHomeDir } from '../utils/paths.js';
 import { cronMatches, nextCronTimes } from './cron.js';
 import { JsonFileStore } from './json-store.js';
+import type { NotificationService } from './notification-service.js';
 import { SSEBroadcaster } from './sse-broadcaster.js';
 
 export { nextCronTimes } from './cron.js';
@@ -37,6 +39,8 @@ interface StoredJob {
   enabled: boolean;
   openArtifact?: string;
   notifyStart?: boolean;
+  retryCount?: number;
+  retryDelaySecs?: number;
   createdAt: string;
 }
 
@@ -53,49 +57,97 @@ export class BuiltinScheduler implements ISchedulerProvider {
   readonly capabilities: SchedulerCapability[] = [];
 
   private timer: ReturnType<typeof setInterval> | null = null;
+  private watchdog: ReturnType<typeof setInterval> | null = null;
   private running = new Set<string>();
   private runningJobs = new Map<string, Promise<void>>();
   private missed = new Map<string, number>();
   private sse = new SSEBroadcaster();
   private chatFn: ChatFn | null = null;
+  private notificationService: NotificationService | null = null;
+  private lastTickAt = 0;
 
   /** Provide the chat function once the runtime is ready */
   setChatFn(fn: ChatFn) {
     this.chatFn = fn;
   }
 
+  /** Provide the notification service for failure alerts */
+  setNotificationService(ns: NotificationService) {
+    this.notificationService = ns;
+  }
+
   start() {
     if (this.timer) return;
     this.timer = setInterval(() => this.tick(), 60_000);
+    this.watchdog = setInterval(() => this.checkHealth(), 120_000);
+    schedulerHealthy.addCallback((obs) => {
+      const age = this.lastTickAt ? Date.now() - this.lastTickAt : null;
+      obs.observe(
+        this.timer !== null && (age === null || age < 120_000) ? 1 : 0,
+      );
+    });
     this.tick();
   }
 
   async stop() {
-    if (this.timer) { clearInterval(this.timer); this.timer = null; }
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    if (this.watchdog) {
+      clearInterval(this.watchdog);
+      this.watchdog = null;
+    }
     await Promise.all(this.runningJobs.values());
   }
 
   private trackJob(name: string): () => void {
     let resolve: () => void;
-    const p = new Promise<void>(r => { resolve = r; });
+    const p = new Promise<void>((r) => {
+      resolve = r;
+    });
     this.runningJobs.set(name, p);
-    return () => { this.runningJobs.delete(name); resolve!(); };
+    return () => {
+      this.runningJobs.delete(name);
+      resolve!();
+    };
   }
 
   private tick() {
+    this.lastTickAt = Date.now();
     const now = new Date();
     for (const job of jobStore.read()) {
       if (!job.enabled || !job.cron) continue;
       if (!cronMatches(job.cron, now)) continue;
       if (this.running.has(job.name)) {
-        this.missed.set(job.name, (this.missed.get(job.name) || 0) + 1);
+        const count = (this.missed.get(job.name) || 0) + 1;
+        this.missed.set(job.name, count);
+        this.broadcast({
+          event: 'job.missed',
+          job: job.name,
+          missedCount: count,
+        });
+        this.notificationService?.schedule('scheduler', {
+          category: 'job-missed',
+          title: `Job "${job.name}" missed schedule`,
+          body: `Still running from previous execution (${count} missed)`,
+          priority: 'normal',
+          dedupeTag: `scheduler:miss:${job.name}`,
+          actions: [{ id: 'view-job', label: 'View Job' }],
+          metadata: {
+            jobName: job.name,
+            missedCount: count,
+            link: `/schedule?job=${job.name}`,
+          },
+        });
         continue;
       }
       this.executeJob(job);
     }
   }
 
-  private async executeJob(job: StoredJob, manual = false) {
+  private async executeJob(job: StoredJob, manual = false, attempt = 1) {
+    const maxAttempts = (job.retryCount ?? 0) + 1;
     const done = this.trackJob(job.name);
     const id = `${job.name}-${Date.now()}`;
     const startedAt = new Date().toISOString();
@@ -113,7 +165,17 @@ export class BuiltinScheduler implements ISchedulerProvider {
         throw new Error('Scheduler not connected to agent runtime');
       const agent =
         job.agent && job.agent !== 'default' ? job.agent : 'default';
-      const output = await this.chatFn(agent, job.prompt);
+      const JOB_TIMEOUT = 10 * 60_000;
+      const output = await Promise.race([
+        this.chatFn(agent, job.prompt),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () =>
+              reject(new Error(`Job timed out after ${JOB_TIMEOUT / 60_000}m`)),
+            JOB_TIMEOUT,
+          ),
+        ),
+      ]);
 
       writeFileSync(outFile, output);
       const completedAt = new Date().toISOString();
@@ -132,6 +194,8 @@ export class BuiltinScheduler implements ISchedulerProvider {
         missedCount: this.missed.get(job.name) || 0,
         manual,
         output: outFile,
+        attempt,
+        maxAttempts,
       });
       this.broadcast({
         event: 'job.completed',
@@ -147,6 +211,9 @@ export class BuiltinScheduler implements ISchedulerProvider {
         (Date.parse(completedAt) - Date.parse(startedAt)) / 1000;
       schedulerJobRuns.add(1, { job: job.name, status: 'error' });
       schedulerJobDuration.record(durationSecs * 1000, { job: job.name });
+
+      const willRetry = (job.retryCount ?? 0) > 0 && attempt < maxAttempts;
+
       logStore.append({
         id,
         job: job.name,
@@ -158,13 +225,41 @@ export class BuiltinScheduler implements ISchedulerProvider {
         manual,
         output: outFile,
         error: e.message,
+        attempt,
+        maxAttempts,
       });
-      this.broadcast({
-        event: 'job.failed',
-        job: job.name,
-        id,
-        error: e.message,
-      });
+
+      if (willRetry) {
+        const delaySecs = job.retryDelaySecs ?? 0;
+        this.broadcast({
+          event: 'job.retrying',
+          job: job.name,
+          id,
+          error: e.message,
+          attempt,
+          maxAttempts,
+        });
+        setTimeout(
+          () => this.executeJob(job, manual, attempt + 1),
+          delaySecs * 1000,
+        );
+      } else {
+        this.broadcast({
+          event: 'job.failed',
+          job: job.name,
+          id,
+          error: e.message,
+        });
+        this.notificationService?.schedule('scheduler', {
+          category: 'job-failure',
+          title: `Job "${job.name}" failed`,
+          body: e.message,
+          priority: 'high',
+          dedupeTag: `scheduler:fail:${job.name}`,
+          actions: [{ id: 'view-logs', label: 'View Logs' }],
+          metadata: { jobName: job.name, link: `/schedule?job=${job.name}` },
+        });
+      }
     } finally {
       this.missed.delete(job.name);
       this.running.delete(job.name);
@@ -174,6 +269,25 @@ export class BuiltinScheduler implements ISchedulerProvider {
 
   private broadcast(event: Record<string, unknown>) {
     this.sse.broadcast(event);
+  }
+
+  private checkHealth() {
+    if (!this.lastTickAt) return;
+    const age = Date.now() - this.lastTickAt;
+    if (age > 120_000) {
+      this.notificationService?.schedule('scheduler', {
+        category: 'scheduler-unhealthy',
+        title: 'Scheduler heartbeat stale',
+        body: `Last tick was ${Math.round(age / 1000)}s ago`,
+        priority: 'high',
+        dedupeTag: 'scheduler:heartbeat-stale',
+        actions: [{ id: 'view-scheduler', label: 'View Scheduler' }],
+        metadata: {
+          lastTickAt: new Date(this.lastTickAt).toISOString(),
+          link: '/schedule',
+        },
+      });
+    }
   }
 
   // ── ISchedulerProvider ──
@@ -208,6 +322,8 @@ export class BuiltinScheduler implements ISchedulerProvider {
       agent: opts.agent,
       openArtifact: opts.openArtifact,
       notifyStart: opts.notifyStart,
+      retryCount: opts.retryCount,
+      retryDelaySecs: opts.retryDelaySecs,
       enabled: true,
       createdAt: new Date().toISOString(),
     });
@@ -274,8 +390,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
   async readRunFile(path: string): Promise<string> {
     const real = realpathSync(path);
     const logsReal = realpathSync(LOGS_DIR);
-    if (!real.startsWith(logsReal))
-      throw new Error('Invalid path');
+    if (!real.startsWith(logsReal)) throw new Error('Invalid path');
     return readFileSync(real, 'utf-8');
   }
 
@@ -300,7 +415,15 @@ export class BuiltinScheduler implements ISchedulerProvider {
   }
 
   async getStatus(): Promise<SchedulerProviderStatus> {
-    return { running: this.timer !== null, jobCount: jobStore.read().length };
+    const tickAge = this.lastTickAt ? Date.now() - this.lastTickAt : null;
+    return {
+      running: this.timer !== null,
+      jobCount: jobStore.read().length,
+      lastTickAt: this.lastTickAt
+        ? new Date(this.lastTickAt).toISOString()
+        : null,
+      healthy: this.timer !== null && (tickAge === null || tickAge < 120_000),
+    };
   }
 
   async previewSchedule(cron: string, count = 5): Promise<string[]> {

@@ -9,11 +9,11 @@ import type { ConfigLoader } from '../domain/config-loader.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
-import { estimateCost, findModelPricing } from '../utils/pricing.js';
 import {
   contextTokens as otelContextTokens,
   costEstimated as otelCost,
 } from '../telemetry/metrics.js';
+import { estimateCost, findModelPricing } from '../utils/pricing.js';
 
 // Type extensions for tool executor
 interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
@@ -442,7 +442,11 @@ export function createToolApprovalHooks(
             // Get model capabilities
             const models = await modelCatalog?.listModels();
             const modelInfo = models?.find((m) => m.modelId === modelId);
-            const pricingInfo = await findModelPricing(modelCatalog, modelId, appConfig.region);
+            const pricingInfo = await findModelPricing(
+              modelCatalog,
+              modelId,
+              appConfig.region,
+            );
 
             // Remove and re-add with metadata
             await adapter.removeLastMessage(

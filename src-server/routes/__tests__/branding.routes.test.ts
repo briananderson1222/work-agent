@@ -14,14 +14,16 @@ vi.mock('../../providers/registry.js', () => ({
 
 const { createBrandingRoutes } = await import('../branding.js');
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Branding Routes', () => {
   test('GET / returns branding config', async () => {
     const app = createBrandingRoutes();
     const body = await json(await app.request('/'));
-    expect(body.name).toBe('Stallion AI');
-    expect(body.theme).toEqual({ primary: '#000' });
-    expect(body.welcomeMessage).toBe('Hello!');
+    expect(body.data.name).toBe('Stallion AI');
+    expect(body.data.theme).toEqual({ primary: '#000' });
+    expect(body.data.welcomeMessage).toBe('Hello!');
   });
 });

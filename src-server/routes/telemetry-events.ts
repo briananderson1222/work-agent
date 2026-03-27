@@ -1,11 +1,18 @@
 import { Hono } from 'hono';
+import type { Logger } from '../utils/logger.js';
+import {
+  errorMessage,
+  getBody,
+  telemetryEventsSchema,
+  validate,
+} from './schemas.js';
 
-export function createTelemetryRoutes(logger: any) {
+export function createTelemetryRoutes(logger: Logger) {
   const app = new Hono();
 
-  app.post('/events', async (c) => {
+  app.post('/events', validate(telemetryEventsSchema), async (c) => {
     try {
-      const { events } = await c.req.json();
+      const { events } = getBody(c);
       const plugin = c.req.header('x-stallion-plugin') || '';
       // Log events for now — the OTLP pipeline picks them up via server metrics
       if (Array.isArray(events)) {
@@ -14,8 +21,8 @@ export function createTelemetryRoutes(logger: any) {
         }
       }
       return c.json({ success: true });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 

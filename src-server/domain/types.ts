@@ -41,7 +41,7 @@ export interface ACPConnectionConfig {
   enabled: boolean;
   source?: 'user' | 'plugin';
   interactive?: {
-    args: string[];  // '{agent}' placeholder replaced with mode slug at launch
+    args: string[]; // '{agent}' placeholder replaced with mode slug at launch
   };
 }
 

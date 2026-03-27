@@ -67,7 +67,10 @@ export class BedrockModelCatalog {
       }));
     } catch (error: any) {
       // If credentials are missing or invalid, return empty array instead of failing
-      if (error.name === 'CredentialsProviderError' || error.$metadata?.httpStatusCode === 403) {
+      if (
+        error.name === 'CredentialsProviderError' ||
+        error.$metadata?.httpStatusCode === 403
+      ) {
         return [];
       }
       throw error;
@@ -98,7 +101,10 @@ export class BedrockModelCatalog {
       return profiles;
     } catch (error: any) {
       // If credentials are missing or invalid, return empty array instead of failing
-      if (error.name === 'CredentialsProviderError' || error.$metadata?.httpStatusCode === 403) {
+      if (
+        error.name === 'CredentialsProviderError' ||
+        error.$metadata?.httpStatusCode === 403
+      ) {
         return [];
       }
       throw error;
@@ -241,9 +247,7 @@ export class BedrockModelCatalog {
       if (exact) return exact.inferenceProfileId;
       // Fuzzy: strip date/version suffix and find a profile that starts with the base
       const base = modelId.replace(/-\d{8}-v\d+:\d+$/, '');
-      const fuzzy = profiles.find(
-        (p) => p.inferenceProfileId === `us.${base}`,
-      );
+      const fuzzy = profiles.find((p) => p.inferenceProfileId === `us.${base}`);
       if (fuzzy) return fuzzy.inferenceProfileId;
     } catch (e) {
       console.debug('Failed to resolve model via fuzzy profile match:', e);

@@ -27,7 +27,11 @@ describe('NotificationService', () => {
   });
 
   test('schedule creates an immediately delivered notification', () => {
-    const n = svc.schedule('test', { title: 'Hello', body: 'World', category: 'test' });
+    const n = svc.schedule('test', {
+      title: 'Hello',
+      body: 'World',
+      category: 'test',
+    });
     expect(n.status).toBe('delivered');
     expect(n.title).toBe('Hello');
   });
@@ -77,8 +81,18 @@ describe('NotificationService', () => {
   });
 
   test('dedupeTag updates existing instead of creating new', () => {
-    svc.schedule('test', { title: 'V1', body: '', category: 'c', dedupeTag: 'dup' });
-    svc.schedule('test', { title: 'V2', body: '', category: 'c', dedupeTag: 'dup' });
+    svc.schedule('test', {
+      title: 'V1',
+      body: '',
+      category: 'c',
+      dedupeTag: 'dup',
+    });
+    svc.schedule('test', {
+      title: 'V2',
+      body: '',
+      category: 'c',
+      dedupeTag: 'dup',
+    });
     const all = svc.list();
     expect(all).toHaveLength(1);
     expect(all[0].title).toBe('V2');
@@ -108,7 +122,12 @@ describe('NotificationService', () => {
   });
 
   test('addProvider and listProviders', () => {
-    svc.addProvider({ id: 'mock', displayName: 'Mock', categories: new Set(['test']), poll: async () => [] } as any);
+    svc.addProvider({
+      id: 'mock',
+      displayName: 'Mock',
+      categories: new Set(['test']),
+      poll: async () => [],
+    } as any);
     const providers = svc.listProviders();
     expect(providers).toHaveLength(1);
     expect(providers[0].id).toBe('mock');

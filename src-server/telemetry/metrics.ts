@@ -60,9 +60,12 @@ export const pluginUninstalls = meter.createCounter(
 export const pluginUpdates = meter.createCounter('stallion.plugin.updates', {
   description: 'Plugin update events',
 });
-export const pluginSettingsUpdates = meter.createCounter('stallion.plugin.settings_updates', {
-  description: 'Plugin settings update events',
-});
+export const pluginSettingsUpdates = meter.createCounter(
+  'stallion.plugin.settings_updates',
+  {
+    description: 'Plugin settings update events',
+  },
+);
 
 // ── CRUD operations ──
 export const agentOps = meter.createCounter('stallion.agent.operations', {
@@ -104,6 +107,10 @@ export const schedulerJobDuration = meter.createHistogram(
     description: 'Scheduler job execution duration',
     unit: 'ms',
   },
+);
+export const schedulerHealthy = meter.createObservableGauge(
+  'stallion.scheduler.healthy',
+  { description: 'Scheduler heartbeat health (1=healthy, 0=unhealthy)' },
 );
 
 // ── MCP lifecycle ──
@@ -189,21 +196,33 @@ export const registryOps = meter.createCounter('stallion.registry.operations', {
 });
 
 // ── Skills ──
-export const skillDiscoveries = meter.createCounter('stallion.skill.discoveries', {
-  description: 'Skill discovery events',
-});
-export const skillActivations = meter.createCounter('stallion.skill.activations', {
-  description: 'Skill activation events',
-});
-export const skillActivationDuration = meter.createHistogram('stallion.skill.activation.duration', {
-  description: 'Skill activation duration',
-  unit: 'ms',
-});
+export const skillDiscoveries = meter.createCounter(
+  'stallion.skill.discoveries',
+  {
+    description: 'Skill discovery events',
+  },
+);
+export const skillActivations = meter.createCounter(
+  'stallion.skill.activations',
+  {
+    description: 'Skill activation events',
+  },
+);
+export const skillActivationDuration = meter.createHistogram(
+  'stallion.skill.activation.duration',
+  {
+    description: 'Skill activation duration',
+    unit: 'ms',
+  },
+);
 
 // ── Analytics ──
-export const analyticsOps = meter.createCounter('stallion.analytics.operations', {
-  description: 'Analytics query events',
-});
+export const analyticsOps = meter.createCounter(
+  'stallion.analytics.operations',
+  {
+    description: 'Analytics query events',
+  },
+);
 
 // ── Bedrock ──
 export const bedrockOps = meter.createCounter('stallion.bedrock.operations', {
@@ -231,9 +250,12 @@ export const systemOps = meter.createCounter('stallion.system.operations', {
 });
 
 // ── UI Commands ──
-export const uiCommandOps = meter.createCounter('stallion.uicommand.operations', {
-  description: 'UI command execution events',
-});
+export const uiCommandOps = meter.createCounter(
+  'stallion.uicommand.operations',
+  {
+    description: 'UI command execution events',
+  },
+);
 
 export function registerObservableGauges(callbacks: {
   activeAgents: () => number;

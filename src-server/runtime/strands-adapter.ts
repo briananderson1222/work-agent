@@ -390,7 +390,10 @@ export class StrandsFramework {
       );
     }
 
-    const resolvedPrompt = typeof opts.processedPrompt === 'function' ? opts.processedPrompt() : opts.processedPrompt;
+    const resolvedPrompt =
+      typeof opts.processedPrompt === 'function'
+        ? opts.processedPrompt()
+        : opts.processedPrompt;
     const strandsAgent = new StrandsAgent({
       model,
       systemPrompt: resolvedPrompt,
@@ -485,8 +488,14 @@ export class StrandsFramework {
               for (const block of msg.content || []) {
                 if (block.text !== undefined) {
                   parts.push({ type: 'text' as const, text: block.text || '' });
-                } else if (block.reasoningText !== undefined || block.type === 'reasoningBlock') {
-                  parts.push({ type: 'reasoning' as const, text: block.reasoningText || block.text || '' });
+                } else if (
+                  block.reasoningText !== undefined ||
+                  block.type === 'reasoningBlock'
+                ) {
+                  parts.push({
+                    type: 'reasoning' as const,
+                    text: block.reasoningText || block.text || '',
+                  });
                 } else if (block.type === 'toolUseBlock') {
                   parts.push({
                     type: 'tool-invocation' as const,
@@ -706,7 +715,10 @@ export class StrandsFramework {
           callback: async (input: unknown) => t.execute(input),
         }),
     );
-    const resolved = typeof opts.instructions === 'function' ? opts.instructions() : opts.instructions;
+    const resolved =
+      typeof opts.instructions === 'function'
+        ? opts.instructions()
+        : opts.instructions;
     const agent = new StrandsAgent({
       model: opts.model,
       systemPrompt: resolved,

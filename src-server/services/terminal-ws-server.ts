@@ -42,18 +42,24 @@ export class TerminalWebSocketServer {
           switch (msg.type) {
             case 'open': {
               const snapshot = await this.terminalService.open({
-                ...(msg as unknown as Parameters<typeof this.terminalService.open>[0]),
+                ...(msg as unknown as Parameters<
+                  typeof this.terminalService.open
+                >[0]),
                 shell: msg.shell as string | undefined,
                 shellArgs: msg.shellArgs as string[] | undefined,
               });
               ws.send(JSON.stringify({ type: 'snapshot', ...snapshot }));
               // Track session ownership
               const sid = snapshot.sessionId;
-              if (!this.clientSessions.has(ws)) this.clientSessions.set(ws, new Set());
+              if (!this.clientSessions.has(ws))
+                this.clientSessions.set(ws, new Set());
               this.clientSessions.get(ws)!.add(sid);
               // Cancel idle timer if client reconnected
               const timer = this.idleTimers.get(sid);
-              if (timer) { clearTimeout(timer); this.idleTimers.delete(sid); }
+              if (timer) {
+                clearTimeout(timer);
+                this.idleTimers.delete(sid);
+              }
               break;
             }
             case 'data':
@@ -100,13 +106,19 @@ export class TerminalWebSocketServer {
             // Check if any other client owns this session
             let owned = false;
             for (const [, s] of this.clientSessions) {
-              if (s.has(sid)) { owned = true; break; }
+              if (s.has(sid)) {
+                owned = true;
+                break;
+              }
             }
             if (!owned) {
-              this.idleTimers.set(sid, setTimeout(() => {
-                this.idleTimers.delete(sid);
-                this.terminalService.close(sid);
-              }, 60_000));
+              this.idleTimers.set(
+                sid,
+                setTimeout(() => {
+                  this.idleTimers.delete(sid);
+                  this.terminalService.close(sid);
+                }, 60_000),
+              );
             }
           }
         }

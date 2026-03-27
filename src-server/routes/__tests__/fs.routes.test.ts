@@ -6,20 +6,22 @@ vi.mock('../../telemetry/metrics.js', () => ({
 
 const { createFsRoutes } = await import('../fs.js');
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('FS Routes', () => {
   test('GET /browse returns directories for home', async () => {
     const app = createFsRoutes();
     const body = await json(await app.request('/browse'));
-    expect(body.path).toBeDefined();
-    expect(Array.isArray(body.entries)).toBe(true);
+    expect(body.data.path).toBeDefined();
+    expect(Array.isArray(body.data.entries)).toBe(true);
   });
 
   test('GET /browse with explicit path', async () => {
     const app = createFsRoutes();
     const body = await json(await app.request('/browse?path=/tmp'));
-    expect(body.path).toBe('/tmp');
+    expect(body.data.path).toBe('/tmp');
   });
 
   test('GET /browse returns 404 for invalid path', async () => {

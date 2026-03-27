@@ -5,6 +5,7 @@
 import { Hono } from 'hono';
 import type { UsageAggregator } from '../analytics/usage-aggregator.js';
 import { analyticsOps } from '../telemetry/metrics.js';
+import { errorMessage } from './schemas.js';
 
 export function createAnalyticsRoutes(
   usageAggregator: UsageAggregator | undefined,
@@ -53,11 +54,14 @@ export function createAnalyticsRoutes(
           totalCost,
           avgPerDay,
         };
-        return c.json({ data: { ...stats, byDate: filtered, rangeSummary } });
+        return c.json({
+          success: true,
+          data: { ...stats, byDate: filtered, rangeSummary },
+        });
       }
-      return c.json({ data: stats });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: true, data: stats });
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -71,9 +75,9 @@ export function createAnalyticsRoutes(
       }
       const achievements = await usageAggregator.getAchievements();
       analyticsOps.add(1, { op: 'get_achievements' });
-      return c.json({ data: achievements });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: true, data: achievements });
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -87,9 +91,13 @@ export function createAnalyticsRoutes(
       }
       const stats = await usageAggregator.fullRescan();
       analyticsOps.add(1, { op: 'rescan' });
-      return c.json({ data: stats, message: 'Full rescan completed' });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({
+        success: true,
+        data: stats,
+        message: 'Full rescan completed',
+      });
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -104,8 +112,8 @@ export function createAnalyticsRoutes(
       await usageAggregator.reset();
       analyticsOps.add(1, { op: 'delete_usage' });
       return c.json({ success: true, message: 'Usage stats reset' });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 

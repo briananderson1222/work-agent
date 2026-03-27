@@ -68,7 +68,16 @@ export interface IS2SProvider extends EventEmitter {
 export type VoiceWsMessage =
   | { type: 'audio_in'; data: string }
   | { type: 'audio_out'; data: string }
-  | { type: 'transcript'; text: string; role: 'user' | 'assistant'; stage: 'speculative' | 'final' }
+  | {
+      type: 'transcript';
+      text: string;
+      role: 'user' | 'assistant';
+      stage: 'speculative' | 'final';
+    }
   | { type: 'state'; state: S2SProviderState }
   | { type: 'error'; message: string }
-  | { type: 'session_ready'; inputAudioFormat: S2SAudioFormat; outputAudioFormat: S2SAudioFormat };
+  | {
+      type: 'session_ready';
+      inputAudioFormat: S2SAudioFormat;
+      outputAudioFormat: S2SAudioFormat;
+    };

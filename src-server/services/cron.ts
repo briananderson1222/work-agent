@@ -40,6 +40,30 @@ export function cronMatches(cron: string, date: Date): boolean {
   );
 }
 
+/** Validate a 5-field cron expression. Returns error string or null if valid. */
+export function validateCron(cron: string): string | null {
+  const parts = cron.trim().split(/\s+/);
+  if (parts.length !== 5) return `Expected 5 fields, got ${parts.length}`;
+  const ranges: [number, number][] = [
+    [0, 59],
+    [0, 23],
+    [1, 31],
+    [1, 12],
+    [0, 6],
+  ];
+  for (let i = 0; i < 5; i++) {
+    try {
+      const vals = parseCronField(parts[i], ranges[i][0], ranges[i][1]);
+      if (vals.length === 0) return `Field ${i + 1} produced no values`;
+      if (vals.some((v) => v < ranges[i][0] || v > ranges[i][1]))
+        return `Field ${i + 1} has values outside ${ranges[i][0]}-${ranges[i][1]}`;
+    } catch {
+      return `Field ${i + 1} is invalid`;
+    }
+  }
+  return null;
+}
+
 export function nextCronTimes(
   cron: string,
   count: number,

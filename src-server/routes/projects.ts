@@ -5,11 +5,25 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type {
+  KnowledgeNamespaceConfig,
+  PluginManifest,
+} from '@stallion-ai/shared';
 import { Hono } from 'hono';
-import type { KnowledgeNamespaceConfig, PluginManifest } from '@stallion-ai/shared';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { ProjectService } from '../services/project-service.js';
 import { projectOps } from '../telemetry/metrics.js';
+import {
+  errorMessage,
+  getBody,
+  param,
+  projectCreateSchema,
+  projectLayoutCreateSchema,
+  projectLayoutFromPluginSchema,
+  projectLayoutUpdateSchema,
+  projectUpdateSchema,
+  validate,
+} from './schemas.js';
 
 /** Scan installed plugins for available layout sources */
 function getAvailableLayouts(projectHomeDir: string) {
@@ -74,7 +88,11 @@ function getAvailableLayouts(projectHomeDir: string) {
         tabCount: layout.tabs?.length,
       });
     } catch (e) {
-      console.debug('Failed to read plugin layout for available layouts:', entry.name, e);
+      console.debug(
+        'Failed to read plugin layout for available layouts:',
+        entry.name,
+        e,
+      );
       /* skip broken plugins */
     }
   }
@@ -118,11 +136,15 @@ function registerPluginNamespaces(
   const namespaces = manifest.knowledge?.namespaces;
   if (!namespaces?.length) return;
   const project = storageAdapter.getProject(projectSlug);
-  const existing: KnowledgeNamespaceConfig[] = project.knowledgeNamespaces ?? [];
+  const existing: KnowledgeNamespaceConfig[] =
+    project.knowledgeNamespaces ?? [];
   const existingIds = new Set(existing.map((n) => n.id));
   const toAdd = namespaces.filter((n) => !existingIds.has(n.id));
   if (!toAdd.length) return;
-  storageAdapter.saveProject({ ...project, knowledgeNamespaces: [...existing, ...toAdd] });
+  storageAdapter.saveProject({
+    ...project,
+    knowledgeNamespaces: [...existing, ...toAdd],
+  });
 }
 
 export function createProjectRoutes(
@@ -137,75 +159,75 @@ export function createProjectRoutes(
     try {
       const projects = await projectService.listProjects();
       return c.json({ success: true, data: projects });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
   // Create project
-  app.post('/', async (c) => {
+  app.post('/', validate(projectCreateSchema), async (c) => {
     try {
-      const body = await c.req.json();
+      const body = getBody(c);
       const project = await projectService.createProject(body);
       projectOps.add(1, { op: 'create' });
       return c.json({ success: true, data: project }, 201);
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 
   // Get project
   app.get('/:slug', async (c) => {
     try {
-      const slug = c.req.param('slug');
+      const slug = param(c, 'slug');
       const project = await projectService.getProject(slug);
       return c.json({ success: true, data: project });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 404);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 404);
     }
   });
 
   // Update project
-  app.put('/:slug', async (c) => {
+  app.put('/:slug', validate(projectUpdateSchema), async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const body = await c.req.json();
+      const slug = param(c, 'slug');
+      const body = getBody(c);
       const updated = await projectService.updateProject(slug, body);
       projectOps.add(1, { op: 'update' });
       return c.json({ success: true, data: updated });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 
   // Delete project
   app.delete('/:slug', async (c) => {
     try {
-      const slug = c.req.param('slug');
+      const slug = param(c, 'slug');
       await projectService.deleteProject(slug);
       projectOps.add(1, { op: 'delete' });
       return c.json({ success: true }, 200);
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 
   // List layouts
   app.get('/:slug/layouts', async (c) => {
     try {
-      const slug = c.req.param('slug');
+      const slug = param(c, 'slug');
       const layouts = storageAdapter.listLayouts(slug);
       return c.json({ success: true, data: layouts });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
   // Create layout
-  app.post('/:slug/layouts', async (c) => {
+  app.post('/:slug/layouts', validate(projectLayoutCreateSchema), async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const body = await c.req.json();
+      const slug = param(c, 'slug');
+      const body = getBody(c);
 
       // Auto-resolve workingDirectory for coding layouts from project
       if (body.type === 'coding' && !body.config?.workingDirectory) {
@@ -221,16 +243,16 @@ export function createProjectRoutes(
       storageAdapter.saveLayout(slug, body);
       projectOps.add(1, { op: 'add_layout' });
       return c.json({ success: true, data: body }, 201);
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 
   // Get layout — resolves plugin layouts dynamically
   app.get('/:slug/layouts/:layoutSlug', async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const layoutSlug = c.req.param('layoutSlug');
+      const slug = param(c, 'slug');
+      const layoutSlug = param(c, 'layoutSlug');
       const layout = storageAdapter.getLayout(slug, layoutSlug);
 
       // Dynamic resolution: if layout references a plugin, merge fresh layout data
@@ -261,33 +283,37 @@ export function createProjectRoutes(
       }
 
       return c.json({ success: true, data: layout });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 404);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 404);
     }
   });
 
   // Update layout
-  app.put('/:slug/layouts/:layoutSlug', async (c) => {
-    try {
-      const slug = c.req.param('slug');
-      const body = await c.req.json();
-      storageAdapter.saveLayout(slug, body);
-      return c.json({ success: true, data: body });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
-    }
-  });
+  app.put(
+    '/:slug/layouts/:layoutSlug',
+    validate(projectLayoutUpdateSchema),
+    async (c) => {
+      try {
+        const slug = param(c, 'slug');
+        const body = getBody(c);
+        storageAdapter.saveLayout(slug, body);
+        return c.json({ success: true, data: body });
+      } catch (error: unknown) {
+        return c.json({ success: false, error: errorMessage(error) }, 400);
+      }
+    },
+  );
 
   // Delete layout
   app.delete('/:slug/layouts/:layoutSlug', async (c) => {
     try {
-      const slug = c.req.param('slug');
-      const layoutSlug = c.req.param('layoutSlug');
+      const slug = param(c, 'slug');
+      const layoutSlug = param(c, 'layoutSlug');
       storageAdapter.deleteLayout(slug, layoutSlug);
       projectOps.add(1, { op: 'remove_layout' });
       return c.json({ success: true }, 200);
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 
@@ -297,62 +323,66 @@ export function createProjectRoutes(
     try {
       const homeDir = projectHomeDir;
       return c.json({ success: true, data: getAvailableLayouts(homeDir) });
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 500);
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
     }
   });
 
   // ── Apply plugin layout to project ──
 
-  app.post('/:slug/layouts/from-plugin', async (c) => {
-    try {
-      const slug = c.req.param('slug');
-      const { plugin: pluginName } = await c.req.json();
-      if (!pluginName)
-        return c.json({ success: false, error: 'plugin name required' }, 400);
+  app.post(
+    '/:slug/layouts/from-plugin',
+    validate(projectLayoutFromPluginSchema),
+    async (c) => {
+      try {
+        const slug = param(c, 'slug');
+        const { plugin: pluginName } = getBody(c);
+        if (!pluginName)
+          return c.json({ success: false, error: 'plugin name required' }, 400);
 
-      const homeDir = projectHomeDir;
-      const ws = readPluginLayout(homeDir, pluginName);
-      if (!ws)
-        return c.json(
-          { success: false, error: `Plugin '${pluginName}' has no layout` },
-          404,
-        );
+        const homeDir = projectHomeDir;
+        const ws = readPluginLayout(homeDir, pluginName);
+        if (!ws)
+          return c.json(
+            { success: false, error: `Plugin '${pluginName}' has no layout` },
+            404,
+          );
 
-      const now = new Date().toISOString();
-      const layout = {
-        id: randomUUID(),
-        projectSlug: slug,
-        type: 'chat',
-        name: ws.name,
-        slug: ws.slug,
-        icon: ws.icon,
-        description: ws.description,
-        config: {
-          plugin: pluginName,
-          tabs: ws.tabs,
-          globalPrompts: ws.globalPrompts,
-          defaultAgent: ws.defaultAgent,
-          availableAgents: ws.availableAgents,
-          requiredProviders: ws.requiredProviders,
-        },
-        createdAt: now,
-        updatedAt: now,
-      };
+        const now = new Date().toISOString();
+        const layout = {
+          id: randomUUID(),
+          projectSlug: slug,
+          type: 'chat',
+          name: ws.name,
+          slug: ws.slug,
+          icon: ws.icon,
+          description: ws.description,
+          config: {
+            plugin: pluginName,
+            tabs: ws.tabs,
+            globalPrompts: ws.globalPrompts,
+            defaultAgent: ws.defaultAgent,
+            availableAgents: ws.availableAgents,
+            requiredProviders: ws.requiredProviders,
+          },
+          createdAt: now,
+          updatedAt: now,
+        };
 
-      storageAdapter.saveLayout(slug, layout);
+        storageAdapter.saveLayout(slug, layout);
 
-      const pluginFile = join(homeDir, 'plugins', pluginName, 'plugin.json');
-      if (existsSync(pluginFile)) {
-        const manifest = JSON.parse(readFileSync(pluginFile, 'utf-8'));
-        registerPluginNamespaces(storageAdapter, slug, manifest);
+        const pluginFile = join(homeDir, 'plugins', pluginName, 'plugin.json');
+        if (existsSync(pluginFile)) {
+          const manifest = JSON.parse(readFileSync(pluginFile, 'utf-8'));
+          registerPluginNamespaces(storageAdapter, slug, manifest);
+        }
+
+        return c.json({ success: true, data: layout }, 201);
+      } catch (e: unknown) {
+        return c.json({ success: false, error: errorMessage(e) }, 400);
       }
-
-      return c.json({ success: true, data: layout }, 201);
-    } catch (e: any) {
-      return c.json({ success: false, error: e.message }, 400);
-    }
-  });
+    },
+  );
 
   return app;
 }

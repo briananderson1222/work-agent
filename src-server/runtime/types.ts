@@ -215,6 +215,7 @@ export interface IAgentFramework {
 import type { Tool } from '@voltagent/core';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
+import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ACPManager } from '../services/acp-bridge.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
@@ -222,7 +223,6 @@ import type { EventBus } from '../services/event-bus.js';
 import type { FeedbackService } from '../services/feedback-service.js';
 import type { KnowledgeService } from '../services/knowledge-service.js';
 import type { ProviderService } from '../services/provider-service.js';
-import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { createAgentHooks } from './agent-hooks.js';
 
 export interface RuntimeContext {
@@ -232,11 +232,25 @@ export interface RuntimeContext {
   agentTools: Map<string, Tool<any>[]>;
   memoryAdapters: Map<string, FileMemoryAdapter>;
   mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>;
-  integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }>;
-  toolNameMapping: Map<string, { original: string; normalized: string; server: string | null; tool: string }>;
+  integrationMetadata: Map<
+    string,
+    { type: string; transport?: string; toolCount?: number }
+  >;
+  toolNameMapping: Map<
+    string,
+    {
+      original: string;
+      normalized: string;
+      server: string | null;
+      tool: string;
+    }
+  >;
   toolNameReverseMapping: Map<string, string>;
   globalToolRegistry: Map<string, Tool<any>>;
-  agentFixedTokens: Map<string, { systemPromptTokens: number; mcpServerTokens: number }>;
+  agentFixedTokens: Map<
+    string,
+    { systemPromptTokens: number; mcpServerTokens: number }
+  >;
   agentStatus: Map<string, 'idle' | 'running'>;
   agentHooksMap: Map<string, ReturnType<typeof createAgentHooks>>;
 
@@ -257,7 +271,10 @@ export interface RuntimeContext {
   // Monitoring / metrics (used by chat and monitoring routes)
   monitoringEvents: import('node:events').EventEmitter;
   monitoringEmitter?: import('../monitoring/emitter.js').MonitoringEmitter;
-  agentStats: Map<string, { conversationCount: number; messageCount: number; lastUpdated: number }>;
+  agentStats: Map<
+    string,
+    { conversationCount: number; messageCount: number; lastUpdated: number }
+  >;
   metricsLog: Array<{
     timestamp: number;
     agentSlug: string;

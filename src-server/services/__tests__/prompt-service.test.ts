@@ -77,7 +77,16 @@ describe('PromptService', () => {
 
   test('registerPluginPrompts replaces by source', async () => {
     await svc.addPrompt({ name: 'Local', content: 'x' });
-    svc.registerPluginPrompts([{ id: 'p1', name: 'Plugin', content: 'y', source: 'plugin:test', createdAt: '', updatedAt: '' } as any]);
+    svc.registerPluginPrompts([
+      {
+        id: 'p1',
+        name: 'Plugin',
+        content: 'y',
+        source: 'plugin:test',
+        createdAt: '',
+        updatedAt: '',
+      } as any,
+    ]);
     const all = await svc.listPrompts();
     expect(all).toHaveLength(2);
     expect(all.find((p) => p.name === 'Plugin')).toBeDefined();

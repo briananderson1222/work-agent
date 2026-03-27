@@ -18,7 +18,10 @@ export function createBrandingRoutes() {
       provider.getTheme?.() ?? null,
       provider.getWelcomeMessage?.() ?? null,
     ]);
-    return c.json({ name, logo, theme, welcomeMessage });
+    return c.json({
+      success: true,
+      data: { name, logo, theme, welcomeMessage },
+    });
   });
 
   return app;

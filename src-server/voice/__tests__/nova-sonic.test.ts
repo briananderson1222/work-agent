@@ -1,9 +1,11 @@
-import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { NovaSonicProvider } from '../providers/nova-sonic.js';
-import type { S2STranscript, S2SToolUseEvent } from '../s2s-types.js';
+import type { S2SToolUseEvent, S2STranscript } from '../s2s-types.js';
 
 function rawEvent(event: any) {
-  return { chunk: { bytes: new TextEncoder().encode(JSON.stringify({ event })) } };
+  return {
+    chunk: { bytes: new TextEncoder().encode(JSON.stringify({ event })) },
+  };
 }
 
 function createMockBody() {
@@ -26,7 +28,9 @@ function createMockBody() {
           if (e === null) return;
           yield e;
         }
-        await new Promise<void>(r => { resolve = r; });
+        await new Promise<void>((r) => {
+          resolve = r;
+        });
       }
     },
   };
@@ -47,7 +51,13 @@ describe('NovaSonicProvider', () => {
   test('connect sends setup events and returns input audio format', async () => {
     const format = await provider.connect({
       systemPrompt: 'You are a test assistant.',
-      tools: [{ name: 'test_tool', description: 'A test', inputSchema: { type: 'object', properties: {} } }],
+      tools: [
+        {
+          name: 'test_tool',
+          description: 'A test',
+          inputSchema: { type: 'object', properties: {} },
+        },
+      ],
     });
 
     expect(format.sampleRateHertz).toBe(16000);
@@ -60,43 +70,77 @@ describe('NovaSonicProvider', () => {
     await provider.connect({ systemPrompt: 'test', tools: [] });
 
     const transcripts: S2STranscript[] = [];
-    provider.on('transcript', t => transcripts.push(t));
+    provider.on('transcript', (t) => transcripts.push(t));
 
-    mockBody.push(rawEvent({ completionStart: { sessionId: 's1', promptName: 'p1', completionId: 'c1' } }));
-    mockBody.push(rawEvent({ contentStart: { role: 'USER', type: 'TEXT', additionalModelFields: '{"generationStage":"FINAL"}' } }));
+    mockBody.push(
+      rawEvent({
+        completionStart: {
+          sessionId: 's1',
+          promptName: 'p1',
+          completionId: 'c1',
+        },
+      }),
+    );
+    mockBody.push(
+      rawEvent({
+        contentStart: {
+          role: 'USER',
+          type: 'TEXT',
+          additionalModelFields: '{"generationStage":"FINAL"}',
+        },
+      }),
+    );
     mockBody.push(rawEvent({ textOutput: { content: 'Hello world' } }));
     mockBody.push(rawEvent({ contentEnd: {} }));
 
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 50));
 
-    expect(transcripts).toContainEqual({ text: 'Hello world', role: 'user', stage: 'final' });
+    expect(transcripts).toContainEqual({
+      text: 'Hello world',
+      role: 'user',
+      stage: 'final',
+    });
   });
 
   test('emits transcript for ASSISTANT SPECULATIVE', async () => {
     await provider.connect({ systemPrompt: 'test', tools: [] });
 
     const transcripts: S2STranscript[] = [];
-    provider.on('transcript', t => transcripts.push(t));
+    provider.on('transcript', (t) => transcripts.push(t));
 
-    mockBody.push(rawEvent({ contentStart: { role: 'ASSISTANT', type: 'TEXT', additionalModelFields: '{"generationStage":"SPECULATIVE"}' } }));
+    mockBody.push(
+      rawEvent({
+        contentStart: {
+          role: 'ASSISTANT',
+          type: 'TEXT',
+          additionalModelFields: '{"generationStage":"SPECULATIVE"}',
+        },
+      }),
+    );
     mockBody.push(rawEvent({ textOutput: { content: 'Let me check' } }));
 
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 50));
 
-    expect(transcripts).toContainEqual({ text: 'Let me check', role: 'assistant', stage: 'speculative' });
+    expect(transcripts).toContainEqual({
+      text: 'Let me check',
+      role: 'assistant',
+      stage: 'speculative',
+    });
   });
 
   test('emits audio event from audioOutput', async () => {
     await provider.connect({ systemPrompt: 'test', tools: [] });
 
     const audioChunks: Buffer[] = [];
-    provider.on('audio', chunk => audioChunks.push(chunk));
+    provider.on('audio', (chunk) => audioChunks.push(chunk));
 
     const testData = Buffer.from('test-audio').toString('base64');
-    mockBody.push(rawEvent({ contentStart: { type: 'AUDIO', role: 'ASSISTANT' } }));
+    mockBody.push(
+      rawEvent({ contentStart: { type: 'AUDIO', role: 'ASSISTANT' } }),
+    );
     mockBody.push(rawEvent({ audioOutput: { content: testData } }));
 
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 50));
 
     expect(audioChunks.length).toBe(1);
     expect(audioChunks[0].toString()).toBe('test-audio');
@@ -105,43 +149,70 @@ describe('NovaSonicProvider', () => {
   test('emits toolUse event and accepts toolResult', async () => {
     await provider.connect({
       systemPrompt: 'test',
-      tools: [{ name: 'get_weather', description: 'Get weather', inputSchema: { type: 'object', properties: { city: { type: 'string' } } } }],
+      tools: [
+        {
+          name: 'get_weather',
+          description: 'Get weather',
+          inputSchema: {
+            type: 'object',
+            properties: { city: { type: 'string' } },
+          },
+        },
+      ],
     });
 
     const toolUses: S2SToolUseEvent[] = [];
-    provider.on('toolUse', e => toolUses.push(e));
+    provider.on('toolUse', (e) => toolUses.push(e));
 
     mockBody.push(rawEvent({ contentStart: { type: 'TOOL', role: 'TOOL' } }));
-    mockBody.push(rawEvent({ toolUse: { toolName: 'get_weather', toolUseId: 'tu-123', content: '{"city":"Seattle"}' } }));
-    mockBody.push(rawEvent({ contentEnd: { stopReason: 'TOOL_USE', type: 'TOOL' } }));
+    mockBody.push(
+      rawEvent({
+        toolUse: {
+          toolName: 'get_weather',
+          toolUseId: 'tu-123',
+          content: '{"city":"Seattle"}',
+        },
+      }),
+    );
+    mockBody.push(
+      rawEvent({ contentEnd: { stopReason: 'TOOL_USE', type: 'TOOL' } }),
+    );
 
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 50));
 
     expect(toolUses).toHaveLength(1);
-    expect(toolUses[0]).toEqual({ toolName: 'get_weather', toolUseId: 'tu-123', parameters: { city: 'Seattle' } });
+    expect(toolUses[0]).toEqual({
+      toolName: 'get_weather',
+      toolUseId: 'tu-123',
+      parameters: { city: 'Seattle' },
+    });
 
     provider.sendToolResult('tu-123', '{"temp": 72}');
   });
 
   test('emits stateChange through lifecycle', async () => {
     const states: string[] = [];
-    provider.on('stateChange', s => states.push(s));
+    provider.on('stateChange', (s) => states.push(s));
 
     await provider.connect({ systemPrompt: 'test', tools: [] });
     expect(states).toContain('connecting');
     expect(states).toContain('listening');
 
     mockBody.push(rawEvent({ completionStart: {} }));
-    await new Promise(r => setTimeout(r, 50));
+    await new Promise((r) => setTimeout(r, 50));
     expect(states).toContain('processing');
 
-    mockBody.push(rawEvent({ contentStart: { type: 'AUDIO', role: 'ASSISTANT' } }));
-    await new Promise(r => setTimeout(r, 50));
+    mockBody.push(
+      rawEvent({ contentStart: { type: 'AUDIO', role: 'ASSISTANT' } }),
+    );
+    await new Promise((r) => setTimeout(r, 50));
     expect(states).toContain('speaking');
 
     mockBody.push(rawEvent({ completionEnd: {} }));
-    await new Promise(r => setTimeout(r, 50));
-    expect(states.filter(s => s === 'listening').length).toBeGreaterThanOrEqual(2);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(
+      states.filter((s) => s === 'listening').length,
+    ).toBeGreaterThanOrEqual(2);
   });
 
   test('disconnect sets state to disconnected', async () => {

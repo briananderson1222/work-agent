@@ -2,7 +2,7 @@ import { expect } from 'vitest';
 
 /** Send a JSON request to a Hono app and return the parsed body. */
 export async function requestJSON(
-  app: { request: Function },
+  app: { request: (...args: unknown[]) => Promise<Response> },
   method: string,
   path: string,
   body?: unknown,

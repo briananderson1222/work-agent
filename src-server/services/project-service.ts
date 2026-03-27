@@ -37,7 +37,10 @@ export class ProjectService {
       updatedAt: now,
     };
     await this.storageAdapter.saveProject(project);
-    projectOps.add(1, { operation: 'create', project: project.slug || project.id });
+    projectOps.add(1, {
+      operation: 'create',
+      project: project.slug || project.id,
+    });
     return project;
   }
 

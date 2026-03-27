@@ -6,11 +6,13 @@ import { Hono } from 'hono';
 import type { AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { bedrockOps } from '../telemetry/metrics.js';
+import type { Logger } from '../utils/logger.js';
+import { errorMessage, param } from './schemas.js';
 
 export function createBedrockRoutes(
   getModelCatalog: () => BedrockModelCatalog | undefined,
   appConfig: AppConfig,
-  logger: any,
+  logger: Logger,
 ) {
   const app = new Hono();
 
@@ -66,9 +68,9 @@ export function createBedrockRoutes(
       ];
 
       return c.json({ success: true, data: combinedModels });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to list Bedrock models', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -86,9 +88,9 @@ export function createBedrockRoutes(
       bedrockOps.add(1, { op: 'get_pricing' });
       const pricing = await modelCatalog.getModelPricing(region);
       return c.json({ success: true, data: pricing });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to get Bedrock pricing', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -102,13 +104,13 @@ export function createBedrockRoutes(
           500,
         );
       }
-      const modelId = c.req.param('modelId');
+      const modelId = param(c, 'modelId');
       bedrockOps.add(1, { op: 'validate_model' });
       const isValid = await modelCatalog.validateModelId(modelId);
       return c.json({ success: true, data: { modelId, isValid } });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to validate model ID', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -122,7 +124,7 @@ export function createBedrockRoutes(
           500,
         );
       }
-      const modelId = c.req.param('modelId');
+      const modelId = param(c, 'modelId');
       bedrockOps.add(1, { op: 'get_model' });
       const models = await modelCatalog.listModels();
       const model = models.find((m) => m.modelId === modelId);
@@ -132,9 +134,9 @@ export function createBedrockRoutes(
       }
 
       return c.json({ success: true, data: model });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to get model details', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 

@@ -1,7 +1,11 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, test, vi, beforeEach } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
+import type {
+  IS2SProvider,
+  S2SAudioFormat,
+  S2SSessionConfig,
+} from '../s2s-types.js';
 import { VoiceSessionService } from '../voice-session.js';
-import type { IS2SProvider, S2SAudioFormat, S2SSessionConfig } from '../s2s-types.js';
 
 const INPUT_FORMAT: S2SAudioFormat = {
   mediaType: 'audio/pcm',
@@ -31,10 +35,18 @@ class MockS2SProvider extends EventEmitter implements IS2SProvider {
     this._state = 'listening';
     return INPUT_FORMAT;
   }
-  sendAudio(chunk: Buffer): void { this.sendAudioCalls.push(chunk); }
-  sendToolResult(toolUseId: string, result: string): void { this.sendToolResultCalls.push({ toolUseId, result }); }
-  async disconnect(): Promise<void> { this._state = 'disconnected'; }
-  get state() { return this._state; }
+  sendAudio(chunk: Buffer): void {
+    this.sendAudioCalls.push(chunk);
+  }
+  sendToolResult(toolUseId: string, result: string): void {
+    this.sendToolResultCalls.push({ toolUseId, result });
+  }
+  async disconnect(): Promise<void> {
+    this._state = 'disconnected';
+  }
+  get state() {
+    return this._state;
+  }
 }
 
 class MockWebSocket {
@@ -42,12 +54,16 @@ class MockWebSocket {
   OPEN = 1;
   sentMessages: object[] = [];
   private handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
-  send(data: string): void { this.sentMessages.push(JSON.parse(data)); }
+  send(data: string): void {
+    this.sentMessages.push(JSON.parse(data));
+  }
   on(event: string, handler: (...args: unknown[]) => void): void {
     if (!this.handlers[event]) this.handlers[event] = [];
     this.handlers[event].push(handler);
   }
-  trigger(event: string, ...args: unknown[]): void { this.handlers[event]?.forEach((h) => h(...args)); }
+  trigger(event: string, ...args: unknown[]): void {
+    this.handlers[event]?.forEach((h) => h(...args));
+  }
 }
 
 const tick = () => new Promise((r) => setTimeout(r, 10));
@@ -60,14 +76,24 @@ function makeService(overrides?: {
   voiceAgentSlug?: string;
 }) {
   let provider: MockS2SProvider;
-  const factory = () => { provider = new MockS2SProvider(); return provider as unknown as IS2SProvider; };
+  const factory = () => {
+    provider = new MockS2SProvider();
+    return provider as unknown as IS2SProvider;
+  };
 
   const slug = overrides?.voiceAgentSlug ?? VOICE_SLUG;
   const tools = overrides?.tools ?? [];
   const agentTools = new Map([[slug, tools]]);
-  const agentSpecs = new Map([[slug, { systemPrompt: overrides?.systemPrompt ?? '' }]]);
+  const agentSpecs = new Map([
+    [slug, { systemPrompt: overrides?.systemPrompt ?? '' }],
+  ]);
 
-  const service = new VoiceSessionService({ providerFactory: factory, agentTools, agentSpecs, voiceAgentSlug: overrides?.voiceAgentSlug });
+  const service = new VoiceSessionService({
+    providerFactory: factory,
+    agentTools,
+    agentSpecs,
+    voiceAgentSlug: overrides?.voiceAgentSlug,
+  });
   return { service, getProvider: () => provider! };
 }
 
@@ -121,7 +147,10 @@ describe('VoiceSession wiring', () => {
 
   test('audio_in from WebSocket is forwarded to provider.sendAudio', () => {
     const buf = Buffer.from('hello');
-    ws.trigger('message', JSON.stringify({ type: 'audio_in', data: buf.toString('base64') }));
+    ws.trigger(
+      'message',
+      JSON.stringify({ type: 'audio_in', data: buf.toString('base64') }),
+    );
     expect(provider.sendAudioCalls).toHaveLength(1);
     expect(provider.sendAudioCalls[0]).toEqual(buf);
   });
@@ -129,17 +158,32 @@ describe('VoiceSession wiring', () => {
   test('provider audio event is forwarded as audio_out to WebSocket', () => {
     const chunk = Buffer.from([1, 2, 3]);
     provider.emit('audio', chunk);
-    expect(ws.sentMessages).toContainEqual({ type: 'audio_out', data: chunk.toString('base64') });
+    expect(ws.sentMessages).toContainEqual({
+      type: 'audio_out',
+      data: chunk.toString('base64'),
+    });
   });
 
   test('provider transcript event is forwarded to WebSocket', () => {
-    provider.emit('transcript', { text: 'hello', role: 'user', stage: 'final' });
-    expect(ws.sentMessages).toContainEqual({ type: 'transcript', text: 'hello', role: 'user', stage: 'final' });
+    provider.emit('transcript', {
+      text: 'hello',
+      role: 'user',
+      stage: 'final',
+    });
+    expect(ws.sentMessages).toContainEqual({
+      type: 'transcript',
+      text: 'hello',
+      role: 'user',
+      stage: 'final',
+    });
   });
 
   test('provider stateChange event is forwarded to WebSocket', () => {
     provider.emit('stateChange', 'speaking');
-    expect(ws.sentMessages).toContainEqual({ type: 'state', state: 'speaking' });
+    expect(ws.sentMessages).toContainEqual({
+      type: 'state',
+      state: 'speaking',
+    });
   });
 
   test('provider error event is forwarded to WebSocket', () => {
@@ -150,21 +194,34 @@ describe('VoiceSession wiring', () => {
   test('toolUse calls tool.execute() from agent tools map', async () => {
     const execute = vi.fn().mockResolvedValue({ events: ['meeting1'] });
     const ws2 = new MockWebSocket();
-    const built2 = makeService({ tools: [{ name: 'get_events', description: 'Get events', execute }] });
+    const built2 = makeService({
+      tools: [{ name: 'get_events', description: 'Get events', execute }],
+    });
     built2.service.createSession(ws2 as any);
     await tick();
     const p2 = built2.getProvider();
 
-    p2.emit('toolUse', { toolName: 'get_events', toolUseId: 'tu-1', parameters: { date: 'today' } });
+    p2.emit('toolUse', {
+      toolName: 'get_events',
+      toolUseId: 'tu-1',
+      parameters: { date: 'today' },
+    });
     await tick();
 
     expect(execute).toHaveBeenCalledWith({ date: 'today' });
     expect(p2.sendToolResultCalls).toHaveLength(1);
-    expect(p2.sendToolResultCalls[0]).toEqual({ toolUseId: 'tu-1', result: JSON.stringify({ events: ['meeting1'] }) });
+    expect(p2.sendToolResultCalls[0]).toEqual({
+      toolUseId: 'tu-1',
+      result: JSON.stringify({ events: ['meeting1'] }),
+    });
   });
 
   test('toolUse for unknown tool returns error string', async () => {
-    provider.emit('toolUse', { toolName: 'no_such_tool', toolUseId: 'tu-2', parameters: {} });
+    provider.emit('toolUse', {
+      toolName: 'no_such_tool',
+      toolUseId: 'tu-2',
+      parameters: {},
+    });
     await tick();
     expect(provider.sendToolResultCalls).toHaveLength(1);
     expect(provider.sendToolResultCalls[0].result).toContain('no_such_tool');
@@ -177,19 +234,32 @@ describe('VoiceSession wiring', () => {
     await tick();
     const config = built2.getProvider().connectConfig!;
     expect(config.systemPrompt).toBe(
-      'You are in voice mode. Be concise — short sentences. Confirm before creating or modifying anything.\n\nYou are a sales assistant.'
+      'You are in voice mode. Be concise — short sentences. Confirm before creating or modifying anything.\n\nYou are a sales assistant.',
     );
   });
 
   test('tools from agent map are translated to S2SToolDefinition format', async () => {
     const ws2 = new MockWebSocket();
     const built2 = makeService({
-      tools: [{ name: 'list_contacts', description: 'List contacts', parameters: { type: 'object', properties: {} }, execute: vi.fn() }],
+      tools: [
+        {
+          name: 'list_contacts',
+          description: 'List contacts',
+          parameters: { type: 'object', properties: {} },
+          execute: vi.fn(),
+        },
+      ],
     });
     built2.service.createSession(ws2 as any);
     await tick();
     const config = built2.getProvider().connectConfig!;
-    expect(config.tools).toEqual([{ name: 'list_contacts', description: 'List contacts', inputSchema: { type: 'object', properties: {} } }]);
+    expect(config.tools).toEqual([
+      {
+        name: 'list_contacts',
+        description: 'List contacts',
+        inputSchema: { type: 'object', properties: {} },
+      },
+    ]);
   });
 
   test('WebSocket close triggers session cleanup', async () => {
@@ -207,11 +277,18 @@ describe('VoiceSession wiring', () => {
     };
     const agentTools = new Map([[VOICE_SLUG, []]]);
     const agentSpecs = new Map([[VOICE_SLUG, {}]]);
-    const failService = new VoiceSessionService({ providerFactory: failFactory, agentTools, agentSpecs });
+    const failService = new VoiceSessionService({
+      providerFactory: failFactory,
+      agentTools,
+      agentSpecs,
+    });
     const ws3 = new MockWebSocket();
     failService.createSession(ws3 as any);
     await tick();
-    expect(ws3.sentMessages).toContainEqual({ type: 'error', message: 'connect failed' });
+    expect(ws3.sentMessages).toContainEqual({
+      type: 'error',
+      message: 'connect failed',
+    });
     expect(failService.getActiveCount()).toBe(0);
   });
 });

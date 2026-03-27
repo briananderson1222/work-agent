@@ -1,8 +1,11 @@
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
-import { join, basename } from 'node:path';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import type { Prompt } from '../providers/types.js';
 
-function parseFrontmatter(content: string): { meta: Record<string, any>; body: string } {
+function parseFrontmatter(content: string): {
+  meta: Record<string, any>;
+  body: string;
+} {
   const match = content.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/);
   if (!match) return { meta: {}, body: content.trim() };
   const meta: Record<string, any> = {};
@@ -14,7 +17,10 @@ function parseFrontmatter(content: string): { meta: Record<string, any>; body: s
     if (val.startsWith('[') || val.startsWith('-')) {
       // Parse YAML array: either [a, b] or multiline - a\n- b
       if (val.startsWith('[')) {
-        meta[key] = val.slice(1, -1).split(',').map(s => s.trim().replace(/["']/g, ''));
+        meta[key] = val
+          .slice(1, -1)
+          .split(',')
+          .map((s) => s.trim().replace(/["']/g, ''));
       }
     } else {
       meta[key] = val.replace(/["']/g, '');
@@ -40,9 +46,9 @@ function parseFrontmatter(content: string): { meta: Record<string, any>; body: s
 
 export function scanPromptDir(dir: string, namespace: string): Prompt[] {
   if (!existsSync(dir)) return [];
-  const files = readdirSync(dir).filter(f => f.endsWith('.md'));
+  const files = readdirSync(dir).filter((f) => f.endsWith('.md'));
   const now = new Date().toISOString();
-  return files.map(file => {
+  return files.map((file) => {
     const raw = readFileSync(join(dir, file), 'utf-8');
     const { meta, body } = parseFrontmatter(raw);
     const id = meta.id || basename(file, '.md');

@@ -9,9 +9,16 @@ import {
   getAgentRegistryProvider,
   getIntegrationRegistryProvider,
   getPluginRegistryProviders,
-  getSkillRegistryProvider,
+  getSkillRegistryProviders,
 } from '../providers/registry.js';
 import { registryOps } from '../telemetry/metrics.js';
+import {
+  getBody,
+  param,
+  registryInstallSchema,
+  skillInstallSchema,
+  validate,
+} from './schemas.js';
 
 export function createRegistryRoutes(
   configLoader: ConfigLoader,
@@ -34,9 +41,8 @@ export function createRegistryRoutes(
     return c.json({ success: true, data: items });
   });
 
-  app.post('/agents/install', async (c) => {
-    const { id } = await c.req.json();
-    if (!id) return c.json({ success: false, error: 'id is required' }, 400);
+  app.post('/agents/install', validate(registryInstallSchema), async (c) => {
+    const { id } = getBody(c);
     registryOps.add(1, { operation: 'install-agent', item: id });
 
     const result = await getAgentRegistryProvider().install(id);
@@ -48,10 +54,9 @@ export function createRegistryRoutes(
   });
 
   app.delete('/agents/:id', async (c) => {
-    registryOps.add(1, { operation: 'uninstall-agent', item: c.req.param('id') });
-    const result = await getAgentRegistryProvider().uninstall(
-      c.req.param('id'),
-    );
+    const id = param(c, 'id');
+    registryOps.add(1, { operation: 'uninstall-agent', item: id });
+    const result = await getAgentRegistryProvider().uninstall(id);
     if (result.success) {
       await refreshACPModes().catch(() => {});
     }
@@ -93,26 +98,29 @@ export function createRegistryRoutes(
     return c.json({ success: true, data: items });
   });
 
-  app.post('/integrations/install', async (c) => {
-    const { id } = await c.req.json();
-    if (!id) return c.json({ success: false, error: 'id is required' }, 400);
-    registryOps.add(1, { operation: 'install-integration', item: id });
+  app.post(
+    '/integrations/install',
+    validate(registryInstallSchema),
+    async (c) => {
+      const { id } = getBody(c);
+      registryOps.add(1, { operation: 'install-integration', item: id });
 
-    const result = await getIntegrationRegistryProvider().install(id);
-    if (!result.success) return c.json(result, 500);
+      const result = await getIntegrationRegistryProvider().install(id);
+      if (!result.success) return c.json(result, 500);
 
-    // Auto-generate integration.json from provider metadata
-    const toolDef = await getIntegrationRegistryProvider().getToolDef(id);
-    if (toolDef) {
-      await configLoader.saveIntegration(toolDef.id, toolDef);
-    }
+      // Auto-generate integration.json from provider metadata
+      const toolDef = await getIntegrationRegistryProvider().getToolDef(id);
+      if (toolDef) {
+        await configLoader.saveIntegration(toolDef.id, toolDef);
+      }
 
-    return c.json(result);
-  });
+      return c.json(result);
+    },
+  );
 
   app.delete('/integrations/:id', async (c) => {
-    registryOps.add(1, { operation: 'uninstall-integration', item: c.req.param('id') });
-    const id = c.req.param('id');
+    const id = param(c, 'id');
+    registryOps.add(1, { operation: 'uninstall-integration', item: id });
     const result = await getIntegrationRegistryProvider().uninstall(id);
     return c.json(result, result.success ? 200 : 500);
   });
@@ -126,15 +134,22 @@ export function createRegistryRoutes(
 
   app.get('/skills', async (c) => {
     registryOps.add(1, { operation: 'list-skills' });
-    const provider = getSkillRegistryProvider();
-    if (!provider) return c.json({ success: true, data: [] });
-    const items = await provider.listAvailable();
-    return c.json({ success: true, data: items });
+    const entries = getSkillRegistryProviders();
+    if (entries.length === 0) return c.json({ success: true, data: [] });
+    const results = await Promise.all(
+      entries.map(async (e) => e.provider.listAvailable()),
+    );
+    const seen = new Set<string>();
+    const data = results.flat().filter((item) => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    });
+    return c.json({ success: true, data });
   });
 
-  app.post('/skills/install', async (c) => {
-    const { id } = await c.req.json();
-    if (!id) return c.json({ success: false, error: 'id is required' }, 400);
+  app.post('/skills/install', validate(skillInstallSchema), async (c) => {
+    const { id } = getBody(c);
     registryOps.add(1, { operation: 'install-skill', item: id });
     const { installSkill } = await import('../services/skill-service.js');
     const result = await installSkill(id, configLoader.getProjectHomeDir());
@@ -143,12 +158,35 @@ export function createRegistryRoutes(
   });
 
   app.delete('/skills/:id', async (c) => {
-    const id = c.req.param('id');
+    const id = param(c, 'id');
     registryOps.add(1, { operation: 'uninstall-skill', item: id });
     const { uninstallSkill } = await import('../services/skill-service.js');
     const result = await uninstallSkill(id, configLoader.getProjectHomeDir());
     if (result.success && reloadSkills) await reloadSkills().catch(() => {});
     return c.json(result, result.success ? 200 : 500);
+  });
+
+  app.post('/skills/:id/update', async (c) => {
+    const id = param(c, 'id');
+    registryOps.add(1, { operation: 'update-skill', item: id });
+    const { uninstallSkill, installSkill } = await import(
+      '../services/skill-service.js'
+    );
+    const unresult = await uninstallSkill(id, configLoader.getProjectHomeDir());
+    if (!unresult.success) return c.json(unresult, 500);
+    const result = await installSkill(id, configLoader.getProjectHomeDir());
+    if (result.success && reloadSkills) await reloadSkills().catch(() => {});
+    return c.json(result, result.success ? 200 : 500);
+  });
+
+  app.get('/skills/:id/content', async (c) => {
+    const id = param(c, 'id');
+    for (const { provider } of getSkillRegistryProviders()) {
+      if (!provider.getContent) continue;
+      const body = await provider.getContent(id);
+      if (body) return c.json({ success: true, data: body });
+    }
+    return c.json({ success: false, error: 'Skill not found' }, 404);
   });
 
   // ── Plugin Registry ──────────────────────────────────────
@@ -176,27 +214,32 @@ export function createRegistryRoutes(
     return c.json({ success: true, data: results.flat() });
   });
 
-  app.post('/plugins/install', async (c) => {
-    const { id } = await c.req.json();
-    if (!id) return c.json({ success: false, error: 'id is required' }, 400);
+  app.post('/plugins/install', validate(registryInstallSchema), async (c) => {
+    const { id } = getBody(c);
     registryOps.add(1, { operation: 'install-plugin', item: id });
     const entries = getPluginRegistryProviders();
     for (const e of entries) {
       const result = await e.provider.install(id);
       if (result.success) return c.json(result);
     }
-    return c.json({ success: false, message: `No provider could install ${id}` }, 500);
+    return c.json(
+      { success: false, message: `No provider could install ${id}` },
+      500,
+    );
   });
 
   app.delete('/plugins/:id', async (c) => {
-    const id = c.req.param('id');
+    const id = param(c, 'id');
     registryOps.add(1, { operation: 'uninstall-plugin', item: id });
     const entries = getPluginRegistryProviders();
     for (const e of entries) {
       const result = await e.provider.uninstall(id);
       if (result.success) return c.json(result);
     }
-    return c.json({ success: false, message: `No provider could uninstall ${id}` }, 500);
+    return c.json(
+      { success: false, message: `No provider could uninstall ${id}` },
+      500,
+    );
   });
 
   return app;

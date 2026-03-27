@@ -40,7 +40,9 @@ describe('EventBus', () => {
 
   test('throwing listener is removed silently', () => {
     const bus = new EventBus();
-    const bad = vi.fn(() => { throw new Error('boom'); });
+    const bad = vi.fn(() => {
+      throw new Error('boom');
+    });
     const good = vi.fn();
     bus.subscribe(bad);
     bus.subscribe(good);

@@ -25,7 +25,9 @@ describe('SSEBroadcaster', () => {
 
   test('throwing client is removed', () => {
     const b = new SSEBroadcaster();
-    const bad = vi.fn(() => { throw new Error('dead'); });
+    const bad = vi.fn(() => {
+      throw new Error('dead');
+    });
     const good = vi.fn();
     b.subscribe(bad);
     b.subscribe(good);

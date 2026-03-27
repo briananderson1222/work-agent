@@ -43,8 +43,8 @@ async function main() {
     process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
     process.on('unhandledRejection', (reason) => {
-      console.error('Unhandled rejection:', reason);
-      gracefulShutdown('unhandledRejection');
+      console.error('Unhandled rejection (non-fatal):', reason);
+      // Log only — do not exit. Plugin provider failures should not crash the server.
     });
     process.on('uncaughtException', (err) => {
       console.error('Uncaught exception:', err);

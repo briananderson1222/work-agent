@@ -4,8 +4,13 @@
 
 import { Hono } from 'hono';
 import type { FeedbackService } from '../services/feedback-service.js';
-import { rateSchema, validate, getBody } from './schemas.js';
 import { feedbackOps } from '../telemetry/metrics.js';
+import {
+  feedbackDeleteSchema,
+  getBody,
+  rateSchema,
+  validate,
+} from './schemas.js';
 
 export function createFeedbackRoutes(feedbackService: FeedbackService) {
   const app = new Hono();
@@ -43,8 +48,8 @@ export function createFeedbackRoutes(feedbackService: FeedbackService) {
   });
 
   // Remove a rating
-  app.delete('/rate', async (c) => {
-    const { conversationId, messageIndex } = await c.req.json();
+  app.delete('/rate', validate(feedbackDeleteSchema), async (c) => {
+    const { conversationId, messageIndex } = getBody(c);
     const ok = feedbackService.removeRating(conversationId, messageIndex);
     return c.json({ success: true, removed: ok });
   });

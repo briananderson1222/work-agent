@@ -8,10 +8,14 @@ vi.mock('../../telemetry/metrics.js', () => ({
 }));
 
 const { createNotificationRoutes } = await import('../notifications.js');
-const { NotificationService } = await import('../../services/notification-service.js');
+const { NotificationService } = await import(
+  '../../services/notification-service.js'
+);
 const { EventBus } = await import('../../services/event-bus.js');
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Notification Routes', () => {
   let dir: string;
@@ -49,7 +53,9 @@ describe('Notification Routes', () => {
 
   test('DELETE /:id dismisses a notification', async () => {
     const n = svc.schedule('test', { title: 'X', body: '', category: 'c' });
-    const body = await json(await app.request(`/${n.id}`, { method: 'DELETE' }));
+    const body = await json(
+      await app.request(`/${n.id}`, { method: 'DELETE' }),
+    );
     expect(body.success).toBe(true);
   });
 
@@ -69,11 +75,13 @@ describe('Notification Routes', () => {
   test('POST /:id/snooze snoozes a notification', async () => {
     const n = svc.schedule('test', { title: 'X', body: '', category: 'c' });
     const future = new Date(Date.now() + 60_000).toISOString();
-    const body = await json(await app.request(`/${n.id}/snooze`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ until: future }),
-    }));
+    const body = await json(
+      await app.request(`/${n.id}/snooze`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ until: future }),
+      }),
+    );
     expect(body.success).toBe(true);
   });
 });

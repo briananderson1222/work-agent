@@ -90,7 +90,9 @@ export class TerminalService {
           env,
         });
         break;
-      } catch (e) { console.debug('Failed to spawn shell candidate:', candidate.shell, e); }
+      } catch (e) {
+        console.debug('Failed to spawn shell candidate:', candidate.shell, e);
+      }
     }
 
     if (!proc) throw new Error('Failed to spawn PTY: no viable shell found');
@@ -140,7 +142,11 @@ export class TerminalService {
     // SIGKILL fallback for stubborn processes (e.g. kiro-cli with children)
     if (pid) {
       setTimeout(() => {
-        try { process.kill(pid, 'SIGKILL'); } catch { /* already dead */ }
+        try {
+          process.kill(pid, 'SIGKILL');
+        } catch {
+          /* already dead */
+        }
       }, 3000);
     }
     entry.status = 'exited';
@@ -279,7 +285,11 @@ export class TerminalService {
           }
         }
       } catch (e) {
-        console.debug('Failed to poll subprocesses for terminal session:', sessionId, e);
+        console.debug(
+          'Failed to poll subprocesses for terminal session:',
+          sessionId,
+          e,
+        );
         if (entry.hasRunningSubprocess) {
           entry.hasRunningSubprocess = false;
           this.emit({

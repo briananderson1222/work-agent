@@ -241,7 +241,11 @@ async function enrichLastMessage(
 
     const models = await deps.modelCatalog?.listModels();
     const modelInfo = models?.find((m: any) => m.modelId === modelId);
-    const pricingInfo = await findModelPricing(deps.modelCatalog, modelId, deps.appConfig.region);
+    const pricingInfo = await findModelPricing(
+      deps.modelCatalog,
+      modelId,
+      deps.appConfig.region,
+    );
 
     await adapter.removeLastMessage(
       `agent:${invocation.agentSlug}`,

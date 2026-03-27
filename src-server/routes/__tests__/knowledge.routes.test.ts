@@ -7,22 +7,32 @@ vi.mock('../../telemetry/metrics.js', () => ({
 const { createKnowledgeRoutes } = await import('../knowledge.js');
 
 function createMockKnowledgeService() {
-  const docs = [{ id: 'd1', filename: 'test.md', chunkCount: 3, createdAt: '2026-01-01' }];
+  const docs = [
+    { id: 'd1', filename: 'test.md', chunkCount: 3, createdAt: '2026-01-01' },
+  ];
   return {
     listDocuments: vi.fn().mockResolvedValue(docs),
-    uploadDocument: vi.fn().mockResolvedValue({ id: 'd2', filename: 'new.md', chunkCount: 1 }),
+    uploadDocument: vi
+      .fn()
+      .mockResolvedValue({ id: 'd2', filename: 'new.md', chunkCount: 1 }),
     deleteDocument: vi.fn().mockResolvedValue(undefined),
-    searchDocuments: vi.fn().mockResolvedValue([{ id: 'd1', score: 0.9, content: 'match' }]),
+    searchDocuments: vi
+      .fn()
+      .mockResolvedValue([{ id: 'd1', score: 0.9, content: 'match' }]),
     getDocumentContent: vi.fn().mockResolvedValue('# Hello'),
     scanDirectories: vi.fn().mockResolvedValue({ scanned: 5, indexed: 3 }),
-    listNamespaces: vi.fn().mockReturnValue([{ id: 'default', label: 'Default', behavior: 'rag' }]),
+    listNamespaces: vi
+      .fn()
+      .mockReturnValue([{ id: 'default', label: 'Default', behavior: 'rag' }]),
     registerNamespace: vi.fn(),
     removeNamespace: vi.fn(),
     updateNamespace: vi.fn(),
   };
 }
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Knowledge Routes', () => {
   test('GET / lists documents', async () => {
@@ -62,11 +72,13 @@ describe('Knowledge Routes', () => {
 
   test('POST /search returns results', async () => {
     const app = createKnowledgeRoutes(createMockKnowledgeService() as any);
-    const body = await json(await app.request('/search', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: 'test' }),
-    }));
+    const body = await json(
+      await app.request('/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: 'test' }),
+      }),
+    );
     expect(body.success).toBe(true);
     expect(body.data).toHaveLength(1);
   });
@@ -128,7 +140,9 @@ describe('Knowledge Routes', () => {
   test('DELETE /namespaces/:nsId removes namespace', async () => {
     const svc = createMockKnowledgeService();
     const app = createKnowledgeRoutes(svc as any);
-    const body = await json(await app.request('/namespaces/code', { method: 'DELETE' }));
+    const body = await json(
+      await app.request('/namespaces/code', { method: 'DELETE' }),
+    );
     expect(body.success).toBe(true);
   });
 

@@ -36,15 +36,33 @@ describe('FeedbackService', () => {
   });
 
   test('rateMessage upserts on same message', () => {
-    svc.rateMessage({ agentSlug: 'a', conversationId: 'c1', messageIndex: 0, messagePreview: 'x', rating: 'thumbs_up' });
-    svc.rateMessage({ agentSlug: 'a', conversationId: 'c1', messageIndex: 0, messagePreview: 'x', rating: 'thumbs_down' });
+    svc.rateMessage({
+      agentSlug: 'a',
+      conversationId: 'c1',
+      messageIndex: 0,
+      messagePreview: 'x',
+      rating: 'thumbs_up',
+    });
+    svc.rateMessage({
+      agentSlug: 'a',
+      conversationId: 'c1',
+      messageIndex: 0,
+      messagePreview: 'x',
+      rating: 'thumbs_down',
+    });
     const ratings = svc.getRatings();
     expect(ratings).toHaveLength(1);
     expect(ratings[0].rating).toBe('thumbs_down');
   });
 
   test('removeRating deletes a rating', () => {
-    svc.rateMessage({ agentSlug: 'a', conversationId: 'c1', messageIndex: 0, messagePreview: 'x', rating: 'thumbs_up' });
+    svc.rateMessage({
+      agentSlug: 'a',
+      conversationId: 'c1',
+      messageIndex: 0,
+      messagePreview: 'x',
+      rating: 'thumbs_up',
+    });
     expect(svc.removeRating('c1', 0)).toBe(true);
     expect(svc.getRatings()).toHaveLength(0);
   });
@@ -73,7 +91,13 @@ describe('FeedbackService', () => {
   });
 
   test('clearAnalysis resets analysis data', () => {
-    svc.rateMessage({ agentSlug: 'a', conversationId: 'c1', messageIndex: 0, messagePreview: 'x', rating: 'thumbs_up' });
+    svc.rateMessage({
+      agentSlug: 'a',
+      conversationId: 'c1',
+      messageIndex: 0,
+      messagePreview: 'x',
+      rating: 'thumbs_up',
+    });
     svc.clearAnalysis();
     const ratings = svc.getRatings();
     expect(ratings[0].analysis).toBeUndefined();

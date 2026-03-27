@@ -4,8 +4,13 @@
 
 import type { EventEmitter } from 'node:events';
 import { getCachedUser } from './auth.js';
+import { errorMessage } from './schemas.js';
 
-type Agent = any;
+/** Minimal agent shape used by monitoring routes. */
+interface MonitoringAgent {
+  name: string;
+  model?: string | { modelId?: string };
+}
 
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
@@ -20,7 +25,7 @@ interface ModelWithId {
 import type { ACPManager } from '../services/acp-bridge.js';
 
 export interface MonitoringDeps {
-  activeAgents: Map<string, Agent>;
+  activeAgents: Map<string, MonitoringAgent>;
   agentStats: Map<
     string,
     { conversationCount: number; messageCount: number; lastUpdated: number }
@@ -106,7 +111,10 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
           agents.push({
             slug: `acp:${conn.id}`,
             name: conn.name,
-            status: conn.status === 'available' ? 'idle' as const : 'idle' as const,
+            status:
+              conn.status === 'available'
+                ? ('idle' as const)
+                : ('idle' as const),
             model: conn.currentModel || 'ACP',
             conversationCount: 0,
             messageCount: 0,
@@ -132,8 +140,8 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
           },
         },
       });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -193,8 +201,8 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
       );
 
       return c.json({ success: true, data: { range, metrics: summary } });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -203,7 +211,9 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
     const startTime = c.req.query('start');
     const endTime = c.req.query('end');
     const userId =
-      c.req.query('userId') || c.req.header('x-user-id') || getCachedUser().alias;
+      c.req.query('userId') ||
+      c.req.header('x-user-id') ||
+      getCachedUser().alias;
 
     // If time range specified, return historical events as JSON
     if (startTime || endTime) {
@@ -245,7 +255,9 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
           'span.kind': 'log',
           'stallion.system.type': 'heartbeat',
         };
-        stream.writeSSE({ data: JSON.stringify(heartbeatEvent) }).catch(() => {});
+        stream
+          .writeSSE({ data: JSON.stringify(heartbeatEvent) })
+          .catch(() => {});
       }, 30000);
 
       try {

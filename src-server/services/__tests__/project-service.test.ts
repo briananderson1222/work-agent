@@ -12,14 +12,20 @@ const { ProjectService } = await import('../project-service.js');
 function createMockStorageAdapter() {
   const projects = new Map<string, any>();
   return {
-    listProjects: vi.fn(() => [...projects.values()].map((p) => ({ slug: p.slug, name: p.name }))),
+    listProjects: vi.fn(() =>
+      [...projects.values()].map((p) => ({ slug: p.slug, name: p.name })),
+    ),
     getProject: vi.fn((slug: string) => {
       const p = projects.get(slug);
       if (!p) throw new Error(`Project '${slug}' not found`);
       return p;
     }),
-    saveProject: vi.fn(async (p: any) => { projects.set(p.slug || p.id, p); }),
-    deleteProject: vi.fn((slug: string) => { projects.delete(slug); }),
+    saveProject: vi.fn(async (p: any) => {
+      projects.set(p.slug || p.id, p);
+    }),
+    deleteProject: vi.fn((slug: string) => {
+      projects.delete(slug);
+    }),
   };
 }
 
@@ -27,7 +33,10 @@ describe('ProjectService', () => {
   test('createProject generates id and timestamps', async () => {
     const adapter = createMockStorageAdapter();
     const svc = new ProjectService(adapter as any);
-    const result = await svc.createProject({ name: 'Test', slug: 'test' } as any);
+    const result = await svc.createProject({
+      name: 'Test',
+      slug: 'test',
+    } as any);
     expect(result.id).toBeDefined();
     expect(result.createdAt).toBeDefined();
     expect(result.updatedAt).toBeDefined();
@@ -37,7 +46,11 @@ describe('ProjectService', () => {
   test('createProject derives name from workingDirectory', async () => {
     const adapter = createMockStorageAdapter();
     const svc = new ProjectService(adapter as any);
-    const result = await svc.createProject({ name: 'Untitled', slug: 'my-app', workingDirectory: '/home/user/my-app' } as any);
+    const result = await svc.createProject({
+      name: 'Untitled',
+      slug: 'my-app',
+      workingDirectory: '/home/user/my-app',
+    } as any);
     expect(result.name).toBe('My-app');
   });
 
@@ -57,7 +70,11 @@ describe('ProjectService', () => {
 
   test('updateProject merges and updates timestamp', async () => {
     const adapter = createMockStorageAdapter();
-    adapter.getProject.mockResolvedValue({ slug: 'test', name: 'Old', createdAt: '2026-01-01' });
+    adapter.getProject.mockResolvedValue({
+      slug: 'test',
+      name: 'Old',
+      createdAt: '2026-01-01',
+    });
     const svc = new ProjectService(adapter as any);
     const result = await svc.updateProject('test', { name: 'New' });
     expect(result.name).toBe('New');

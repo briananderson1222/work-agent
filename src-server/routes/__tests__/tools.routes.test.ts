@@ -8,16 +8,22 @@ const { createToolRoutes } = await import('../tools.js');
 
 function createMockMCPService() {
   return {
-    listIntegrations: vi.fn().mockResolvedValue([{ id: 'mcp-1', name: 'Test MCP' }]),
+    listIntegrations: vi
+      .fn()
+      .mockResolvedValue([{ id: 'mcp-1', name: 'Test MCP' }]),
     getToolAgentMap: vi.fn().mockResolvedValue({ 'mcp-1': ['default'] }),
     getConnectionStatus: vi.fn().mockReturnValue({ connected: true }),
     saveIntegration: vi.fn().mockResolvedValue(undefined),
-    getIntegration: vi.fn().mockResolvedValue({ id: 'mcp-1', name: 'Test MCP', type: 'stdio' }),
+    getIntegration: vi
+      .fn()
+      .mockResolvedValue({ id: 'mcp-1', name: 'Test MCP', type: 'stdio' }),
     deleteIntegration: vi.fn().mockResolvedValue(undefined),
   };
 }
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Tool Routes', () => {
   test('GET / lists tools with agent usage', async () => {
@@ -30,11 +36,13 @@ describe('Tool Routes', () => {
   test('POST / saves integration', async () => {
     const svc = createMockMCPService();
     const app = createToolRoutes(svc as any, vi.fn());
-    const body = await json(await app.request('/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: 'new', name: 'New', type: 'stdio' }),
-    }));
+    const body = await json(
+      await app.request('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 'new', name: 'New', type: 'stdio' }),
+      }),
+    );
     expect(body.success).toBe(true);
     expect(svc.saveIntegration).toHaveBeenCalled();
   });

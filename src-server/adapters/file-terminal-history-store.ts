@@ -7,8 +7,7 @@ export class FileTerminalHistoryStore implements ITerminalHistoryStore {
   private baseDir: string;
 
   constructor(baseDir?: string) {
-    this.baseDir =
-      baseDir ?? join(resolveHomeDir(), 'terminal-history');
+    this.baseDir = baseDir ?? join(resolveHomeDir(), 'terminal-history');
   }
 
   private filePath(sessionId: string): string {

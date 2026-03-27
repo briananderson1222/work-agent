@@ -21,6 +21,7 @@ import {
   type ChatFn,
   nextCronTimes,
 } from './builtin-scheduler.js';
+import type { NotificationService } from './notification-service.js';
 import { SSEBroadcaster } from './sse-broadcaster.js';
 
 export class SchedulerService {
@@ -41,6 +42,11 @@ export class SchedulerService {
   /** Wire the chat function once the runtime is ready */
   setChatFn(fn: ChatFn) {
     this.builtin.setChatFn(fn);
+  }
+
+  /** Wire the notification service for failure alerts */
+  setNotificationService(ns: NotificationService) {
+    this.builtin.setNotificationService(ns);
   }
 
   /** Register an additional scheduler provider (from plugin) */
@@ -206,7 +212,11 @@ export class SchedulerService {
       try {
         if (p.readRunFile) return await p.readRunFile(path);
       } catch (e) {
-        console.debug('Failed to read run file from scheduler provider:', p.id, e);
+        console.debug(
+          'Failed to read run file from scheduler provider:',
+          p.id,
+          e,
+        );
         /* not this provider */
       }
     }

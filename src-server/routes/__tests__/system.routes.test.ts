@@ -18,15 +18,26 @@ const { createSystemRoutes } = await import('../system.js');
 function createMockDeps() {
   return {
     getACPStatus: () => ({ connected: false, connections: [] }),
-    getAppConfig: () => ({ region: 'us-east-1', defaultModel: 'claude-3', runtime: 'voltagent' }),
+    getAppConfig: () => ({
+      region: 'us-east-1',
+      defaultModel: 'claude-3',
+      runtime: 'voltagent',
+    }),
     appConfig: { runtime: 'voltagent' },
     port: 3141,
   };
 }
 
-const mockLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+const mockLogger = {
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+};
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('System Routes', () => {
   test('GET /status returns readiness check', async () => {

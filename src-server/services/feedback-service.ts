@@ -124,7 +124,11 @@ export class FeedbackService {
     }
 
     this.store.write(data);
-    feedbackOps.add(1, { operation: 'rate', rating: params.rating, agent: params.agentSlug });
+    feedbackOps.add(1, {
+      operation: 'rate',
+      rating: params.rating,
+      agent: params.agentSlug,
+    });
     return entry;
   }
 
@@ -224,7 +228,10 @@ ${avoid || '(none identified yet)'}
   }
 
   stop(): void {
-    if (this.initialTimer) { clearTimeout(this.initialTimer); this.initialTimer = null; }
+    if (this.initialTimer) {
+      clearTimeout(this.initialTimer);
+      this.initialTimer = null;
+    }
     if (this.timer) {
       clearInterval(this.timer);
       this.timer = null;

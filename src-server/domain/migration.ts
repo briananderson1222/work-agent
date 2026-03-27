@@ -14,11 +14,13 @@ import type {
 } from '@stallion-ai/shared';
 import { FileStorageAdapter } from './file-storage-adapter.js';
 
-export async function runStartupMigrations(projectHomeDir: string): Promise<void> {
+export async function runStartupMigrations(
+  projectHomeDir: string,
+): Promise<void> {
   // Seed default provider connections (runs every startup, idempotent)
   const storageAdapter = new FileStorageAdapter(projectHomeDir);
   const existing = storageAdapter.listProviderConnections();
-  if (!existing.some(c => c.capabilities.includes('vectordb'))) {
+  if (!existing.some((c) => c.capabilities.includes('vectordb'))) {
     storageAdapter.saveProviderConnection({
       id: 'lancedb-builtin',
       type: 'lancedb',
@@ -28,14 +30,18 @@ export async function runStartupMigrations(projectHomeDir: string): Promise<void
       capabilities: ['vectordb'] as ('llm' | 'embedding' | 'vectordb')[],
     });
   }
-  if (!existing.some(c => c.capabilities.includes('llm'))) {
+  if (!existing.some((c) => c.capabilities.includes('llm'))) {
     storageAdapter.saveProviderConnection({
       id: 'bedrock-default',
       type: 'bedrock',
       name: 'Amazon Bedrock',
       config: { region: '' },
       enabled: true,
-      capabilities: ['llm', 'embedding'] as ('llm' | 'embedding' | 'vectordb')[],
+      capabilities: ['llm', 'embedding'] as (
+        | 'llm'
+        | 'embedding'
+        | 'vectordb'
+      )[],
     });
   }
 
@@ -53,7 +59,13 @@ export async function runStartupMigrations(projectHomeDir: string): Promise<void
       if (!existsSync(layoutFile)) continue;
       try {
         standaloneLayouts.push(JSON.parse(readFileSync(layoutFile, 'utf-8')));
-      } catch (e) { console.debug('Failed to parse layout file during migration:', layoutFile, e); }
+      } catch (e) {
+        console.debug(
+          'Failed to parse layout file during migration:',
+          layoutFile,
+          e,
+        );
+      }
     }
   }
 

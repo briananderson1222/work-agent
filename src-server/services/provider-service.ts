@@ -59,7 +59,13 @@ export class ProviderService {
             model: project.defaultModel,
           };
         }
-      } catch (e) { console.debug('Failed to get project provider config:', opts.projectSlug, e); }
+      } catch (e) {
+        console.debug(
+          'Failed to get project provider config:',
+          opts.projectSlug,
+          e,
+        );
+      }
     }
 
     const appConfig = await this.getAppConfig();

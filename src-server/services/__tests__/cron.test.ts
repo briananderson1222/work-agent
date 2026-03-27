@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest';
-import { parseCronField, cronMatches, nextCronTimes } from '../cron.js';
+import { cronMatches, nextCronTimes, parseCronField } from '../cron.js';
 
 describe('parseCronField', () => {
   test('wildcard expands full range', () => {

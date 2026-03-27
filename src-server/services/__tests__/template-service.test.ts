@@ -20,7 +20,9 @@ describe('TemplateService', () => {
     const layouts = await svc.listTemplates('layout');
     expect(agents.every((t) => t.type === 'agent')).toBe(true);
     expect(layouts.every((t) => t.type === 'layout')).toBe(true);
-    expect(agents.length + layouts.length).toBe((await svc.listTemplates()).length);
+    expect(agents.length + layouts.length).toBe(
+      (await svc.listTemplates()).length,
+    );
   });
 
   test('addProvider contributes templates', async () => {
@@ -29,7 +31,14 @@ describe('TemplateService', () => {
     svc.addProvider({
       id: 'mock',
       listTemplates: async () => [
-        { id: 'custom', icon: '🎯', label: 'Custom', description: 'Test', type: 'agent' as const, form: { name: 'C', slug: 'c', description: '', prompt: '' } },
+        {
+          id: 'custom',
+          icon: '🎯',
+          label: 'Custom',
+          description: 'Test',
+          type: 'agent' as const,
+          form: { name: 'C', slug: 'c', description: '', prompt: '' },
+        },
       ],
     });
     const after = await svc.listTemplates();
@@ -39,7 +48,12 @@ describe('TemplateService', () => {
 
   test('provider failure is non-fatal', async () => {
     const svc = new TemplateService();
-    svc.addProvider({ id: 'bad', listTemplates: async () => { throw new Error('boom'); } });
+    svc.addProvider({
+      id: 'bad',
+      listTemplates: async () => {
+        throw new Error('boom');
+      },
+    });
     const all = await svc.listTemplates();
     expect(all.length).toBeGreaterThan(0); // builtins still returned
   });

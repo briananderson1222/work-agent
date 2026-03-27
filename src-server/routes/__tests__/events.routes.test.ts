@@ -8,7 +8,12 @@ vi.mock('../../telemetry/metrics.js', () => ({
 const { createEventRoutes } = await import('../events.js');
 const { EventBus } = await import('../../services/event-bus.js');
 
-const mockLogger = { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() };
+const mockLogger = {
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+};
 
 describe('Event Routes (SSE)', () => {
   test('GET / streams initial ACP status event', async () => {

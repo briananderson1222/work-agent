@@ -19,7 +19,9 @@ vi.mock('../../providers/registry.js', () => ({
 
 const { createAuthRoutes, createUserRoutes } = await import('../auth.js');
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Auth Routes', () => {
   test('GET /status returns auth status', async () => {

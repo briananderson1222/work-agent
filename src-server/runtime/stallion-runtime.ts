@@ -4,7 +4,12 @@
  */
 
 import { EventEmitter } from 'node:events';
-import { createReadStream, existsSync, readdirSync, readFileSync } from 'node:fs';
+import {
+  createReadStream,
+  existsSync,
+  readdirSync,
+  readFileSync,
+} from 'node:fs';
 import { appendFile, mkdir, readdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -17,32 +22,20 @@ import {
 import { type HonoServerConfig, honoServer } from '@voltagent/server-hono';
 import { cors } from 'hono/cors';
 import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
+import { FileTerminalHistoryStore } from '../adapters/file-terminal-history-store.js';
+import { NodePtyAdapter } from '../adapters/node-pty-adapter.js';
 import { UsageAggregator } from '../analytics/usage-aggregator.js';
 import {
   ConfigLoader,
   DEFAULT_SYSTEM_PROMPT,
 } from '../domain/config-loader.js';
-import type { AgentSpec, AppConfig } from '../domain/types.js';
-import { ACPStatus } from '../domain/types.js';
-import { BedrockModelCatalog } from '../providers/bedrock-models.js';
-import { createEventRoutes } from '../routes/events.js';
-import { createUICommandRoutes } from '../routes/ui-commands.js';
-import { EventBus } from '../services/event-bus.js';
-import {
-  registerObservableGauges,
-} from '../telemetry/metrics.js';
-import { createLogger } from '../utils/logger.js';
-import { createAgentHooks } from './agent-hooks.js';
-import type { RuntimeContext } from './types.js';
-import * as MCPManager from './mcp-manager.js';
-import { StrandsFramework } from './strands-adapter.js';
-import * as ToolExecutor from './tool-executor.js';
-import { VoltAgentFramework } from './voltagent-adapter.js';
-
-import { FileTerminalHistoryStore } from '../adapters/file-terminal-history-store.js';
-import { NodePtyAdapter } from '../adapters/node-pty-adapter.js';
 import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import { runStartupMigrations } from '../domain/migration.js';
+import type { AgentSpec, AppConfig } from '../domain/types.js';
+import { ACPStatus } from '../domain/types.js';
+import { MonitoringEmitter } from '../monitoring/emitter.js';
+import { createOtlpReceiverRoutes } from '../monitoring/otlp-receiver.js';
+import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
 import {
   getNotificationProviders,
@@ -50,21 +43,30 @@ import {
   registerAgentRegistryProvider,
   registerIntegrationRegistryProvider,
 } from '../providers/registry.js';
-import { createAgentRoutes } from '../routes/agents.js';
 import { createACPRoutes } from '../routes/acp.js';
 import { createAgentToolRoutes } from '../routes/agent-tools.js';
-import { createInvokeRoutes } from '../routes/invoke.js';
-import { createChatRoutes } from '../routes/chat.js';
+import { createAgentRoutes } from '../routes/agents.js';
 import { createAnalyticsRoutes } from '../routes/analytics.js';
-import { createAuthRoutes, createUserRoutes, getCachedUser } from '../routes/auth.js';
+import {
+  createAuthRoutes,
+  createUserRoutes,
+  getCachedUser,
+} from '../routes/auth.js';
 import { createBedrockRoutes } from '../routes/bedrock.js';
 import { createBrandingRoutes } from '../routes/branding.js';
+import { createChatRoutes } from '../routes/chat.js';
 import { createCodingRoutes } from '../routes/coding.js';
 import { createConfigRoutes } from '../routes/config.js';
-import { createConversationRoutes, createGlobalConversationRoutes } from '../routes/conversations.js';
+import {
+  createConversationRoutes,
+  createGlobalConversationRoutes,
+} from '../routes/conversations.js';
+import { createEnrichedAgentRoutes } from '../routes/enriched-agents.js';
+import { createEventRoutes } from '../routes/events.js';
 import { createFeedbackRoutes } from '../routes/feedback.js';
 import { createFsRoutes } from '../routes/fs.js';
 import { createInsightsRoutes } from '../routes/insights.js';
+import { createInvokeRoutes } from '../routes/invoke.js';
 import {
   createCrossProjectKnowledgeRoutes,
   createKnowledgeRoutes,
@@ -72,8 +74,6 @@ import {
 import { createLayoutRoutes, createWorkflowRoutes } from '../routes/layouts.js';
 import modelsRoute from '../routes/models.js';
 import { createMonitoringRoutes } from '../routes/monitoring.js';
-import { MonitoringEmitter } from '../monitoring/emitter.js';
-import { createOtlpReceiverRoutes } from '../monitoring/otlp-receiver.js';
 import { createNotificationRoutes } from '../routes/notifications.js';
 import { createPluginRoutes } from '../routes/plugins.js';
 import { createProjectRoutes } from '../routes/projects.js';
@@ -89,12 +89,12 @@ import { createSystemRoutes } from '../routes/system.js';
 import { createTelemetryRoutes } from '../routes/telemetry-events.js';
 import { createTemplateRoutes } from '../routes/templates.js';
 import { createToolRoutes } from '../routes/tools.js';
-import { VoiceSessionService } from '../voice/voice-session.js';
-import { NovaSonicProvider } from '../voice/providers/nova-sonic.js';
-import { createVoiceRoutes, attachVoiceWebSocket } from '../routes/voice.js';
+import { createUICommandRoutes } from '../routes/ui-commands.js';
+import { attachVoiceWebSocket, createVoiceRoutes } from '../routes/voice.js';
 import { ACPManager } from '../services/acp-bridge.js';
 import { AgentService } from '../services/agent-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
+import { EventBus } from '../services/event-bus.js';
 import { FeedbackService } from '../services/feedback-service.js';
 import { FileTreeService } from '../services/file-tree-service.js';
 import { KnowledgeService } from '../services/knowledge-service.js';
@@ -108,8 +108,18 @@ import { SchedulerService } from '../services/scheduler-service.js';
 import * as SkillService from '../services/skill-service.js';
 import { TerminalService } from '../services/terminal-service.js';
 import { TerminalWebSocketServer } from '../services/terminal-ws-server.js';
+import { registerObservableGauges } from '../telemetry/metrics.js';
 import { isAuthError } from '../utils/auth-errors.js';
+import { createLogger } from '../utils/logger.js';
 import { resolveHomeDir } from '../utils/paths.js';
+import { NovaSonicProvider } from '../voice/providers/nova-sonic.js';
+import { VoiceSessionService } from '../voice/voice-session.js';
+import { createAgentHooks } from './agent-hooks.js';
+import * as MCPManager from './mcp-manager.js';
+import { StrandsFramework } from './strands-adapter.js';
+import * as ToolExecutor from './tool-executor.js';
+import type { RuntimeContext } from './types.js';
+import { VoltAgentFramework } from './voltagent-adapter.js';
 
 export interface StallionRuntimeOptions {
   projectHomeDir?: string;
@@ -119,13 +129,31 @@ export interface StallionRuntimeOptions {
 
 // Read-only stallion-control tools safe for auto-approve
 const SC_READ_ONLY_TOOLS = [
-  'list_agents', 'get_agent', 'list_skills', 'list_registry_skills',
-  'list_integrations', 'get_integration', 'list_registry_integrations',
-  'list_providers', 'list_prompts', 'list_jobs', 'system_status',
-  'list_models', 'navigate_to', 'list_projects', 'get_project',
-  'list_project_layouts', 'list_layouts', 'get_layout',
-  'list_conversations', 'get_conversation_messages', 'get_config',
-  'list_plugins', 'check_plugin_updates', 'get_usage', 'get_achievements',
+  'list_agents',
+  'get_agent',
+  'list_skills',
+  'list_registry_skills',
+  'list_integrations',
+  'get_integration',
+  'list_registry_integrations',
+  'list_providers',
+  'list_prompts',
+  'list_jobs',
+  'system_status',
+  'list_models',
+  'navigate_to',
+  'list_projects',
+  'get_project',
+  'list_project_layouts',
+  'list_layouts',
+  'get_layout',
+  'list_conversations',
+  'get_conversation_messages',
+  'get_config',
+  'list_plugins',
+  'check_plugin_updates',
+  'get_usage',
+  'get_achievements',
 ].map((t) => `stallion-control_${t}`);
 
 /**
@@ -260,7 +288,11 @@ export class StallionRuntime {
     this.fileTreeService = new FileTreeService();
     const ptyAdapter = new NodePtyAdapter();
     const historyStore = new FileTerminalHistoryStore();
-    this.terminalService = new TerminalService(ptyAdapter, historyStore, () => this.appConfig?.terminalShell);
+    this.terminalService = new TerminalService(
+      ptyAdapter,
+      historyStore,
+      () => this.appConfig?.terminalShell,
+    );
     this.terminalWsServer = new TerminalWebSocketServer(this.terminalService);
     this.terminalWsServer.start(this.port + 1);
     this.voiceService = new VoiceSessionService({
@@ -380,7 +412,11 @@ export class StallionRuntime {
       name: 'Stallion Voice',
       prompt:
         'You are Stallion Voice, a hands-free voice assistant. You can navigate the app, query data, and perform actions. Be concise — this is voice, not text. Use short sentences. Always confirm before creating, modifying, or deleting anything.',
-      tools: { mcpServers, autoApprove: ['stallion-control_*'], available: ['*'] },
+      tools: {
+        mcpServers,
+        autoApprove: ['stallion-control_*'],
+        available: ['*'],
+      },
     };
     if (await this.configLoader.agentExists('stallion-voice')) {
       await this.configLoader.updateAgent('stallion-voice', voiceSpec);
@@ -391,10 +427,15 @@ export class StallionRuntime {
     // Load tools into agentTools so the voice session can use them
     try {
       await this.createVoltAgentInstance('stallion-voice');
-      this.logger.info('Bootstrapped stallion-voice agent', { mcpServers, toolCount: this.agentTools.get('stallion-voice')?.length ?? 0 });
+      this.logger.info('Bootstrapped stallion-voice agent', {
+        mcpServers,
+        toolCount: this.agentTools.get('stallion-voice')?.length ?? 0,
+      });
     } catch (err) {
       this.logger.warn('Failed to load stallion-voice tools', { error: err });
-      this.logger.info('Bootstrapped stallion-voice agent (no tools)', { mcpServers });
+      this.logger.info('Bootstrapped stallion-voice agent (no tools)', {
+        mcpServers,
+      });
     }
   }
 
@@ -488,14 +529,19 @@ export class StallionRuntime {
     const projects = this.storageAdapter?.listProjects() || [];
     const activeProject = projects[0]?.slug;
 
-    // Register default skill registry (Anthropic's official skills repo)
-    const { GitHubSkillRegistryProvider } = await import(
-      '../providers/github-skill-registry.js'
-    );
-    const { registerSkillRegistryProvider } = await import(
-      '../providers/registry.js'
-    );
-    registerSkillRegistryProvider(new GitHubSkillRegistryProvider());
+    // Register default skill registry (unless disabled by config or plugin)
+    const overrides = await this.configLoader.loadPluginOverrides();
+    const pluginDisabled =
+      overrides['aws-internal']?.settings?.disableDefaultSkillRegistries;
+    if (!this.appConfig.disableDefaultSkillRegistries && !pluginDisabled) {
+      const { GitHubSkillRegistryProvider } = await import(
+        '../providers/github-skill-registry.js'
+      );
+      const { registerSkillRegistryProvider } = await import(
+        '../providers/registry.js'
+      );
+      registerSkillRegistryProvider(new GitHubSkillRegistryProvider());
+    }
 
     await SkillService.discoverSkills(
       this.configLoader.getProjectHomeDir(),
@@ -510,12 +556,14 @@ export class StallionRuntime {
 
     // Background rescan on startup + every 30 min
     this.usageAggregator.fullRescan().catch(() => {});
-    this.timers.push(setInterval(
-      () => {
-        this.usageAggregator?.fullRescan().catch(() => {});
-      },
-      30 * 60 * 1000,
-    ));
+    this.timers.push(
+      setInterval(
+        () => {
+          this.usageAggregator?.fullRescan().catch(() => {});
+        },
+        30 * 60 * 1000,
+      ),
+    );
 
     // Migrate legacy workspaces to project structure
     await runStartupMigrations(this.configLoader.getProjectHomeDir());
@@ -540,7 +588,9 @@ export class StallionRuntime {
           this.logger.info('Seeded default Bedrock provider connection');
         }
       } catch (e) {
-        this.logger.debug('Failed to check Bedrock credentials for seeding', { error: e });
+        this.logger.debug('Failed to check Bedrock credentials for seeding', {
+          error: e,
+        });
       }
     }
 
@@ -552,10 +602,12 @@ export class StallionRuntime {
       return midnight.getTime() - now.getTime();
     };
     const scheduleDailyReload = () => {
-      this.timers.push(setTimeout(() => {
-        this.reloadAgents().catch(() => {});
-        scheduleDailyReload();
-      }, msUntilMidnight()));
+      this.timers.push(
+        setTimeout(() => {
+          this.reloadAgents().catch(() => {});
+          scheduleDailyReload();
+        }, msUntilMidnight()),
+      );
     };
     scheduleDailyReload();
 
@@ -579,7 +631,8 @@ export class StallionRuntime {
       await this.configLoader.saveIntegration(selfIntegrationId, {
         id: selfIntegrationId,
         displayName: 'Stallion Control',
-        description: 'Manage agents, skills, integrations, prompts, and jobs via natural language',
+        description:
+          'Manage agents, skills, integrations, prompts, and jobs via natural language',
         kind: 'mcp',
         transport: 'stdio',
         command: 'node',
@@ -593,7 +646,10 @@ export class StallionRuntime {
     // Auto-approve read-only tools; write ops (create/update/delete/install/remove) require user approval
     const defaultSpec = {
       model: this.appConfig.defaultModel,
-      tools: { mcpServers: [selfIntegrationId], autoApprove: SC_READ_ONLY_TOOLS },
+      tools: {
+        mcpServers: [selfIntegrationId],
+        autoApprove: SC_READ_ONLY_TOOLS,
+      },
     } as AgentSpec;
     const defaultModel = await this.createBedrockModel(defaultSpec);
 
@@ -611,12 +667,18 @@ export class StallionRuntime {
         this.toolNameReverseMapping,
         this.logger,
       );
-      this.logger.info('Default agent tools loaded', { count: defaultTools.length });
+      this.logger.info('Default agent tools loaded', {
+        count: defaultTools.length,
+      });
     } catch (e) {
-      this.logger.warn('Failed to load stallion-control tools for default agent', { error: e });
+      this.logger.warn(
+        'Failed to load stallion-control tools for default agent',
+        { error: e },
+      );
     }
 
-    const rawSystemPrompt = this.appConfig.systemPrompt || DEFAULT_SYSTEM_PROMPT;
+    const rawSystemPrompt =
+      this.appConfig.systemPrompt || DEFAULT_SYSTEM_PROMPT;
     const defaultAgent = await this.framework.createTempAgent({
       name: 'default',
       instructions: () => this.replaceTemplateVariables(rawSystemPrompt),
@@ -734,28 +796,30 @@ export class StallionRuntime {
       });
 
     // Check for plugin updates after startup (delayed, non-blocking)
-    this.timers.push(setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `http://localhost:${this.port}/api/plugins/check-updates`,
-        );
-        if (!res.ok) return;
-        const { updates } = (await res.json()) as { updates: any[] };
-        if (updates.length > 0) {
-          this.eventBus.emit('plugins:updates-available', {
-            count: updates.length,
-            updates,
-          });
-          this.logger.info('Plugin updates available', {
-            count: updates.length,
+    this.timers.push(
+      setTimeout(async () => {
+        try {
+          const res = await fetch(
+            `http://localhost:${this.port}/api/plugins/check-updates`,
+          );
+          if (!res.ok) return;
+          const { updates } = (await res.json()) as { updates: any[] };
+          if (updates.length > 0) {
+            this.eventBus.emit('plugins:updates-available', {
+              count: updates.length,
+              updates,
+            });
+            this.logger.info('Plugin updates available', {
+              count: updates.length,
+            });
+          }
+        } catch (error: any) {
+          this.logger.debug('Failed to check for plugin updates', {
+            error: error.message,
           });
         }
-      } catch (error: any) {
-        this.logger.debug('Failed to check for plugin updates', {
-          error: error.message,
-        });
-      }
-    }, 5000));
+      }, 5000),
+    );
   }
 
   /**
@@ -825,10 +889,12 @@ export class StallionRuntime {
         if (path.includes('/prompts')) keys.push('prompts');
         if (path.includes('/skills')) keys.push('skills');
         if (path.includes('/providers')) keys.push('providers');
-        if (path.includes('/scheduler') || path.includes('/jobs')) keys.push('scheduler-jobs');
+        if (path.includes('/scheduler') || path.includes('/jobs'))
+          keys.push('scheduler-jobs');
         if (path.includes('/projects')) keys.push('projects');
         if (path.includes('/knowledge')) keys.push('knowledge');
-        if (path.includes('/registry')) keys.push('skills', 'integrations', 'agents');
+        if (path.includes('/registry'))
+          keys.push('skills', 'integrations', 'agents');
         if (keys.length > 0) {
           this.eventBus.emit('data:changed', { keys: [...new Set(keys)] });
         }
@@ -921,7 +987,9 @@ export class StallionRuntime {
         getACPStatus: () => {
           const s = this.acpBridge.getStatus();
           return {
-            connected: s.connections.some((c) => c.status === ACPStatus.AVAILABLE),
+            connected: s.connections.some(
+              (c) => c.status === ACPStatus.AVAILABLE,
+            ),
             connections: s.connections,
           };
         },
@@ -934,64 +1002,24 @@ export class StallionRuntime {
     // Build RuntimeContext for extracted route modules
     const ctx = this.buildRuntimeContext();
 
-    // Enriched agent list (use /api prefix to avoid VoltAgent routes)
-    app.get('/api/agents', async (c) => {
-      try {
-        await this.reloadAgents();
-        const enrichedAgents = (
-          await Promise.all(
-            Array.from(this.agentMetadataMap.entries()).map(
-              async ([slug, metadata]) => {
-                if (!this.activeAgents.has(slug)) return null;
-                try {
-                  const spec: AgentSpec =
-                    slug === 'default'
-                      ? { name: 'default', prompt: metadata.description, description: metadata.description, model: this.appConfig.defaultModel, tools: { mcpServers: ['stallion-control'], autoApprove: SC_READ_ONLY_TOOLS } }
-                      : await this.configLoader.loadAgent(slug);
-                  return {
-                    slug, name: metadata.name, prompt: spec.prompt, description: spec.description,
-                    model: spec.model, region: spec.region, guardrails: spec.guardrails, maxSteps: spec.maxSteps,
-                    icon: spec.icon, commands: spec.commands, toolsConfig: spec.tools, skills: spec.skills,
-                    updatedAt: metadata.updatedAt,
-                  };
-                } catch (e) {
-                  this.logger.warn('Agent spec not found, skipping', { agent: metadata.slug, error: e });
-                  return null;
-                }
-              },
-            ),
-          )
-        ).filter((a) => a !== null);
-        if (this.acpBridge.isConnected()) enrichedAgents.push(...this.acpBridge.getVirtualAgents());
-        return c.json({ success: true, data: enrichedAgents });
-      } catch (error: any) {
-        this.logger.error('Failed to fetch agents', { error: error.message });
-        return c.json({ success: false, error: error.message }, 500);
-      }
-    });
-
-    // Single enriched agent
-    app.get('/api/agents/:slug', async (c) => {
-      const slug = c.req.param('slug');
-      const metadata = this.agentMetadataMap.get(slug);
-      if (!metadata || !this.activeAgents.has(slug)) {
-        return c.json({ success: false, error: 'Agent not found' }, 404);
-      }
-      try {
-        const spec: AgentSpec =
-          slug === 'default'
-            ? { name: 'default', prompt: metadata.description, description: metadata.description, model: this.appConfig.defaultModel, tools: { mcpServers: ['stallion-control'], autoApprove: SC_READ_ONLY_TOOLS } }
-            : await this.configLoader.loadAgent(slug);
-        return c.json({ success: true, data: {
-          slug, name: metadata.name, prompt: spec.prompt, description: spec.description,
-          model: spec.model, region: spec.region, guardrails: spec.guardrails, maxSteps: spec.maxSteps,
-          icon: spec.icon, commands: spec.commands, toolsConfig: spec.tools, skills: spec.skills,
-          updatedAt: metadata.updatedAt,
-        }});
-      } catch (error: any) {
-        return c.json({ success: false, error: error.message }, 500);
-      }
-    });
+    // Enriched agent list + single agent (extracted to route file)
+    app.route(
+      '/api/agents',
+      createEnrichedAgentRoutes({
+        agentMetadataMap: this.agentMetadataMap,
+        activeAgents: this.activeAgents,
+        loadAgent: (slug) => this.configLoader.loadAgent(slug),
+        defaultModel: this.appConfig.defaultModel,
+        defaultTools: {
+          mcpServers: ['stallion-control'],
+          autoApprove: SC_READ_ONLY_TOOLS,
+        },
+        getVirtualAgents: () => this.acpBridge.getVirtualAgents(),
+        isACPConnected: () => this.acpBridge.isConnected(),
+        reloadAgents: () => this.reloadAgents(),
+        logger: this.logger,
+      }),
+    );
 
     // === Extracted Route Modules ===
     app.route('/acp', createACPRoutes(ctx));
@@ -1058,20 +1086,35 @@ export class StallionRuntime {
     );
     app.route(
       '',
-      createOtlpReceiverRoutes((event) => this.monitoringEmitter.emitRaw(event)),
+      createOtlpReceiverRoutes((event) =>
+        this.monitoringEmitter.emitRaw(event),
+      ),
     );
     app.route(
       '/agents',
-      createConversationRoutes(this.memoryAdapters, this.logger, this.agentFixedTokens, this.agentTools, this.configLoader, this.appConfig, this.modelCatalog, (_slug: string) => {
-        return new FileMemoryAdapter({
-          projectHomeDir: this.configLoader.getProjectHomeDir(),
-          usageAggregator: this.usageAggregator,
-        });
-      }),
+      createConversationRoutes(
+        this.memoryAdapters,
+        this.logger,
+        this.agentFixedTokens,
+        this.agentTools,
+        this.configLoader,
+        this.appConfig,
+        this.modelCatalog,
+        (_slug: string) => {
+          return new FileMemoryAdapter({
+            projectHomeDir: this.configLoader.getProjectHomeDir(),
+            usageAggregator: this.usageAggregator,
+          });
+        },
+      ),
     );
     app.route(
       '/api/conversations',
-      createGlobalConversationRoutes(this.memoryAdapters, this.storageAdapter, this.logger),
+      createGlobalConversationRoutes(
+        this.memoryAdapters,
+        this.storageAdapter,
+        this.logger,
+      ),
     );
     this.schedulerService = new SchedulerService(this.logger);
     this.schedulerService.setChatFn(async (agentSlug, prompt) => {
@@ -1098,7 +1141,11 @@ export class StallionRuntime {
       this.notificationService.addProvider(provider);
     }
     this.notificationService.start();
-    app.route('/notifications', createNotificationRoutes(this.notificationService));
+    this.schedulerService.setNotificationService(this.notificationService);
+    app.route(
+      '/notifications',
+      createNotificationRoutes(this.notificationService),
+    );
     app.route('/api/feedback', createFeedbackRoutes(this.feedbackService));
     app.route('/api/insights', createInsightsRoutes(this.eventLogPath));
     app.route('/api/voice', createVoiceRoutes(this.voiceService));
@@ -1143,7 +1190,8 @@ export class StallionRuntime {
       metricsLog: this.metricsLog,
       persistEvent: (event: any) => this.persistEvent(event),
       createBedrockModel: (spec: AgentSpec) => this.createBedrockModel(spec),
-      replaceTemplateVariables: (text: string) => this.replaceTemplateVariables(text),
+      replaceTemplateVariables: (text: string) =>
+        this.replaceTemplateVariables(text),
       getNormalizedToolName: (name: string) => this.getNormalizedToolName(name),
       getOriginalToolName: (name: string) => this.getOriginalToolName(name),
       reloadAgents: () => this.reloadAgents(),
@@ -1282,7 +1330,8 @@ export class StallionRuntime {
               if (
                 eventTime >= start &&
                 eventTime <= end &&
-                (event.userId === userId || event['stallion.user.id'] === userId)
+                (event.userId === userId ||
+                  event['stallion.user.id'] === userId)
               ) {
                 events.push(event);
               }
@@ -1543,7 +1592,7 @@ export class StallionRuntime {
         const promptsDir = join(pluginsDir, name, manifest.prompts.source);
         const scanned = scanPromptDir(promptsDir, name);
         if (scanned.length > 0) svc.registerPluginPrompts(scanned);
-      } catch { }
+      } catch {}
     }
   }
 
@@ -1599,7 +1648,9 @@ export class StallionRuntime {
         // JSON files for registry types → auto-wrap with JsonManifestRegistryProvider
         if (
           modulePath.endsWith('.json') &&
-          (entry.type === 'agentRegistry' || entry.type === 'integrationRegistry' || entry.type === 'pluginRegistry')
+          (entry.type === 'agentRegistry' ||
+            entry.type === 'integrationRegistry' ||
+            entry.type === 'pluginRegistry')
         ) {
           const { JsonManifestRegistryProvider } = await import(
             '../providers/json-manifest-registry.js'
@@ -1608,8 +1659,10 @@ export class StallionRuntime {
             modulePath,
             dirname(pluginsDir),
           );
-          if (entry.type === 'agentRegistry') registerAgentRegistryProvider(instance);
-          else if (entry.type === 'pluginRegistry') registerPluginRegistryProvider(instance, entry.pluginName);
+          if (entry.type === 'agentRegistry')
+            registerAgentRegistryProvider(instance);
+          else if (entry.type === 'pluginRegistry')
+            registerPluginRegistryProvider(instance, entry.pluginName);
           else registerIntegrationRegistryProvider(instance);
           this.logger.info('Registered plugin provider (JSON manifest)', {
             plugin: entry.pluginName,

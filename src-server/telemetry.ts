@@ -4,14 +4,17 @@
  */
 
 import { createHash } from 'node:crypto';
-import { hostname, userInfo, platform } from 'node:os';
+import { hostname, platform, userInfo } from 'node:os';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-http';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { AwsInstrumentation } from '@opentelemetry/instrumentation-aws-sdk';
 import { HttpInstrumentation } from '@opentelemetry/instrumentation-http';
-import { AggregationTemporality, PeriodicExportingMetricReader } from '@opentelemetry/sdk-metrics';
-import { NodeSDK } from '@opentelemetry/sdk-node';
 import { Resource } from '@opentelemetry/resources';
+import {
+  AggregationTemporality,
+  PeriodicExportingMetricReader,
+} from '@opentelemetry/sdk-metrics';
+import { NodeSDK } from '@opentelemetry/sdk-node';
 
 let sdk: NodeSDK | undefined;
 
@@ -30,11 +33,16 @@ if (endpoint) {
 
   sdk = new NodeSDK({
     serviceName: process.env.OTEL_SERVICE_NAME || 'stallion',
-    resource: Resource.default().merge(new Resource({
-      'user.anonymous_id': anonymousId,
-      'os.type': platform(),
-    })) as any,
-    traceExporter: new OTLPTraceExporter({ url: `${endpoint}/v1/traces`, headers }),
+    resource: Resource.default().merge(
+      new Resource({
+        'user.anonymous_id': anonymousId,
+        'os.type': platform(),
+      }),
+    ) as any,
+    traceExporter: new OTLPTraceExporter({
+      url: `${endpoint}/v1/traces`,
+      headers,
+    }),
     metricReader: new PeriodicExportingMetricReader({
       exporter: new OTLPMetricExporter({
         url: `${endpoint}/v1/metrics`,
@@ -59,7 +67,9 @@ if (endpoint) {
   });
 
   sdk.start();
-  console.log(`[telemetry] OTel exporting to ${endpoint} (user: ${anonymousId})`);
+  console.log(
+    `[telemetry] OTel exporting to ${endpoint} (user: ${anonymousId})`,
+  );
 }
 
 export async function shutdownTelemetry(): Promise<void> {

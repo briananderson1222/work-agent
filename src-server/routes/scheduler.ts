@@ -6,11 +6,21 @@ import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import type { SchedulerService } from '../services/scheduler-service.js';
 import { schedulerJobRuns } from '../telemetry/metrics.js';
-import { addJobSchema, editJobSchema, runOutputSchema, validate, getBody, param } from './schemas.js';
+import type { Logger } from '../utils/logger.js';
+import {
+  addJobSchema,
+  editJobSchema,
+  errorMessage,
+  getBody,
+  param,
+  runOutputSchema,
+  schedulerOpenSchema,
+  validate,
+} from './schemas.js';
 
 export function createSchedulerRoutes(
   schedulerService: SchedulerService,
-  logger: any,
+  logger: Logger,
 ) {
   const app = new Hono();
 
@@ -54,9 +64,9 @@ export function createSchedulerRoutes(
       logger.info('Scheduler webhook event', { event });
       schedulerService.broadcast(event);
       return c.json({ success: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Webhook parse error', { error });
-      return c.json({ success: false, error: error.message }, 400);
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 
@@ -64,9 +74,9 @@ export function createSchedulerRoutes(
     try {
       const data = await schedulerService.listJobs();
       return c.json({ success: true, data });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to list scheduler jobs', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -74,9 +84,9 @@ export function createSchedulerRoutes(
     try {
       const data = await schedulerService.getStats();
       return c.json({ success: true, data });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to get scheduler stats', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -84,9 +94,9 @@ export function createSchedulerRoutes(
     try {
       const data = await schedulerService.getStatus();
       return c.json({ success: true, data });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to get scheduler status', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -98,23 +108,20 @@ export function createSchedulerRoutes(
       const count = parseInt(c.req.query('count') || '5', 10);
       const data = await schedulerService.previewSchedule(cron, count);
       return c.json({ success: true, data });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to preview schedule', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
   app.get('/jobs/:target/logs', async (c) => {
     try {
       const count = parseInt(c.req.query('count') || '20', 10);
-      const data = await schedulerService.getJobLogs(
-        param(c, 'target'),
-        count,
-      );
+      const data = await schedulerService.getJobLogs(param(c, 'target'), count);
       return c.json({ success: true, data });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to get job logs', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -124,9 +131,9 @@ export function createSchedulerRoutes(
       const { path } = getBody(c);
       const content = await schedulerService.readRunFile(path);
       return c.json({ success: true, data: { content } });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to read run output', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -136,9 +143,9 @@ export function createSchedulerRoutes(
       schedulerJobRuns.add(1, { op: 'create_job' });
       const output = await schedulerService.addJob(body);
       return c.json({ success: true, data: { output } });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to add job', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -146,34 +153,23 @@ export function createSchedulerRoutes(
     try {
       const opts = getBody(c);
       schedulerJobRuns.add(1, { op: 'edit_job' });
-      const output = await schedulerService.editJob(
-        param(c, 'target'),
-        opts,
-      );
+      const output = await schedulerService.editJob(param(c, 'target'), opts);
       return c.json({ success: true, data: { output } });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to edit job', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
-  const runningJobs = new Set<string>();
-
   app.post('/jobs/:target/run', async (c) => {
     const target = param(c, 'target');
-    if (runningJobs.has(target)) {
-      return c.json({ success: false, error: `Job '${target}' is already running` }, 409);
-    }
     try {
-      runningJobs.add(target);
       schedulerJobRuns.add(1, { op: 'run_job' });
       const output = await schedulerService.runJob(target);
       return c.json({ success: true, data: { output } });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to run job', { error });
-      return c.json({ success: false, error: error.message }, 500);
-    } finally {
-      runningJobs.delete(target);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -182,9 +178,9 @@ export function createSchedulerRoutes(
       schedulerJobRuns.add(1, { op: 'enable_job' });
       await schedulerService.enableJob(param(c, 'target'));
       return c.json({ success: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to enable job', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -193,9 +189,9 @@ export function createSchedulerRoutes(
       schedulerJobRuns.add(1, { op: 'disable_job' });
       await schedulerService.disableJob(param(c, 'target'));
       return c.json({ success: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to disable job', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -204,18 +200,26 @@ export function createSchedulerRoutes(
       schedulerJobRuns.add(1, { op: 'delete_job' });
       await schedulerService.removeJob(param(c, 'target'));
       return c.json({ success: true });
-    } catch (error: any) {
+    } catch (error: unknown) {
       logger.error('Failed to remove job', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
-  // Open a file with the system default handler
-  app.post('/open', async (c) => {
+  // Open a file with the system default handler (restricted to scheduler logs)
+  app.post('/open', validate(schedulerOpenSchema), async (c) => {
     try {
-      const { path: filePath } = await c.req.json();
-      if (!filePath || typeof filePath !== 'string') {
-        return c.json({ success: false, error: 'path required' }, 400);
+      const { path: filePath } = getBody(c);
+      const { realpathSync } = await import('node:fs');
+      const { join } = await import('node:path');
+      const { resolveHomeDir } = await import('../utils/paths.js');
+      const real = realpathSync(filePath);
+      const logsDir = realpathSync(join(resolveHomeDir(), 'scheduler', 'logs'));
+      if (!real.startsWith(logsDir)) {
+        return c.json(
+          { success: false, error: 'Path outside scheduler logs' },
+          403,
+        );
       }
       const { execFile } = await import('node:child_process');
       const cmd =
@@ -224,12 +228,12 @@ export function createSchedulerRoutes(
           : process.platform === 'win32'
             ? 'start'
             : 'xdg-open';
-      execFile(cmd, [filePath], (err) => {
+      execFile(cmd, [real], { windowsHide: true }, (err) => {
         if (err) logger.error('Failed to open file', { error: err });
       });
       return c.json({ success: true });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 

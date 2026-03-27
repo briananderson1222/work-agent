@@ -24,7 +24,11 @@ export class EventBus {
       try {
         fn(evt);
       } catch (e) {
-        console.debug('Failed to deliver event to listener, removing:', event, e);
+        console.debug(
+          'Failed to deliver event to listener, removing:',
+          event,
+          e,
+        );
         this.listeners.delete(fn);
       }
     }

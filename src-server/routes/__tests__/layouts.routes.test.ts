@@ -4,14 +4,23 @@ vi.mock('../../telemetry/metrics.js', () => ({
   layoutOps: { add: vi.fn() },
 }));
 
-const { createLayoutRoutes, createWorkflowRoutes } = await import('../layouts.js');
+const { createLayoutRoutes, createWorkflowRoutes } = await import(
+  '../layouts.js'
+);
 
 function createMockLayoutService() {
   return {
-    listLayouts: vi.fn().mockResolvedValue([{ slug: 'default', name: 'Default' }]),
-    getLayout: vi.fn().mockResolvedValue({ slug: 'default', name: 'Default', tabs: [] }),
+    listLayouts: vi
+      .fn()
+      .mockResolvedValue([{ slug: 'default', name: 'Default' }]),
+    getLayout: vi
+      .fn()
+      .mockResolvedValue({ slug: 'default', name: 'Default', tabs: [] }),
     createLayout: vi.fn().mockImplementation(async (c: any) => c),
-    updateLayout: vi.fn().mockImplementation(async (_s: string, u: any) => ({ slug: 'default', ...u })),
+    updateLayout: vi.fn().mockImplementation(async (_s: string, u: any) => ({
+      slug: 'default',
+      ...u,
+    })),
     deleteLayout: vi.fn().mockResolvedValue(undefined),
     listAgentWorkflows: vi.fn().mockResolvedValue([]),
     getWorkflow: vi.fn().mockResolvedValue('// code'),
@@ -21,7 +30,9 @@ function createMockLayoutService() {
   };
 }
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('Layout Routes', () => {
   test('GET / lists layouts', async () => {
@@ -50,11 +61,13 @@ describe('Layout Routes', () => {
 
   test('PUT /:slug updates layout', async () => {
     const app = createLayoutRoutes(createMockLayoutService() as any);
-    const body = await json(await app.request('/default', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'Updated' }),
-    }));
+    const body = await json(
+      await app.request('/default', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Updated' }),
+      }),
+    );
     expect(body.success).toBe(true);
   });
 
@@ -84,7 +97,9 @@ describe('Workflow Routes', () => {
 
   test('DELETE /:slug/workflows/:id deletes workflow', async () => {
     const app = createWorkflowRoutes(createMockLayoutService() as any);
-    const res = await app.request('/agent1/workflows/wf1', { method: 'DELETE' });
+    const res = await app.request('/agent1/workflows/wf1', {
+      method: 'DELETE',
+    });
     expect(res.status).toBe(200);
   });
 });

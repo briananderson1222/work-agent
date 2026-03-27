@@ -8,7 +8,7 @@ import { insightOps } from '../telemetry/metrics.js';
 export function createInsightsRoutes(monitoringDir: string) {
   const app = new Hono();
 
-  app.get('/insights', async (c) => {
+  app.get('/', async (c) => {
     const days = parseInt(c.req.query('days') || '14', 10);
     insightOps.add(1, { op: 'get_insights' });
     const cutoff = Date.now() - days * 86400000;
@@ -23,6 +23,7 @@ export function createInsightsRoutes(monitoringDir: string) {
 
     if (!existsSync(monitoringDir))
       return c.json({
+        success: true,
         data: {
           toolUsage: {},
           hourlyActivity,
@@ -79,11 +80,14 @@ export function createInsightsRoutes(monitoringDir: string) {
             if (!toolUsage[tool]) toolUsage[tool] = { calls: 0, errors: 0 };
             toolUsage[tool].errors++;
           }
-        } catch (e) { console.debug('Failed to parse insights event line:', e); }
+        } catch (e) {
+          console.debug('Failed to parse insights event line:', e);
+        }
       }
     }
 
     return c.json({
+      success: true,
       data: {
         toolUsage,
         hourlyActivity,

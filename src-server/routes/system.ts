@@ -4,16 +4,19 @@
 
 import { execFile, execFile as execFileCb, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
+
 const execFileAsync = promisify(execFileCb);
+
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveGitInfo } from '@stallion-ai/shared';
 import { Hono } from 'hono';
-import { systemOps } from '../telemetry/metrics.js';
 import { checkBedrockCredentials } from '../providers/bedrock.js';
 import { getAllPrerequisites } from '../providers/registry.js';
 import * as SkillService from '../services/skill-service.js';
+import { systemOps } from '../telemetry/metrics.js';
+import { errorMessage } from './schemas.js';
 
 interface SystemStatusDeps {
   getACPStatus: () => {
@@ -42,11 +45,10 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
     });
 
   app.get('/status', async (c) => {
-    const [credentialsFound, kiroCliInstalled] =
-      await Promise.all([
-        checkBedrockCredentials(),
-        whichCmd('kiro-cli'),
-      ]);
+    const [credentialsFound, kiroCliInstalled] = await Promise.all([
+      checkBedrockCredentials(),
+      whichCmd('kiro-cli'),
+    ]);
     systemOps.add(1, { op: 'get_status' });
 
     const acpStatus = deps.getACPStatus();
@@ -74,14 +76,18 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
       const { BedrockClient, ListFoundationModelsCommand } = await import(
         '@aws-sdk/client-bedrock'
       );
-      const body = await c.req.json().catch(() => ({}));
+      const body = (await c.req.json().catch(() => ({}))) as {
+        region?: string;
+      };
       const region = body.region || deps.getAppConfig().region;
       const client = new BedrockClient({ region });
       await client.send(new ListFoundationModelsCommand({}));
       return c.json({ verified: true, region });
-    } catch (error: any) {
-      logger.warn('Bedrock verification failed', { error: error.message });
-      return c.json({ verified: false, error: error.message });
+    } catch (error: unknown) {
+      logger.warn('Bedrock verification failed', {
+        error: errorMessage(error),
+      });
+      return c.json({ verified: false, error: errorMessage(error) });
     }
   });
 
@@ -97,10 +103,14 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
       // Check if upstream is configured; auto-configure if origin exists
       let hasUpstream = false;
       try {
-        await execFileAsync('git', ['rev-parse', '--abbrev-ref', `${branch}@{u}`], {
-          cwd: gitRoot,
-          encoding: 'utf-8',
-        });
+        await execFileAsync(
+          'git',
+          ['rev-parse', '--abbrev-ref', `${branch}@{u}`],
+          {
+            cwd: gitRoot,
+            encoding: 'utf-8',
+          },
+        );
         hasUpstream = true;
       } catch (e) {
         console.debug('Failed to check upstream branch:', e);
@@ -114,12 +124,18 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
             cwd: gitRoot,
             timeout: 15000,
           });
-          await execFileAsync('git', ['branch', `--set-upstream-to=origin/${branch}`, branch], {
-            cwd: gitRoot,
-            encoding: 'utf-8',
-          });
+          await execFileAsync(
+            'git',
+            ['branch', `--set-upstream-to=origin/${branch}`, branch],
+            {
+              cwd: gitRoot,
+              encoding: 'utf-8',
+            },
+          );
           hasUpstream = true;
-        } catch (e) { console.debug('Failed to auto-configure upstream:', e); }
+        } catch (e) {
+          console.debug('Failed to auto-configure upstream:', e);
+        }
       }
 
       if (!hasUpstream) {
@@ -133,25 +149,36 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         });
       }
 
-      await execFileAsync('git', ['fetch', '--quiet'], { cwd: gitRoot, timeout: 15000 });
-
-      const remoteHash = (await execFileAsync('git', ['rev-parse', '@{u}'], {
+      await execFileAsync('git', ['fetch', '--quiet'], {
         cwd: gitRoot,
-        encoding: 'utf-8',
-      })).stdout.trim().substring(0, 7);
+        timeout: 15000,
+      });
 
-      const behind = parseInt(
-        (await execFileAsync('git', ['rev-list', 'HEAD..@{u}', '--count'], {
+      const remoteHash = (
+        await execFileAsync('git', ['rev-parse', '@{u}'], {
           cwd: gitRoot,
           encoding: 'utf-8',
-        })).stdout.trim(),
+        })
+      ).stdout
+        .trim()
+        .substring(0, 7);
+
+      const behind = parseInt(
+        (
+          await execFileAsync('git', ['rev-list', 'HEAD..@{u}', '--count'], {
+            cwd: gitRoot,
+            encoding: 'utf-8',
+          })
+        ).stdout.trim(),
         10,
       );
       const ahead = parseInt(
-        (await execFileAsync('git', ['rev-list', '@{u}..HEAD', '--count'], {
-          cwd: gitRoot,
-          encoding: 'utf-8',
-        })).stdout.trim(),
+        (
+          await execFileAsync('git', ['rev-list', '@{u}..HEAD', '--count'], {
+            cwd: gitRoot,
+            encoding: 'utf-8',
+          })
+        ).stdout.trim(),
         10,
       );
 
@@ -163,8 +190,8 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         ahead,
         updateAvailable: behind > 0,
       });
-    } catch (error: any) {
-      return c.json({ updateAvailable: false, error: error.message });
+    } catch (error: unknown) {
+      return c.json({ updateAvailable: false, error: errorMessage(error) });
     }
   });
 
@@ -176,7 +203,10 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         dirname(fileURLToPath(import.meta.url)),
       );
 
-      await execFileAsync('git', ['pull', '--ff-only'], { cwd: gitRoot, timeout: 30000 });
+      await execFileAsync('git', ['pull', '--ff-only'], {
+        cwd: gitRoot,
+        timeout: 30000,
+      });
 
       // Rebuild server and UI
       await execFileAsync('npm', ['run', 'build:server'], {
@@ -188,10 +218,14 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         timeout: 120000,
       });
 
-      const newHash = (await execFileAsync('git', ['rev-parse', 'HEAD'], {
-        cwd: gitRoot,
-        encoding: 'utf-8',
-      })).stdout.trim().substring(0, 7);
+      const newHash = (
+        await execFileAsync('git', ['rev-parse', 'HEAD'], {
+          cwd: gitRoot,
+          encoding: 'utf-8',
+        })
+      ).stdout
+        .trim()
+        .substring(0, 7);
 
       deps.eventBus?.emit('core:updated', { hash: newHash });
 
@@ -233,8 +267,8 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
         message: `Updated to ${newHash}. Server restarting…`,
         restarting: true,
       });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 

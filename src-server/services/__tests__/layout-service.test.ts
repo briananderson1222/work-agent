@@ -8,10 +8,18 @@ const { LayoutService } = await import('../layout-service.js');
 
 function createMockConfigLoader() {
   return {
-    listLayouts: vi.fn().mockResolvedValue([{ slug: 'default', name: 'Default' }]),
-    loadLayout: vi.fn().mockResolvedValue({ slug: 'default', name: 'Default', tabs: [] }),
+    listLayouts: vi
+      .fn()
+      .mockResolvedValue([{ slug: 'default', name: 'Default' }]),
+    loadLayout: vi
+      .fn()
+      .mockResolvedValue({ slug: 'default', name: 'Default', tabs: [] }),
     createLayout: vi.fn().mockResolvedValue(undefined),
-    updateLayout: vi.fn().mockImplementation((_slug: string, updates: any) => Promise.resolve({ slug: 'default', ...updates })),
+    updateLayout: vi
+      .fn()
+      .mockImplementation((_slug: string, updates: any) =>
+        Promise.resolve({ slug: 'default', ...updates }),
+      ),
     deleteLayout: vi.fn().mockResolvedValue(undefined),
     listAgentWorkflows: vi.fn().mockResolvedValue([]),
     readWorkflow: vi.fn().mockResolvedValue('// code'),
@@ -62,7 +70,11 @@ describe('LayoutService', () => {
     await svc.getWorkflow('agent1', 'wf1');
     expect(loader.readWorkflow).toHaveBeenCalledWith('agent1', 'wf1');
     await svc.createWorkflow('agent1', 'wf.ts', '// code');
-    expect(loader.createWorkflow).toHaveBeenCalledWith('agent1', 'wf.ts', '// code');
+    expect(loader.createWorkflow).toHaveBeenCalledWith(
+      'agent1',
+      'wf.ts',
+      '// code',
+    );
     await svc.deleteWorkflow('agent1', 'wf1');
     expect(loader.deleteWorkflow).toHaveBeenCalledWith('agent1', 'wf1');
   });

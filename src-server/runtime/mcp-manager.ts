@@ -46,7 +46,9 @@ export async function releaseMCPRef(
 
       // Disconnect the MCP config (kills child process, removes listeners)
       if (config) {
-        try { await config.disconnect(); } catch {}
+        try {
+          await config.disconnect();
+        } catch {}
       }
     }
   }

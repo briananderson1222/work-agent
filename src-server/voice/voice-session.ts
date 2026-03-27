@@ -1,23 +1,40 @@
 import { randomUUID } from 'node:crypto';
 import type { WebSocket } from 'ws';
-import type { IS2SProvider, S2SSessionConfig, S2SToolDefinition } from './s2s-types.js';
 import { voiceOps } from '../telemetry/metrics.js';
+import type {
+  IS2SProvider,
+  S2SSessionConfig,
+  S2SToolDefinition,
+} from './s2s-types.js';
 
 export type S2SProviderFactory = (config?: any) => IS2SProvider;
 
-const VOICE_PROMPT_PREFIX = 'You are in voice mode. Be concise — short sentences. Confirm before creating or modifying anything.\n\n';
+const VOICE_PROMPT_PREFIX =
+  'You are in voice mode. Be concise — short sentences. Confirm before creating or modifying anything.\n\n';
 
 /** Translate an agent's MCP tool to S2S tool definition */
-function toS2STool(tool: { name: string; description?: string; parameters?: any }): S2SToolDefinition | null {
+function toS2STool(tool: {
+  name: string;
+  description?: string;
+  parameters?: any;
+}): S2SToolDefinition | null {
   let inputSchema = tool.parameters;
   if (!inputSchema || typeof inputSchema !== 'object') {
     inputSchema = { type: 'object', properties: {} };
-  } else if ('_def' in inputSchema || '_type' in inputSchema || typeof inputSchema.parse === 'function') {
+  } else if (
+    '_def' in inputSchema ||
+    '_type' in inputSchema ||
+    typeof inputSchema.parse === 'function'
+  ) {
     // Zod schema — can't serialize directly, use empty schema
     inputSchema = { type: 'object', properties: {} };
   } else {
     // Ensure it's a plain JSON-serializable object
-    try { inputSchema = JSON.parse(JSON.stringify(inputSchema)); } catch { inputSchema = { type: 'object', properties: {} }; }
+    try {
+      inputSchema = JSON.parse(JSON.stringify(inputSchema));
+    } catch {
+      inputSchema = { type: 'object', properties: {} };
+    }
   }
   if (!tool.description) return null; // Skip tools without descriptions — S2S models need them
   return { name: tool.name, description: tool.description, inputSchema };
@@ -48,13 +65,21 @@ class VoiceSession {
     this.provider = providerFactory();
     this.tools = tools;
 
-    this.provider.on('audio', (chunk) => this.send({ type: 'audio_out', data: chunk.toString('base64') }));
-    this.provider.on('transcript', (t) => this.send({ type: 'transcript', ...t }));
-    this.provider.on('stateChange', (state) => this.send({ type: 'state', state }));
-    this.provider.on('error', (err) => this.send({ type: 'error', message: err.message }));
+    this.provider.on('audio', (chunk) =>
+      this.send({ type: 'audio_out', data: chunk.toString('base64') }),
+    );
+    this.provider.on('transcript', (t) =>
+      this.send({ type: 'transcript', ...t }),
+    );
+    this.provider.on('stateChange', (state) =>
+      this.send({ type: 'state', state }),
+    );
+    this.provider.on('error', (err) =>
+      this.send({ type: 'error', message: err.message }),
+    );
     this.provider.on('toolUse', async (e) => {
       voiceOps.add(1, { op: 'tool.call' });
-      const tool = this.tools.find(t => t.name === e.toolName);
+      const tool = this.tools.find((t) => t.name === e.toolName);
       let result: string;
       if (tool) {
         try {
@@ -72,23 +97,32 @@ class VoiceSession {
     ws.on('message', (raw) => {
       try {
         const msg = JSON.parse(raw.toString());
-        if (msg.type === 'audio_in') this.provider.sendAudio(Buffer.from(msg.data, 'base64'));
+        if (msg.type === 'audio_in')
+          this.provider.sendAudio(Buffer.from(msg.data, 'base64'));
       } catch (err) {
         console.warn('[VoiceSession] Failed to parse client WS message:', err);
       }
     });
 
-    ws.on('close', () => { voiceOps.add(1, { op: 'ws.disconnect' }); this.destroy(); });
+    ws.on('close', () => {
+      voiceOps.add(1, { op: 'ws.disconnect' });
+      this.destroy();
+    });
   }
 
   async start(config: S2SSessionConfig): Promise<void> {
     const inputAudioFormat = await this.provider.connect(config);
-    this.send({ type: 'session_ready', inputAudioFormat, outputAudioFormat: this.provider.outputAudioFormat });
+    this.send({
+      type: 'session_ready',
+      inputAudioFormat,
+      outputAudioFormat: this.provider.outputAudioFormat,
+    });
   }
 
   async destroy(): Promise<void> {
     this.provider.removeAllListeners();
-    if (typeof this.ws.removeAllListeners === 'function') this.ws.removeAllListeners();
+    if (typeof this.ws.removeAllListeners === 'function')
+      this.ws.removeAllListeners();
     await this.provider.disconnect();
   }
 
@@ -106,7 +140,10 @@ export class VoiceSessionService {
     this.slug = opts.voiceAgentSlug ?? 'stallion-voice';
   }
 
-  createSession(ws: WebSocket, config?: Partial<S2SSessionConfig> & { agentSlug?: string }): string {
+  createSession(
+    ws: WebSocket,
+    config?: Partial<S2SSessionConfig> & { agentSlug?: string },
+  ): string {
     const id = randomUUID();
     const agentSlug = config?.agentSlug ?? this.slug;
 
@@ -114,11 +151,18 @@ export class VoiceSessionService {
       const tools = this.opts.agentTools.get(agentSlug) ?? [];
       const spec = this.opts.agentSpecs.get(agentSlug);
 
-      const session = new VoiceSession(id, ws, this.opts.providerFactory, tools);
+      const session = new VoiceSession(
+        id,
+        ws,
+        this.opts.providerFactory,
+        tools,
+      );
       this.sessions.set(id, session);
       voiceOps.add(1, { op: 'ws.connect' });
 
-      const s2sTools = tools.map(toS2STool).filter((t): t is S2SToolDefinition => t !== null);
+      const s2sTools = tools
+        .map(toS2STool)
+        .filter((t): t is S2SToolDefinition => t !== null);
       const systemPrompt = VOICE_PROMPT_PREFIX + (spec?.systemPrompt ?? '');
 
       const fullConfig: S2SSessionConfig = {
@@ -135,9 +179,17 @@ export class VoiceSessionService {
 
     if (!this.bootstrapped && this.opts.onFirstSession) {
       this.bootstrapped = true;
-      this.opts.onFirstSession().then(startSession).catch((err) => {
-        ws.send(JSON.stringify({ type: 'error', message: `Voice bootstrap failed: ${err.message}` }));
-      });
+      this.opts
+        .onFirstSession()
+        .then(startSession)
+        .catch((err) => {
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              message: `Voice bootstrap failed: ${err.message}`,
+            }),
+          );
+        });
     } else {
       startSession();
     }

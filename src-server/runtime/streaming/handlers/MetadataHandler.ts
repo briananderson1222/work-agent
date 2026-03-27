@@ -30,7 +30,8 @@ export class MetadataHandler implements StreamHandler {
 
   private toolStartTimes = new Map<string, { start: number; tool: string }>();
 
-  constructor(_monitoringEvents?: EventEmitter,
+  constructor(
+    _monitoringEvents?: EventEmitter,
     private context?: {
       slug: string;
       conversationId?: string;
@@ -66,7 +67,10 @@ export class MetadataHandler implements StreamHandler {
         break;
       case 'tool-call':
         this.stats.toolCalls++;
-        otelToolCalls.add(1, { tool: chunk.toolName || 'unknown', plugin: this.context?.plugin || '' });
+        otelToolCalls.add(1, {
+          tool: chunk.toolName || 'unknown',
+          plugin: this.context?.plugin || '',
+        });
         if (chunk.toolCallId) {
           this.toolStartTimes.set(chunk.toolCallId, {
             start: performance.now(),
@@ -99,28 +103,43 @@ export class MetadataHandler implements StreamHandler {
     switch (chunk.type) {
       case 'tool-call':
         this.monitoringEmitter.emitToolCall({
-          slug, conversationId: conversationId ?? '', userId: userId ?? '', traceId: traceId ?? '',
+          slug,
+          conversationId: conversationId ?? '',
+          userId: userId ?? '',
+          traceId: traceId ?? '',
           toolName: chunk.toolName || 'unknown',
           toolCallId: chunk.toolCallId || '',
           input: chunk.input,
           toolCallNumber: this.stats.toolCalls,
         });
-        trace.getActiveSpan()?.addEvent('tool-call', { 'tool.name': chunk.toolName || 'unknown', 'tool.call_id': chunk.toolCallId });
+        trace.getActiveSpan()?.addEvent('tool-call', {
+          'tool.name': chunk.toolName || 'unknown',
+          'tool.call_id': chunk.toolCallId,
+        });
         break;
       case 'tool-result':
         this.monitoringEmitter.emitToolResult({
-          slug, conversationId: conversationId ?? '', userId: userId ?? '', traceId: traceId ?? '',
+          slug,
+          conversationId: conversationId ?? '',
+          userId: userId ?? '',
+          traceId: traceId ?? '',
           toolName: chunk.toolName || 'unknown',
           toolCallId: chunk.toolCallId || '',
           result: chunk.output,
         });
-        trace.getActiveSpan()?.addEvent('tool-result', { 'tool.name': chunk.toolName || 'unknown', 'tool.call_id': chunk.toolCallId });
+        trace.getActiveSpan()?.addEvent('tool-result', {
+          'tool.name': chunk.toolName || 'unknown',
+          'tool.call_id': chunk.toolCallId,
+        });
         break;
       case 'reasoning-end': {
         const reasoningChunk = chunk as StreamChunk & { text?: string };
         if (reasoningChunk.text) {
           this.monitoringEmitter.emitReasoning({
-            slug, conversationId: conversationId ?? '', userId: userId ?? '', traceId: traceId ?? '',
+            slug,
+            conversationId: conversationId ?? '',
+            userId: userId ?? '',
+            traceId: traceId ?? '',
             text: reasoningChunk.text,
           });
         }

@@ -1,17 +1,17 @@
 import { Hono } from 'hono';
 import type {
-  MonitoringEvent,
   AgentTelemetryIngestEvent,
-  OtlpTracesPayload,
-  OtlpLogsPayload,
-  OtlpKeyValue,
-  OtlpAnyValue,
   GenAiOperationName,
+  MonitoringEvent,
+  OtlpAnyValue,
+  OtlpKeyValue,
+  OtlpLogsPayload,
+  OtlpTracesPayload,
 } from './schema.js';
 import { K, OP, SPAN } from './schema.js';
 
 function getAttr(attrs: OtlpKeyValue[], key: string): OtlpAnyValue | undefined {
-  return attrs.find(a => a.key === key)?.value;
+  return attrs.find((a) => a.key === key)?.value;
 }
 
 function attrStr(attrs: OtlpKeyValue[], key: string): string | undefined {
@@ -25,9 +25,15 @@ function attrNum(attrs: OtlpKeyValue[], key: string): number | undefined {
   return v.doubleValue;
 }
 
-function nowMs(): number { return Date.now(); }
+function nowMs(): number {
+  return Date.now();
+}
 
-function baseEvent(traceId: string, attrs: OtlpKeyValue[], spanKind: MonitoringEvent['span.kind']): MonitoringEvent {
+function baseEvent(
+  traceId: string,
+  attrs: OtlpKeyValue[],
+  spanKind: MonitoringEvent['span.kind'],
+): MonitoringEvent {
   return {
     timestamp: new Date().toISOString(),
     [K.TIMESTAMP_MS]: nowMs(),
@@ -45,7 +51,9 @@ function baseEvent(traceId: string, attrs: OtlpKeyValue[], spanKind: MonitoringE
   };
 }
 
-export function createOtlpReceiverRoutes(emit: (event: MonitoringEvent) => void): Hono {
+export function createOtlpReceiverRoutes(
+  emit: (event: MonitoringEvent) => void,
+): Hono {
   const app = new Hono();
 
   app.post('/v1/traces', async (c) => {
@@ -55,7 +63,9 @@ export function createOtlpReceiverRoutes(emit: (event: MonitoringEvent) => void)
       for (const rs of body.resourceSpans) {
         for (const ss of rs.scopeSpans) {
           for (const span of ss.spans) {
-            const kind: MonitoringEvent['span.kind'] = span.endTimeUnixNano ? SPAN.END : SPAN.START;
+            const kind: MonitoringEvent['span.kind'] = span.endTimeUnixNano
+              ? SPAN.END
+              : SPAN.START;
             emit(baseEvent(span.traceId, span.attributes, kind));
             accepted++;
           }
@@ -85,30 +95,38 @@ export function createOtlpReceiverRoutes(emit: (event: MonitoringEvent) => void)
     }
   });
 
-  const EVENT_OP: Record<AgentTelemetryIngestEvent['event_type'], GenAiOperationName> = {
+  const EVENT_OP: Record<
+    AgentTelemetryIngestEvent['event_type'],
+    GenAiOperationName
+  > = {
     'session.start': OP.INVOKE_AGENT,
     'session.end': OP.INVOKE_AGENT,
     'turn.user': OP.CHAT,
     'tool.invoke': OP.EXECUTE_TOOL,
     'tool.result': OP.EXECUTE_TOOL,
     'agent.delegate': OP.INVOKE_AGENT,
-    'unknown': OP.CHAT,
+    unknown: OP.CHAT,
   };
 
-  const EVENT_KIND: Record<AgentTelemetryIngestEvent['event_type'], MonitoringEvent['span.kind']> = {
+  const EVENT_KIND: Record<
+    AgentTelemetryIngestEvent['event_type'],
+    MonitoringEvent['span.kind']
+  > = {
     'session.start': SPAN.START,
     'session.end': SPAN.END,
     'turn.user': SPAN.EVENT,
     'tool.invoke': SPAN.START,
     'tool.result': SPAN.END,
     'agent.delegate': SPAN.EVENT,
-    'unknown': SPAN.EVENT,
+    unknown: SPAN.EVENT,
   };
 
   app.post('/v1/agent-events', async (c) => {
     try {
       const ev = await c.req.json<AgentTelemetryIngestEvent>();
-      const tsMs = /^\d+$/.test(ev.timestamp) ? Number(ev.timestamp) : new Date(ev.timestamp).getTime();
+      const tsMs = /^\d+$/.test(ev.timestamp)
+        ? Number(ev.timestamp)
+        : new Date(ev.timestamp).getTime();
       const event: MonitoringEvent = {
         timestamp: new Date(tsMs).toISOString(),
         [K.TIMESTAMP_MS]: tsMs,
@@ -122,7 +140,9 @@ export function createOtlpReceiverRoutes(emit: (event: MonitoringEvent) => void)
         [K.AT_CONTEXT]: ev.context,
         [K.AT_ENRICHMENT]: ev.enrichment,
         ...(ev.tool?.name && { [K.TOOL_NAME]: ev.tool.name }),
-        ...(ev.tool?.output !== undefined && { [K.TOOL_CALL_RESULT]: ev.tool.output }),
+        ...(ev.tool?.output !== undefined && {
+          [K.TOOL_CALL_RESULT]: ev.tool.output,
+        }),
       };
       emit(event);
       return c.json({ success: true });

@@ -1,4 +1,7 @@
-import type { BedrockModelCatalog, ModelPricing } from '../providers/bedrock-models.js';
+import type {
+  BedrockModelCatalog,
+  ModelPricing,
+} from '../providers/bedrock-models.js';
 
 /**
  * Find pricing info for a model. Returns the matching ModelPricing entry or undefined.
@@ -11,7 +14,9 @@ export async function findModelPricing(
   if (!catalog) return undefined;
   const pricing = await catalog.getModelPricing(region);
   return pricing?.find(
-    (p) => p.modelId === modelId || modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
+    (p) =>
+      p.modelId === modelId ||
+      modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
   );
 }
 
@@ -25,5 +30,8 @@ export function estimateCost(
   outputTokens: number,
 ): number {
   if (!pricing?.inputTokenPrice || !pricing?.outputTokenPrice) return 0;
-  return (inputTokens / 1000) * pricing.inputTokenPrice + (outputTokens / 1000) * pricing.outputTokenPrice;
+  return (
+    (inputTokens / 1000) * pricing.inputTokenPrice +
+    (outputTokens / 1000) * pricing.outputTokenPrice
+  );
 }

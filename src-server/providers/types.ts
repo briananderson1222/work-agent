@@ -57,6 +57,7 @@ export interface ISkillRegistryProvider {
   install(id: string, targetDir: string): Promise<InstallResult>;
   uninstall(id: string, targetDir: string): Promise<InstallResult>;
   update?(id: string): Promise<InstallResult>;
+  getContent?(id: string): Promise<string | null>;
 }
 
 export interface IPluginRegistryProvider {
@@ -98,73 +99,26 @@ export interface ISettingsProvider {
 
 // ── Scheduler Provider ─────────────────────────────────
 
-export type SchedulerCapability =
-  | 'artifacts'
-  | 'notifications'
-  | 'daemon'
-  | 'working-dir'
-  | 'command';
+// Data types are canonical in @stallion-ai/shared — re-export here for server imports
+import type {
+  AddJobOpts,
+  SchedulerCapability,
+  SchedulerFormField,
+  SchedulerJob,
+  SchedulerLogEntry,
+  SchedulerProviderStats,
+  SchedulerProviderStatus,
+} from '@stallion-ai/shared';
 
-export interface SchedulerFormField {
-  key: string;
-  label: string;
-  type: 'text' | 'textarea' | 'boolean';
-  placeholder?: string;
-  hint?: string;
-}
-
-export interface SchedulerJob {
-  name: string;
-  provider: string;
-  cron?: string;
-  prompt: string;
-  agent?: string;
-  enabled: boolean;
-  openArtifact?: string;
-  notifyStart?: boolean;
-  lastRun?: string;
-  nextRun?: string;
-  [key: string]: unknown;
-}
-
-export interface SchedulerLogEntry {
-  id: string;
-  job: string;
-  startedAt: string;
-  completedAt?: string;
-  success: boolean;
-  durationSecs?: number;
-  missedCount?: number;
-  manual?: boolean;
-  output?: string;
-  error?: string;
-}
-
-export interface AddJobOpts {
-  name: string;
-  provider?: string;
-  cron?: string;
-  prompt: string;
-  agent?: string;
-  openArtifact?: string;
-  notifyStart?: boolean;
-  [key: string]: unknown;
-}
-
-export interface SchedulerProviderStats {
-  jobs: {
-    name: string;
-    total: number;
-    successes: number;
-    failures: number;
-    success_rate: number;
-  }[];
-}
-
-export interface SchedulerProviderStatus {
-  running: boolean;
-  jobCount: number;
-}
+export type {
+  SchedulerCapability,
+  SchedulerFormField,
+  SchedulerJob,
+  SchedulerLogEntry,
+  AddJobOpts,
+  SchedulerProviderStats,
+  SchedulerProviderStatus,
+};
 
 export interface ISchedulerProvider {
   readonly id: string;
@@ -319,20 +273,9 @@ export interface IACPConnectionsProvider {
 
 // ── Prompt Registry ────────────────────────────────
 
-export interface Prompt {
-  id: string;
-  name: string;
-  content: string;
-  description?: string;
-  category?: string;
-  tags?: string[];
-  agent?: string;
-  source?: string;
-  requires?: string[];
-  icon?: string;
-  createdAt: string;
-  updatedAt: string;
-}
+export type { Prompt } from '@stallion-ai/shared';
+
+import type { Prompt } from '@stallion-ai/shared';
 
 export interface IPromptRegistryProvider {
   readonly id: string;

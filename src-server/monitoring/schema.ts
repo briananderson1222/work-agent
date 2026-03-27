@@ -35,7 +35,7 @@ export interface MonitoringEvent {
 
   // ── GenAI core ──
   'gen_ai.operation.name': GenAiOperationName;
-  'gen_ai.provider.name'?: string;          // 'aws.bedrock' | 'stallion' | 'acp'
+  'gen_ai.provider.name'?: string; // 'aws.bedrock' | 'stallion' | 'acp'
   'gen_ai.request.model'?: string;
   'gen_ai.conversation.id'?: string;
 
@@ -59,7 +59,11 @@ export interface MonitoringEvent {
   'stallion.agent.max_steps'?: number;
   'stallion.input.chars'?: number;
   'stallion.output.chars'?: number;
-  'stallion.artifacts'?: Array<{ type: string; name?: string; content?: unknown }>;
+  'stallion.artifacts'?: Array<{
+    type: string;
+    name?: string;
+    content?: unknown;
+  }>;
   'stallion.user.id'?: string;
 
   // ── Health (log records) ──
@@ -126,7 +130,14 @@ export interface AgentTelemetryIngestEvent {
   timestamp: string;
   session_id: string;
   event_id: string;
-  event_type: 'session.start' | 'session.end' | 'turn.user' | 'tool.invoke' | 'tool.result' | 'agent.delegate' | 'unknown';
+  event_type:
+    | 'session.start'
+    | 'session.end'
+    | 'turn.user'
+    | 'tool.invoke'
+    | 'tool.result'
+    | 'agent.delegate'
+    | 'unknown';
   agent: { name: string; runtime: string; version: string };
   context?: AgentTelemetryContext;
   enrichment?: AgentTelemetryEnrichment;

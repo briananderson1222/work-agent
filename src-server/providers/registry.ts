@@ -2,6 +2,10 @@
  * Provider registry — generic workspace-scoped store with backward-compat wrappers
  */
 
+import { execSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { resolveHomeDir } from '../utils/paths.js';
 import {
   DefaultAgentRegistryProvider,
   DefaultAuthProvider,
@@ -11,9 +15,6 @@ import {
   DefaultUserDirectoryProvider,
   DefaultUserIdentityProvider,
 } from './defaults.js';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
-import { execSync } from 'node:child_process';
 import type {
   IAgentRegistryProvider,
   IAuthProvider,
@@ -25,7 +26,6 @@ import type {
   IUserDirectoryProvider,
   IUserIdentityProvider,
 } from './types.js';
-import { resolveHomeDir } from '../utils/paths.js';
 
 // ── Generic Store ──────────────────────────────────────
 
@@ -161,10 +161,7 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
 
   // Scan on-disk integrations (plugin-bundled + manually added)
   function readDiskIntegrations(): import('@stallion-ai/shared').RegistryItem[] {
-    const dir = join(
-      resolveHomeDir(),
-      'integrations',
-    );
+    const dir = join(resolveHomeDir(), 'integrations');
     if (!existsSync(dir)) return [];
     const items: import('@stallion-ai/shared').RegistryItem[] = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -176,12 +173,15 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
         let commandExists = false;
         if (def.command) {
           try {
-            const cmd = process.platform === 'win32'
-              ? `where ${def.command}`
-              : `which ${def.command}`;
+            const cmd =
+              process.platform === 'win32'
+                ? `where ${def.command}`
+                : `which ${def.command}`;
             execSync(cmd, { stdio: 'pipe', windowsHide: true });
             commandExists = true;
-          } catch (e) { console.debug('Command not found for integration:', def.command, e); }
+          } catch (e) {
+            console.debug('Command not found for integration:', def.command, e);
+          }
         }
         items.push({
           id: def.id || entry.name,
@@ -190,7 +190,9 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
           installed: true,
           status: commandExists ? 'connected' : 'missing binary',
         });
-      } catch (e) { console.debug('Failed to read integration definition:', entry.name, e); }
+      } catch (e) {
+        console.debug('Failed to read integration definition:', entry.name, e);
+      }
     }
     return items;
   }
@@ -210,10 +212,16 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
       const seen = new Set<string>();
       const merged: import('@stallion-ai/shared').RegistryItem[] = [];
       for (const item of diskItems) {
-        if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          merged.push(item);
+        }
       }
       for (const item of results.flat()) {
-        if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          merged.push(item);
+        }
       }
       return merged;
     },
@@ -225,10 +233,16 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
       const seen = new Set<string>();
       const merged: import('@stallion-ai/shared').RegistryItem[] = [];
       for (const item of diskItems) {
-        if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          merged.push(item);
+        }
       }
       for (const item of results.flat()) {
-        if (!seen.has(item.id)) { seen.add(item.id); merged.push(item); }
+        if (!seen.has(item.id)) {
+          seen.add(item.id);
+          merged.push(item);
+        }
       }
       return merged;
     },
@@ -281,7 +295,19 @@ export function registerSkillRegistryProvider(
 
 export function getSkillRegistryProvider(): ISkillRegistryProvider | null {
   const entries = listProviders('skillRegistry');
-  return entries.length > 0 ? (entries[0].provider as ISkillRegistryProvider) : null;
+  return entries.length > 0
+    ? (entries[0].provider as ISkillRegistryProvider)
+    : null;
+}
+
+export function getSkillRegistryProviders(): {
+  provider: ISkillRegistryProvider;
+  source: string;
+}[] {
+  return listProviders('skillRegistry') as {
+    provider: ISkillRegistryProvider;
+    source: string;
+  }[];
 }
 
 // ── Plugin Registry ────────────────────────────────────
@@ -308,7 +334,9 @@ export function getPluginRegistryProviders(): {
 export async function getAllPrerequisites(): Promise<
   Array<import('@stallion-ai/shared').Prerequisite & { source: string }>
 > {
-  const results: Array<import('@stallion-ai/shared').Prerequisite & { source: string }> = [];
+  const results: Array<
+    import('@stallion-ai/shared').Prerequisite & { source: string }
+  > = [];
 
   // Walk singleton providers
   for (const [, wsMap] of store) {
@@ -316,7 +344,9 @@ export async function getAllPrerequisites(): Promise<
       if (typeof entry.provider?.getPrerequisites === 'function') {
         try {
           const items = await entry.provider.getPrerequisites();
-          results.push(...items.map((p: any) => ({ ...p, source: entry.source })));
+          results.push(
+            ...items.map((p: any) => ({ ...p, source: entry.source })),
+          );
         } catch {}
       }
     }
@@ -328,7 +358,9 @@ export async function getAllPrerequisites(): Promise<
       if (typeof entry.provider?.getPrerequisites === 'function') {
         try {
           const items = await entry.provider.getPrerequisites();
-          results.push(...items.map((p: any) => ({ ...p, source: entry.source })));
+          results.push(
+            ...items.map((p: any) => ({ ...p, source: entry.source })),
+          );
         } catch {}
       }
     }

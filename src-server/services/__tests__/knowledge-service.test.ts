@@ -10,7 +10,9 @@ vi.mock('@stallion-ai/shared', async (importOriginal) => {
   const actual = await importOriginal<any>();
   return {
     ...actual,
-    BUILTIN_KNOWLEDGE_NAMESPACES: [{ id: 'default', label: 'Default', behavior: 'rag' }],
+    BUILTIN_KNOWLEDGE_NAMESPACES: [
+      { id: 'default', label: 'Default', behavior: 'rag' },
+    ],
   };
 });
 
@@ -42,15 +44,27 @@ describe('KnowledgeService — namespace management', () => {
   });
 
   test('listNamespaces returns builtins without storage adapter', () => {
-    const svc = new KnowledgeService(() => null, () => null, dir);
+    const svc = new KnowledgeService(
+      () => null,
+      () => null,
+      dir,
+    );
     const ns = svc.listNamespaces('test');
     expect(ns.some((n) => n.id === 'default')).toBe(true);
   });
 
   test('listNamespaces merges builtins with project namespaces', () => {
     const adapter = createMockStorageAdapter();
-    adapter.getProject.mockReturnValue({ slug: 'test', knowledgeNamespaces: [{ id: 'code', label: 'Code', behavior: 'rag' }] });
-    const svc = new KnowledgeService(() => null, () => null, dir, adapter as any);
+    adapter.getProject.mockReturnValue({
+      slug: 'test',
+      knowledgeNamespaces: [{ id: 'code', label: 'Code', behavior: 'rag' }],
+    });
+    const svc = new KnowledgeService(
+      () => null,
+      () => null,
+      dir,
+      adapter as any,
+    );
     const ns = svc.listNamespaces('test');
     expect(ns.find((n) => n.id === 'default')).toBeDefined();
     expect(ns.find((n) => n.id === 'code')).toBeDefined();
@@ -58,57 +72,127 @@ describe('KnowledgeService — namespace management', () => {
 
   test('registerNamespace adds to project', () => {
     const adapter = createMockStorageAdapter();
-    const svc = new KnowledgeService(() => null, () => null, dir, adapter as any);
-    svc.registerNamespace('test', { id: 'docs', label: 'Docs', behavior: 'inject' } as any);
-    expect(adapter.saveProject).toHaveBeenCalledWith(expect.objectContaining({
-      knowledgeNamespaces: expect.arrayContaining([expect.objectContaining({ id: 'docs' })]),
-    }));
+    const svc = new KnowledgeService(
+      () => null,
+      () => null,
+      dir,
+      adapter as any,
+    );
+    svc.registerNamespace('test', {
+      id: 'docs',
+      label: 'Docs',
+      behavior: 'inject',
+    } as any);
+    expect(adapter.saveProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        knowledgeNamespaces: expect.arrayContaining([
+          expect.objectContaining({ id: 'docs' }),
+        ]),
+      }),
+    );
   });
 
   test('registerNamespace is idempotent', () => {
     const adapter = createMockStorageAdapter();
-    adapter.getProject.mockReturnValue({ slug: 'test', knowledgeNamespaces: [{ id: 'docs', label: 'Docs', behavior: 'rag' }] });
-    const svc = new KnowledgeService(() => null, () => null, dir, adapter as any);
-    svc.registerNamespace('test', { id: 'docs', label: 'Docs', behavior: 'rag' } as any);
+    adapter.getProject.mockReturnValue({
+      slug: 'test',
+      knowledgeNamespaces: [{ id: 'docs', label: 'Docs', behavior: 'rag' }],
+    });
+    const svc = new KnowledgeService(
+      () => null,
+      () => null,
+      dir,
+      adapter as any,
+    );
+    svc.registerNamespace('test', {
+      id: 'docs',
+      label: 'Docs',
+      behavior: 'rag',
+    } as any);
     expect(adapter.saveProject).not.toHaveBeenCalled();
   });
 
   test('removeNamespace removes custom namespace', () => {
     const adapter = createMockStorageAdapter();
-    adapter.getProject.mockReturnValue({ slug: 'test', knowledgeNamespaces: [{ id: 'custom', label: 'Custom', behavior: 'rag' }] });
-    const svc = new KnowledgeService(() => null, () => null, dir, adapter as any);
+    adapter.getProject.mockReturnValue({
+      slug: 'test',
+      knowledgeNamespaces: [{ id: 'custom', label: 'Custom', behavior: 'rag' }],
+    });
+    const svc = new KnowledgeService(
+      () => null,
+      () => null,
+      dir,
+      adapter as any,
+    );
     svc.removeNamespace('test', 'custom');
-    expect(adapter.saveProject).toHaveBeenCalledWith(expect.objectContaining({
-      knowledgeNamespaces: [],
-    }));
+    expect(adapter.saveProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        knowledgeNamespaces: [],
+      }),
+    );
   });
 
   test('removeNamespace throws for builtin', () => {
     const adapter = createMockStorageAdapter();
-    const svc = new KnowledgeService(() => null, () => null, dir, adapter as any);
+    const svc = new KnowledgeService(
+      () => null,
+      () => null,
+      dir,
+      adapter as any,
+    );
     expect(() => svc.removeNamespace('test', 'default')).toThrow('built-in');
   });
 
   test('updateNamespace modifies existing', () => {
     const adapter = createMockStorageAdapter();
-    adapter.getProject.mockReturnValue({ slug: 'test', knowledgeNamespaces: [{ id: 'code', label: 'Code', behavior: 'rag' }] });
-    const svc = new KnowledgeService(() => null, () => null, dir, adapter as any);
+    adapter.getProject.mockReturnValue({
+      slug: 'test',
+      knowledgeNamespaces: [{ id: 'code', label: 'Code', behavior: 'rag' }],
+    });
+    const svc = new KnowledgeService(
+      () => null,
+      () => null,
+      dir,
+      adapter as any,
+    );
     svc.updateNamespace('test', 'code', { label: 'Source Code' });
-    expect(adapter.saveProject).toHaveBeenCalledWith(expect.objectContaining({
-      knowledgeNamespaces: [expect.objectContaining({ id: 'code', label: 'Source Code' })],
-    }));
+    expect(adapter.saveProject).toHaveBeenCalledWith(
+      expect.objectContaining({
+        knowledgeNamespaces: [
+          expect.objectContaining({ id: 'code', label: 'Source Code' }),
+        ],
+      }),
+    );
   });
 
   test('updateNamespace throws for unknown non-builtin', () => {
     const adapter = createMockStorageAdapter();
-    adapter.getProject.mockReturnValue({ slug: 'test', knowledgeNamespaces: [] });
-    const svc = new KnowledgeService(() => null, () => null, dir, adapter as any);
-    expect(() => svc.updateNamespace('test', 'nonexistent', { label: 'X' })).toThrow('not found');
+    adapter.getProject.mockReturnValue({
+      slug: 'test',
+      knowledgeNamespaces: [],
+    });
+    const svc = new KnowledgeService(
+      () => null,
+      () => null,
+      dir,
+      adapter as any,
+    );
+    expect(() =>
+      svc.updateNamespace('test', 'nonexistent', { label: 'X' }),
+    ).toThrow('not found');
   });
 
   test('throws without storage adapter for write operations', () => {
-    const svc = new KnowledgeService(() => null, () => null, dir);
-    expect(() => svc.registerNamespace('test', {} as any)).toThrow('Storage adapter required');
-    expect(() => svc.removeNamespace('test', 'x')).toThrow('Storage adapter required');
+    const svc = new KnowledgeService(
+      () => null,
+      () => null,
+      dir,
+    );
+    expect(() => svc.registerNamespace('test', {} as any)).toThrow(
+      'Storage adapter required',
+    );
+    expect(() => svc.removeNamespace('test', 'x')).toThrow(
+      'Storage adapter required',
+    );
   });
 });

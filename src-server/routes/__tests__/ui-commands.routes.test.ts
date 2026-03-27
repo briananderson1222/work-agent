@@ -7,7 +7,9 @@ vi.mock('../../telemetry/metrics.js', () => ({
 const { createUICommandRoutes } = await import('../ui-commands.js');
 const { EventBus } = await import('../../services/event-bus.js');
 
-async function json(res: Response) { return res.json(); }
+async function json(res: Response) {
+  return res.json();
+}
 
 describe('UI Command Routes', () => {
   test('POST / navigate emits event', async () => {
@@ -15,18 +17,30 @@ describe('UI Command Routes', () => {
     const fn = vi.fn();
     bus.subscribe(fn);
     const app = createUICommandRoutes(bus);
-    const body = await json(await app.request('/', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: 'navigate', payload: { path: '/settings' } }),
-    }));
+    const body = await json(
+      await app.request('/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          command: 'navigate',
+          payload: { path: '/settings' },
+        }),
+      }),
+    );
     expect(body.success).toBe(true);
-    expect(fn).toHaveBeenCalledWith(expect.objectContaining({ event: 'ui:navigate' }));
+    expect(fn).toHaveBeenCalledWith(
+      expect.objectContaining({ event: 'ui:navigate' }),
+    );
   });
 
   test('POST / navigate rejects invalid paths', async () => {
     const app = createUICommandRoutes(new EventBus());
-    const cases = ['http://evil.com', 'javascript:alert(1)', '//evil.com', 'relative'];
+    const cases = [
+      'http://evil.com',
+      'javascript:alert(1)',
+      '//evil.com',
+      'relative',
+    ];
     for (const path of cases) {
       const res = await app.request('/', {
         method: 'POST',

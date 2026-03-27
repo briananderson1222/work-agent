@@ -1,8 +1,16 @@
 import { Hono } from 'hono';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { RuntimeContext } from '../runtime/types.js';
-import { addToolSchema, updateAllowedSchema, updateAliasesSchema, validate, getBody, param } from './schemas.js';
 import { toolCalls } from '../telemetry/metrics.js';
+import {
+  addToolSchema,
+  errorMessage,
+  getBody,
+  param,
+  updateAliasesSchema,
+  updateAllowedSchema,
+  validate,
+} from './schemas.js';
 
 type ToolWithDescription = { description?: string; [key: string]: any };
 
@@ -14,15 +22,26 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
     try {
       const slug = param(c, 'slug');
       if (!ctx.activeAgents.get(slug)) {
-        return c.json({ success: false, error: 'Agent not found or not active' }, 404);
+        return c.json(
+          { success: false, error: 'Agent not found or not active' },
+          404,
+        );
       }
 
       const tools = ctx.agentTools.get(slug) || [];
       const data = tools.map((tool: any) => {
         const mapping = ctx.toolNameMapping.get(tool.name);
         let parameters = tool.parameters;
-        if (parameters && typeof parameters === 'object' && '_def' in parameters) {
-          try { parameters = zodToJsonSchema(parameters); } catch (e) { console.debug('Failed to convert Zod schema:', e); }
+        if (
+          parameters &&
+          typeof parameters === 'object' &&
+          '_def' in parameters
+        ) {
+          try {
+            parameters = zodToJsonSchema(parameters);
+          } catch (e) {
+            console.debug('Failed to convert Zod schema:', e);
+          }
         }
         return {
           id: tool.id || tool.name,
@@ -36,8 +55,8 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
       });
 
       return c.json({ success: true, data });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 500);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 
@@ -53,8 +72,8 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
       await ctx.configLoader.updateAgent(slug, { tools });
       await ctx.initialize();
       return c.json({ success: true, data: tools.mcpServers });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 
@@ -70,8 +89,8 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
       await ctx.configLoader.updateAgent(slug, { tools });
       await ctx.initialize();
       return c.json({ success: true });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 
@@ -86,8 +105,8 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
       await ctx.configLoader.updateAgent(slug, { tools });
       await ctx.initialize();
       return c.json({ success: true, data: tools });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 
@@ -102,8 +121,8 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
       await ctx.configLoader.updateAgent(slug, { tools });
       await ctx.initialize();
       return c.json({ success: true, data: tools });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
 
@@ -113,7 +132,15 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
     const agent = ctx.activeAgents.get(slug);
 
     if (!agent) {
-      return c.json({ success: false, healthy: false, error: 'Agent not found', checks: { loaded: false } }, 404);
+      return c.json(
+        {
+          success: false,
+          healthy: false,
+          error: 'Agent not found',
+          checks: { loaded: false },
+        },
+        404,
+      );
     }
 
     const checks: Record<string, boolean> = {
@@ -123,7 +150,13 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
     };
 
     const spec = ctx.agentSpecs.get(slug);
-    const integrations: Array<{ id: string; type: string; connected: boolean; error?: string; metadata?: any }> = [];
+    const integrations: Array<{
+      id: string;
+      type: string;
+      connected: boolean;
+      error?: string;
+      metadata?: any;
+    }> = [];
 
     if (spec?.tools?.mcpServers?.length) {
       checks.integrationsConfigured = true;
@@ -151,7 +184,13 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
           type: metadata?.type || 'mcp',
           connected: status?.connected === true,
           error: status?.error,
-          metadata: metadata ? { transport: metadata.transport, toolCount: metadata.toolCount, tools: serverTools } : undefined,
+          metadata: metadata
+            ? {
+                transport: metadata.transport,
+                toolCount: metadata.toolCount,
+                tools: serverTools,
+              }
+            : undefined,
         });
       }
 

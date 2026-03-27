@@ -1,21 +1,30 @@
 import { jsonSchema } from 'ai';
 import { Hono } from 'hono';
 import { DEFAULT_SYSTEM_PROMPT } from '../domain/config-loader.js';
-import { chatRequests } from '../telemetry/metrics.js';
 import type { AgentSpec } from '../domain/types.js';
-import type { RuntimeContext } from '../runtime/types.js';
+import type { ITool, RuntimeContext } from '../runtime/types.js';
+import { chatRequests } from '../telemetry/metrics.js';
 import { isAuthError } from '../utils/auth-errors.js';
-import { invokeSchema, invokeStreamSchema, toolApprovalSchema, globalInvokeSchema, validate, getBody, param } from './schemas.js';
+import {
+  errorMessage,
+  getBody,
+  globalInvokeSchema,
+  invokeSchema,
+  invokeStreamSchema,
+  param,
+  toolApprovalSchema,
+  validate,
+} from './schemas.js';
 
 interface ToolResult {
   content?: Array<{ text: string }>;
   success?: boolean;
   error?: { message?: string | { message?: string } };
-  response?: any;
-  [key: string]: any;
+  response?: unknown;
+  [key: string]: unknown;
 }
 
-function unwrapMCPResult(toolResult: any): any {
+function unwrapMCPResult(toolResult: unknown): unknown {
   if ((toolResult as ToolResult)?.content?.[0]?.text) {
     try {
       const parsed = JSON.parse((toolResult as ToolResult).content![0].text);
@@ -41,22 +50,27 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
       const { input, model, tools: toolNames, schema } = getBody(c);
       chatRequests.add(1, { op: 'invoke' });
       const agent = ctx.activeAgents.get(slug);
-      if (!agent) return c.json({ success: false, error: 'Agent not found' }, 404);
+      if (!agent)
+        return c.json({ success: false, error: 'Agent not found' }, 404);
 
       let prompt = input;
       if (schema) {
         prompt = `${input}\n\nYou must return your response as valid JSON matching this exact schema:\n${JSON.stringify(schema, null, 2)}\n\nReturn ONLY the JSON object, no markdown formatting, no explanations.`;
       }
 
-      const options: any = {};
+      const options: Record<string, unknown> = {};
       if (model && ctx.modelCatalog) {
         const resolvedModel = await ctx.modelCatalog.resolveModelId(model);
-        options.model = await ctx.createBedrockModel({ model: resolvedModel } as AgentSpec);
+        options.model = await ctx.createBedrockModel({
+          model: resolvedModel,
+        } as AgentSpec);
       }
 
       if (toolNames && Array.isArray(toolNames)) {
         const agentTools = ctx.agentTools.get(slug) || [];
-        options.tools = agentTools.filter((t: any) => toolNames.includes(t.name));
+        options.tools = agentTools.filter((t) =>
+          toolNames.includes(t.name),
+        );
       }
 
       const result = await agent.generateText(prompt, options);
@@ -69,7 +83,10 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
           if (jsonMatch) jsonText = jsonMatch[1].trim();
           response = JSON.parse(jsonText);
         } catch (e) {
-          ctx.logger.warn('Failed to parse JSON response', { error: e, text: result.text });
+          ctx.logger.warn('Failed to parse JSON response', {
+            error: e,
+            text: result.text,
+          });
         }
       }
 
@@ -82,9 +99,12 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
         toolResults: result.toolResults,
         reasoning: result.reasoning,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       ctx.logger.error('Failed to invoke agent', { error });
-      return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
+      return c.json(
+        { success: false, error: errorMessage(error) },
+        isAuthError(error) ? 401 : 500,
+      );
     }
   });
 
@@ -99,10 +119,16 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
       let resolvedSlug = slug;
       let agent = ctx.activeAgents.get(resolvedSlug);
       if (!agent) {
-        const nsMatch = Array.from(ctx.activeAgents.keys()).find((k) => k.endsWith(`:${slug}`));
-        if (nsMatch) { resolvedSlug = nsMatch; agent = ctx.activeAgents.get(resolvedSlug); }
+        const nsMatch = Array.from(ctx.activeAgents.keys()).find((k) =>
+          k.endsWith(`:${slug}`),
+        );
+        if (nsMatch) {
+          resolvedSlug = nsMatch;
+          agent = ctx.activeAgents.get(resolvedSlug);
+        }
       }
-      if (!agent) return c.json({ success: false, error: 'Agent not found' }, 404);
+      if (!agent)
+        return c.json({ success: false, error: 'Agent not found' }, 404);
 
       const allTools = ctx.agentTools.get(resolvedSlug) || [];
       let tool = allTools.find((t) => t.name === toolName);
@@ -110,10 +136,14 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
         const normalized = ctx.getNormalizedToolName(toolName);
         tool = allTools.find((t) => t.name === normalized);
       }
-      if (!tool) return c.json({ success: false, error: `Tool ${toolName} not found` }, 404);
+      if (!tool)
+        return c.json(
+          { success: false, error: `Tool ${toolName} not found` },
+          404,
+        );
 
       const toolStart = performance.now();
-      const toolResult = await (tool as any).execute(toolArgs);
+      const toolResult = await (tool as { execute(args: unknown): Promise<unknown> }).execute(toolArgs);
       const toolDuration = performance.now() - toolStart;
 
       return c.json({
@@ -124,94 +154,141 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
           totalDuration: Math.round(performance.now() - startTime),
         },
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       ctx.logger.error('Failed to call tool', { error });
-      return c.json({ success: false, error: error.message }, isAuthError(error) ? 401 : 500);
+      return c.json(
+        { success: false, error: errorMessage(error) },
+        isAuthError(error) ? 401 : 500,
+      );
     }
   });
 
   // POST /agents/:slug/invoke/stream
-  app.post('/agents/:slug/invoke/stream', validate(invokeStreamSchema), async (c) => {
-    try {
-      const slug = param(c, 'slug');
-      const { prompt, model, tools: toolNames, maxSteps = 10, schema: schemaJson } = getBody(c);
-      chatRequests.add(1, { op: 'invoke_stream' });
+  app.post(
+    '/agents/:slug/invoke/stream',
+    validate(invokeStreamSchema),
+    async (c) => {
+      try {
+        const slug = param(c, 'slug');
+        const {
+          prompt,
+          model,
+          tools: toolNames,
+          maxSteps = 10,
+          schema: schemaJson,
+        } = getBody(c);
+        chatRequests.add(1, { op: 'invoke_stream' });
 
-      const agent = ctx.activeAgents.get(slug);
-      if (!agent) return c.json({ success: false, error: 'Agent not found' }, 404);
+        const agent = ctx.activeAgents.get(slug);
+        if (!agent)
+          return c.json({ success: false, error: 'Agent not found' }, 404);
 
-      const options: any = { maxSteps, maxOutputTokens: 2000 };
-      if (model && ctx.modelCatalog) {
-        const resolvedModel = await ctx.modelCatalog.resolveModelId(model);
-        options.model = await ctx.createBedrockModel({ model: resolvedModel } as AgentSpec);
-      }
-
-      if (toolNames && Array.isArray(toolNames)) {
-        const allTools = ctx.agentTools.get(slug) || [];
-        const filteredTools = allTools.filter((t) => toolNames.includes(t.name));
-
-        const tempAgent = await ctx.framework.createTempAgent({
-          name: `${slug}-temp`,
-          instructions: (agent as any).instructions || '',
-          model: options.model || agent.model,
-          tools: filteredTools as any[],
-          maxSteps,
-        });
-
-        if (schemaJson) {
-          const textResult = await tempAgent.generateText(
-            `${prompt}\n\nReturn ONLY valid JSON matching this schema (no markdown, no explanation):\n${JSON.stringify(schemaJson, null, 2)}`,
-          );
-          let parsed: unknown;
-          try {
-            const cleaned = textResult.text!.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-            parsed = JSON.parse(cleaned);
-          } catch (e) {
-            console.debug('Failed to parse JSON from agent response:', e);
-            const jsonMatch = textResult.text!.match(/\{[\s\S]*\}/);
-            parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { error: 'Failed to parse JSON' };
-          }
-          return c.json({ success: true, response: parsed, usage: textResult.usage });
+        const options: Record<string, unknown> & { maxSteps: number; maxOutputTokens: number } = { maxSteps, maxOutputTokens: 2000 };
+        if (model && ctx.modelCatalog) {
+          const resolvedModel = await ctx.modelCatalog.resolveModelId(model);
+          options.model = await ctx.createBedrockModel({
+            model: resolvedModel,
+          } as AgentSpec);
         }
 
-        const result = await tempAgent.generateText(prompt);
-        return c.json({ success: true, response: result.text, usage: result.usage });
+        if (toolNames && Array.isArray(toolNames)) {
+          const allTools = ctx.agentTools.get(slug) || [];
+          const filteredTools = allTools.filter((t) =>
+            toolNames.includes(t.name),
+          );
+
+          const tempAgent = await ctx.framework.createTempAgent({
+            name: `${slug}-temp`,
+            instructions: (agent as { instructions?: string }).instructions || '',
+            model: options.model || agent.model,
+            tools: filteredTools as unknown as ITool[],
+            maxSteps,
+          });
+
+          if (schemaJson) {
+            const textResult = await tempAgent.generateText(
+              `${prompt}\n\nReturn ONLY valid JSON matching this schema (no markdown, no explanation):\n${JSON.stringify(schemaJson, null, 2)}`,
+            );
+            let parsed: unknown;
+            try {
+              const cleaned = textResult
+                .text!.replace(/```json\n?/g, '')
+                .replace(/```\n?/g, '')
+                .trim();
+              parsed = JSON.parse(cleaned);
+            } catch (e) {
+              console.debug('Failed to parse JSON from agent response:', e);
+              const jsonMatch = textResult.text!.match(/\{[\s\S]*\}/);
+              parsed = jsonMatch
+                ? JSON.parse(jsonMatch[0])
+                : { error: 'Failed to parse JSON' };
+            }
+            return c.json({
+              success: true,
+              response: parsed,
+              usage: textResult.usage,
+            });
+          }
+
+          const result = await tempAgent.generateText(prompt);
+          return c.json({
+            success: true,
+            response: result.text,
+            usage: result.usage,
+          });
+        }
+
+        const result = schemaJson
+          ? await agent.generateObject(
+              prompt,
+              jsonSchema(schemaJson) as unknown as Parameters<typeof agent.generateObject>[1],
+              options,
+            )
+          : await agent.generateText(prompt, options);
+
+        return c.json({
+          success: true,
+          response: schemaJson ? result.object : result.text,
+          usage: result.usage,
+        });
+      } catch (error: unknown) {
+        ctx.logger.error('Failed to stream invoke', { error });
+        return c.json({ success: false, error: errorMessage(error) }, 500);
       }
-
-      const result = schemaJson
-        ? await agent.generateObject(prompt, jsonSchema(schemaJson) as unknown as any, options)
-        : await agent.generateText(prompt, options);
-
-      return c.json({
-        success: true,
-        response: schemaJson ? result.object : result.text,
-        usage: result.usage,
-      });
-    } catch (error: any) {
-      ctx.logger.error('Failed to stream invoke', { error });
-      return c.json({ success: false, error: error.message }, 500);
-    }
-  });
+    },
+  );
 
   // POST /tool-approval/:approvalId
-  app.post('/tool-approval/:approvalId', validate(toolApprovalSchema), async (c) => {
-    try {
-      const approvalId = param(c, 'approvalId');
-      const { approved } = getBody(c);
+  app.post(
+    '/tool-approval/:approvalId',
+    validate(toolApprovalSchema),
+    async (c) => {
+      try {
+        const approvalId = param(c, 'approvalId');
+        const { approved } = getBody(c);
 
-      ctx.logger.info('[Approval Endpoint] Received approval response', { approvalId, approved });
+        ctx.logger.info('[Approval Endpoint] Received approval response', {
+          approvalId,
+          approved,
+        });
 
-      if (ctx.approvalRegistry.resolve(approvalId, approved)) {
-        return c.json({ success: true });
+        if (ctx.approvalRegistry.resolve(approvalId, approved)) {
+          return c.json({ success: true });
+        }
+
+        ctx.logger.warn('[Approval Endpoint] Approval request not found', {
+          approvalId,
+        });
+        return c.json(
+          { success: false, error: 'Approval request not found' },
+          404,
+        );
+      } catch (error: unknown) {
+        ctx.logger.error('Approval response error', { error });
+        return c.json({ success: false, error: errorMessage(error) }, 500);
       }
-
-      ctx.logger.warn('[Approval Endpoint] Approval request not found', { approvalId });
-      return c.json({ success: false, error: 'Approval request not found' }, 404);
-    } catch (error: any) {
-      ctx.logger.error('Approval response error', { error });
-      return c.json({ success: false, error: error.message }, 500);
-    }
-  });
+    },
+  );
 
   // POST /invoke — global invoke using globalToolRegistry
   app.post('/invoke', validate(globalInvokeSchema), async (c) => {
@@ -228,7 +305,9 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
       chatRequests.add(1, { op: 'invoke_global' });
       const filteredTools =
         toolIds.length > 0
-          ? toolIds.map((id: string) => ctx.globalToolRegistry.get(id)).filter(Boolean)
+          ? toolIds
+              .map((id: string) => ctx.globalToolRegistry.get(id))
+              .filter(Boolean)
           : [];
 
       const invokeModelId = model || ctx.appConfig.invokeModel;
@@ -281,9 +360,9 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
         maxSteps: 1,
       });
 
-      const objectResult = await (structureAgent as any).generateObject(
+      const objectResult = await (structureAgent as { generateObject(prompt: string, schema: unknown, options: unknown): Promise<{ object: unknown; usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } }> }).generateObject(
         `${textResult.text}\n\nFormat the above information as structured JSON.`,
-        jsonSchema(schema) as unknown as any,
+        jsonSchema(schema),
         { conversationId: tempConvId, userId: 'invoke-user' },
       );
 
@@ -291,15 +370,21 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
         success: true,
         response: objectResult.object,
         usage: {
-          promptTokens: (textResult.usage?.promptTokens || 0) + (objectResult.usage?.promptTokens || 0),
-          completionTokens: (textResult.usage?.completionTokens || 0) + (objectResult.usage?.completionTokens || 0),
-          totalTokens: (textResult.usage?.totalTokens || 0) + (objectResult.usage?.totalTokens || 0),
+          promptTokens:
+            (textResult.usage?.promptTokens || 0) +
+            (objectResult.usage?.promptTokens || 0),
+          completionTokens:
+            (textResult.usage?.completionTokens || 0) +
+            (objectResult.usage?.completionTokens || 0),
+          totalTokens:
+            (textResult.usage?.totalTokens || 0) +
+            (objectResult.usage?.totalTokens || 0),
         },
         steps: textResult.steps?.length || 0,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       ctx.logger.error('Failed to invoke', { error });
-      return c.json({ success: false, error: error.message }, 500);
+      return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
 

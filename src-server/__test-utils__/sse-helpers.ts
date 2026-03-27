@@ -19,7 +19,9 @@ export async function collectSSE(
   let buffer = '';
   let currentEvent: string | undefined;
 
-  const timeout = new Promise<void>((resolve) => setTimeout(resolve, timeoutMs));
+  const timeout = new Promise<void>((resolve) =>
+    setTimeout(resolve, timeoutMs),
+  );
   const read = async () => {
     try {
       while (events.length < maxEvents) {
@@ -36,7 +38,11 @@ export async function collectSSE(
           } else if (line.startsWith('data: ')) {
             const data = line.slice(6);
             let parsed: any;
-            try { parsed = JSON.parse(data); } catch { parsed = undefined; }
+            try {
+              parsed = JSON.parse(data);
+            } catch {
+              parsed = undefined;
+            }
             events.push({ event: currentEvent, data, parsed });
             currentEvent = undefined;
           } else if (line === '') {
@@ -45,7 +51,7 @@ export async function collectSSE(
           }
         }
       }
-    } catch (e) {
+    } catch (_e) {
       // Stream aborted or errored — that's fine, return what we have
     }
   };
