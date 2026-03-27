@@ -4,9 +4,11 @@ This document shows which API endpoints are actively used by the Stallion fronte
 
 ## Summary
 
-- **Framework-provided generation endpoints**: 0 in use (all replaced with custom endpoints)
-- **Custom Endpoints**: 40+ of ~97 endpoints in use
-- **Default Agent**: System-level `default` agent always available, uses configured `defaultModel`, no tools
+- **Total endpoints**: ~218 across 34 route files
+- **Schema-validated**: ~85% of POST/PUT/PATCH endpoints use Zod validation via `validate()` middleware
+- **Response format**: Standard `{ success: boolean, data?: T, error?: string }` envelope
+- **Auth**: None (local-only application)
+- **Default Agent**: System-level `default` agent always available, uses configured `defaultModel`
 
 ---
 
@@ -429,3 +431,102 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 8. ✅ Add model validation in forms using `/bedrock/models/:modelId/validate`
 9. 📋 Add conversation context management UI
 10. 🔍 Add user search UI using `/users/search`
+
+---
+
+## Endpoints Added Since Last Audit
+
+The following endpoint groups were missing from this document and are now documented.
+
+### Voice (`/api/voice`)
+
+| Endpoint | Method | Schema | Description |
+|----------|--------|--------|-------------|
+| `/api/voice/sessions` | POST | `voiceSessionCreateSchema` | Create voice session |
+| `/api/voice/sessions/:id` | DELETE | — | Destroy voice session |
+| `/api/voice/status` | GET | — | Active session count |
+| `/api/voice/agent` | GET | — | Voice agent info |
+
+### Feedback (`/api/feedback`)
+
+| Endpoint | Method | Schema | Description |
+|----------|--------|--------|-------------|
+| `/api/feedback/rate` | POST | `rateSchema` | Rate a message |
+| `/api/feedback/rate` | DELETE | `feedbackDeleteSchema` | Remove a rating |
+| `/api/feedback/ratings` | GET | — | List all ratings |
+| `/api/feedback/guidelines` | GET | — | Get behavior guidelines |
+| `/api/feedback/analyze` | POST | — (optional body) | Trigger analysis pipeline |
+| `/api/feedback/clear-analysis` | POST | — | Clear all analysis |
+| `/api/feedback/status` | GET | — | Pipeline status |
+| `/api/feedback/test` | POST | — | Diagnostic test |
+
+### Prompts (`/api/prompts`)
+
+| Endpoint | Method | Schema | Description |
+|----------|--------|--------|-------------|
+| `/api/prompts/providers` | GET | — | List prompt providers |
+| `/api/prompts/` | GET | — | List all prompts |
+| `/api/prompts/:id` | GET | — | Get prompt by ID |
+| `/api/prompts/` | POST | `promptCreateSchema` | Create prompt |
+| `/api/prompts/:id` | PUT | `promptUpdateSchema` | Update prompt |
+| `/api/prompts/:id` | DELETE | — | Delete prompt |
+
+### Registry (`/api/registry`)
+
+| Endpoint | Method | Schema | Description |
+|----------|--------|--------|-------------|
+| `/api/registry/agents` | GET | — | List available agents |
+| `/api/registry/agents/installed` | GET | — | List installed agents |
+| `/api/registry/agents/install` | POST | `registryInstallSchema` | Install agent |
+| `/api/registry/agents/:id` | DELETE | — | Uninstall agent |
+| `/api/registry/integrations` | GET | — | List available integrations |
+| `/api/registry/integrations/installed` | GET | — | List installed integrations |
+| `/api/registry/integrations/install` | POST | `registryInstallSchema` | Install integration |
+| `/api/registry/integrations/:id` | DELETE | — | Uninstall integration |
+| `/api/registry/integrations/sync` | POST | — | Sync integrations |
+| `/api/registry/skills` | GET | — | List available skills |
+| `/api/registry/skills/install` | POST | `skillInstallSchema` | Install skill |
+| `/api/registry/skills/:id` | DELETE | — | Uninstall skill |
+| `/api/registry/skills/:id/content` | GET | — | Get skill content |
+| `/api/registry/plugins` | GET | — | List available plugins |
+| `/api/registry/plugins/installed` | GET | — | List installed plugins |
+| `/api/registry/plugins/install` | POST | `registryInstallSchema` | Install plugin |
+| `/api/registry/plugins/:id` | DELETE | — | Uninstall plugin |
+
+### Notifications (`/notifications`)
+
+| Endpoint | Method | Schema | Description |
+|----------|--------|--------|-------------|
+| `/notifications/` | GET | — | List notifications (filterable) |
+| `/notifications/` | POST | `notificationCreateSchema` | Schedule notification |
+| `/notifications/:id` | DELETE | — | Dismiss notification |
+| `/notifications/:id/action/:actionId` | POST | — | Execute notification action |
+| `/notifications/:id/snooze` | POST | `notificationSnoozeSchema` | Snooze notification |
+| `/notifications/` | DELETE | — | Clear all notifications |
+| `/notifications/providers` | GET | — | List notification providers |
+
+### Insights (`/api/insights`)
+
+| Endpoint | Method | Schema | Description |
+|----------|--------|--------|-------------|
+| `/api/insights` | GET | — | Get usage insights (query: `?days=14`) |
+
+> **Note:** Previously at `/api/insights/insights` — path was fixed in Wave 6.
+
+### Response Envelope
+
+All endpoints use a standard response envelope:
+
+```typescript
+// Success
+{ success: true, data: T }
+{ success: true, data: T, message?: string }
+
+// Error
+{ success: false, error: string }
+{ success: false, error: string, details?: object }  // validation errors
+```
+
+### Schema Validation
+
+POST/PUT/PATCH endpoints use Zod schemas defined in `src-server/routes/schemas.ts`. The `validate()` middleware parses the request body, returns 400 on validation failure, and stores the validated body for retrieval via `getBody(c)`. Route params use `param(c, 'name')` for consistent 400 errors on missing params.

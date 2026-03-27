@@ -70,6 +70,7 @@ All instruments are defined in `src-server/telemetry/metrics.ts` and are safe to
 | `stallion.plugin.installs`    | Plugin install events    | —        |
 | `stallion.plugin.uninstalls`  | Plugin uninstall events  | —        |
 | `stallion.plugin.updates`     | Plugin update events     | —        |
+| `stallion.plugin.settings_updates` | Plugin settings update events | —   |
 
 #### CRUD Operations
 

@@ -54,69 +54,39 @@ The root route (`/`) auto-selects in this priority: (1) last-viewed project+layo
 
 Before pushing, run the full local CI pipeline (typecheck, biome lint, build, tests) and ensure the core stays vendor-neutral. Route handlers use `getBody(c)` and `param(c, 'name')` from `schemas.ts` for type safety. See [docs/guides/code-quality.md](docs/guides/code-quality.md) for details. See [docs/guides/testing.md](docs/guides/testing.md) for test patterns, shared utilities, and the new-feature testing checklist.
 
+For the full CLI command and flag reference, see [docs/reference/cli.md](docs/reference/cli.md).
+
 ### Known issues
 
-- The ChatDock overlay intercepts pointer events on sidebar buttons near the bottom of the viewport. Use `element.dispatchEvent('click')` in Playwright tests to bypass.
+None currently tracked.
 
 ### Notification system
 
-The notification system follows the provider pattern. Core is abstract — it knows about "notifications" but not what generates them (calendar events, build results, etc.).
-
-**Architecture:**
-- `INotificationProvider` (additive) — plugins register providers that contribute notifications via `poll()`
-- `NotificationService` — aggregates providers, manages lifecycle (schedule/deliver/dismiss/snooze), persists to `~/.stallion-ai/notifications.json`
-- REST API at `/notifications` — CRUD + action + snooze + filter by status/category
-- SSE bridge — `notification:delivered` events push into the ToastStore for immediate UI display
-- Web Push — generalized `usePushNotifications` hook + `sw.js` handles both tool-approval and generic payloads
-
-**Shared primitives** (extracted from BuiltinScheduler for DRY):
-- `src-server/services/cron.ts` — pure cron matching functions
-- `src-server/services/json-store.ts` — `JsonFileStore<T>` typed JSON persistence
-- `src-server/services/sse-broadcaster.ts` — `SSEBroadcaster` SSE fan-out (used by BuiltinScheduler + SchedulerService)
-
-**SDK hooks for plugins:**
-- `useNotifications()` — `notify()` (immediate toast), `schedule()` (server-side), `dismiss()`
-- `NotificationsAPI` class — full REST client for programmatic access
-
-**Key design decisions:**
-- `category` is free-form string — plugins define their own (e.g. `'meeting-reminder'`, `'build-complete'`)
-- `metadata` is opaque to core — plugins store domain-specific data, core just persists and delivers
-- `dedupeTag` prevents duplicate notifications without core knowing the domain
-- Tool-approval was NOT migrated — it's streaming-event-driven (ephemeral), not a scheduled notification
+Provider pattern — plugins register `INotificationProvider` implementations that contribute notifications via `poll()`. `NotificationService` aggregates providers, manages lifecycle, persists to `~/.stallion-ai/notifications.json`. Events flow through EventBus (`notification:delivered`) → SSE route → browser ToastStore. SDK: `useNotifications()` hook and `NotificationsAPI` class. Shared primitives: `cron.ts`, `json-store.ts`, `sse-broadcaster.ts` (SSEBroadcaster used by scheduler only, not notifications).
 
 ### Feedback system
 
-Two-tier feedback loop inspired by KiRoom. Core is provider-agnostic — works with any framework adapter.
-
-**Architecture:**
-- `FeedbackService` (`src-server/services/feedback-service.ts`) — ratings storage, two-tier LLM analysis, behavior guideline generation
-- REST API at `/feedback` — rate, list ratings, get summary, trigger analysis
-- `InsightsDashboard` — feedback tab alongside existing monitoring metrics
-- Behavior injection — `stallion-runtime.ts` injects `reinforce`/`avoid` lists into all chat system prompts
-
-**How it works:**
-1. User rates agent messages (thumbs up/down with optional reason)
-2. Mini-analysis (per-message): LLM analyzes why the user rated that way — runs every 10 minutes
-3. Full-analysis (aggregate): LLM distills all mini-analyses into top 25 behaviors to reinforce and avoid
-4. Guidelines auto-injected into agent system prompts — every session benefits from accumulated feedback
-
-**Storage:** `JsonFileStore` at `~/.stallion-ai/feedback/feedback.json`
-**OTel:** `stallion.feedback.operations` counter
+Two-tier feedback loop: user rates messages → mini-analysis per message → full-analysis aggregates into behavior guidelines → `routes/chat.ts` injects `reinforce`/`avoid` lists into chat system prompts via `getBehaviorGuidelines()`. Storage: `~/.stallion-ai/feedback/feedback.json`. See [docs/kiroom-analysis/02-insights-feedback.md](docs/kiroom-analysis/02-insights-feedback.md) for design rationale.
 
 ### Voice system
 
-Speech-to-speech via WebSocket. Plugin-extensible provider model.
+Speech-to-speech via WebSocket with plugin-extensible `IS2SProvider` interface. Built-in: Nova Sonic. Plugin examples: `examples/elevenlabs-voice/`, `examples/nova-sonic-voice/`. Voice prompt prefix auto-prepended. Agent MCP tools translated to S2S tool definitions.
 
-**Architecture:**
-- `VoiceSession` (`src-server/voice/voice-session.ts`) — manages WebSocket lifecycle, tool execution, provider delegation
-- `IS2SProvider` interface (`src-server/voice/s2s-types.ts`) — provider contract for speech-to-speech backends
-- Built-in provider: Nova Sonic (`src-server/voice/providers/nova-sonic.ts`)
-- Plugin providers: ElevenLabs, custom providers via `examples/elevenlabs-voice/` and `examples/nova-sonic-voice/`
+### ACP (Agent Communication Protocol)
 
-**Key patterns:**
-- Voice prompt prefix auto-prepended: "You are in voice mode. Be concise..."
-- Agent MCP tools translated to S2S tool definitions
-- OTel: `stallion.voice.operations` counter + `stallion.voice.duration` histogram
+Connects external agent runtimes (e.g. `kiro-cli`) to Stallion as a UI/orchestration layer. Plugins contribute ACP connections via the additive provider pattern. See [docs/guides/acp.md](docs/guides/acp.md) for the full protocol and integration guide.
+
+### Knowledge / LanceDB
+
+Per-project vector knowledge base using LanceDB for embeddings. `KnowledgeService` manages document ingestion, chunking, and semantic search. Plugins can contribute knowledge namespaces. Embedding provider is configurable (Bedrock built-in).
+
+### Scheduler (Boo)
+
+Cron-based job scheduler. `BuiltinScheduler` runs jobs locally, `SchedulerService` manages CRUD + SSE streaming of job output. Jobs invoke agent prompts on a schedule. REST API at `/schedule`. Uses `SSEBroadcaster` for real-time output streaming to UI.
+
+### Plugin architecture
+
+Plugins are the product — core provides the foundation. A plugin can contribute layouts, agents, MCP integrations, providers, knowledge namespaces, and ACP connections. Manifest-driven with `stallion-plugin.json`. See [docs/guides/plugins.md](docs/guides/plugins.md) for development guide.
 
 ### Windows compatibility
 

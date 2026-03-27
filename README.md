@@ -1,6 +1,6 @@
 # Stallion
 
-A local-first AI agent system with a pluggable project architecture. Built on Amazon Bedrock.
+A local-first AI agent system with a pluggable project architecture. Built on Amazon Bedrock with dual runtime support (VoltAgent default, Strands optional).
 
 ## Overview
 
@@ -13,12 +13,28 @@ Stallion is a desktop-ready platform for running multiple AI agents with MCP too
 - **ACP connections** — Connect to external agent runtimes (kiro-cli, etc.) via the Agent Communication Protocol.
 - **Desktop app** — Tauri-based native app with embedded Node.js server.
 
+## Features
+
+**Chat & Agents** — Multi-agent chat with conversation history, prompt management, quick prompts, slash commands, and a feedback loop that learns from user ratings.
+
+**Knowledge & Skills** — Per-project vector knowledge base (LanceDB), skills management, and workflow orchestration.
+
+**Voice** — Speech-to-speech via WebSocket with pluggable S2S providers (Nova Sonic built-in, ElevenLabs example plugin).
+
+**Scheduling** — Built-in cron scheduler (Boo) for running agent prompts on a schedule, with job management UI and SSE output streaming.
+
+**Developer Tools** — Integrated terminal sessions, coding assistance, and file browser.
+
+**Observability** — OpenTelemetry instrumentation (~46 metric instruments), monitoring dashboard, insights analysis, notifications (SSE + browser), and usage analytics.
+
+**Extensibility** — Plugin system, provider interfaces, MCP tools, ACP connections, template variables, and a plugin registry for discovery.
+
 ## Quick Start
 
 ### Prerequisites
 
-- Node.js 20+
-- AWS credentials configured for Bedrock access
+- Node.js 20+ (see `.nvmrc`)
+- AWS credentials configured for Bedrock access (`bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream`, `bedrock:ListFoundationModels`)
 
 ### Install & Run
 
@@ -28,7 +44,9 @@ cd stallion
 ./stallion start
 ```
 
-Dependencies are installed automatically on first run. The server starts on `http://localhost:3141` with the UI bundled.
+Dependencies are installed and the app is built automatically on first run. The server starts on `http://localhost:3141` and the UI on `http://localhost:3000`.
+
+Open `http://localhost:3000`, configure a Bedrock model in **Settings**, then start chatting with the default agent.
 
 Use `./stallion --help` to see all available commands.
 
@@ -353,23 +371,42 @@ OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318 ./stallion start
 | `stallion.agents.active` | Gauge | Number of loaded agents |
 | `stallion.mcp.connections` | Gauge | Number of MCP connections |
 
-> Full list of ~40 instruments in `src-server/telemetry/metrics.ts`. Additional counters cover plugins, agents, layouts, projects, prompts, providers, notifications, scheduler, MCP, knowledge, feedback, approvals, terminals, ACP, voice, templates, conversations, coding, auth, file tree, registry, skills, analytics, bedrock, config, SSE, insights, system, and UI commands.
+> Full list of ~46 instruments in `src-server/telemetry/metrics.ts`. Additional counters cover plugins, agents, layouts, projects, prompts, providers, notifications, scheduler, MCP, knowledge, feedback, approvals, terminals, ACP, voice, templates, conversations, coding, auth, file tree, registry, skills, analytics, bedrock, config, SSE, insights, system, and UI commands.
 
 The Grafana dashboard at `http://localhost:3333/d/stallion-overview` provides 16 panels covering requests, tokens, costs, tool usage, errors, and latency distributions.
 
 ## Scripts
 
+> Prefer `./stallion` CLI over raw npm scripts for building and running the app.
+
 | Script | Description |
 |--------|-------------|
+| **Development** | |
 | `npm run dev:server` | Start backend with hot reload |
 | `npm run dev:ui` | Start frontend dev server |
+| `npm run dev:desktop` | Tauri dev mode with hot reload |
+| `npm run cli` | Interactive CLI mode |
+| **Build** | |
 | `npm run build` | Build server + UI |
 | `npm run build:server` | Build server only |
 | `npm run build:ui` | Build UI only |
-| `npm run build:desktop` | Build Tauri desktop app |
+| `npm run build:desktop` | Build Tauri desktop app (.dmg / .exe) |
+| `npm run clean` | Remove all build artifacts |
+| **Run** | |
 | `npm run start:server` | Run built server |
-| `npm test` | Run unit tests (vitest) |
+| `npm run start:ui` | Serve built UI (via `npx serve`) |
+| **Test** | |
+| `npm test` | Run unit tests (vitest, watch mode) |
+| `npm run test:coverage` | Unit tests with coverage report |
+| `npm run test:android` | Playwright Android device tests |
 | `npx playwright test` | Run integration tests |
+| **Lint** | |
+| `npm run lint` | Biome lint check |
+| `npm run lint:fix` | Biome auto-fix |
+| **Release** | |
+| `npm run changeset` | Create a changeset |
+| `npm run version-packages` | Bump versions from changesets |
+| `npm run publish-packages` | Publish packages |
 
 ## Desktop App (Tauri)
 
@@ -386,11 +423,34 @@ npm run dev:desktop      # Dev mode with hot reload
 # Unit tests
 npm test
 
-# Plugin system integration tests (requires server + UI running)
-npm run build:server
-npm run dev:ui &
+# Integration tests (start the app first)
+./stallion start
 npx playwright test tests/plugin-system.spec.ts
 ```
+
+See [Testing Guide](docs/guides/testing.md) for conventions, shared utilities, and the new-feature checklist.
+
+## Docker
+
+### Production
+
+```bash
+docker compose up -d          # Server on :3141, UI on :5173 (nginx)
+```
+
+### Development
+
+```bash
+docker compose --profile dev up   # Hot reload, source mounted, AWS creds passed through
+```
+
+### Monitoring
+
+```bash
+cd monitoring && docker compose up -d   # Collector :4318, Prometheus :9090, Grafana :3333, Jaeger :16686
+```
+
+See [Deployment Guide](docs/guides/deployment.md) for reverse proxy setup and environment configuration.
 
 ## Documentation
 
@@ -404,6 +464,10 @@ npx playwright test tests/plugin-system.spec.ts
 | [ACP](docs/guides/acp.md) | Agent Communication Protocol — connecting external runtimes |
 | [Monitoring](docs/guides/monitoring.md) | OTel setup, metrics, Grafana, Jaeger |
 | [Theming](docs/guides/theming.md) | CSS variables, branding API, custom themes |
+| [Testing](docs/guides/testing.md) | Test philosophy, conventions, shared utilities, TDD policy |
+| [Code Quality](docs/guides/code-quality.md) | Pre-push CI pipeline, biome lint, route typing |
+| [Deployment](docs/guides/deployment.md) | Docker production, dev profile, monitoring, reverse proxy |
+| [Android Build](docs/guides/android-build.md) | Tauri mobile build for Android |
 
 ### Reference
 | Doc | Description |
@@ -413,6 +477,8 @@ npx playwright test tests/plugin-system.spec.ts
 | [API Summary](docs/reference/api-summary.md) | Quick endpoint reference by category |
 | [Endpoints in Use](docs/reference/endpoints.md) | Which endpoints the frontend calls |
 | [Config Schemas](docs/reference/config.md) | app.json and agent.json field reference |
+| [Environment Variables](docs/reference/env-vars.md) | All env vars with defaults and descriptions |
+| [CLI](docs/reference/cli.md) | Full CLI command and flag reference |
 | [Connect](docs/reference/connect.md) | @stallion-ai/connect — multi-device connectivity |
 | [Shared](docs/reference/shared.md) | @stallion-ai/shared — types and utilities |
 

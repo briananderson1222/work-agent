@@ -88,7 +88,7 @@ All fields:
 
 | Field | Description |
 |-------|-------------|
-| `type` | Provider type: `auth`, `branding`, `userIdentity`, `userDirectory`, `agentRegistry`, `integrationRegistry`, `skillRegistry`, `pluginRegistry`, `settings` (or any custom type via the generic provider registry) |
+| `type` | Provider type — built-in types: `auth`, `branding`, `userIdentity`, `userDirectory`, `agentRegistry`, `integrationRegistry`, `skillRegistry`, `pluginRegistry`, `settings`, `scheduler`, `notification`, `llm`, `embedding`, `vectorDb`, `layoutType`, `acpConnections`, `promptRegistry`, `template`. Custom types also supported via the generic provider registry. |
 | `module` | Path to the JS module (relative to plugin root) |
 | `layout` | Optional — scope this provider to a specific layout slug |
 
@@ -434,8 +434,10 @@ Same interface as `agentRegistry` but for MCP integrations.
 
 ```js
 module.exports = () => ({
-  async getSettings() { return { key: 'value' }; },
-  async updateSettings(patch) { return { success: true }; },
+  async getDefaults() {
+    // Returns: Partial<AppConfig> — default config values contributed by this plugin
+    return { region: 'us-east-1' };
+  },
 });
 ```
 
