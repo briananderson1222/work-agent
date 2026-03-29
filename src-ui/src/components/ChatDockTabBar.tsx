@@ -1,46 +1,34 @@
-import { type RefObject, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { type AgentData, useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { ChatSession } from '../types';
-import { SessionManagementMenu } from './SessionManagementMenu';
 import { SessionTab } from './SessionTab';
 
 interface ChatDockTabBarProps {
   sessions: ChatSession[];
   activeSessionId: string | null;
-  chatDockRef: RefObject<HTMLDivElement | null>;
+  isHistoryOpen: boolean;
+  onToggleHistory: () => void;
   focusSession: (id: string) => void;
   removeSession: (id: string) => void;
-  openConversation: (
-    conversationId: string,
-    agentSlug: string,
-    projectSlug?: string,
-    projectName?: string,
-  ) => void;
   openChatForAgent: (
     agent: AgentData,
     projectSlug?: string,
     projectName?: string,
   ) => void;
-  updateChat: (id: string, updates: { title?: string }) => void;
   setShowSessionPicker: (show: boolean) => void;
   setShowNewChatModal: (show: boolean) => void;
-  projects: Array<{ slug: string; name: string; icon?: string }>;
-  projectFilter: string | null;
-  setProjectFilter: (filter: string | null) => void;
-  selectedProject: string | null;
 }
 
 export function ChatDockTabBar({
   sessions,
   activeSessionId,
-  chatDockRef,
+  isHistoryOpen,
+  onToggleHistory,
   focusSession,
   removeSession,
-  openConversation,
   openChatForAgent,
-  updateChat,
   setShowSessionPicker,
   setShowNewChatModal,
 }: ChatDockTabBarProps) {
@@ -84,16 +72,14 @@ export function ChatDockTabBar({
   return (
     <div className="chat-dock__tabs">
       <div className="chat-dock__tab-container">
-        <SessionManagementMenu
-          sessions={sessions.filter((s) => s.conversationId) as any[]}
-          activeSessionId={activeSessionId}
-          agents={agents}
-          chatDockRef={chatDockRef as any}
-          onTitleUpdate={(sessionId, title) => updateChat(sessionId, { title })}
-          onDelete={removeSession}
-          onSelect={focusSession}
-          onOpenConversation={openConversation}
-        />
+        <button
+          type="button"
+          className={`chat-dock__history-toggle${isHistoryOpen ? ' is-active' : ''}`}
+          onClick={onToggleHistory}
+          title="Conversation history"
+        >
+          ☰
+        </button>
         {showScrollButtons.left && (
           <button
             type="button"

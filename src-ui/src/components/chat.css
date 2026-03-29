@@ -876,10 +876,6 @@
     padding: 4px 8px;
   }
 
-  .session-panel {
-    width: min(350px, 100vw);
-  }
-
   .chat-settings-modal {
     min-width: unset;
     width: 90vw;

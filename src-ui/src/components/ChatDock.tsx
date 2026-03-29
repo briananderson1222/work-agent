@@ -25,6 +25,7 @@ import { ChatDockBody } from './ChatDockBody';
 import { ChatDockHeader } from './ChatDockHeader';
 import { ChatDockTabBar } from './ChatDockTabBar';
 import { ChatSettingsPanel } from './ChatSettingsPanel';
+import { ConversationHistory } from './ConversationHistory';
 import { GitBadge } from './GitBadge';
 import { NewChatModal } from './NewChatModal';
 import { SessionPickerModal } from './SessionPickerModal';
@@ -88,8 +89,10 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     setActiveSessionId,
   } = useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized });
 
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+
   // Derive sessions from contexts (includes messages for all sessions)
-  const [projectFilter, setProjectFilter] = useState<string | null>(null);
+  const [projectFilter, _setProjectFilter] = useState<string | null>(null);
   const sessions = useDerivedSessions(apiBase, selectedAgent, projectFilter);
   const rehydrateSessions = useRehydrateSessions(apiBase);
 
@@ -281,18 +284,13 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
             <ChatDockTabBar
               sessions={sessions}
               activeSessionId={activeSessionId}
-              chatDockRef={chatSectionRef}
+              isHistoryOpen={isHistoryOpen}
+              onToggleHistory={() => setIsHistoryOpen((v) => !v)}
               focusSession={focusSession}
               removeSession={removeSession}
-              openConversation={openConversation}
               openChatForAgent={openChatForAgent}
-              updateChat={updateChat}
               setShowSessionPicker={setShowSessionPicker}
               setShowNewChatModal={setShowNewChatModal}
-              projects={projects}
-              projectFilter={projectFilter}
-              setProjectFilter={setProjectFilter}
-              selectedProject={selectedProject}
             />
 
             {/* Project context breadcrumb for project-scoped sessions */}
@@ -348,27 +346,49 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                 );
               })()}
 
-            <div className="chat-dock__body">
-              {activeSession ? (
-                <ChatDockBody
-                  activeSession={activeSession}
-                  chatFontSize={chatFontSize}
-                  dockHeight={dockHeight}
-                  showStatsPanel={showStatsPanel}
-                  showReasoning={showReasoning}
-                  showToolDetails={showToolDetails}
-                  modelSupportsAttachments={modelSupportsAttachments}
-                  agentDefaultModelId={agentDefaultModelId}
-                  availableModels={effectiveModels}
-                  chatInput={chatInput}
-                  setShowStatsPanel={setShowStatsPanel}
-                />
-              ) : (
-                <div className="empty-state">
-                  <h3>No active session</h3>
-                  <p>Click "+ New" to start a chat</p>
-                </div>
+            <div className="chat-dock__content-area">
+              {isHistoryOpen && (
+                <>
+                  <div
+                    className="conversation-history__backdrop"
+                    onClick={() => setIsHistoryOpen(false)}
+                  />
+                  <ConversationHistory
+                    sessions={sessions.filter((s) => s.conversationId) as any[]}
+                    activeSessionId={activeSessionId}
+                    agents={agents}
+                    onTitleUpdate={(sessionId, title) =>
+                      updateChat(sessionId, { title })
+                    }
+                    onDelete={removeSession}
+                    onSelect={focusSession}
+                    onOpenConversation={openConversation}
+                    onClose={() => setIsHistoryOpen(false)}
+                  />
+                </>
               )}
+              <div className="chat-dock__body">
+                {activeSession ? (
+                  <ChatDockBody
+                    activeSession={activeSession}
+                    chatFontSize={chatFontSize}
+                    dockHeight={dockHeight}
+                    showStatsPanel={showStatsPanel}
+                    showReasoning={showReasoning}
+                    showToolDetails={showToolDetails}
+                    modelSupportsAttachments={modelSupportsAttachments}
+                    agentDefaultModelId={agentDefaultModelId}
+                    availableModels={effectiveModels}
+                    chatInput={chatInput}
+                    setShowStatsPanel={setShowStatsPanel}
+                  />
+                ) : (
+                  <div className="empty-state">
+                    <h3>No active session</h3>
+                    <p>Click "+ New" to start a chat</p>
+                  </div>
+                )}
+              </div>
             </div>
           </>
         )}

@@ -3270,66 +3270,63 @@ body {
   }
 }
 
-/* Session Management Panel */
-.session-panel {
-  position: fixed;
-  width: min(350px, 100vw);
-  background: var(--bg-primary);
-  border-right: 1px solid var(--border-primary);
-  box-shadow: 4px 0 12px rgba(0, 0, 0, 0.15);
-  z-index: 1000;
+/* ── Conversation History (push on desktop, overlay on mobile) ── */
+.chat-dock__content-area {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.chat-dock__history-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.chat-dock__history-toggle.is-active {
+  color: var(--accent-primary);
+}
+
+.conversation-history {
+  width: min(300px, 80vw);
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  animation: slideInFromLeft 0.2s ease-out;
+  background: var(--bg-primary);
+  border-right: 1px solid var(--border-primary);
 }
 
-.app__main--dock-right .session-panel {
-  right: 0;
-  left: auto;
-  border-right: none;
-  border-left: 1px solid var(--border-primary);
-  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.15);
-  animation: slideInFromRight 0.2s ease-out;
+.conversation-history__backdrop {
+  display: none;
 }
 
-@keyframes slideInFromLeft {
-  from {
-    transform: translateX(-100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-@keyframes slideInFromRight {
-  from {
-    transform: translateX(100%);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-.session-panel__header {
-  padding: 16px;
+.conversation-history__header {
+  padding: 12px 16px;
   border-bottom: 1px solid var(--border-primary);
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
 
-.session-panel__title {
+.conversation-history__title {
   font-weight: 600;
   font-size: 14px;
 }
 
-.session-panel__actions {
+.conversation-history__actions {
   display: flex;
   gap: 8px;
   align-items: center;
 }
 
-.session-panel__clear-btn {
+.conversation-history__clear-btn {
   background: none;
   border: none;
   cursor: pointer;
@@ -3339,11 +3336,11 @@ body {
   text-decoration: underline;
 }
 
-.session-panel__clear-btn:hover {
+.conversation-history__clear-btn:hover {
   color: var(--text-primary);
 }
 
-.session-panel__close-btn {
+.conversation-history__close-btn {
   background: none;
   border: none;
   cursor: pointer;
@@ -3353,15 +3350,33 @@ body {
   line-height: 1;
 }
 
-.session-panel__content {
+.conversation-history__list {
   flex: 1;
   overflow-y: auto;
 }
 
-.session-panel__empty {
+.conversation-history__empty {
   padding: 40px 20px;
   text-align: center;
   color: var(--text-muted);
+}
+
+/* Mobile: overlay instead of push */
+@media (max-width: 768px) {
+  .conversation-history {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    z-index: 20;
+  }
+
+  .conversation-history__backdrop {
+    display: block;
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.3);
+    z-index: 19;
+  }
 }
 
 /* Session Conversation Item */
@@ -3502,26 +3517,6 @@ body {
   background: var(--bg-primary);
   color: var(--text-primary);
   font-size: 13px;
-}
-
-/* Session Menu Trigger */
-.session-menu__trigger {
-  background: none;
-  border: none;
-  cursor: pointer;
-  padding: 8px 12px;
-  color: var(--text-primary);
-  font-size: 18px;
-  line-height: 1;
-  display: flex;
-  align-items: center;
-}
-
-.session-menu__backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.3);
-  z-index: 999;
 }
 
 /* File Attachment Input */
