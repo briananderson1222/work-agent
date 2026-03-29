@@ -11,6 +11,8 @@ import { extname, join, relative } from 'node:path';
 import type {
   KnowledgeDocumentMeta,
   KnowledgeNamespaceConfig,
+  KnowledgeSearchFilter,
+  KnowledgeTreeNode,
 } from '@stallion-ai/shared';
 import { BUILTIN_KNOWLEDGE_NAMESPACES } from '@stallion-ai/shared';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
@@ -67,12 +69,13 @@ const SKIP_DIRS = new Set([
 ]);
 
 function chunkText(text: string, maxChunkSize = 500): string[] {
-  const paragraphs = text.split(/\n\n+/);
+  // Split on markdown headings first, then paragraphs within sections
+  const sections = text.split(/(?=^#{1,6}\s)/m);
   const chunks: string[] = [];
   let current = '';
 
-  for (const para of paragraphs) {
-    const trimmed = para.trim();
+  for (const section of sections) {
+    const trimmed = section.trim();
     if (!trimmed) continue;
 
     if (current.length + trimmed.length + 2 <= maxChunkSize) {
@@ -82,21 +85,104 @@ function chunkText(text: string, maxChunkSize = 500): string[] {
       if (trimmed.length <= maxChunkSize) {
         current = trimmed;
       } else {
-        for (const line of trimmed.split(/\n/)) {
-          const l = line.trim();
-          if (!l) continue;
-          if (current.length + l.length + 1 <= maxChunkSize) {
-            current = current ? `${current}\n${l}` : l;
+        // Section too large — split by paragraphs
+        const paragraphs = trimmed.split(/\n\n+/);
+        current = '';
+        for (const para of paragraphs) {
+          const p = para.trim();
+          if (!p) continue;
+          if (current.length + p.length + 2 <= maxChunkSize) {
+            current = current ? `${current}\n\n${p}` : p;
           } else {
             if (current) chunks.push(current);
-            current = l;
+            if (p.length <= maxChunkSize) {
+              current = p;
+            } else {
+              // Paragraph too large — split by lines
+              for (const line of p.split(/\n/)) {
+                const l = line.trim();
+                if (!l) continue;
+                if (current.length + l.length + 1 <= maxChunkSize) {
+                  current = current ? `${current}\n${l}` : l;
+                } else {
+                  if (current) chunks.push(current);
+                  current = l;
+                }
+              }
+            }
           }
         }
       }
     }
   }
   if (current) chunks.push(current);
-  return chunks;
+
+  // Add ~50 char overlap between chunks for context continuity
+  if (chunks.length <= 1) return chunks;
+  const overlapped: string[] = [chunks[0]];
+  for (let i = 1; i < chunks.length; i++) {
+    const prev = chunks[i - 1];
+    const overlap = prev.slice(-50).trimStart();
+    overlapped.push(`${overlap}\n\n${chunks[i]}`);
+  }
+  return overlapped;
+}
+
+// ── Frontmatter parsing ────────────────────────────────────────────
+
+function parseFrontmatter(content: string): {
+  metadata: Record<string, any>;
+  body: string;
+} {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
+  if (!match) return { metadata: {}, body: content };
+
+  const yamlBlock = match[1];
+  const body = match[2];
+  const metadata: Record<string, any> = {};
+
+  for (const line of yamlBlock.split('\n')) {
+    const kv = line.match(/^(\w[\w-]*):\s*(.*)$/);
+    if (!kv) continue;
+    const [, key, rawVal] = kv;
+    const val = rawVal.trim();
+    // Array: [a, b, c]
+    if (val.startsWith('[') && val.endsWith(']')) {
+      metadata[key] = val
+        .slice(1, -1)
+        .split(',')
+        .map((s) => s.trim().replace(/^["']|["']$/g, ''));
+    } else if (val === 'true') {
+      metadata[key] = true;
+    } else if (val === 'false') {
+      metadata[key] = false;
+    } else if (/^\d+$/.test(val)) {
+      metadata[key] = Number(val);
+    } else {
+      metadata[key] = val.replace(/^["']|["']$/g, '');
+    }
+  }
+
+  return { metadata, body };
+}
+
+function serializeFrontmatter(
+  metadata: Record<string, any>,
+  body: string,
+): string {
+  const lines: string[] = [];
+  for (const [key, val] of Object.entries(metadata)) {
+    if (val === undefined || val === null) continue;
+    if (Array.isArray(val)) {
+      lines.push(`${key}: [${val.join(', ')}]`);
+    } else if (typeof val === 'string' && val.includes(':')) {
+      lines.push(`${key}: "${val}"`);
+    } else {
+      lines.push(`${key}: ${val}`);
+    }
+  }
+  if (lines.length === 0) return body;
+  return `---\n${lines.join('\n')}\n---\n${body}`;
 }
 
 // ── Namespace-aware storage helpers ────────────────────────────────
@@ -179,20 +265,31 @@ function saveMeta(storageDir: string, docs: KnowledgeDocumentMeta[]): void {
 
 function writeFileToDisk(
   storageDir: string,
-  filename: string,
+  filePath: string,
   content: string,
 ): void {
-  const filesDir = join(storageDir, 'files');
-  mkdirSync(filesDir, { recursive: true });
-  writeFileSync(join(filesDir, filename), content, 'utf-8');
+  const fullPath = join(storageDir, 'files', filePath);
+  const dir = fullPath.substring(0, fullPath.lastIndexOf('/'));
+  mkdirSync(dir || join(storageDir, 'files'), { recursive: true });
+  writeFileSync(fullPath, content, 'utf-8');
 }
 
-function deleteFileFromDisk(storageDir: string, filename: string): void {
-  const filePath = join(storageDir, 'files', filename);
+function deleteFileFromDisk(storageDir: string, filePath: string): void {
   try {
-    unlinkSync(filePath);
+    unlinkSync(join(storageDir, 'files', filePath));
   } catch {
     /* file may not exist */
+  }
+}
+
+function readFileFromDisk(
+  storageDir: string,
+  filePath: string,
+): string | null {
+  try {
+    return readFileSync(join(storageDir, 'files', filePath), 'utf-8');
+  } catch {
+    return null;
   }
 }
 
@@ -304,7 +401,7 @@ export class KnowledgeService {
     projectSlug: string,
     filename: string,
     content: string,
-    source: 'upload' | 'directory-scan' = 'upload',
+    source: 'upload' | 'directory-scan' | 'sync' = 'upload',
     namespace: string = DEFAULT_NS,
     extraMeta?: Record<string, any>,
   ): Promise<KnowledgeDocumentMeta> {
@@ -315,7 +412,22 @@ export class KnowledgeService {
       await vectorDb.createNamespace(ns);
     }
 
-    const chunks = chunkText(content);
+    const nsCfg = this.getNamespaceConfig(projectSlug, namespace);
+    const storageDir = this.resolveStorageDir(projectSlug, namespace);
+    // Default writeFiles=true for new namespaces (unless explicitly false)
+    const shouldWriteFiles = nsCfg?.writeFiles !== false;
+
+    // Parse frontmatter — chunk body only
+    const { metadata: fmMeta, body } = parseFrontmatter(content);
+
+    // File-first: write to disk BEFORE indexing
+    const filePath = filename;
+    if (shouldWriteFiles) {
+      writeFileToDisk(storageDir, filePath, content);
+    }
+
+    // Chunk the body (not frontmatter)
+    const chunks = chunkText(body);
     const docId = crypto.randomUUID();
 
     const embeddingProvider = this.resolveEmbedding();
@@ -335,21 +447,16 @@ export class KnowledgeService {
 
     await vectorDb.addDocuments(ns, docs);
 
-    // Write file to disk if configured
-    const nsCfg = this.getNamespaceConfig(projectSlug, namespace);
-    const storageDir = this.resolveStorageDir(projectSlug, namespace);
-    if (nsCfg?.writeFiles) {
-      writeFileToDisk(storageDir, filename, content);
-    }
-
+    const mergedMeta = { ...fmMeta, ...extraMeta };
     const meta: KnowledgeDocumentMeta = {
       id: docId,
       filename,
       namespace,
+      path: filePath,
       source,
       chunkCount: chunks.length,
       createdAt: new Date().toISOString(),
-      ...extraMeta,
+      ...(Object.keys(mergedMeta).length > 0 && { metadata: mergedMeta }),
     };
     const existing = loadMeta(storageDir, this.dataDir, projectSlug, namespace);
     saveMeta(storageDir, [...existing, meta]);
@@ -398,19 +505,44 @@ export class KnowledgeService {
   async listDocuments(
     projectSlug: string,
     namespace?: string,
+    filter?: KnowledgeSearchFilter,
   ): Promise<KnowledgeDocumentMeta[]> {
+    let docs: KnowledgeDocumentMeta[];
     if (namespace) {
       const storageDir = this.resolveStorageDir(projectSlug, namespace);
-      return loadMeta(storageDir, this.dataDir, projectSlug, namespace);
+      docs = loadMeta(storageDir, this.dataDir, projectSlug, namespace);
+    } else {
+      const namespaces = this.listNamespaces(projectSlug);
+      docs = [];
+      for (const ns of namespaces) {
+        const storageDir = this.resolveStorageDir(projectSlug, ns.id);
+        docs.push(...loadMeta(storageDir, this.dataDir, projectSlug, ns.id));
+      }
     }
-    // List across all namespaces
-    const namespaces = this.listNamespaces(projectSlug);
-    const all: KnowledgeDocumentMeta[] = [];
-    for (const ns of namespaces) {
-      const storageDir = this.resolveStorageDir(projectSlug, ns.id);
-      all.push(...loadMeta(storageDir, this.dataDir, projectSlug, ns.id));
-    }
-    return all;
+
+    if (!filter) return docs;
+
+    return docs.filter((d) => {
+      if (filter.pathPrefix && !(d.path || d.filename).startsWith(filter.pathPrefix)) return false;
+      if (filter.status && d.status !== filter.status) return false;
+      if (filter.after && d.createdAt < filter.after) return false;
+      if (filter.before && d.createdAt > filter.before) return false;
+      if (filter.tags?.length) {
+        const docTags: string[] = (d.metadata?.tags as string[]) ?? [];
+        if (!filter.tags.every((t) => docTags.includes(t))) return false;
+      }
+      if (filter.metadata) {
+        for (const [key, val] of Object.entries(filter.metadata)) {
+          const docVal = d.metadata?.[key];
+          if (Array.isArray(val)) {
+            if (!val.includes(String(docVal))) return false;
+          } else if (String(docVal) !== val) {
+            return false;
+          }
+        }
+      }
+      return true;
+    });
   }
 
   async deleteDocument(
@@ -433,17 +565,16 @@ export class KnowledgeService {
         `Document '${docId}' not found in namespace '${targetNs}'`,
       );
 
+    // File-first: delete from disk
+    const filePath = doc.path || doc.filename;
+    deleteFileFromDisk(storageDir, filePath);
+
+    // Then remove from vector index
     const chunkIds = Array.from(
       { length: doc.chunkCount },
       (_, i) => `${docId}:${i}`,
     );
     await vectorDb.deleteDocuments(ns, chunkIds);
-
-    // Delete file from disk if writeFiles is enabled
-    const nsCfg = this.getNamespaceConfig(projectSlug, targetNs);
-    if (nsCfg?.writeFiles) {
-      deleteFileFromDisk(storageDir, doc.filename);
-    }
 
     saveMeta(
       storageDir,
@@ -459,9 +590,6 @@ export class KnowledgeService {
     docId: string,
     namespace?: string,
   ): Promise<string> {
-    const vectorDb = this.resolveVectorDb();
-    if (!vectorDb) throw new Error('No vector DB provider configured');
-
     const targetNs = namespace ?? this.findDocNamespace(projectSlug, docId);
     if (!targetNs) throw new Error(`Document '${docId}' not found`);
 
@@ -470,19 +598,177 @@ export class KnowledgeService {
     const doc = meta.find((d) => d.id === docId);
     if (!doc) throw new Error(`Document '${docId}' not found`);
 
+    // File-first: try reading from disk
+    const filePath = doc.path || doc.filename;
+    const fileContent = readFileFromDisk(storageDir, filePath);
+    if (fileContent !== null) return fileContent;
+
+    // Fallback: reconstruct from vector chunks (backward compat)
+    const vectorDb = this.resolveVectorDb();
+    if (!vectorDb) throw new Error('No vector DB provider configured');
+
     const ns = vectorNs(projectSlug, targetNs);
     if (!(await vectorDb.namespaceExists(ns)))
       throw new Error('Vector namespace not found');
 
     const results = await vectorDb.getByMetadata(ns, 'docId', docId);
-
     const chunks = new Map<number, string>();
     for (const r of results) {
       chunks.set(r.metadata.chunkIndex as number, r.text);
     }
-
     const sorted = Array.from(chunks.entries()).sort((a, b) => a[0] - b[0]);
     return sorted.map(([, text]) => text).join('\n\n');
+  }
+
+  // ── Update document in-place ──
+
+  async updateDocument(
+    projectSlug: string,
+    docId: string,
+    updates: { content?: string; metadata?: Record<string, any> },
+    namespace?: string,
+  ): Promise<KnowledgeDocumentMeta> {
+    const vectorDb = this.resolveVectorDb();
+    if (!vectorDb) throw new Error('No vector DB provider configured');
+
+    const targetNs = namespace ?? this.findDocNamespace(projectSlug, docId);
+    if (!targetNs) throw new Error(`Document '${docId}' not found`);
+
+    const storageDir = this.resolveStorageDir(projectSlug, targetNs);
+    const allMeta = loadMeta(storageDir, this.dataDir, projectSlug, targetNs);
+    const docIdx = allMeta.findIndex((d) => d.id === docId);
+    if (docIdx < 0) throw new Error(`Document '${docId}' not found`);
+    const doc = allMeta[docIdx];
+
+    const filePath = doc.path || doc.filename;
+    let content = updates.content;
+    let newMetadata = { ...doc.metadata, ...updates.metadata };
+
+    if (content === undefined) {
+      // Read existing content to re-index
+      const existing = readFileFromDisk(storageDir, filePath);
+      if (existing) {
+        const { metadata: fmMeta, body } = parseFrontmatter(existing);
+        newMetadata = { ...fmMeta, ...doc.metadata, ...updates.metadata };
+        content = body;
+      }
+    } else {
+      const { metadata: fmMeta, body } = parseFrontmatter(content);
+      newMetadata = { ...fmMeta, ...updates.metadata };
+      content = body;
+    }
+
+    // Write updated file to disk
+    const nsCfg = this.getNamespaceConfig(projectSlug, targetNs);
+    if (nsCfg?.writeFiles !== false) {
+      const fileContent = serializeFrontmatter(
+        newMetadata,
+        content ?? '',
+      );
+      writeFileToDisk(storageDir, filePath, fileContent);
+    }
+
+    // Re-index: delete old chunks, embed new
+    const ns = vectorNs(projectSlug, targetNs);
+    const oldChunkIds = Array.from(
+      { length: doc.chunkCount },
+      (_, i) => `${docId}:${i}`,
+    );
+    await vectorDb.deleteDocuments(ns, oldChunkIds);
+
+    const chunks = chunkText(content ?? '');
+    const embeddingProvider = this.resolveEmbedding();
+    let vectors: number[][];
+    if (embeddingProvider && chunks.length > 0) {
+      vectors = await embeddingProvider.embed(chunks);
+    } else {
+      vectors = chunks.map(() => []);
+    }
+
+    const newDocs = chunks.map((text, i) => ({
+      id: `${docId}:${i}`,
+      vector: vectors[i],
+      text,
+      metadata: {
+        docId,
+        filename: doc.filename,
+        namespace: targetNs,
+        chunkIndex: i,
+      },
+    }));
+    if (newDocs.length > 0) await vectorDb.addDocuments(ns, newDocs);
+
+    // Update metadata — preserve ID
+    const updatedMeta: KnowledgeDocumentMeta = {
+      ...doc,
+      chunkCount: chunks.length,
+      updatedAt: new Date().toISOString(),
+      ...(Object.keys(newMetadata).length > 0 && { metadata: newMetadata }),
+    };
+    allMeta[docIdx] = updatedMeta;
+    saveMeta(storageDir, allMeta);
+    knowledgeOps.add(1, { op: 'update' });
+    return updatedMeta;
+  }
+
+  // ── Directory tree ──
+
+  getDirectoryTree(
+    projectSlug: string,
+    namespace: string,
+  ): KnowledgeTreeNode {
+    const storageDir = this.resolveStorageDir(projectSlug, namespace);
+    const filesDir = join(storageDir, 'files');
+    const meta = loadMeta(storageDir, this.dataDir, projectSlug, namespace);
+    const metaByPath = new Map(meta.map((d) => [d.path || d.filename, d]));
+
+    const buildTree = (dir: string, relPath: string): KnowledgeTreeNode => {
+      const name = relPath ? relPath.split('/').pop()! : namespace;
+      const node: KnowledgeTreeNode = {
+        name,
+        path: relPath || '.',
+        type: 'directory',
+        children: [],
+        fileCount: 0,
+      };
+
+      if (!existsSync(dir)) return node;
+
+      let entries: string[];
+      try {
+        entries = readdirSync(dir);
+      } catch {
+        return node;
+      }
+
+      for (const entry of entries.sort()) {
+        const fullPath = join(dir, entry);
+        const childRel = relPath ? `${relPath}/${entry}` : entry;
+        try {
+          const stat = statSync(fullPath);
+          if (stat.isDirectory()) {
+            const child = buildTree(fullPath, childRel);
+            node.children!.push(child);
+            node.fileCount! += child.fileCount ?? 0;
+          } else {
+            const doc = metaByPath.get(childRel);
+            node.children!.push({
+              name: entry,
+              path: childRel,
+              type: 'file',
+              doc,
+            });
+            node.fileCount! += 1;
+          }
+        } catch {
+          /* skip inaccessible */
+        }
+      }
+
+      return node;
+    };
+
+    return buildTree(filesDir, '');
   }
 
   // ── Context injection ──

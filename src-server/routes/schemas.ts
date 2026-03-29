@@ -252,6 +252,11 @@ export const knowledgeBulkDeleteSchema = z.object({
   ids: z.array(z.string().min(1)).min(1),
 });
 
+export const knowledgeUpdateSchema = z.object({
+  content: z.string().optional(),
+  metadata: z.record(z.unknown()).optional(),
+});
+
 export const knowledgeScanSchema = z
   .object({
     extensions: z.array(z.string()).optional(),

@@ -12,6 +12,7 @@ import {
   knowledgeNamespaceCreateSchema,
   knowledgeNamespaceUpdateSchema,
   knowledgeSearchSchema,
+  knowledgeUpdateSchema,
   knowledgeUploadSchema,
   param,
   validate,
@@ -28,7 +29,35 @@ function knowledgeHandlers(
 
   app.get('/', async (c) => {
     try {
-      const data = await knowledgeService.listDocuments(getSlug(c), getNs(c));
+      // Parse filter query params
+      const url = new URL(c.req.url);
+      const tags = url.searchParams.get('tags');
+      const after = url.searchParams.get('after');
+      const before = url.searchParams.get('before');
+      const pathPrefix = url.searchParams.get('pathPrefix');
+      const status = url.searchParams.get('status');
+
+      // Collect metadata.* params
+      const metadataFilter: Record<string, string> = {};
+      for (const [key, val] of url.searchParams.entries()) {
+        if (key.startsWith('metadata.')) {
+          metadataFilter[key.slice(9)] = val;
+        }
+      }
+
+      const hasFilter = tags || after || before || pathPrefix || status || Object.keys(metadataFilter).length > 0;
+      const filter = hasFilter
+        ? {
+            ...(tags && { tags: tags.split(',') }),
+            ...(after && { after }),
+            ...(before && { before }),
+            ...(pathPrefix && { pathPrefix }),
+            ...(status && { status }),
+            ...(Object.keys(metadataFilter).length > 0 && { metadata: metadataFilter }),
+          }
+        : undefined;
+
+      const data = await knowledgeService.listDocuments(getSlug(c), getNs(c), filter);
       return c.json({ success: true, data });
     } catch (e: unknown) {
       return c.json({ success: false, error: errorMessage(e) }, 500);
@@ -149,6 +178,32 @@ function knowledgeHandlers(
         getNs(c),
       );
       return c.json({ success: true, data: { content } });
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
+    }
+  });
+
+  app.get('/tree', (c) => {
+    try {
+      const ns = getNs(c);
+      if (!ns) return c.json({ success: false, error: 'Namespace required for tree' }, 400);
+      const data = knowledgeService.getDirectoryTree(getSlug(c), ns);
+      return c.json({ success: true, data });
+    } catch (e: unknown) {
+      return c.json({ success: false, error: errorMessage(e) }, 500);
+    }
+  });
+
+  app.put('/:docId', validate(knowledgeUpdateSchema), async (c) => {
+    try {
+      const { content, metadata } = getBody(c);
+      const data = await knowledgeService.updateDocument(
+        getSlug(c),
+        param(c, 'docId'),
+        { content, metadata },
+        getNs(c),
+      );
+      return c.json({ success: true, data });
     } catch (e: unknown) {
       return c.json({ success: false, error: errorMessage(e) }, 500);
     }

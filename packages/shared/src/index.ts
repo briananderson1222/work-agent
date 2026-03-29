@@ -224,14 +224,50 @@ export interface KnowledgeDocumentMeta {
   id: string;
   filename: string;
   namespace: string;
-  source: 'upload' | 'directory-scan';
+  /** File path relative to namespace storage dir */
+  path: string;
+  source: 'upload' | 'directory-scan' | 'sync';
   chunkCount: number;
   createdAt: string;
+  updatedAt?: string;
+  /** Arbitrary metadata from frontmatter or explicit assignment */
+  metadata?: Record<string, any>;
+  // Legacy fields (backward compat)
   eventId?: string;
   eventSubject?: string;
   enhancedFrom?: string;
   enhancedTo?: string;
   status?: 'raw' | 'enhanced';
+}
+
+export interface KnowledgeTreeNode {
+  /** Directory or file name */
+  name: string;
+  /** Full path relative to namespace root */
+  path: string;
+  type: 'directory' | 'file';
+  /** Child nodes (directories only) */
+  children?: KnowledgeTreeNode[];
+  /** Document meta (files only) */
+  doc?: KnowledgeDocumentMeta;
+  /** Count of files in this subtree */
+  fileCount?: number;
+}
+
+export interface KnowledgeSearchFilter {
+  /** Text query for semantic search (optional) */
+  query?: string;
+  /** Filter by metadata key-value pairs */
+  metadata?: Record<string, string | string[]>;
+  /** Filter by tags (AND — all must match) */
+  tags?: string[];
+  /** Filter by date range */
+  after?: string;
+  before?: string;
+  /** Filter by path prefix */
+  pathPrefix?: string;
+  /** Filter by status */
+  status?: string;
 }
 
 export const BUILTIN_KNOWLEDGE_NAMESPACES: KnowledgeNamespaceConfig[] = [
