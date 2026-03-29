@@ -96,4 +96,26 @@ export const knowledgeQueries = {
     },
     staleTime: 60 * 1000,
   }),
+
+  tree: (projectSlug: string, namespace: string) => ({
+    queryKey: ['knowledge', 'tree', projectSlug, namespace],
+    queryFn: async () => {
+      const { fetchKnowledgeTree } = await import('./api');
+      return fetchKnowledgeTree(projectSlug, namespace);
+    },
+    staleTime: 2 * 60 * 1000,
+  }),
+
+  filtered: (
+    projectSlug: string,
+    namespace: string,
+    filters: Record<string, any>,
+  ) => ({
+    queryKey: ['knowledge', 'filtered', projectSlug, namespace, filters],
+    queryFn: async () => {
+      const { fetchKnowledgeFiltered } = await import('./api');
+      return fetchKnowledgeFiltered(projectSlug, namespace, filters);
+    },
+    staleTime: 2 * 60 * 1000,
+  }),
 };

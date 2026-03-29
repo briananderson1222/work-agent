@@ -733,3 +733,72 @@ export async function updateKnowledgeNamespace(
   if (!json.success) throw new Error(json.error);
   return json.data;
 }
+
+// ── New file-first knowledge API ───────────────────────────────────
+
+export async function fetchKnowledgeTree(
+  projectSlug: string,
+  namespace: string,
+): Promise<any> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(
+    `${knowledgeBase(apiBase, projectSlug, namespace)}/tree`,
+    { headers: { 'x-stallion-plugin': _getPluginName() } },
+  );
+  if (!res.ok) throw new Error(`Failed to fetch tree: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function fetchKnowledgeFiltered(
+  projectSlug: string,
+  namespace: string,
+  filters: Record<string, any>,
+): Promise<any[]> {
+  const apiBase = await _getApiBase();
+  const params = new URLSearchParams();
+  if (filters.tags?.length) params.set('tags', filters.tags.join(','));
+  if (filters.after) params.set('after', filters.after);
+  if (filters.before) params.set('before', filters.before);
+  if (filters.pathPrefix) params.set('pathPrefix', filters.pathPrefix);
+  if (filters.status) params.set('status', filters.status);
+  if (filters.metadata) {
+    for (const [k, v] of Object.entries(filters.metadata)) {
+      params.set(`metadata.${k}`, String(v));
+    }
+  }
+  const qs = params.toString();
+  const url = `${knowledgeBase(apiBase, projectSlug, namespace)}${qs ? `?${qs}` : ''}`;
+  const res = await fetch(url, {
+    headers: { 'x-stallion-plugin': _getPluginName() },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch filtered docs: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}
+
+export async function updateKnowledgeDoc(
+  projectSlug: string,
+  docId: string,
+  updates: { content?: string; metadata?: Record<string, any> },
+  namespace?: string,
+): Promise<any> {
+  const apiBase = await _getApiBase();
+  const res = await fetch(
+    `${knowledgeBase(apiBase, projectSlug, namespace)}/${encodeURIComponent(docId)}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-stallion-plugin': _getPluginName(),
+      },
+      body: JSON.stringify(updates),
+    },
+  );
+  if (!res.ok) throw new Error(`Failed to update doc: ${res.statusText}`);
+  const json = await res.json();
+  if (!json.success) throw new Error(json.error);
+  return json.data;
+}

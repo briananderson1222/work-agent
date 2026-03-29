@@ -789,6 +789,57 @@ export function useKnowledgeScanMutation(projectSlug: string) {
   });
 }
 
+export function useKnowledgeTreeQuery(
+  projectSlug: string,
+  namespace: string,
+  config?: QueryConfig<any>,
+) {
+  return useQuery({
+    ...knowledgeQueries.tree(projectSlug, namespace),
+    ...config,
+    enabled: !!projectSlug && !!namespace && (config?.enabled ?? true),
+  });
+}
+
+export function useKnowledgeFilteredQuery(
+  projectSlug: string,
+  namespace: string,
+  filters: Record<string, any>,
+  config?: QueryConfig<any>,
+) {
+  return useQuery({
+    ...knowledgeQueries.filtered(projectSlug, namespace, filters),
+    ...config,
+    enabled: !!projectSlug && !!namespace && (config?.enabled ?? true),
+  });
+}
+
+export function useKnowledgeUpdateMutation(
+  projectSlug: string,
+  namespace?: string,
+) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      docId,
+      content,
+      metadata,
+    }: {
+      docId: string;
+      content?: string;
+      metadata?: Record<string, any>;
+    }) => {
+      const { updateKnowledgeDoc } = await import('./api');
+      return updateKnowledgeDoc(projectSlug, docId, { content, metadata }, namespace);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['knowledge', 'docs', projectSlug] });
+      qc.invalidateQueries({ queryKey: ['knowledge', 'tree', projectSlug] });
+      qc.invalidateQueries({ queryKey: ['knowledge', 'filtered', projectSlug] });
+    },
+  });
+}
+
 export function useProjectConversationsQuery(
   projectSlug: string,
   limit = 10,
