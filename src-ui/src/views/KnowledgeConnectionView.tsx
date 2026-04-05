@@ -1,17 +1,11 @@
+import type { ConnectionConfig } from '@stallion-ai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import './KnowledgeConnectionView.css';
 
-interface ProviderConnection {
-  id: string;
-  type: string;
-  name: string;
-  config: Record<string, unknown>;
-  enabled: boolean;
-  capabilities: ('llm' | 'embedding' | 'vectordb')[];
-}
+type ProviderConnection = ConnectionConfig & { kind: 'model' };
 
 interface KnowledgeStatus {
   vectorDb: { id: string; name: string; type: string; enabled: boolean } | null;
@@ -68,9 +62,9 @@ export function KnowledgeConnectionView() {
   const qc = useQueryClient();
 
   const { data: providers = [] } = useQuery<ProviderConnection[]>({
-    queryKey: ['providers'],
+    queryKey: ['connections', 'models'],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/providers`);
+      const res = await fetch(`${apiBase}/api/connections/models`);
       const json = await res.json();
       return json.success ? json.data : [];
     },
@@ -106,7 +100,7 @@ export function KnowledgeConnectionView() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!vectorDb) return;
-      const res = await fetch(`${apiBase}/api/providers/${vectorDb.id}`, {
+      const res = await fetch(`${apiBase}/api/connections/${vectorDb.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -118,7 +112,7 @@ export function KnowledgeConnectionView() {
       if (!json.success) throw new Error(json.error || 'Save failed');
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['providers'] });
+      qc.invalidateQueries({ queryKey: ['connections'] });
       setDataDir(null);
     },
   });
@@ -270,7 +264,7 @@ export function KnowledgeConnectionView() {
                 className="knowledge-view__link"
                 onClick={() => navigate('/connections/providers')}
               >
-                Add one in Model Providers →
+                Add one in Model Connections →
               </button>
             </p>
           )}

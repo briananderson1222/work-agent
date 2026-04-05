@@ -52,6 +52,23 @@ describe('Agent schema validation', () => {
       /Invalid agent configuration:[\s\S]*missing required property 'label'/,
     );
   });
+
+  it('accepts execution metadata for runtime-backed agents', () => {
+    const spec = {
+      name: 'Claude Runtime Chat',
+      prompt: 'You are a project-aware chat assistant.',
+      execution: {
+        runtimeConnectionId: 'claude-runtime',
+        modelId: 'claude-sonnet-4',
+        runtimeOptions: {
+          thinking: true,
+          effort: 'medium',
+        },
+      },
+    };
+
+    expect(() => validator.validateAgentSpec(spec)).not.toThrow();
+  });
 });
 
 describe('ConfigLoader workflow metadata', () => {

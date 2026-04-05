@@ -4,6 +4,7 @@ import { useApiBase } from '../../contexts/ApiBaseContext';
 import { useToast } from '../../contexts/ToastContext';
 import { useToolApproval } from '../../hooks/useToolApproval';
 import type { ChatMessage, ChatSession } from '../../types';
+import { isSessionExecutionActive } from '../../utils/execution';
 import { AgentIcon } from '../AgentIcon';
 import { ChatEmptyState } from '../ChatEmptyState';
 import { ReasoningSection } from '../ReasoningSection';
@@ -40,6 +41,7 @@ export function ChatMessageList({
 
   const messages = activeSession.messages || [];
   const agent = agents.find((a) => a.slug === activeSession.agentSlug);
+  const isStreaming = isSessionExecutionActive(activeSession);
 
   useEffect(() => {
     if (!isUserScrolledUp && messagesContainerRef.current) {
@@ -102,7 +104,7 @@ export function ChatMessageList({
         ) : (
           <>
             {messages.map(renderMessage)}
-            {activeSession.status === 'sending' && (
+            {isStreaming && (
               <StreamingMessage
                 sessionId={activeSession.id}
                 agentIcon={

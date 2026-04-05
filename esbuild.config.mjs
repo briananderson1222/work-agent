@@ -8,7 +8,7 @@ const shared = {
   sourcemap: true,
   external: ['fsevents', 'esbuild', 'node-pty'],
   banner: {
-    js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+    js: "import { createRequire as __stallionCreateRequire } from 'node:module'; const require = __stallionCreateRequire(import.meta.url);",
   },
 };
 

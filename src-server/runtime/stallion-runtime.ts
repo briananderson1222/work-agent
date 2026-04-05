@@ -40,6 +40,10 @@ import { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
 import { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
 import { CodexAdapter } from '../providers/adapters/codex-adapter.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import {
+  createEmbeddingProvider,
+  createVectorDbProvider,
+} from '../providers/connection-factories.js';
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
 import {
   createProviderAdapterRegistry,
@@ -63,6 +67,7 @@ import { createBrandingRoutes } from '../routes/branding.js';
 import { createChatRoutes } from '../routes/chat.js';
 import { createCodingRoutes } from '../routes/coding.js';
 import { createConfigRoutes } from '../routes/config.js';
+import { createConnectionRoutes } from '../routes/connections.js';
 import {
   createConversationRoutes,
   createGlobalConversationRoutes,
@@ -85,11 +90,7 @@ import { createOrchestrationRoutes } from '../routes/orchestration.js';
 import { createPluginRoutes } from '../routes/plugins.js';
 import { createProjectRoutes } from '../routes/projects.js';
 import { createPromptRoutes } from '../routes/prompts.js';
-import {
-  createEmbeddingProvider,
-  createProviderRoutes,
-  createVectorDbProvider,
-} from '../routes/providers.js';
+import { createProviderRoutes } from '../routes/providers.js';
 import { createRegistryRoutes } from '../routes/registry.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { createSystemRoutes } from '../routes/system.js';
@@ -101,6 +102,7 @@ import { attachVoiceWebSocket, createVoiceRoutes } from '../routes/voice.js';
 import { ACPManager } from '../services/acp-bridge.js';
 import { AgentService } from '../services/agent-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
+import { ConnectionService } from '../services/connection-service.js';
 import { EventBus } from '../services/event-bus.js';
 import { EventStore } from '../services/event-store.js';
 import { FeedbackService } from '../services/feedback-service.js';
@@ -241,6 +243,7 @@ export class StallionRuntime {
   private storageAdapter!: FileStorageAdapter;
   private projectService!: ProjectService;
   private providerService!: ProviderService;
+  private connectionService!: ConnectionService;
   private knowledgeService!: KnowledgeService;
   private fileTreeService!: FileTreeService;
   private terminalService!: TerminalService;
@@ -341,6 +344,17 @@ export class StallionRuntime {
       this.monitoringEvents,
       (event: any) => this.persistEvent(event),
       this.monitoringEmitter,
+    );
+    this.connectionService = new ConnectionService(
+      this.providerService,
+      () => createProviderAdapterRegistry().list(),
+      async () => {
+        const config = await this.configLoader.loadACPConfig();
+        return config.connections;
+      },
+      () => this.acpBridge.getStatus(),
+      () => this.configLoader.loadAppConfig(),
+      (updates) => this.configLoader.updateAppConfig(updates),
     );
 
     // Log versions for debugging
@@ -1076,6 +1090,10 @@ export class StallionRuntime {
       ),
     );
     app.route('/api/providers', createProviderRoutes(this.providerService));
+    app.route(
+      '/api/connections',
+      createConnectionRoutes(this.connectionService),
+    );
 
     // Project conversations — aggregate across all agents
     app.get('/api/projects/:slug/conversations', async (c) => {

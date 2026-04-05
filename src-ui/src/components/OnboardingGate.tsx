@@ -1,14 +1,13 @@
 /**
- * OnboardingGate — full-screen gate when no chat backend is configured.
- * Blocks app access until Bedrock credentials or ACP connection is detected.
- * Shows a reconnect banner (non-blocking) when connection is lost after being established.
+ * OnboardingGate keeps initial server-connect failures blocking, but backend
+ * setup is now non-blocking so the rest of the app remains usable while
+ * testing provider integrations.
  */
 
 import { ConnectionManagerModal, useConnections } from '@stallion-ai/connect';
 import { FullScreenError, FullScreenLoader } from '@stallion-ai/sdk';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
-import { useBranding } from '../hooks/useBranding';
-import { useSystemStatus, verifyBedrock } from '../hooks/useSystemStatus';
+import { useSystemStatus } from '../hooks/useSystemStatus';
 
 function checkServerHealth(url: string): Promise<boolean> {
   return fetch(`${url}/api/system/status`)
@@ -19,35 +18,27 @@ function checkServerHealth(url: string): Promise<boolean> {
 export function OnboardingGate({ children }: { children: ReactNode }) {
   const { data: status, isLoading, isError } = useSystemStatus();
   const { apiBase, activeConnection } = useConnections();
-  const { appName, welcomeMessage } = useBranding();
-  const [path, setPath] = useState<'bedrock' | 'acp' | null>(null);
-  const [verifying, setVerifying] = useState(false);
-  const [verifyResult, setVerifyResult] = useState<{
-    verified: boolean;
-    error?: string;
-  } | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const [dismissedSetupBanner, setDismissedSetupBanner] = useState(false);
 
-  // Track whether we've ever been successfully connected
   const wasConnected = useRef(false);
-  // Track whether we've shown the error screen — prevents bouncing to loader on background retries
   const hasShownError = useRef(false);
+
   useEffect(() => {
     if (status?.ready) {
       wasConnected.current = true;
       hasShownError.current = false;
+      setDismissedSetupBanner(false);
     }
   }, [status?.ready]);
 
-  // Loading state — only on initial load, not during background retries from the error screen
   if (isLoading && !hasShownError.current) {
     return <FullScreenLoader label="loading" />;
   }
 
-  // Can't reach server
   if (isError || !status) {
     hasShownError.current = true;
-    // If we were previously connected, show a non-blocking reconnect banner
+
     if (wasConnected.current) {
       return (
         <>
@@ -65,7 +56,6 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
       );
     }
 
-    // First-time connection failure — full blocking screen
     return (
       <>
         <FullScreenError
@@ -83,280 +73,21 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
     );
   }
 
-  // Ready — render the app
-  if (status.ready) return <>{children}</>;
-
-  // Not ready — show onboarding
-  const handleVerify = async () => {
-    setVerifying(true);
-    setVerifyResult(null);
-    const result = await verifyBedrock(apiBase);
-    setVerifyResult(result);
-    setVerifying(false);
-  };
-
   return (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        background: 'var(--bg-primary, #0a0a0a)',
-        color: 'var(--text-primary, #e5e5e5)',
-        padding: 24,
-      }}
-    >
-      <div style={{ maxWidth: 560, width: '100%' }}>
-        {/* Header */}
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <img
-            src="/favicon.png"
-            alt=""
-            style={{ width: 56, height: 56, marginBottom: 16 }}
-          />
-          <h1 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 600 }}>
-            {welcomeMessage || `Welcome to ${appName}`}
-          </h1>
-          <p
-            style={{
-              margin: 0,
-              fontSize: 14,
-              color: 'var(--text-secondary, #999)',
-            }}
-          >
-            To get started, set up at least one AI backend.
-          </p>
-        </div>
-
-        {!path ? (
-          /* Path selection */
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <PathCard
-              icon={
-                <svg
-                  viewBox="0 0 16 16"
-                  width="28"
-                  height="28"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M8 2a4 4 0 014 4c0 1.5-.8 2.8-2 3.5V11H6V9.5A4 4 0 018 2z" />
-                  <path d="M6 13h4M7 15h2" />
-                </svg>
-              }
-              title="AWS Bedrock"
-              description="Use AWS credentials to access foundation models directly. Required for creating custom agents."
-              onClick={() => setPath('bedrock')}
-              status={
-                status.bedrock.credentialsFound
-                  ? '✓ Credentials detected'
-                  : undefined
-              }
-            />
-            <PathCard
-              icon={
-                <svg
-                  viewBox="0 0 16 16"
-                  width="28"
-                  height="28"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M6 2v3M10 2v3M4 5h8a1 1 0 011 1v7a1 1 0 01-1 1H4a1 1 0 01-1-1V6a1 1 0 011-1z" />
-                  <path d="M6 14v-3h4v3" />
-                </svg>
-              }
-              title="ACP (kiro-cli)"
-              description="Connect to kiro-cli or other ACP-compatible agents. Chat works immediately once connected."
-              onClick={() => setPath('acp')}
-              status={status.acp.connected ? '✓ Connected' : undefined}
-            />
-          </div>
-        ) : path === 'bedrock' ? (
-          /* Bedrock setup */
-          <div>
-            <button
-              onClick={() => setPath(null)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--accent-primary, #3b82f6)',
-                cursor: 'pointer',
-                fontSize: 13,
-                padding: 0,
-                marginBottom: 16,
-              }}
-            >
-              ← Back
-            </button>
-            <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 600 }}>
-              Set up AWS Bedrock
-            </h2>
-
-            <div
-              style={{
-                background: 'var(--bg-secondary, #1a1a1a)',
-                border: '1px solid var(--border-primary, #333)',
-                borderRadius: 8,
-                padding: 16,
-                marginBottom: 16,
-                fontSize: 13,
-                lineHeight: 1.6,
-              }}
-            >
-              <p style={{ margin: '0 0 12px', fontWeight: 500 }}>
-                Configure AWS credentials using any of these methods:
-              </p>
-              <ol
-                style={{
-                  margin: 0,
-                  paddingLeft: 20,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                }}
-              >
-                <li>
-                  <strong>Environment variables</strong> — set{' '}
-                  <code style={codeStyle}>AWS_ACCESS_KEY_ID</code> and{' '}
-                  <code style={codeStyle}>AWS_SECRET_ACCESS_KEY</code>
-                </li>
-                <li>
-                  <strong>Shared credentials file</strong> — configure{' '}
-                  <code style={codeStyle}>~/.aws/credentials</code>
-                </li>
-                <li>
-                  <strong>AWS SSO</strong> — run{' '}
-                  <code style={codeStyle}>aws sso login</code>
-                </li>
-                <li>
-                  <strong>IAM role</strong> — if running on an EC2 instance or
-                  ECS task
-                </li>
-              </ol>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                gap: 8,
-                alignItems: 'center',
-                marginBottom: 16,
-              }}
-            >
-              <StatusDot found={status.bedrock.credentialsFound} />
-              <span style={{ fontSize: 13 }}>
-                {status.bedrock.credentialsFound
-                  ? 'Credentials detected'
-                  : 'No credentials found — configure and check again'}
-              </span>
-            </div>
-
-            {status.bedrock.credentialsFound && (
-              <>
-                <button
-                  onClick={handleVerify}
-                  disabled={verifying}
-                  style={buttonStyle}
-                >
-                  {verifying
-                    ? 'Verifying Bedrock access…'
-                    : 'Verify Bedrock Access'}
-                </button>
-                {verifyResult && (
-                  <div
-                    style={{
-                      marginTop: 8,
-                      fontSize: 13,
-                      color: verifyResult.verified
-                        ? 'var(--success-text, #22c55e)'
-                        : 'var(--error-text, #ef4444)',
-                    }}
-                  >
-                    {verifyResult.verified
-                      ? '✓ Bedrock access confirmed!'
-                      : `✗ ${verifyResult.error || 'Verification failed'}`}
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        ) : (
-          /* ACP setup */
-          <div>
-            <button
-              onClick={() => setPath(null)}
-              style={{
-                background: 'none',
-                border: 'none',
-                color: 'var(--accent-primary, #3b82f6)',
-                cursor: 'pointer',
-                fontSize: 13,
-                padding: 0,
-                marginBottom: 16,
-              }}
-            >
-              ← Back
-            </button>
-            <h2 style={{ margin: '0 0 16px', fontSize: 18, fontWeight: 600 }}>
-              Set up ACP (kiro-cli)
-            </h2>
-
-            <div
-              style={{
-                background: 'var(--bg-secondary, #1a1a1a)',
-                border: '1px solid var(--border-primary, #333)',
-                borderRadius: 8,
-                padding: 16,
-                marginBottom: 16,
-                fontSize: 13,
-                lineHeight: 1.6,
-              }}
-            >
-              <p style={{ margin: '0 0 12px', fontWeight: 500 }}>
-                Steps to connect:
-              </p>
-              <ol
-                style={{
-                  margin: 0,
-                  paddingLeft: 20,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: 8,
-                }}
-              >
-                <li>
-                  Install <strong>kiro-cli</strong> if you haven't already
-                </li>
-                <li>
-                  The default ACP connection to kiro-cli is pre-configured
-                </li>
-                <li>
-                  Once kiro-cli is available on your PATH, it will connect
-                  automatically
-                </li>
-              </ol>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <StatusDot found={status.acp.connected} />
-              <span style={{ fontSize: 13 }}>
-                {status.acp.connected
-                  ? 'ACP connected!'
-                  : 'Waiting for ACP connection…'}
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    <>
+      {!status.ready && !dismissedSetupBanner && (
+        <SetupBanner
+          onManage={() => setShowModal(true)}
+          onDismiss={() => setDismissedSetupBanner(true)}
+        />
+      )}
+      {children}
+      <ConnectionManagerModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        checkHealth={checkServerHealth}
+      />
+    </>
   );
 }
 
@@ -389,121 +120,115 @@ function ReconnectBanner({
         Lost connection to <strong>{serverName}</strong>. The app is still
         usable; changes may not save.
       </span>
-      <button
-        type="button"
-        onClick={onManage}
-        style={{
-          background: 'rgba(255,255,255,0.15)',
-          border: '1px solid rgba(255,255,255,0.3)',
-          borderRadius: 6,
-          color: 'inherit',
-          padding: '3px 10px',
-          fontSize: 12,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          flexShrink: 0,
-        }}
-      >
+      <button type="button" onClick={onManage} style={secondaryButtonStyle}>
         Manage
       </button>
     </div>
   );
 }
 
-function PathCard({
-  icon,
-  title,
-  description,
-  onClick,
-  status,
+function SetupBanner({
+  onManage,
+  onDismiss,
 }: {
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  onClick: () => void;
-  status?: string;
+  onManage: () => void;
+  onDismiss: () => void;
 }) {
   return (
-    <button
-      onClick={onClick}
+    <div
       style={{
-        display: 'flex',
-        alignItems: 'flex-start',
-        gap: 16,
-        padding: 20,
-        textAlign: 'left',
-        background: 'var(--bg-secondary, #1a1a1a)',
-        border: '1px solid var(--border-primary, #333)',
-        borderRadius: 12,
-        cursor: 'pointer',
-        color: 'inherit',
-        transition: 'border-color 0.2s',
+        position: 'fixed',
+        right: 20,
+        bottom: 20,
+        zIndex: 9000,
+        width: 'min(420px, calc(100vw - 32px))',
+        borderRadius: 14,
+        border: '1px solid rgba(59, 130, 246, 0.22)',
+        background:
+          'linear-gradient(180deg, rgba(10,18,34,0.97), rgba(9,13,24,0.97))',
+        color: '#e5eefc',
+        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.35)',
+        padding: 16,
       }}
-      onMouseEnter={(e) =>
-        (e.currentTarget.style.borderColor = 'var(--accent-primary, #3b82f6)')
-      }
-      onMouseLeave={(e) =>
-        (e.currentTarget.style.borderColor = 'var(--border-primary, #333)')
-      }
     >
-      <span style={{ fontSize: 28, lineHeight: 1 }}>{icon}</span>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>
-          {title}
-        </div>
-        <div
-          style={{
-            fontSize: 13,
-            color: 'var(--text-secondary, #999)',
-            lineHeight: 1.5,
-          }}
-        >
-          {description}
-        </div>
-        {status && (
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 12,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
+            No AI connection configured yet
+          </div>
           <div
             style={{
-              fontSize: 12,
-              color: 'var(--success-text, #22c55e)',
-              marginTop: 8,
+              fontSize: 13,
+              lineHeight: 1.5,
+              color: 'rgba(229, 238, 252, 0.78)',
             }}
           >
-            {status}
+            You can use the app now. When you're ready, open Connections to set
+            up Bedrock, Claude, Codex, or ACP.
           </div>
-        )}
+        </div>
+        <button
+          type="button"
+          aria-label="Dismiss setup banner"
+          onClick={onDismiss}
+          style={{
+            border: 'none',
+            background: 'transparent',
+            color: 'rgba(229, 238, 252, 0.7)',
+            cursor: 'pointer',
+            fontSize: 18,
+            lineHeight: 1,
+            padding: 0,
+          }}
+        >
+          ×
+        </button>
       </div>
-      <span style={{ color: 'var(--text-muted, #666)', fontSize: 18 }}>→</span>
-    </button>
+
+      <div
+        style={{
+          display: 'flex',
+          gap: 10,
+          marginTop: 14,
+          flexWrap: 'wrap',
+        }}
+      >
+        <button type="button" onClick={onManage} style={primaryButtonStyle}>
+          Manage Connections
+        </button>
+        <button type="button" onClick={onDismiss} style={secondaryButtonStyle}>
+          Dismiss
+        </button>
+      </div>
+    </div>
   );
 }
 
-function StatusDot({ found }: { found: boolean }) {
-  return (
-    <span
-      style={{
-        width: 8,
-        height: 8,
-        borderRadius: '50%',
-        background: found ? '#22c55e' : '#ef4444',
-        flexShrink: 0,
-      }}
-    />
-  );
-}
-
-const codeStyle: React.CSSProperties = {
-  padding: '2px 6px',
-  background: 'var(--bg-tertiary, #252525)',
-  borderRadius: 4,
-  fontSize: '0.85em',
-};
-const buttonStyle: React.CSSProperties = {
-  padding: '10px 20px',
-  fontSize: 14,
-  fontWeight: 500,
-  borderRadius: 8,
+const primaryButtonStyle: React.CSSProperties = {
   border: 'none',
-  cursor: 'pointer',
-  background: 'var(--accent-primary, #3b82f6)',
+  borderRadius: 8,
+  background: '#2563eb',
   color: 'white',
+  cursor: 'pointer',
+  fontSize: 13,
+  fontWeight: 600,
+  padding: '9px 12px',
+};
+
+const secondaryButtonStyle: React.CSSProperties = {
+  border: '1px solid rgba(255,255,255,0.22)',
+  borderRadius: 8,
+  background: 'rgba(255,255,255,0.08)',
+  color: 'inherit',
+  cursor: 'pointer',
+  fontSize: 12,
+  fontWeight: 500,
+  padding: '8px 10px',
 };

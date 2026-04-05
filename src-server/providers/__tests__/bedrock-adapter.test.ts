@@ -1,6 +1,11 @@
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { BedrockAdapter } from '../adapters/bedrock-adapter.js';
+import { checkBedrockCredentials } from '../bedrock.js';
 import { expectCanonicalSessionLifecycle } from './adapter-contract-test-utils.js';
+
+vi.mock('../bedrock.js', () => ({
+  checkBedrockCredentials: vi.fn(),
+}));
 
 describe('BedrockAdapter', () => {
   test('starts sessions, sends turns, and emits canonical runtime events', async () => {
@@ -83,5 +88,19 @@ describe('BedrockAdapter', () => {
         input: 'Inspect the repo',
       }),
     ).rejects.toThrow(/missing session/i);
+  });
+
+  test('surfaces Bedrock credential prerequisites for runtime readiness', async () => {
+    vi.mocked(checkBedrockCredentials).mockResolvedValue(false);
+    const adapter = new BedrockAdapter();
+
+    await expect(adapter.getPrerequisites?.()).resolves.toEqual([
+      expect.objectContaining({
+        id: 'bedrock-credentials',
+        name: 'Bedrock Credentials',
+        status: 'missing',
+        category: 'required',
+      }),
+    ]);
   });
 });

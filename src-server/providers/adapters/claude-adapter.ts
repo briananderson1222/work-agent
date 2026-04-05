@@ -17,6 +17,7 @@ import type {
   ProviderSessionStartInput,
   ProviderTurnStartResult,
 } from '../adapter-shape.js';
+import { buildCliRuntimePrerequisites } from '../cli-auth.js';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -302,18 +303,14 @@ export class ClaudeAdapter implements ProviderAdapterShape {
   }
 
   async getPrerequisites(): Promise<Prerequisite[]> {
-    return [
-      {
-        id: 'anthropic-api-key',
-        name: 'ANTHROPIC_API_KEY',
-        description: 'Anthropic credentials required for Claude Agent SDK.',
-        status: process.env.ANTHROPIC_API_KEY ? 'installed' : 'missing',
-        category: 'required',
-        installGuide: {
-          steps: ['Export `ANTHROPIC_API_KEY` before starting Stallion.'],
-        },
-      },
-    ];
+    return buildCliRuntimePrerequisites({
+      command: 'claude',
+      displayName: 'Claude',
+      versionArgs: ['--version'],
+      authArgs: ['auth', 'status'],
+      installStep: 'Install the Claude CLI and ensure `claude` is on PATH.',
+      authStep: 'Run `claude auth login` before starting Stallion.',
+    });
   }
 
   private buildOptions(input: ProviderSessionStartInput): Options {

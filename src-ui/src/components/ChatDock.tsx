@@ -21,7 +21,10 @@ import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { setDockModeOverride } from '../hooks/useDockModePreference';
 import { useDragResize } from '../hooks/useDragResize';
 import { useGitStatus } from '../hooks/useGitStatus';
-import { useOrchestration } from '../hooks/useOrchestration';
+import {
+  providerLabel,
+  resolveSessionExecutionSummary,
+} from '../utils/execution';
 import { ChatDockBody } from './ChatDockBody';
 import { ChatDockHeader } from './ChatDockHeader';
 import { ChatDockTabBar } from './ChatDockTabBar';
@@ -58,7 +61,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const appConfig = useConfig();
   const defaultFontSize =
     appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
-  const { providers: orchestrationProviders } = useOrchestration(apiBase);
 
   // Consolidated UI state
   const {
@@ -148,6 +150,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   }, [rehydrateSessions]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
+  const executionSummary = resolveSessionExecutionSummary(activeSession);
 
   // Check if current model supports attachments
   const currentModelId =
@@ -416,48 +419,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
           setDockModeOverride(layoutKey, mode);
           setDockMode(mode);
         }}
-        activeProvider={activeSession?.provider || 'bedrock'}
-        activeModel={activeSession?.model || ''}
-        activeProviderOptions={activeSession?.providerOptions || {}}
-        availableProviders={
-          orchestrationProviders.length > 0
-            ? orchestrationProviders
-            : [
-                {
-                  provider: 'bedrock',
-                  activeSessions: 0,
-                  prerequisites: [],
-                },
-                {
-                  provider: 'claude',
-                  activeSessions: 0,
-                  prerequisites: [],
-                },
-                {
-                  provider: 'codex',
-                  activeSessions: 0,
-                  prerequisites: [],
-                },
-              ]
-        }
-        onProviderChange={(provider) => {
-          if (!activeSessionId) return;
-          updateChat(activeSessionId, {
-            provider,
-            orchestrationSessionStarted: false,
-          });
-        }}
-        onModelChange={(model) => {
-          if (!activeSessionId) return;
-          updateChat(activeSessionId, { model });
-        }}
-        onProviderOptionsChange={(providerOptions) => {
-          if (!activeSessionId) return;
-          updateChat(activeSessionId, {
-            providerOptions,
-            orchestrationSessionStarted: false,
-          });
-        }}
+        activeProviderLabel={providerLabel(executionSummary.provider)}
+        activeModel={executionSummary.model || ''}
+        activeSessionStatus={executionSummary.status}
       />
 
       {showSessionPicker && (

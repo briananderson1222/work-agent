@@ -41,6 +41,7 @@ export function createEnrichedAgentRoutes(deps: EnrichedAgentDeps) {
       icon: spec.icon,
       commands: spec.commands,
       toolsConfig: spec.tools,
+      execution: spec.execution,
       skills: spec.skills,
       updatedAt: metadata.updatedAt,
     };

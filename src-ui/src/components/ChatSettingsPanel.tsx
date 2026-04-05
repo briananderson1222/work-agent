@@ -1,5 +1,5 @@
-import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import type { DockMode } from '../types';
+import { executionStatusLabel } from '../utils/execution';
 import { Toggle } from './Toggle';
 
 interface ChatSettingsPanelProps {
@@ -14,17 +14,9 @@ interface ChatSettingsPanelProps {
   setShowToolDetails: (show: boolean) => void;
   dockMode: DockMode;
   onDockModeChange: (mode: DockMode) => void;
-  activeProvider?: ProviderKind;
+  activeProviderLabel?: string;
   activeModel?: string;
-  activeProviderOptions?: Record<string, unknown>;
-  availableProviders: Array<{
-    provider: ProviderKind;
-    activeSessions: number;
-    prerequisites: Array<{ name: string; status: string }>;
-  }>;
-  onProviderChange: (provider: ProviderKind) => void;
-  onModelChange: (model: string) => void;
-  onProviderOptionsChange: (options: Record<string, unknown>) => void;
+  activeSessionStatus?: string;
 }
 
 const DOCK_MODE_OPTIONS: { value: DockMode; label: string; desc: string }[] = [
@@ -45,13 +37,9 @@ export function ChatSettingsPanel({
   setShowToolDetails,
   dockMode,
   onDockModeChange,
-  activeProvider = 'bedrock',
+  activeProviderLabel,
   activeModel = '',
-  activeProviderOptions = {},
-  availableProviders,
-  onProviderChange,
-  onModelChange,
-  onProviderOptionsChange,
+  activeSessionStatus,
 }: ChatSettingsPanelProps) {
   if (!isOpen) return null;
 
@@ -61,121 +49,26 @@ export function ChatSettingsPanel({
         <h3 className="chat-settings-modal__title">Chat Settings</h3>
 
         <div className="chat-settings-modal__section">
-          <label className="chat-settings-modal__label">Provider</label>
+          <label className="chat-settings-modal__label">Execution</label>
           <div className="chat-settings-modal__control">
-            <select
-              className="editor-input"
-              value={activeProvider}
-              onChange={(e) => onProviderChange(e.target.value as ProviderKind)}
-            >
-              {availableProviders.map((provider) => (
-                <option key={provider.provider} value={provider.provider}>
-                  {provider.provider}
-                </option>
-              ))}
-            </select>
+            <span className="chat-settings-modal__value">
+              {activeProviderLabel || '—'}
+            </span>
           </div>
-          {availableProviders.length > 0 && (
-            <p className="chat-settings-modal__hint">
-              {availableProviders
-                .find((provider) => provider.provider === activeProvider)
-                ?.prerequisites.filter((item) => item.status !== 'installed')
-                .map((item) => `${item.name}: ${item.status}`)
-                .join(' · ') || 'Provider ready'}
-            </p>
-          )}
+          <p className="chat-settings-modal__hint">
+            {activeModel
+              ? `Model: ${activeModel}`
+              : activeProviderLabel
+                ? 'Model: app default'
+                : 'No active session'}
+            {activeSessionStatus
+              ? ` · ${executionStatusLabel(activeSessionStatus)}`
+              : ''}
+          </p>
+          <p className="chat-settings-modal__hint">
+            To change execution settings, edit the agent in the Agents view.
+          </p>
         </div>
-
-        <div className="chat-settings-modal__section">
-          <label className="chat-settings-modal__label">Model</label>
-          <div className="chat-settings-modal__control">
-            <input
-              className="editor-input"
-              value={activeModel}
-              onChange={(e) => onModelChange(e.target.value)}
-              placeholder={
-                activeProvider === 'bedrock'
-                  ? 'Use the model picker or enter a model ID'
-                  : `Enter a ${activeProvider} model ID`
-              }
-            />
-          </div>
-        </div>
-
-        {activeProvider === 'claude' && (
-          <div className="chat-settings-modal__section">
-            <label className="chat-settings-modal__checkbox">
-              <Toggle
-                checked={activeProviderOptions.thinking !== false}
-                onChange={(thinking) =>
-                  onProviderOptionsChange({
-                    ...activeProviderOptions,
-                    thinking,
-                  })
-                }
-                size="sm"
-              />
-              <span>Enable thinking</span>
-            </label>
-            <div className="chat-settings-modal__control">
-              <select
-                className="editor-input"
-                value={String(activeProviderOptions.effort || 'medium')}
-                onChange={(e) =>
-                  onProviderOptionsChange({
-                    ...activeProviderOptions,
-                    effort: e.target.value,
-                  })
-                }
-              >
-                <option value="low">Low effort</option>
-                <option value="medium">Medium effort</option>
-                <option value="high">High effort</option>
-                <option value="max">Max effort</option>
-              </select>
-            </div>
-          </div>
-        )}
-
-        {activeProvider === 'codex' && (
-          <div className="chat-settings-modal__section">
-            <label className="chat-settings-modal__label">
-              Reasoning Effort
-            </label>
-            <div className="chat-settings-modal__control">
-              <select
-                className="editor-input"
-                value={String(
-                  activeProviderOptions.reasoningEffort || 'medium',
-                )}
-                onChange={(e) =>
-                  onProviderOptionsChange({
-                    ...activeProviderOptions,
-                    reasoningEffort: e.target.value,
-                  })
-                }
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="xhigh">XHigh</option>
-              </select>
-            </div>
-            <label className="chat-settings-modal__checkbox">
-              <Toggle
-                checked={activeProviderOptions.fastMode === true}
-                onChange={(fastMode) =>
-                  onProviderOptionsChange({
-                    ...activeProviderOptions,
-                    fastMode,
-                  })
-                }
-                size="sm"
-              />
-              <span>Fast mode</span>
-            </label>
-          </div>
-        )}
 
         <div className="chat-settings-modal__section">
           <label className="chat-settings-modal__label">Dock Position</label>

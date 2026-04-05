@@ -9,6 +9,7 @@ import type { SlashCommand } from '../hooks/useSlashCommands';
 import { useSTT } from '../hooks/useSTT';
 import { useTTS } from '../hooks/useTTS';
 import type { ChatMessage, ChatSession, FileAttachment } from '../types';
+import { isSessionExecutionActive } from '../utils/execution';
 import { ChatInputArea } from './ChatInputArea';
 import { ConversationStats } from './ConversationStats';
 import { ChatMessageList } from './chat/ChatMessageList';
@@ -108,13 +109,14 @@ export function ChatDockBody({
     }
     return chatInput.handleSend();
   }, [getComposedContext, chatInput]);
+  const isExecutionActive = isSessionExecutionActive(activeSession);
 
   // TTS readback when streaming ends
-  const prevStatusRef = useRef(activeSession.status);
+  const prevStatusRef = useRef(isExecutionActive);
   useEffect(() => {
-    const wasStreaming = prevStatusRef.current === 'sending';
-    prevStatusRef.current = activeSession.status;
-    if (!wasStreaming || activeSession.status === 'sending') return;
+    const wasStreaming = prevStatusRef.current;
+    prevStatusRef.current = isExecutionActive;
+    if (!wasStreaming || isExecutionActive) return;
     if (!settings.ttsReadbackEnabled) return;
     const lastMsg = [...activeSession.messages]
       .reverse()
@@ -129,7 +131,7 @@ export function ChatDockBody({
       '';
     if (text.trim()) tts.speak(text.slice(0, 800));
   }, [
-    activeSession.status,
+    isExecutionActive,
     activeSession.messages,
     settings.ttsReadbackEnabled,
     tts.speak,
@@ -229,7 +231,7 @@ export function ChatDockBody({
           isVisible={showStatsPanel}
           onToggle={() => setShowStatsPanel(!showStatsPanel)}
           messageCount={activeSession.messages.length}
-          key={`${activeSession.conversationId || activeSession.agentSlug}-${activeSession.status}`}
+          key={`${activeSession.conversationId || activeSession.agentSlug}-${activeSession.orchestrationStatus || activeSession.status}`}
         />
       )}
       <ChatMessageList
@@ -251,7 +253,7 @@ export function ChatDockBody({
         attachments={chatInput.attachments}
         textareaRef={chatInput.textareaRef}
         disabled={!agent}
-        isSending={activeSession.status === 'sending'}
+        isSending={isExecutionActive}
         hasAbortController={!!activeSession.abortController}
         modelSupportsAttachments={modelSupportsAttachments}
         fontSize={chatFontSize}

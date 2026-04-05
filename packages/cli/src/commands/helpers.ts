@@ -3,7 +3,8 @@ import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
 import { type PluginManifest, readPluginManifest } from '@stallion-ai/shared';
 
-export const PROJECT_HOME = join(homedir(), '.stallion-ai');
+export const PROJECT_HOME =
+  process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai');
 export const PLUGINS_DIR = join(PROJECT_HOME, 'plugins');
 export const AGENTS_DIR = join(PROJECT_HOME, 'agents');
 export const LAYOUTS_DIR = join(PROJECT_HOME, 'layouts');

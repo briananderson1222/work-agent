@@ -32,6 +32,10 @@ function setup(overrides: Record<string, unknown> = {}) {
       maxSteps: 10,
       icon: '🤖',
       commands: [],
+      execution: {
+        runtimeConnectionId: 'claude-runtime',
+        modelId: 'claude-3',
+      },
       tools: { mcpServers: ['fs'], autoApprove: [] },
       skills: [],
       guardrails: undefined,
@@ -64,6 +68,10 @@ describe('Enriched Agent Routes', () => {
       name: 'Custom',
       prompt: 'test prompt',
       model: 'claude-3',
+      execution: {
+        runtimeConnectionId: 'claude-runtime',
+        modelId: 'claude-3',
+      },
       toolsConfig: { mcpServers: ['fs'], autoApprove: [] },
       updatedAt: '2026-01-02',
     });

@@ -121,6 +121,36 @@ Each adapter implements `ProviderAdapterShape` and emits
 provider-agnostically, persists them, builds read models, and pushes them to
 the UI.
 
+### Architectural Rule: Native Runtime Owns Behavior, Stallion Owns Abstraction
+
+This overhaul must preserve a strict boundary modeled on t3code:
+
+- **Native provider/runtime implementation owns behavior**
+  - Claude Agent SDK / Claude CLI semantics
+  - Codex CLI / app-server / JSON-RPC semantics
+  - provider-native approvals, interrupts, resume, thread reads, rollback,
+    tool loop behavior, and provider-specific options
+- **Stallion adapter layer owns translation**
+  - native runtime events -> `CanonicalRuntimeEvent`
+  - provider-specific request/response details -> shared adapter contract
+- **Stallion orchestration layer owns shared system concerns**
+  - command validation and dispatch
+  - receipts / idempotency
+  - event persistence
+  - replay / recovery
+  - read-model construction
+  - SSE/WebSocket delivery to the UI
+- **Stallion UI owns consistent presentation**
+  - approvals, interrupts, tool progress, session state, and chat rendering
+    must flow through Stallion abstractions for a uniform product experience
+
+Non-negotiable implication:
+
+- native runtimes must **not** bypass Stallion orchestration for approval,
+  interrupt, or session-state UX
+- the UI must **not** invent a parallel execution/session state model outside
+  orchestration read models
+
 ---
 
 ## Phase 0 — Foundations & Agent Ergonomics
@@ -752,6 +782,29 @@ export class ProviderAdapterSessionClosedError extends Error { ... }
 export class ProviderAdapterRequestError extends Error { ... }
 export class ProviderAdapterProcessError extends Error { ... }
 ```
+
+### Provider Boundary Rules
+
+When implementing or extending Claude/Codex support:
+
+- Prefer the native runtime/CLI/SDK over re-implementing provider semantics in
+  Stallion
+- Keep provider-specific protocol logic inside the adapter
+- Route all user-facing approval / interrupt / session actions through
+  Stallion orchestration abstractions
+- Treat canonical events and orchestration read models as the only UI-facing
+  runtime contract
+- Avoid adding UI-only execution truth that diverges from orchestration state
+
+### Context Engineering Rules
+
+To keep future sessions aligned:
+
+- `01` is the source of truth for architecture and responsibility boundaries
+- `03` is the source of truth for UX/application of those boundaries
+- If a new session needs rediscovery, re-read both plans before editing
+- Use parallel exploration for bounded read-only subtasks, but keep final
+  architectural synthesis in one place to avoid drift
 
 ### Windows Compatibility
 

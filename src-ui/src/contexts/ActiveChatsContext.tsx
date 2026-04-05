@@ -43,6 +43,9 @@ type ChatUIState = {
   provider?: ProviderKind;
   providerOptions?: Record<string, unknown>;
   orchestrationSessionStarted?: boolean;
+  orchestrationProvider?: ProviderKind;
+  orchestrationModel?: string;
+  orchestrationStatus?: string;
   // Optimistic messages (shown immediately, replaced when backend responds)
   messages?: Array<{
     role: 'user' | 'assistant' | 'system';
@@ -120,6 +123,9 @@ class ActiveChatsStore {
           provider?: ProviderKind;
           providerOptions?: Record<string, unknown>;
           orchestrationSessionStarted?: boolean;
+          orchestrationProvider?: ProviderKind;
+          orchestrationModel?: string;
+          orchestrationStatus?: string;
           sessionAutoApprove?: string[];
           ephemeralMessages?: any[];
           inputHistory?: string[];
@@ -141,6 +147,9 @@ class ActiveChatsStore {
             providerOptions: session.providerOptions || {},
             orchestrationSessionStarted:
               session.orchestrationSessionStarted || false,
+            orchestrationProvider: session.orchestrationProvider,
+            orchestrationModel: session.orchestrationModel,
+            orchestrationStatus: session.orchestrationStatus,
             sessionAutoApprove: session.sessionAutoApprove || [],
             ephemeralMessages: session.ephemeralMessages || [],
           };
@@ -168,6 +177,9 @@ class ActiveChatsStore {
           providerOptions: chat.providerOptions || {},
           orchestrationSessionStarted:
             chat.orchestrationSessionStarted || false,
+          orchestrationProvider: chat.orchestrationProvider,
+          orchestrationModel: chat.orchestrationModel,
+          orchestrationStatus: chat.orchestrationStatus,
           sessionAutoApprove: chat.sessionAutoApprove || [],
           ephemeralMessages: chat.ephemeralMessages || [],
           inputHistory: chat.inputHistory || [],
@@ -215,6 +227,7 @@ class ActiveChatsStore {
       projectSlug?: string;
       projectName?: string;
       provider?: ProviderKind;
+      model?: string;
       providerOptions?: Record<string, unknown>;
     },
   ) {
@@ -1045,6 +1058,11 @@ export function useCreateChatSession() {
       title?: string,
       projectSlug?: string,
       projectName?: string,
+      execution?: {
+        provider?: ProviderKind;
+        model?: string;
+        providerOptions?: Record<string, unknown>;
+      },
     ) => {
       const sessionId = `${agentSlug}:${Date.now()}`;
       initChat(sessionId, {
@@ -1053,6 +1071,9 @@ export function useCreateChatSession() {
         title: title || `${agentName} Chat`,
         projectSlug,
         projectName,
+        provider: execution?.provider,
+        model: execution?.model,
+        providerOptions: execution?.providerOptions,
       });
       return sessionId;
     },
@@ -1071,6 +1092,11 @@ export function useOpenConversation(apiBase: string) {
       agentName: string,
       projectSlug?: string,
       projectName?: string,
+      execution?: {
+        provider?: ProviderKind;
+        model?: string;
+        providerOptions?: Record<string, unknown>;
+      },
     ) => {
       const sessionId = `${agentSlug}:${Date.now()}`;
 
@@ -1081,6 +1107,9 @@ export function useOpenConversation(apiBase: string) {
         conversationId,
         projectSlug,
         projectName,
+        provider: execution?.provider,
+        model: execution?.model,
+        providerOptions: execution?.providerOptions,
       });
 
       // Load messages

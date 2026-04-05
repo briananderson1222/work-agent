@@ -1,7 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import crypto from 'node:crypto';
-import { existsSync } from 'node:fs';
-import { platform } from 'node:os';
 import { createInterface } from 'node:readline';
 import type {
   CanonicalRuntimeEvent,
@@ -21,6 +19,7 @@ import type {
   ProviderSessionStartInput,
   ProviderTurnStartResult,
 } from '../adapter-shape.js';
+import { buildCliRuntimePrerequisites, findCliBinary } from '../cli-auth.js';
 import type { CodexModelOptions } from './codex-models.js';
 
 interface Deferred<T> {
@@ -172,18 +171,6 @@ function mapToolCompletionStatus(
   return 'error';
 }
 
-function findCodexBinary(): string | null {
-  const pathEnv = process.env.PATH ?? '';
-  const suffixes = platform() === 'win32' ? ['.cmd', '.exe', '.bat', ''] : [''];
-  for (const dir of pathEnv.split(':')) {
-    for (const suffix of suffixes) {
-      const candidate = `${dir}/codex${suffix}`;
-      if (existsSync(candidate)) return candidate;
-    }
-  }
-  return null;
-}
-
 export class CodexAdapter implements ProviderAdapterShape {
   readonly provider = 'codex' as const;
 
@@ -199,30 +186,14 @@ export class CodexAdapter implements ProviderAdapterShape {
   }
 
   async getPrerequisites(): Promise<Prerequisite[]> {
-    const prerequisites: Prerequisite[] = [
-      {
-        id: 'codex-cli',
-        name: 'Codex CLI',
-        description: 'Required to launch `codex app-server` over stdio.',
-        status: findCodexBinary() ? 'installed' : 'missing',
-        category: 'required',
-        installGuide: {
-          steps: ['Install the Codex CLI and ensure `codex` is on PATH.'],
-        },
-      },
-      {
-        id: 'openai-api-key',
-        name: 'OPENAI_API_KEY',
-        description: 'OpenAI credentials used by the Codex app-server runtime.',
-        status: process.env.OPENAI_API_KEY ? 'installed' : 'missing',
-        category: 'required',
-        installGuide: {
-          steps: ['Export `OPENAI_API_KEY` before starting Stallion.'],
-        },
-      },
-    ];
-
-    return prerequisites;
+    return buildCliRuntimePrerequisites({
+      command: 'codex',
+      displayName: 'Codex',
+      versionArgs: ['--version'],
+      authArgs: ['login', 'status'],
+      installStep: 'Install the Codex CLI and ensure `codex` is on PATH.',
+      authStep: 'Run `codex login` before starting Stallion.',
+    });
   }
 
   async startSession(
@@ -502,7 +473,8 @@ export class CodexAdapter implements ProviderAdapterShape {
   }
 
   private spawnProcess(): ChildProcessWithoutNullStreams {
-    return spawn('codex', ['app-server'], {
+    const binary = findCliBinary('codex') ?? 'codex';
+    return spawn(binary, ['app-server'], {
       stdio: ['pipe', 'pipe', 'pipe'],
       env: process.env,
       windowsHide: true,

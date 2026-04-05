@@ -441,9 +441,8 @@ describe('CodexAdapter', () => {
     });
   });
 
-  test('reports missing Codex prerequisites when CLI or credentials are unavailable', async () => {
+  test('reports missing Codex prerequisites when CLI or login are unavailable', async () => {
     process.env.PATH = '/definitely-missing-codex';
-    delete process.env.OPENAI_API_KEY;
     const adapter = new CodexAdapter();
 
     await expect(adapter.getPrerequisites()).resolves.toEqual(
@@ -453,7 +452,7 @@ describe('CodexAdapter', () => {
           status: 'missing',
         }),
         expect.objectContaining({
-          name: 'OPENAI_API_KEY',
+          name: 'Codex login',
           status: 'missing',
         }),
       ]),

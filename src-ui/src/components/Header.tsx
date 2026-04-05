@@ -4,16 +4,25 @@ import {
   useConnectionStatus,
   useConnections,
 } from '@stallion-ai/connect';
+import type { ConnectionConfig } from '@stallion-ai/shared';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import {
   useCreateChatSession,
   useSendMessage,
 } from '../contexts/ActiveChatsContext';
+import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { NavigationView } from '../types';
+import {
+  buildRuntimeChatAgent,
+  canAgentStartChat,
+  preferredChatRuntime,
+  resolveAgentExecution,
+} from '../utils/execution';
 import { getInitials } from '../utils/layout';
 import { NotificationHistory } from './NotificationHistory';
 import './chat.css';
@@ -119,18 +128,45 @@ export function Header({
   const { apiBase } = useApiBase();
   const [showHelp, setShowHelp] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);
+  const agents = useAgents();
   const createChatSession = useCreateChatSession();
   const sendMessage = useSendMessage(apiBase);
+  const { data: runtimeConnections = [] } = useQuery<ConnectionConfig[]>({
+    queryKey: ['connections', 'runtimes'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/connections/runtimes`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    },
+  });
 
   const helpPrompts = getHelpPrompts(currentView);
 
   function handleHelpPrompt(prompt: string) {
     setShowHelp(false);
     setDockState(true);
-    const sessionId = createChatSession('default', 'Stallion');
+    const preferredRuntime = preferredChatRuntime(runtimeConnections);
+    const preferredAgent = agents.find((agent) =>
+      canAgentStartChat(agent, runtimeConnections),
+    );
+    const chatTarget = preferredRuntime
+      ? buildRuntimeChatAgent(preferredRuntime)
+      : preferredAgent;
+    if (!chatTarget) {
+      navigate('/connections/runtimes');
+      return;
+    }
+    const sessionId = createChatSession(
+      chatTarget.slug,
+      chatTarget.name,
+      undefined,
+      undefined,
+      undefined,
+      resolveAgentExecution(chatTarget),
+    );
     setActiveChat(null); // New chat, no conversation yet
     setTimeout(() => {
-      sendMessage(sessionId, 'default', undefined, prompt);
+      sendMessage(sessionId, chatTarget.slug, undefined, prompt);
     }, 100);
   }
   const { user: authUser } = useAuth();

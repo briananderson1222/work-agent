@@ -4,6 +4,7 @@ import type {
   CanonicalRuntimeEvent,
   RequestResolvedEvent,
 } from '@stallion-ai/contracts/runtime-events';
+import type { Prerequisite } from '@stallion-ai/shared';
 import type {
   ProviderAdapterShape,
   ProviderSendTurnInput,
@@ -11,6 +12,7 @@ import type {
   ProviderSessionStartInput,
   ProviderTurnStartResult,
 } from '../adapter-shape.js';
+import { checkBedrockCredentials } from '../bedrock.js';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -77,6 +79,29 @@ export class BedrockAdapter implements ProviderAdapterShape {
   private readonly events = new AsyncEventQueue();
 
   constructor(private readonly callbacks: BedrockAdapterCallbacks = {}) {}
+
+  async getPrerequisites(): Promise<Prerequisite[]> {
+    const hasCredentials = await checkBedrockCredentials();
+    return [
+      {
+        id: 'bedrock-credentials',
+        name: 'Bedrock Credentials',
+        description:
+          'AWS credentials or profile with Amazon Bedrock model access.',
+        status: hasCredentials ? 'installed' : 'missing',
+        category: 'required',
+        installGuide: {
+          steps: [
+            'Configure AWS credentials or an AWS CLI profile with Bedrock access.',
+            'If you use AWS SSO, run `aws sso login` for the active profile before starting Stallion.',
+          ],
+          links: [
+            'https://docs.aws.amazon.com/bedrock/latest/userguide/setting-up.html',
+          ],
+        },
+      },
+    ];
+  }
 
   async startSession(
     input: ProviderSessionStartInput,

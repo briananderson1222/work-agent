@@ -159,17 +159,22 @@ describe('ClaudeAdapter', () => {
     });
   });
 
-  test('reports prerequisite state from ANTHROPIC_API_KEY', async () => {
-    delete process.env.ANTHROPIC_API_KEY;
+  test('reports missing Claude CLI login when the CLI is unauthenticated', async () => {
     const adapter = new ClaudeAdapter();
 
-    await expect(adapter.getPrerequisites?.()).resolves.toEqual([
-      expect.objectContaining({
-        name: 'ANTHROPIC_API_KEY',
-        status: 'missing',
-        category: 'required',
-      }),
-    ]);
+    await expect(adapter.getPrerequisites?.()).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'Claude CLI',
+          category: 'required',
+        }),
+        expect.objectContaining({
+          name: 'Claude login',
+          status: 'missing',
+          category: 'required',
+        }),
+      ]),
+    );
   });
 
   test('rejects approval responses for unknown requests', async () => {

@@ -2,6 +2,8 @@
  * Agent Service - handles agent CRUD and lifecycle operations
  */
 
+import type { AgentExecutionConfig } from '@stallion-ai/shared';
+
 type Agent = any;
 
 import type { ConfigLoader } from '../domain/config-loader.js';
@@ -28,6 +30,7 @@ export interface EnrichedAgent {
   icon?: string;
   commands?: AgentSpec['commands'];
   toolsConfig?: AgentSpec['tools'];
+  execution?: AgentExecutionConfig;
   updatedAt?: string;
 }
 
@@ -68,6 +71,7 @@ export class AgentService {
             icon: spec.icon,
             commands: spec.commands,
             toolsConfig: spec.tools,
+            execution: spec.execution,
             updatedAt: metadata.updatedAt,
           } as EnrichedAgent;
         } catch (e) {

@@ -262,6 +262,7 @@ function handleEvent(apiBase: string, event: OrchestrationEvent) {
     case 'session.configured':
       activeChatsStore.updateChat(event.threadId, {
         provider: event.provider,
+        orchestrationProvider: event.provider,
         orchestrationSessionStarted: true,
       });
       return;
@@ -269,12 +270,15 @@ function handleEvent(apiBase: string, event: OrchestrationEvent) {
       activeChatsStore.updateChat(event.threadId, {
         status: event.to === 'running' ? 'sending' : 'idle',
         provider: event.provider,
+        orchestrationProvider: event.provider,
+        orchestrationStatus: event.to,
         orchestrationSessionStarted: true,
       });
       return;
     case 'session.exited':
       activeChatsStore.updateChat(event.threadId, {
         status: 'idle',
+        orchestrationStatus: 'exited',
         orchestrationSessionStarted: false,
       });
       return;
@@ -409,7 +413,10 @@ function handleEvent(apiBase: string, event: OrchestrationEvent) {
       if (!pendingApprovals.includes(event.requestId)) {
         pendingApprovals.push(event.requestId);
       }
-      activeChatsStore.updateChat(event.threadId, { pendingApprovals });
+      activeChatsStore.updateChat(event.threadId, {
+        pendingApprovals,
+        orchestrationStatus: 'awaiting-approval',
+      });
       const agentName = chat.agentName || chat.agentSlug || event.provider;
       const toastId = toastStore.showToolApproval({
         sessionId: event.threadId,
@@ -475,6 +482,8 @@ function handleEvent(apiBase: string, event: OrchestrationEvent) {
       activeChatsStore.updateChat(event.threadId, {
         pendingApprovals,
         approvalToasts,
+        orchestrationStatus:
+          pendingApprovals.length > 0 ? 'awaiting-approval' : 'running',
       });
       return;
     }
@@ -485,6 +494,7 @@ function handleEvent(apiBase: string, event: OrchestrationEvent) {
       activeChatsStore.updateChat(event.threadId, {
         status: 'idle',
         error: event.reason,
+        orchestrationStatus: 'aborted',
         streamingMessage: undefined,
         isProcessingStep: false,
       });
@@ -493,6 +503,7 @@ function handleEvent(apiBase: string, event: OrchestrationEvent) {
       activeChatsStore.updateChat(event.threadId, {
         status: 'error',
         error: event.message,
+        orchestrationStatus: 'errored',
       });
       return;
     case 'runtime.warning':
@@ -516,7 +527,10 @@ function ensureEventStream(apiBase: string) {
       activeChatsStore.updateChat(session.threadId, {
         provider: session.provider,
         model: session.model,
+        orchestrationProvider: session.provider,
+        orchestrationModel: session.model,
         orchestrationSessionStarted: true,
+        orchestrationStatus: session.status,
         status: session.status === 'running' ? 'sending' : 'idle',
       });
     }
@@ -531,6 +545,7 @@ function ensureEventStream(apiBase: string) {
       ) {
         activeChatsStore.updateChat(threadId, {
           orchestrationSessionStarted: false,
+          orchestrationStatus: 'exited',
           status: 'idle',
           isProcessingStep: false,
           streamingMessage: undefined,

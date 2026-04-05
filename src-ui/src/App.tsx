@@ -42,6 +42,7 @@ import { ProjectPage } from './views/ProjectPage';
 import { ProjectSettingsView } from './views/ProjectSettingsView';
 import { PromptsView } from './views/PromptsView';
 import { ProviderSettingsView } from './views/ProviderSettingsView';
+import { RuntimeConnectionView } from './views/RuntimeConnectionView';
 import { ScheduleView } from './views/ScheduleView';
 import { SettingsView } from './views/SettingsView';
 import { SkillsView } from './views/SkillsView';
@@ -130,6 +131,10 @@ function App() {
     if (path.startsWith('/connections/providers/')) {
       const id = path.split('/')[3];
       if (id) return { type: 'connections-provider-edit', id };
+    }
+    if (path.startsWith('/connections/runtimes/')) {
+      const id = path.split('/')[3];
+      if (id) return { type: 'connections-runtime-edit', id };
     }
     if (path === '/connections/tools') return { type: 'connections-tools' };
     if (path.startsWith('/connections/tools/')) {
@@ -232,6 +237,8 @@ function App() {
         navigate('/connections/providers');
       } else if (view.type === 'connections-provider-edit') {
         navigate(`/connections/providers/${view.id}`);
+      } else if (view.type === 'connections-runtime-edit') {
+        navigate(`/connections/runtimes/${view.id}`);
       } else if (view.type === 'connections-tools') {
         navigate('/connections/tools');
       } else if (view.type === 'connections-tool-edit') {
@@ -350,6 +357,13 @@ function App() {
         const id = path.split('/')[3];
         if (id) {
           setCurrentView({ type: 'connections-provider-edit', id });
+          return;
+        }
+      }
+      if (path.startsWith('/connections/runtimes/')) {
+        const id = path.split('/')[3];
+        if (id) {
+          setCurrentView({ type: 'connections-runtime-edit', id });
           return;
         }
       }
@@ -732,6 +746,12 @@ function App() {
         {currentView.type === 'connections-provider-edit' && (
           <ProviderSettingsView
             selectedProviderId={currentView.id}
+            onNavigate={navigateToView}
+          />
+        )}
+        {currentView.type === 'connections-runtime-edit' && (
+          <RuntimeConnectionView
+            selectedRuntimeId={currentView.id}
             onNavigate={navigateToView}
           />
         )}
