@@ -13,6 +13,8 @@ export interface AgentSelectorProps {
   onEditAgent: (slug: string) => void;
   onManageTools: (slug: string) => void;
   onManageWorkflows: (slug: string) => void;
+  /** If set, only show agents assigned to this project */
+  projectAgents?: string[];
 }
 
 const formatRelativeTime = (iso: string | undefined) => {
@@ -40,6 +42,7 @@ export function AgentSelector({
   onEditAgent,
   onManageTools,
   onManageWorkflows,
+  projectAgents,
 }: AgentSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -63,14 +66,19 @@ export function AgentSelector({
   }, [isOpen]);
 
   const { recentAgents, otherAgents } = useMemo(() => {
+    // Filter by project assignment if specified (empty = all agents)
+    const filtered =
+      projectAgents && projectAgents.length > 0
+        ? agents.filter((a) => projectAgents.includes(a.slug))
+        : agents;
     const recentSlugs = getRecentAgentSlugs();
     const recentSet = new Set(recentSlugs);
     const recent = recentSlugs
-      .map((s) => agents.find((a) => a.slug === s))
+      .map((s) => filtered.find((a) => a.slug === s))
       .filter(Boolean) as AgentSummary[];
-    const others = agents.filter((a) => !recentSet.has(a.slug));
+    const others = filtered.filter((a) => !recentSet.has(a.slug));
     return { recentAgents: recent, otherAgents: others };
-  }, [agents]);
+  }, [agents, projectAgents]);
 
   const handleSelect = (slug: string) => {
     trackRecentAgent(slug);

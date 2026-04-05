@@ -77,6 +77,22 @@ export function NewChatModal({
     },
   });
 
+  // Fetch project config for agent scoping
+  const selectedProjectSlug =
+    selectedContext !== GLOBAL_CONTEXT ? selectedContext : null;
+  const { data: selectedProjectConfig } = useQuery<{
+    agents?: string[];
+  }>({
+    queryKey: ['projects', selectedProjectSlug],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/projects/${selectedProjectSlug}`);
+      const json = await res.json();
+      return json.success ? json.data : {};
+    },
+    enabled: !!selectedProjectSlug,
+  });
+  const projectAgentFilter = selectedProjectConfig?.agents;
+
   const isGlobal = selectedContext === GLOBAL_CONTEXT;
   const selectedProject = projects.find((p) => p.slug === selectedContext);
 
@@ -137,8 +153,13 @@ export function NewChatModal({
       )
       .map((connection) => buildRuntimeChatAgent(connection) as AgentData);
     const runtimeChatSlugs = new Set(runtimeChats.map((agent) => agent.slug));
-    const chatReadyAgents = (agents || []).filter((agent) =>
-      canAgentStartChat(agent, runtimeConnections),
+    const chatReadyAgents = (agents || []).filter(
+      (agent) =>
+        canAgentStartChat(agent, runtimeConnections) &&
+        // Filter by project agent assignment (empty = all)
+        (!projectAgentFilter ||
+          projectAgentFilter.length === 0 ||
+          projectAgentFilter.includes(agent.slug)),
     );
     const filtered = [...runtimeChats, ...chatReadyAgents].filter(
       (a) =>
@@ -232,6 +253,7 @@ export function NewChatModal({
     selectedContext,
     isGlobal,
     selectedProject?.layoutCount,
+    projectAgentFilter,
   ]);
 
   const handleSelect = (agent: AgentData) => {
