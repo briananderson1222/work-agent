@@ -163,12 +163,20 @@ export type NavigationView =
   | {
       type: 'agent-edit';
       slug: string;
-      initialTab?: 'basic' | 'model' | 'tools' | 'commands';
+      initialTab?:
+        | 'basic'
+        | 'model'
+        | 'tools'
+        | 'commands'
+        | 'skills'
+        | 'runtime'
+        | 'connection';
     }
   | { type: 'agent-tools'; slug: string }
   | { type: 'workflows'; slug: string }
   | { type: 'skills' }
   | { type: 'prompts' }
+  | { type: 'playbooks' }
   | { type: 'connections' }
   | { type: 'connections-providers' }
   | { type: 'connections-provider-edit'; id: string }
@@ -177,6 +185,7 @@ export type NavigationView =
   | { type: 'connections-tool-edit'; id: string }
   | { type: 'connections-knowledge' }
   | { type: 'plugins' }
+  | { type: 'registry' }
   | { type: 'monitoring' }
   | { type: 'schedule' }
   | { type: 'settings' }

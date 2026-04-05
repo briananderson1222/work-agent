@@ -493,9 +493,9 @@ export interface TemplateVariable {
   format?: string;
 }
 
-// ── Prompt ──────────────────────────────────────────────────────────
+// ── Playbook (formerly Prompt) ──────────────────────────────────────
 
-export interface Prompt {
+export interface Playbook {
   id: string;
   name: string;
   content: string;
@@ -510,6 +510,9 @@ export interface Prompt {
   createdAt: string;
   updatedAt: string;
 }
+
+/** @deprecated Use Playbook instead */
+export type Prompt = Playbook;
 
 // ── API Contracts ──────────────────────────────────────────────────
 // Shared between core server endpoints and dev server endpoints.

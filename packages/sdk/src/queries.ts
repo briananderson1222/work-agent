@@ -509,20 +509,25 @@ export function useConfigQuery(config?: QueryConfig<any>) {
 }
 
 /**
- * Fetch all registered prompts
+ * Fetch all registered playbooks (formerly prompts)
  */
-export function usePromptsQuery(config?: QueryConfig<any>) {
+export function usePlaybooksQuery(config?: QueryConfig<any>) {
   return useApiQuery(
-    ['prompts'],
+    ['playbooks'],
     async () => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/api/prompts`);
+      const response = await fetch(`${apiBase}/api/playbooks`);
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       return result.data;
     },
     config,
   );
+}
+
+/** @deprecated Use usePlaybooksQuery instead */
+export function usePromptsQuery(config?: QueryConfig<any>) {
+  return usePlaybooksQuery(config);
 }
 
 /**

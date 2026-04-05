@@ -187,6 +187,7 @@ export {
   useModelCapabilitiesQuery,
   useModelsQuery,
   useOpenArtifact,
+  usePlaybooksQuery,
   usePluginInstallMutation,
   usePluginPreviewMutation,
   usePluginProviderToggleMutation,

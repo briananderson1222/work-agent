@@ -93,6 +93,7 @@ import { createPromptRoutes } from '../routes/prompts.js';
 import { createProviderRoutes } from '../routes/providers.js';
 import { createRegistryRoutes } from '../routes/registry.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
+import { createSkillRoutes } from '../routes/skills.js';
 import { createSystemRoutes } from '../routes/system.js';
 import { createTelemetryRoutes } from '../routes/telemetry-events.js';
 import { createTemplateRoutes } from '../routes/templates.js';
@@ -116,7 +117,7 @@ import { ProjectService } from '../services/project-service.js';
 import { PromptService } from '../services/prompt-service.js';
 import { ProviderService } from '../services/provider-service.js';
 import { SchedulerService } from '../services/scheduler-service.js';
-import * as SkillService from '../services/skill-service.js';
+import { SkillService } from '../services/skill-service.js';
 import { TerminalService } from '../services/terminal-service.js';
 import { TerminalWebSocketServer } from '../services/terminal-ws-server.js';
 import { registerObservableGauges } from '../telemetry/metrics.js';
@@ -238,6 +239,7 @@ export class StallionRuntime {
 
   // Services
   private agentService!: AgentService;
+  private skillService!: SkillService;
   private mcpService!: MCPService;
   private layoutService!: LayoutService;
   private storageAdapter!: FileStorageAdapter;
@@ -283,6 +285,7 @@ export class StallionRuntime {
       this.agentSpecs,
       this.logger,
     );
+    this.skillService = new SkillService(this.configLoader, this.logger);
     this.mcpService = new MCPService(
       this.configLoader,
       this.mcpConfigs,
@@ -477,7 +480,7 @@ export class StallionRuntime {
   async reloadSkillsAndAgents(): Promise<void> {
     const projects = this.storageAdapter?.listProjects() || [];
     const activeProject = projects[0]?.slug;
-    await SkillService.discoverSkills(
+    await this.skillService.discoverSkills(
       this.configLoader.getProjectHomeDir(),
       activeProject,
     );
@@ -585,7 +588,7 @@ export class StallionRuntime {
       registerSkillRegistryProvider(new GitHubSkillRegistryProvider());
     }
 
-    await SkillService.discoverSkills(
+    await this.skillService.discoverSkills(
       this.configLoader.getProjectHomeDir(),
       activeProject,
     );
@@ -962,6 +965,7 @@ export class StallionRuntime {
           eventBus: this.eventBus,
           appConfig: this.appConfig,
           port: this.port,
+          skillService: this.skillService,
         },
         this.logger,
       ),
@@ -1002,16 +1006,26 @@ export class StallionRuntime {
           await this.acpBridge.startAll(acpConfig.connections);
         },
         () => this.reloadSkillsAndAgents(),
+        this.skillService,
       ),
     );
 
     // === Agent CRUD Endpoints ===
     const agentRoutes = createAgentRoutes(
       this.agentService,
+      this.skillService,
       () => this.reloadAgents(),
       () => this.voltAgent,
     );
     app.route('/agents', agentRoutes);
+
+    // === Skill CRUD Endpoints ===
+    app.route(
+      '/api/skills',
+      createSkillRoutes(this.skillService, () =>
+        this.configLoader.getProjectHomeDir(),
+      ),
+    );
 
     // List all integrations (MCP server configs)
     app.route(
@@ -1213,10 +1227,9 @@ export class StallionRuntime {
     app.route('/api/feedback', createFeedbackRoutes(this.feedbackService));
     app.route('/api/insights', createInsightsRoutes(this.eventLogPath));
     app.route('/api/voice', createVoiceRoutes(this.voiceService));
-    app.route(
-      '/api/prompts',
-      createPromptRoutes(new PromptService(), this.logger),
-    );
+    const promptRoutes = createPromptRoutes(new PromptService(), this.logger);
+    app.route('/api/prompts', promptRoutes);
+    app.route('/api/playbooks', promptRoutes);
   }
 
   /**
@@ -1512,7 +1525,7 @@ export class StallionRuntime {
     // Keep raw templates so date/time variables resolve fresh per-invocation
     const rawSystemPrompt = this.appConfig.systemPrompt || '';
     const rawAgentPrompt = spec.prompt;
-    const skillCatalog = SkillService.getSkillCatalogPrompt(spec.skills);
+    const skillCatalog = this.skillService.getSkillCatalogPrompt(spec.skills);
     const instructions = () => {
       const parts = [
         rawSystemPrompt ? this.replaceTemplateVariables(rawSystemPrompt) : '',
@@ -1571,7 +1584,7 @@ export class StallionRuntime {
     const agentTools = bundle.tools as Tool<any>[];
 
     // Register activate_skill tool if agent has skills assigned
-    const skillTool = SkillService.getSkillTool(spec.skills);
+    const skillTool = this.skillService.getSkillTool(spec.skills);
     if (skillTool) {
       agentTools.push(skillTool as Tool<any>);
     }
