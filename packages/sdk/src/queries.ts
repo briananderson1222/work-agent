@@ -830,12 +830,19 @@ export function useKnowledgeUpdateMutation(
       metadata?: Record<string, any>;
     }) => {
       const { updateKnowledgeDoc } = await import('./api');
-      return updateKnowledgeDoc(projectSlug, docId, { content, metadata }, namespace);
+      return updateKnowledgeDoc(
+        projectSlug,
+        docId,
+        { content, metadata },
+        namespace,
+      );
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['knowledge', 'docs', projectSlug] });
       qc.invalidateQueries({ queryKey: ['knowledge', 'tree', projectSlug] });
-      qc.invalidateQueries({ queryKey: ['knowledge', 'filtered', projectSlug] });
+      qc.invalidateQueries({
+        queryKey: ['knowledge', 'filtered', projectSlug],
+      });
     },
   });
 }

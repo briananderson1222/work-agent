@@ -70,7 +70,9 @@ describe('Knowledge Routes', () => {
   test('GET / with filter params passes filter to service', async () => {
     const svc = createMockKnowledgeService();
     const app = createKnowledgeRoutes(svc as any);
-    await app.request('/ns/notes?tags=planning&metadata.accountId=123&pathPrefix=gf-c-08');
+    await app.request(
+      '/ns/notes?tags=planning&metadata.accountId=123&pathPrefix=gf-c-08',
+    );
     expect(svc.listDocuments).toHaveBeenCalledWith(
       expect.any(String),
       'notes',
@@ -154,7 +156,10 @@ describe('Knowledge Routes', () => {
     const res = await app.request('/ns/notes/d1', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: '# Updated', metadata: { status: 'enhanced' } }),
+      body: JSON.stringify({
+        content: '# Updated',
+        metadata: { status: 'enhanced' },
+      }),
     });
     const body = await json(res);
     expect(body.success).toBe(true);

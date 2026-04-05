@@ -45,7 +45,13 @@ function knowledgeHandlers(
         }
       }
 
-      const hasFilter = tags || after || before || pathPrefix || status || Object.keys(metadataFilter).length > 0;
+      const hasFilter =
+        tags ||
+        after ||
+        before ||
+        pathPrefix ||
+        status ||
+        Object.keys(metadataFilter).length > 0;
       const filter = hasFilter
         ? {
             ...(tags && { tags: tags.split(',') }),
@@ -53,11 +59,17 @@ function knowledgeHandlers(
             ...(before && { before }),
             ...(pathPrefix && { pathPrefix }),
             ...(status && { status }),
-            ...(Object.keys(metadataFilter).length > 0 && { metadata: metadataFilter }),
+            ...(Object.keys(metadataFilter).length > 0 && {
+              metadata: metadataFilter,
+            }),
           }
         : undefined;
 
-      const data = await knowledgeService.listDocuments(getSlug(c), getNs(c), filter);
+      const data = await knowledgeService.listDocuments(
+        getSlug(c),
+        getNs(c),
+        filter,
+      );
       return c.json({ success: true, data });
     } catch (e: unknown) {
       return c.json({ success: false, error: errorMessage(e) }, 500);
@@ -186,7 +198,11 @@ function knowledgeHandlers(
   app.get('/tree', (c) => {
     try {
       const ns = getNs(c);
-      if (!ns) return c.json({ success: false, error: 'Namespace required for tree' }, 400);
+      if (!ns)
+        return c.json(
+          { success: false, error: 'Namespace required for tree' },
+          400,
+        );
       const data = knowledgeService.getDirectoryTree(getSlug(c), ns);
       return c.json({ success: true, data });
     } catch (e: unknown) {

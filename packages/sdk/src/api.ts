@@ -773,7 +773,8 @@ export async function fetchKnowledgeFiltered(
   const res = await fetch(url, {
     headers: { 'x-stallion-plugin': _getPluginName() },
   });
-  if (!res.ok) throw new Error(`Failed to fetch filtered docs: ${res.statusText}`);
+  if (!res.ok)
+    throw new Error(`Failed to fetch filtered docs: ${res.statusText}`);
   const json = await res.json();
   if (!json.success) throw new Error(json.error);
   return json.data;
