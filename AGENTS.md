@@ -2,14 +2,28 @@
 
 ## Active Work
 
-The current major initiative is the **Connected Agents Overhaul** — adding
-Claude Agent SDK and Codex as first-class provider adapters alongside the
-existing Bedrock/VoltAgent runtime.
+The **Entity Hierarchy & Navigation Restructure** is the current initiative.
+See `docs/plans/plan-entity-hierarchy.md` for the full plan and
+`docs/design/entity-hierarchy.md` for design decisions.
 
-**Read `.plans/01-connected-agents-overhaul.md` before starting any work on
-this initiative.** It contains the full architecture, phased implementation
-plan, exit criteria, decision log, and file index. Pick up from wherever the
-exit criteria checkboxes indicate progress stopped.
+### Entity hierarchy
+
+- **Managed agents** (Bedrock + Strands/VoltAgent): Stallion owns everything — prompt, skills, tools, commands, model.
+- **Connected agents** (Claude, Codex): Native runtime owns behavior. Stallion owns abstraction (model, effort, thinking).
+- **ACP agents**: External runtime connections. Predetermined capabilities.
+- Agent editor tabs vary by type: managed gets Basic|Skills|Tools|Commands, connected gets Basic|Runtime, ACP gets Basic|Connection.
+- Skills and integrations are managed-agent capabilities only.
+- Projects scope which agents are available via `ProjectConfig.agents`.
+- "Prompts" renamed to "Playbooks" (`/api/playbooks`, `usePlaybooksQuery`). Old `/api/prompts` kept as compat alias.
+- Registry page (`/registry`) is the unified browse/install surface for agents, skills, integrations, plugins.
+- Sidebar: Projects, Agents, Playbooks, Registry, Connections, Plugins, Schedule, Monitoring.
+
+### Connected agents (merged from feature/connected-agents-hardening)
+
+- `ConnectionService` manages model + runtime connections
+- Provider adapters: Bedrock, Claude, Codex (in `src-server/providers/adapters/`)
+- `AgentExecutionConfig` on `AgentSpec` for runtime selection
+- Orchestration service for session lifecycle
 
 ## Task Completion Requirements
 

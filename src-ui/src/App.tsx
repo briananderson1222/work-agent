@@ -485,7 +485,7 @@ function App() {
 
       // Standalone layout paths
       if (path === '/layouts') {
-        setCurrentView({ type: 'layouts' });
+        setCurrentView({ type: 'agents' });
         return;
       }
       if (path.startsWith('/layouts/')) {
