@@ -6,6 +6,8 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 if [ ! -d "$SCRIPT_DIR/node_modules" ]; then
   echo "🐎 First run — installing dependencies..."
   npm install --prefix "$SCRIPT_DIR"
+  echo "🐎 Installing Playwright browser bundle..."
+  npm run --prefix "$SCRIPT_DIR" install:playwright
 fi
 
 # --link: register SDK and CLI as global npm links for plugin development

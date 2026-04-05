@@ -31,7 +31,11 @@ const logger = { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() };
 const appConfig = { region: 'us-east-1' };
 
 function setup(catalog = createMockCatalog()) {
-  const app = createBedrockRoutes(() => catalog as any, appConfig as any, logger as any);
+  const app = createBedrockRoutes(
+    () => catalog as any,
+    appConfig as any,
+    logger as any,
+  );
   return { app, catalog };
 }
 
@@ -51,7 +55,11 @@ describe('Bedrock Routes', () => {
   });
 
   test('GET /models returns 500 when catalog not initialized', async () => {
-    const app = createBedrockRoutes(() => undefined, appConfig as any, logger as any);
+    const app = createBedrockRoutes(
+      () => undefined,
+      appConfig as any,
+      logger as any,
+    );
     const res = await app.request('/models');
     expect(res.status).toBe(500);
     const body = await json(res);
@@ -67,7 +75,9 @@ describe('Bedrock Routes', () => {
 
   test('GET /models/:modelId/validate returns { success, data: { modelId, isValid } }', async () => {
     const { app } = setup();
-    const body = await json(await app.request('/models/anthropic.claude-3/validate'));
+    const body = await json(
+      await app.request('/models/anthropic.claude-3/validate'),
+    );
     expect(body.success).toBe(true);
     expect(body.data).toEqual({ modelId: 'anthropic.claude-3', isValid: true });
   });

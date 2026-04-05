@@ -10,7 +10,7 @@ From the repo root, use the `./stallion` shell script:
 ./stallion <command> [args]
 ```
 
-On first run, `./stallion` bootstraps by running `npm install` if `node_modules` is missing, then delegates to `packages/cli/src/cli.ts` via `tsx`.
+On first run, `./stallion` bootstraps by running `npm install` if `node_modules` is missing, installs the repo-local Playwright Chromium bundle, then delegates to `packages/cli/src/cli.ts` via `tsx`.
 
 After running `stallion link`, the `stallion` command is available globally from any directory.
 

@@ -1,3 +1,4 @@
+import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
 import {
   createContext,
@@ -8,6 +9,10 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { log } from '@/utils/logger';
+import {
+  sendOrchestrationTurn,
+  startOrchestrationSession,
+} from '../hooks/useOrchestration';
 import { useStreamingMessage } from '../hooks/useStreamingMessage';
 import type { FileAttachment } from '../types';
 import {
@@ -35,6 +40,9 @@ type ChatUIState = {
   projectSlug?: string;
   projectName?: string;
   focusDirectoryId?: string;
+  provider?: ProviderKind;
+  providerOptions?: Record<string, unknown>;
+  orchestrationSessionStarted?: boolean;
   // Optimistic messages (shown immediately, replaced when backend responds)
   messages?: Array<{
     role: 'user' | 'assistant' | 'system';
@@ -109,6 +117,9 @@ class ActiveChatsStore {
           model?: string;
           projectSlug?: string;
           projectName?: string;
+          provider?: ProviderKind;
+          providerOptions?: Record<string, unknown>;
+          orchestrationSessionStarted?: boolean;
           sessionAutoApprove?: string[];
           ephemeralMessages?: any[];
           inputHistory?: string[];
@@ -126,6 +137,10 @@ class ActiveChatsStore {
             model: session.model,
             projectSlug: session.projectSlug,
             projectName: session.projectName,
+            provider: session.provider || 'bedrock',
+            providerOptions: session.providerOptions || {},
+            orchestrationSessionStarted:
+              session.orchestrationSessionStarted || false,
             sessionAutoApprove: session.sessionAutoApprove || [],
             ephemeralMessages: session.ephemeralMessages || [],
           };
@@ -149,6 +164,10 @@ class ActiveChatsStore {
           model: chat.model,
           projectSlug: chat.projectSlug,
           projectName: chat.projectName,
+          provider: chat.provider || 'bedrock',
+          providerOptions: chat.providerOptions || {},
+          orchestrationSessionStarted:
+            chat.orchestrationSessionStarted || false,
           sessionAutoApprove: chat.sessionAutoApprove || [],
           ephemeralMessages: chat.ephemeralMessages || [],
           inputHistory: chat.inputHistory || [],
@@ -195,6 +214,8 @@ class ActiveChatsStore {
       conversationId?: string;
       projectSlug?: string;
       projectName?: string;
+      provider?: ProviderKind;
+      providerOptions?: Record<string, unknown>;
     },
   ) {
     if (!this.chats[conversationId]) {
@@ -204,6 +225,9 @@ class ActiveChatsStore {
         queuedMessages: [],
         inputHistory: [],
         hasUnread: false,
+        provider: 'bedrock',
+        providerOptions: {},
+        orchestrationSessionStarted: false,
         ...metadata,
       };
       this.notify(true);
@@ -225,10 +249,13 @@ class ActiveChatsStore {
         ...updates,
       };
 
-      // Only persist if updating conversationId, model, sessionAutoApprove, or ephemeralMessages
+      // Only persist if updating session metadata that must survive refreshes.
       const shouldPersist =
         'conversationId' in updates ||
         'model' in updates ||
+        'provider' in updates ||
+        'providerOptions' in updates ||
+        'orchestrationSessionStarted' in updates ||
         'sessionAutoApprove' in updates ||
         'ephemeralMessages' in updates;
       this.notify(shouldPersist);
@@ -782,6 +809,39 @@ export function useSendMessage(
 
         // Get model override from chat state
         const model = currentState?.model;
+        const provider = currentState?.provider || 'bedrock';
+
+        if (provider !== 'bedrock') {
+          if (attachments && attachments.length > 0) {
+            throw new Error(
+              'Attachments are not supported yet for Claude or Codex sessions.',
+            );
+          }
+
+          if (!currentState?.orchestrationSessionStarted) {
+            await startOrchestrationSession({
+              apiBase,
+              threadId: sessionId,
+              provider,
+              modelId: model,
+              modelOptions: currentState?.providerOptions,
+            });
+            updateChat(sessionId, { orchestrationSessionStarted: true });
+          }
+
+          await sendOrchestrationTurn({
+            apiBase,
+            threadId: sessionId,
+            text: content,
+            modelId: model,
+            modelOptions: currentState?.providerOptions,
+          });
+          updateChat(sessionId, {
+            status: 'sending',
+            abortController: undefined,
+          });
+          return;
+        }
 
         // Delegate to ConversationsContext for server communication
         const result = await sendToServer(

@@ -1,3 +1,5 @@
+import type { ProviderKind } from '@stallion-ai/contracts/provider';
+
 export interface AgentQuickPrompt {
   id: string;
   label: string;
@@ -113,6 +115,8 @@ export interface ChatSession {
   createdAt: number;
   updatedAt: number;
   hasUnread: boolean;
+  provider?: ProviderKind;
+  providerOptions?: Record<string, unknown>;
   model?: string;
   inputHistory: string[];
   abortController?: AbortController;

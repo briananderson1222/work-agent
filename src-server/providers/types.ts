@@ -7,6 +7,7 @@
  */
 
 import type { AppConfig, ToolDef } from '../domain/types.js';
+import type { ProviderAdapterShape } from './adapter-shape.js';
 
 // Re-export data types from shared so existing server imports still work
 export type {
@@ -303,6 +304,14 @@ export interface ITemplateProvider {
   listTemplates(): Promise<Template[]>;
 }
 
+export interface IProviderAdapterRegistry {
+  register(adapter: ProviderAdapterShape): void;
+  get(
+    provider: import('@stallion-ai/shared').ProviderKind,
+  ): ProviderAdapterShape | undefined;
+  list(): ProviderAdapterShape[];
+}
+
 // ── Provider Cardinality Metadata ──────────────────────
 
 export type ProviderCardinality = 'singleton' | 'additive';
@@ -324,4 +333,5 @@ export const PROVIDER_TYPE_META: Record<string, ProviderCardinality> = {
   layoutType: 'additive',
   notification: 'additive',
   skillRegistry: 'additive',
+  providerAdapter: 'additive',
 };

@@ -4,12 +4,25 @@ const { createEnrichedAgentRoutes } = await import('../enriched-agents.js');
 
 function setup(overrides: Record<string, unknown> = {}) {
   const metadata = new Map([
-    ['default', { name: 'Default', description: 'Default agent', updatedAt: '2026-01-01' }],
-    ['custom', { name: 'Custom', description: 'Custom agent', updatedAt: '2026-01-02' }],
+    [
+      'default',
+      {
+        name: 'Default',
+        description: 'Default agent',
+        updatedAt: '2026-01-01',
+      },
+    ],
+    [
+      'custom',
+      { name: 'Custom', description: 'Custom agent', updatedAt: '2026-01-02' },
+    ],
   ]);
   const deps = {
     agentMetadataMap: metadata,
-    activeAgents: new Map([['default', {}], ['custom', {}]]),
+    activeAgents: new Map([
+      ['default', {}],
+      ['custom', {}],
+    ]),
     loadAgent: vi.fn().mockResolvedValue({
       name: 'custom',
       prompt: 'test prompt',

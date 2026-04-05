@@ -255,9 +255,7 @@ export function Header({
           {userInitials}
         </button>
 
-        <div
-          className="app-toolbar__action--secondary"
-        >
+        <div className="app-toolbar__action--secondary">
           <button
             type="button"
             className={`app-toolbar__icon-btn app-toolbar__icon-btn--help ${showHelp ? 'is-active' : ''}`}

@@ -57,7 +57,9 @@ registerCommand(
           return `• **/${cmd.name}** ${params ? `\`${params}\`` : ''}\n  ${cmd.description || 'No description'}`;
         })
         .join('\n\n');
-      sections.push(`**Custom Commands (${Object.keys(agent.commands).length})**\n\n${commandList}`);
+      sections.push(
+        `**Custom Commands (${Object.keys(agent.commands).length})**\n\n${commandList}`,
+      );
     }
 
     // Global prompts
@@ -65,14 +67,20 @@ registerCommand(
     if (prompts.length > 0) {
       const { promptSlug } = await import('../hooks/useSlashCommands');
       const promptList = prompts
-        .map((p: any) => `• **/${promptSlug(p.name)}** — ${p.description || p.name}`)
+        .map(
+          (p: any) =>
+            `• **/${promptSlug(p.name)}** — ${p.description || p.name}`,
+        )
         .join('\n');
       sections.push(`**Global Prompts (${prompts.length})**\n\n${promptList}`);
     }
 
     addEphemeralMessage(sessionId, {
       role: 'system',
-      content: sections.length > 0 ? sections.join('\n\n---\n\n') : 'No prompts or custom commands defined.',
+      content:
+        sections.length > 0
+          ? sections.join('\n\n---\n\n')
+          : 'No prompts or custom commands defined.',
     });
   },
 );

@@ -3,13 +3,19 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
 import { ConfigLoader } from '../../domain/config-loader.js';
+import type { ProviderAdapterShape } from '../adapter-shape.js';
+import { BedrockAdapter } from '../adapters/bedrock-adapter.js';
 import {
   clearAll,
+  createProviderAdapterRegistry,
   getBrandingProvider,
   getProvider,
+  getProviderAdapter,
+  getProviderAdapters,
   listProviders,
   registerBrandingProvider,
   registerProvider,
+  registerProviderAdapter,
 } from '../registry.js';
 import { resolvePluginProviders } from '../resolver.js';
 
@@ -193,6 +199,25 @@ describe('Provider System', () => {
       expect(entries).toHaveLength(2);
       expect(entries[0].provider).toBe(provider1);
       expect(entries[1].provider).toBe(provider2);
+    });
+
+    it('registers and resolves provider adapters by provider kind', () => {
+      const adapter = new BedrockAdapter();
+
+      registerProviderAdapter(adapter);
+
+      expect(getProviderAdapter('bedrock')).toBe(adapter);
+      expect(getProviderAdapters()).toContain(adapter);
+    });
+
+    it('creates a provider adapter registry facade', () => {
+      const adapter: ProviderAdapterShape = new BedrockAdapter();
+      const registry = createProviderAdapterRegistry();
+
+      registry.register(adapter);
+
+      expect(registry.get('bedrock')).toBe(adapter);
+      expect(registry.list()).toEqual([adapter]);
     });
 
     it('clearAll resets both stores', () => {

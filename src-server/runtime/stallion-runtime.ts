@@ -31,17 +31,23 @@ import {
 } from '../domain/config-loader.js';
 import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import { runStartupMigrations } from '../domain/migration.js';
+import { getOrchestrationDatabasePath } from '../domain/migrations/003-orchestration-events.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import { ACPStatus } from '../domain/types.js';
 import { MonitoringEmitter } from '../monitoring/emitter.js';
 import { createOtlpReceiverRoutes } from '../monitoring/otlp-receiver.js';
+import { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
+import { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
+import { CodexAdapter } from '../providers/adapters/codex-adapter.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
 import {
+  createProviderAdapterRegistry,
   getNotificationProviders,
   listProviders,
   registerAgentRegistryProvider,
   registerIntegrationRegistryProvider,
+  registerProviderAdapter,
 } from '../providers/registry.js';
 import { createACPRoutes } from '../routes/acp.js';
 import { createAgentToolRoutes } from '../routes/agent-tools.js';
@@ -75,6 +81,7 @@ import { createLayoutRoutes, createWorkflowRoutes } from '../routes/layouts.js';
 import modelsRoute from '../routes/models.js';
 import { createMonitoringRoutes } from '../routes/monitoring.js';
 import { createNotificationRoutes } from '../routes/notifications.js';
+import { createOrchestrationRoutes } from '../routes/orchestration.js';
 import { createPluginRoutes } from '../routes/plugins.js';
 import { createProjectRoutes } from '../routes/projects.js';
 import { createPromptRoutes } from '../routes/prompts.js';
@@ -95,12 +102,14 @@ import { ACPManager } from '../services/acp-bridge.js';
 import { AgentService } from '../services/agent-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
 import { EventBus } from '../services/event-bus.js';
+import { EventStore } from '../services/event-store.js';
 import { FeedbackService } from '../services/feedback-service.js';
 import { FileTreeService } from '../services/file-tree-service.js';
 import { KnowledgeService } from '../services/knowledge-service.js';
 import { LayoutService } from '../services/layout-service.js';
 import { MCPService } from '../services/mcp-service.js';
 import { NotificationService } from '../services/notification-service.js';
+import { OrchestrationService } from '../services/orchestration-service.js';
 import { ProjectService } from '../services/project-service.js';
 import { PromptService } from '../services/prompt-service.js';
 import { ProviderService } from '../services/provider-service.js';
@@ -219,6 +228,11 @@ export class StallionRuntime {
   private usageAggregator?: UsageAggregator;
   private port: number;
   private approvalRegistry: ApprovalRegistry;
+  private bedrockAdapter = new BedrockAdapter();
+  private claudeAdapter = new ClaudeAdapter();
+  private codexAdapter = new CodexAdapter();
+  private orchestrationService!: OrchestrationService;
+  private orchestrationEventStore: EventStore;
 
   // Services
   private agentService!: AgentService;
@@ -248,6 +262,9 @@ export class StallionRuntime {
       projectHomeDir,
       watchFiles: true,
     });
+    this.orchestrationEventStore = new EventStore(
+      getOrchestrationDatabasePath(projectHomeDir),
+    );
 
     this.logger = createLogger({
       name: 'stallion',
@@ -502,6 +519,16 @@ export class StallionRuntime {
     }
 
     // Registry providers are registered by plugins via loadProviders()
+    registerProviderAdapter(this.bedrockAdapter);
+    registerProviderAdapter(this.claudeAdapter);
+    registerProviderAdapter(this.codexAdapter);
+    this.orchestrationService = new OrchestrationService({
+      adapterRegistry: createProviderAdapterRegistry(),
+      eventBus: this.eventBus,
+      eventStore: this.orchestrationEventStore,
+      logger: this.logger,
+    });
+    this.orchestrationService.initialize();
 
     // JSON manifest fallback for environments without plugins
     if (this.appConfig.registryUrl) {
@@ -997,6 +1024,13 @@ export class StallionRuntime {
     );
 
     app.route('/api/ui', createUICommandRoutes(this.eventBus));
+    app.route(
+      '/api/orchestration',
+      createOrchestrationRoutes(this.orchestrationService, {
+        eventBus: this.eventBus,
+        logger: this.logger,
+      }),
+    );
 
     // Build RuntimeContext for extracted route modules
     const ctx = this.buildRuntimeContext();
@@ -1049,7 +1083,9 @@ export class StallionRuntime {
       const adapter = this.memoryAdapters.values().next().value;
       if (!adapter) return c.json({ success: true, data: [] });
       const convs = await adapter.queryConversations({});
-      convs.sort((a: any, b: any) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      convs.sort((a: any, b: any) =>
+        (b.updatedAt || '').localeCompare(a.updatedAt || ''),
+      );
       return c.json({ success: true, data: convs.slice(0, limit) });
     });
 

@@ -24,6 +24,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as esbuild } from 'esbuild';
 
+export * from './runtime-events.js';
+
 const __shared_dir = dirname(fileURLToPath(import.meta.url));
 
 // ── Plugin Manifest ────────────────────────────────────────────────

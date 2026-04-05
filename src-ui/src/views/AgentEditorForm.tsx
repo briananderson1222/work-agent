@@ -283,8 +283,8 @@ export function AgentEditorForm({
                     `${prefix}*`,
                   );
                   // No entries for this integration in available → all tools active
-                  const hasExplicitAvailable = form.tools.available.some(
-                    (a) => a.startsWith(prefix),
+                  const hasExplicitAvailable = form.tools.available.some((a) =>
+                    a.startsWith(prefix),
                   );
                   const allToolsActive =
                     !hasExplicitAvailable ||
@@ -458,9 +458,7 @@ export function AgentEditorForm({
                                     onClick={() => {
                                       if (locked) return;
                                       setForm((f) => {
-                                        const ap = new Set(
-                                          f.tools.autoApprove,
-                                        );
+                                        const ap = new Set(f.tools.autoApprove);
                                         if (ap.has(`${prefix}*`)) {
                                           ap.delete(`${prefix}*`);
                                           tools.forEach((t) => {

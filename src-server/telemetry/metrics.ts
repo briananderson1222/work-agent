@@ -86,6 +86,44 @@ export const providerOps = meter.createCounter('stallion.provider.operations', {
   description: 'Provider register/remove/health events',
 });
 
+export const adapterSessionStartDuration = meter.createHistogram(
+  'stallion.adapter.session_start_duration',
+  {
+    description: 'Provider adapter session start duration',
+    unit: 'ms',
+  },
+);
+
+export const adapterTurnDuration = meter.createHistogram(
+  'stallion.adapter.turn_duration',
+  {
+    description: 'Provider adapter turn duration',
+    unit: 'ms',
+  },
+);
+
+export const orchestrationCommandsDispatched = meter.createCounter(
+  'stallion.orchestration.commands_dispatched',
+  {
+    description: 'Orchestration commands routed to provider adapters',
+  },
+);
+
+export const orchestrationEventsPersisted = meter.createCounter(
+  'stallion.orchestration.events_persisted',
+  {
+    description: 'Canonical orchestration events written to the event store',
+  },
+);
+
+export const orchestrationEventPersistDuration = meter.createHistogram(
+  'stallion.orchestration.event_persist_duration',
+  {
+    description: 'Canonical orchestration event persistence duration',
+    unit: 'ms',
+  },
+);
+
 // ── Notifications ──
 export const notificationOps = meter.createCounter(
   'stallion.notification.operations',

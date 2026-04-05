@@ -68,9 +68,7 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
 
       if (toolNames && Array.isArray(toolNames)) {
         const agentTools = ctx.agentTools.get(slug) || [];
-        options.tools = agentTools.filter((t) =>
-          toolNames.includes(t.name),
-        );
+        options.tools = agentTools.filter((t) => toolNames.includes(t.name));
       }
 
       const result = await agent.generateText(prompt, options);
@@ -143,7 +141,9 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
         );
 
       const toolStart = performance.now();
-      const toolResult = await (tool as { execute(args: unknown): Promise<unknown> }).execute(toolArgs);
+      const toolResult = await (
+        tool as { execute(args: unknown): Promise<unknown> }
+      ).execute(toolArgs);
       const toolDuration = performance.now() - toolStart;
 
       return c.json({
@@ -183,7 +183,10 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
         if (!agent)
           return c.json({ success: false, error: 'Agent not found' }, 404);
 
-        const options: Record<string, unknown> & { maxSteps: number; maxOutputTokens: number } = { maxSteps, maxOutputTokens: 2000 };
+        const options: Record<string, unknown> & {
+          maxSteps: number;
+          maxOutputTokens: number;
+        } = { maxSteps, maxOutputTokens: 2000 };
         if (model && ctx.modelCatalog) {
           const resolvedModel = await ctx.modelCatalog.resolveModelId(model);
           options.model = await ctx.createBedrockModel({
@@ -199,7 +202,8 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
 
           const tempAgent = await ctx.framework.createTempAgent({
             name: `${slug}-temp`,
-            instructions: (agent as { instructions?: string }).instructions || '',
+            instructions:
+              (agent as { instructions?: string }).instructions || '',
             model: options.model || agent.model,
             tools: filteredTools as unknown as ITool[],
             maxSteps,
@@ -241,7 +245,9 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
         const result = schemaJson
           ? await agent.generateObject(
               prompt,
-              jsonSchema(schemaJson) as unknown as Parameters<typeof agent.generateObject>[1],
+              jsonSchema(schemaJson) as unknown as Parameters<
+                typeof agent.generateObject
+              >[1],
               options,
             )
           : await agent.generateText(prompt, options);
@@ -360,7 +366,22 @@ export function createInvokeRoutes(ctx: RuntimeContext) {
         maxSteps: 1,
       });
 
-      const objectResult = await (structureAgent as { generateObject(prompt: string, schema: unknown, options: unknown): Promise<{ object: unknown; usage?: { promptTokens?: number; completionTokens?: number; totalTokens?: number } }> }).generateObject(
+      const objectResult = await (
+        structureAgent as {
+          generateObject(
+            prompt: string,
+            schema: unknown,
+            options: unknown,
+          ): Promise<{
+            object: unknown;
+            usage?: {
+              promptTokens?: number;
+              completionTokens?: number;
+              totalTokens?: number;
+            };
+          }>;
+        }
+      ).generateObject(
         `${textResult.text}\n\nFormat the above information as structured JSON.`,
         jsonSchema(schema),
         { conversationId: tempConvId, userId: 'invoke-user' },

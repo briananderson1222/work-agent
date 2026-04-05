@@ -79,10 +79,22 @@ export function useChatInput({
     async (sid: string, command: string) => {
       return handleSlashCommand(sid, command, {
         onInputCleared,
-        autocomplete: { openModel, openNewChat: onOpenNewChat || (() => {}), closeCommand, closeAll },
+        autocomplete: {
+          openModel,
+          openNewChat: onOpenNewChat || (() => {}),
+          closeCommand,
+          closeAll,
+        },
       });
     },
-    [handleSlashCommand, openModel, onOpenNewChat, closeCommand, closeAll, onInputCleared],
+    [
+      handleSlashCommand,
+      openModel,
+      onOpenNewChat,
+      closeCommand,
+      closeAll,
+      onInputCleared,
+    ],
   );
 
   // Send message
