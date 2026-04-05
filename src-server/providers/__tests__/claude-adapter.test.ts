@@ -5,8 +5,16 @@ const { mockQuery } = vi.hoisted(() => ({
   mockQuery: vi.fn(),
 }));
 
+const { mockBuildCliRuntimePrerequisites } = vi.hoisted(() => ({
+  mockBuildCliRuntimePrerequisites: vi.fn(),
+}));
+
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: mockQuery,
+}));
+
+vi.mock('../cli-auth.js', () => ({
+  buildCliRuntimePrerequisites: mockBuildCliRuntimePrerequisites,
 }));
 
 import { ClaudeAdapter } from '../adapters/claude-adapter.js';
@@ -32,6 +40,7 @@ function createMockQuery(messages: any[]) {
 describe('ClaudeAdapter', () => {
   afterEach(() => {
     mockQuery.mockReset();
+    mockBuildCliRuntimePrerequisites.mockReset();
     if (originalAnthropicKey === undefined) {
       delete process.env.ANTHROPIC_API_KEY;
     } else {
@@ -160,6 +169,20 @@ describe('ClaudeAdapter', () => {
   });
 
   test('reports missing Claude CLI login when the CLI is unauthenticated', async () => {
+    mockBuildCliRuntimePrerequisites.mockResolvedValue([
+      {
+        id: 'claude-cli',
+        name: 'Claude CLI',
+        status: 'installed',
+        category: 'required',
+      },
+      {
+        id: 'claude-auth',
+        name: 'Claude login',
+        status: 'missing',
+        category: 'required',
+      },
+    ]);
     const adapter = new ClaudeAdapter();
 
     await expect(adapter.getPrerequisites?.()).resolves.toEqual(
