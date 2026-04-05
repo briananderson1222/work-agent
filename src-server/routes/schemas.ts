@@ -432,6 +432,12 @@ export const skillInstallSchema = z.object({
   id: z.string().min(1),
 });
 
+export const skillCreateSchema = z.object({
+  name: z.string().min(1),
+  source: z.enum(['local', 'registry', 'plugin']).optional(),
+  path: z.string().optional(),
+});
+
 export function validate<T>(schema: z.ZodSchema<T>) {
   return async (c: Context, next: Next) => {
     let raw: unknown;

@@ -10,7 +10,7 @@ vi.mock('../../providers/registry.js', () => ({
   getAllPrerequisites: vi.fn().mockResolvedValue([]),
 }));
 vi.mock('../../services/skill-service.js', () => ({
-  listSkills: () => [{ name: 'test-skill', description: 'A test' }],
+  SkillService: vi.fn(),
 }));
 
 const { createSystemRoutes } = await import('../system.js');
@@ -25,6 +25,9 @@ function createMockDeps() {
     }),
     appConfig: { runtime: 'voltagent' },
     port: 3141,
+    skillService: {
+      listSkills: () => [{ name: 'test-skill', description: 'A test' }],
+    },
   };
 }
 

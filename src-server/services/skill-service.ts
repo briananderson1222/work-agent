@@ -22,322 +22,317 @@ import {
   toDisclosurePrompt,
   toReadToolSchema,
 } from 'agent-skills-ts-sdk';
+import type { ConfigLoader, SkillConfig } from '../domain/config-loader.js';
 import {
   skillActivationDuration,
   skillActivations,
   skillDiscoveries,
+  skillDiscoveryDuration,
+  skillOps,
 } from '../telemetry/metrics.js';
-import { createLogger } from '../utils/logger.js';
-
-const logger = createLogger({ name: 'skills' });
-
-// ── Skill Registry ─────────────────────────────────────
-
-const registry = new Map<string, ResolvedSkill>();
-
-/**
- * Scan directories for SKILL.md files and populate the registry.
- */
-export async function discoverSkills(
-  projectHomeDir: string,
-  projectSlug?: string,
-): Promise<void> {
-  registry.clear();
-
-  const dirs = [
-    join(projectHomeDir, 'skills'), // global skills
-    join(projectHomeDir, 'plugins'), // plugin-shipped skills
-  ];
-
-  // Project-scoped skills take precedence
-  if (projectSlug) {
-    dirs.unshift(join(projectHomeDir, 'projects', projectSlug, 'skills'));
-  }
-
-  for (const dir of dirs) {
-    if (!existsSync(dir)) continue;
-    await scanDirectory(dir);
-  }
-
-  logger.info('Skills discovered', { count: registry.size, projectSlug });
-  skillDiscoveries.add(1, {
-    count: registry.size,
-    projectSlug: projectSlug || 'global',
-  });
-}
-
-async function scanDirectory(dir: string, depth = 0): Promise<void> {
-  if (depth > 4) return;
-  const entries = await readdir(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    if (entry.name === 'node_modules' || entry.name === '.git') continue;
-
-    const skillMdPath = join(dir, entry.name, 'SKILL.md');
-    if (existsSync(skillMdPath)) {
-      try {
-        const content = await readFile(skillMdPath, 'utf-8');
-        const { properties, body } = parseSkillContent(content);
-
-        // Resolve tier-3 resources
-        const links = extractResourceLinks(body);
-        const resources: SkillResource[] = [];
-        for (const link of links) {
-          const resourcePath = join(dir, entry.name, link.path);
-          if (existsSync(resourcePath)) {
-            const resourceContent = await readFile(resourcePath, 'utf-8');
-            resources.push({
-              name: link.name,
-              path: link.path,
-              content: resourceContent,
-            });
-          }
-        }
-
-        registry.set(properties.name, {
-          name: properties.name,
-          description: properties.description,
-          body,
-          resources,
-          location: skillMdPath,
-        });
-      } catch (e) {
-        logger.warn('Failed to parse skill', { path: skillMdPath, error: e });
-      }
-    } else {
-      // Recurse into subdirectories (for plugin skill bundles)
-      await scanDirectory(join(dir, entry.name), depth + 1);
-    }
-  }
-}
-
-// ── Prompt Generation (Tier 1) ─────────────────────────
-
-/**
- * Build the skill catalog + behavioral instructions for system prompt injection.
- * Returns empty string if no skills are loaded.
- */
-export function getSkillCatalogPrompt(skillNames?: string[]): string {
-  if (registry.size === 0) return '';
-
-  // If skillNames provided, filter to only those skills. Empty array = no skills.
-  if (skillNames !== undefined) {
-    if (skillNames.length === 0) return '';
-  }
-
-  const allSkills = Array.from(registry.values());
-  const filtered =
-    skillNames !== undefined
-      ? allSkills.filter((s) => skillNames.includes(s.name))
-      : allSkills;
-  if (filtered.length === 0) return '';
-
-  const entries = filtered.map((s) => ({
-    name: s.name,
-    description: s.description,
-    resources: s.resources.map((r) => r.name),
-  }));
-
-  const catalog = toDisclosurePrompt(entries);
-  const instructions = toDisclosureInstructions({ toolName: 'activate_skill' });
-  return `${catalog}\n\n${instructions}`;
-}
-
-// ── Tool Definition (Tier 2 + 3) ───────────────────────
-
-/**
- * Build the activate_skill tool definition for registration with the agent framework.
- * Returns null if no skills are loaded.
- */
-export function getSkillTool(skillNames?: string[]): {
-  name: string;
-  description: string;
-  parameters: object;
-  execute: (input: any) => Promise<any>;
-} | null {
-  const allSkills = Array.from(registry.values());
-  const skills =
-    skillNames !== undefined
-      ? allSkills.filter((s) => skillNames.includes(s.name))
-      : allSkills;
-  if (skills.length === 0) return null;
-  const schema = toReadToolSchema(skills, { toolName: 'activate_skill' });
-
-  return {
-    name: schema.name,
-    description: schema.description,
-    parameters: schema.parametersJsonSchema,
-    execute: async (input: any) => {
-      const start = Date.now();
-      const result = handleSkillRead(skills, {
-        name: input.name,
-        resource: input.resource,
-      });
-      skillActivations.add(1, { skill: input.name || 'unknown' });
-      skillActivationDuration.record(Date.now() - start, {
-        skill: input.name || 'unknown',
-      });
-      if (!result.ok) {
-        return { error: (result as any).error };
-      }
-
-      // If this is a tier-2 activation (no resource specified), enrich with metadata
-      const skill = registry.get(input.name);
-      if (skill && !input.resource) {
-        const scriptTools = getScriptToolDefs(skill);
-        const allowedTools = getAllowedTools(skill);
-        return {
-          content: (result as any).content,
-          ...(scriptTools.length > 0 && { scriptTools }),
-          ...(allowedTools && { allowedTools }),
-        };
-      }
-
-      return { content: (result as any).content };
-    },
-  };
-}
-
-// ── API Helpers ─────────────────────────────────────────
-
-export function listSkills(): Array<{
-  name: string;
-  description: string;
-  version?: string;
-}> {
-  return Array.from(registry.values()).map((s) => {
-    let version: string | undefined;
-    if (s.location) {
-      const metaPath = join(dirname(s.location), '.stallion-meta.json');
-      if (existsSync(metaPath)) {
-        try {
-          version = JSON.parse(readFileSync(metaPath, 'utf-8')).version;
-        } catch {}
-      }
-    }
-    return { name: s.name, description: s.description, version };
-  });
-}
-
-export function getSkillCount(): number {
-  return registry.size;
-}
-
-// ── Dynamic Script Tools (Tier 3) ──────────────────────
 
 const SCRIPT_EXTS = new Set(['.py', '.sh', '.js', '.ts']);
 
-/**
- * Build tool definitions for scripts bundled with a skill.
- * These are returned alongside the skill body so the agent knows
- * executable scripts are available.
- */
-function getScriptToolDefs(
-  skill: ResolvedSkill,
-): Array<{ name: string; description: string; path: string }> {
-  return skill.resources
-    .filter(
-      (r) => r.path.startsWith('scripts/') && SCRIPT_EXTS.has(extname(r.path)),
-    )
-    .map((r) => ({
-      name: `${skill.name}/${r.name}`,
-      description: `Script from ${skill.name} skill: ${r.name}`,
-      path: r.path,
-    }));
-}
+export class SkillService {
+  private registry = new Map<string, ResolvedSkill>();
 
-/**
- * Parse allowed-tools from skill frontmatter.
- */
-function getAllowedTools(skill: ResolvedSkill): string | undefined {
-  // Re-parse frontmatter to get allowed-tools (not stored in ResolvedSkill)
-  const location = skill.location;
-  if (!location || !existsSync(location)) return undefined;
-  try {
-    const content = readFileSync(location, 'utf-8');
-    const { metadata } = parseFrontmatter(content);
-    return metadata['allowed-tools'] || undefined;
-  } catch (e) {
-    logger.debug('Failed to parse skill frontmatter for allowed-tools', {
-      location,
-      error: e,
+  constructor(
+    private configLoader: ConfigLoader,
+    private logger: {
+      info: (...a: any[]) => void;
+      warn: (...a: any[]) => void;
+      debug: (...a: any[]) => void;
+    },
+  ) {}
+
+  // ── Discovery ──────────────────────────────────────────
+
+  async discoverSkills(
+    projectHomeDir: string,
+    projectSlug?: string,
+  ): Promise<void> {
+    const start = Date.now();
+    this.registry.clear();
+
+    const dirs = [
+      join(projectHomeDir, 'skills'),
+      join(projectHomeDir, 'plugins'),
+    ];
+    if (projectSlug) {
+      dirs.unshift(join(projectHomeDir, 'projects', projectSlug, 'skills'));
+    }
+
+    for (const dir of dirs) {
+      if (!existsSync(dir)) continue;
+      await this.scanDirectory(dir);
+    }
+
+    this.logger.info('Skills discovered', {
+      count: this.registry.size,
+      projectSlug,
     });
-    return undefined;
+    skillDiscoveries.add(1, {
+      count: this.registry.size,
+      projectSlug: projectSlug || 'global',
+    });
+    skillDiscoveryDuration.record(Date.now() - start, {
+      projectSlug: projectSlug || 'global',
+    });
   }
-}
 
-// ── Install / Uninstall ────────────────────────────────
+  private async scanDirectory(dir: string, depth = 0): Promise<void> {
+    if (depth > 4) return;
+    const entries = await readdir(dir, { withFileTypes: true });
 
-/**
- * Install a skill from a registry provider into the project skills directory.
- */
-export async function installSkill(
-  name: string,
-  projectHomeDir: string,
-  projectSlug?: string,
-): Promise<{ success: boolean; message: string }> {
-  const { getSkillRegistryProviders } = await import(
-    '../providers/registry.js'
-  );
-  const entries = getSkillRegistryProviders();
-  if (entries.length === 0)
-    return { success: false, message: 'No skill registry configured' };
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (entry.name === 'node_modules' || entry.name === '.git') continue;
 
-  const targetDir = projectSlug
-    ? join(projectHomeDir, 'projects', projectSlug, 'skills')
-    : join(projectHomeDir, 'skills');
+      const skillMdPath = join(dir, entry.name, 'SKILL.md');
+      if (existsSync(skillMdPath)) {
+        try {
+          const content = await readFile(skillMdPath, 'utf-8');
+          const { properties, body } = parseSkillContent(content);
 
-  await mkdir(targetDir, { recursive: true });
+          const links = extractResourceLinks(body);
+          const resources: SkillResource[] = [];
+          for (const link of links) {
+            const resourcePath = join(dir, entry.name, link.path);
+            if (existsSync(resourcePath)) {
+              resources.push({
+                name: link.name,
+                path: link.path,
+                content: await readFile(resourcePath, 'utf-8'),
+              });
+            }
+          }
 
-  for (const { provider } of entries) {
-    const result = await provider.install(name, targetDir);
-    if (result.success) {
-      // Write version metadata
-      try {
-        const items = await provider.listAvailable().catch(() => []);
-        const item = items.find((i: any) => i.id === name);
-        const version = item?.version ?? 'unknown';
-        await writeFile(
-          join(targetDir, name, '.stallion-meta.json'),
-          JSON.stringify({
-            version,
-            installedAt: new Date().toISOString(),
-            source: 'registry',
-          }),
-        );
-      } catch {}
-      // Re-discover skills to pick up the new one
-      await discoverSkills(projectHomeDir, projectSlug);
-      return result;
+          this.registry.set(properties.name, {
+            name: properties.name,
+            description: properties.description,
+            body,
+            resources,
+            location: skillMdPath,
+          });
+        } catch (e) {
+          this.logger.warn('Failed to parse skill', {
+            path: skillMdPath,
+            error: e,
+          });
+        }
+      } else {
+        await this.scanDirectory(join(dir, entry.name), depth + 1);
+      }
     }
   }
 
-  return {
-    success: false,
-    message: `No skill registry provider could install ${name}`,
-  };
-}
+  // ── Prompt Generation (Tier 1) ─────────────────────────
 
-/**
- * Uninstall a skill from the project skills directory.
- */
-export async function uninstallSkill(
-  name: string,
-  projectHomeDir: string,
-  projectSlug?: string,
-): Promise<{ success: boolean; message: string }> {
-  const targetDir = projectSlug
-    ? join(projectHomeDir, 'projects', projectSlug, 'skills', name)
-    : join(projectHomeDir, 'skills', name);
+  getSkillCatalogPrompt(skillNames?: string[]): string {
+    if (this.registry.size === 0) return '';
+    if (skillNames !== undefined && skillNames.length === 0) return '';
 
-  if (!existsSync(targetDir))
-    return { success: false, message: `Skill '${name}' not found` };
+    const allSkills = Array.from(this.registry.values());
+    const filtered =
+      skillNames !== undefined
+        ? allSkills.filter((s) => skillNames.includes(s.name))
+        : allSkills;
+    if (filtered.length === 0) return '';
 
-  await rm(targetDir, { recursive: true, force: true });
+    const entries = filtered.map((s) => ({
+      name: s.name,
+      description: s.description,
+      resources: s.resources.map((r) => r.name),
+    }));
 
-  // Re-discover skills
-  await discoverSkills(projectHomeDir, projectSlug);
+    const catalog = toDisclosurePrompt(entries);
+    const instructions = toDisclosureInstructions({
+      toolName: 'activate_skill',
+    });
+    return `${catalog}\n\n${instructions}`;
+  }
 
-  return { success: true, message: `Removed ${name}` };
+  // ── Tool Definition (Tier 2 + 3) ───────────────────────
+
+  getSkillTool(skillNames?: string[]): {
+    name: string;
+    description: string;
+    parameters: object;
+    execute: (input: any) => Promise<any>;
+  } | null {
+    const allSkills = Array.from(this.registry.values());
+    const skills =
+      skillNames !== undefined
+        ? allSkills.filter((s) => skillNames.includes(s.name))
+        : allSkills;
+    if (skills.length === 0) return null;
+    const schema = toReadToolSchema(skills, { toolName: 'activate_skill' });
+
+    return {
+      name: schema.name,
+      description: schema.description,
+      parameters: schema.parametersJsonSchema,
+      execute: async (input: any) => {
+        const start = Date.now();
+        const result = handleSkillRead(skills, {
+          name: input.name,
+          resource: input.resource,
+        });
+        skillActivations.add(1, { skill: input.name || 'unknown' });
+        skillActivationDuration.record(Date.now() - start, {
+          skill: input.name || 'unknown',
+        });
+        if (!result.ok) return { error: (result as any).error };
+
+        const skill = this.registry.get(input.name);
+        if (skill && !input.resource) {
+          const scriptTools = this.getScriptToolDefs(skill);
+          const allowedTools = this.getAllowedTools(skill);
+          return {
+            content: (result as any).content,
+            ...(scriptTools.length > 0 && { scriptTools }),
+            ...(allowedTools && { allowedTools }),
+          };
+        }
+        return { content: (result as any).content };
+      },
+    };
+  }
+
+  // ── CRUD (delegates to ConfigLoader) ───────────────────
+
+  listSkills(): Array<{
+    name: string;
+    description: string;
+    version?: string;
+  }> {
+    return Array.from(this.registry.values()).map((s) => {
+      let version: string | undefined;
+      if (s.location) {
+        const metaPath = join(dirname(s.location), '.stallion-meta.json');
+        if (existsSync(metaPath)) {
+          try {
+            version = JSON.parse(readFileSync(metaPath, 'utf-8')).version;
+          } catch {}
+        }
+      }
+      return { name: s.name, description: s.description, version };
+    });
+  }
+
+  async getSkill(name: string): Promise<SkillConfig> {
+    skillOps.add(1, { operation: 'get' });
+    return this.configLoader.loadSkill(name);
+  }
+
+  async installSkill(
+    name: string,
+    projectHomeDir: string,
+    projectSlug?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    skillOps.add(1, { operation: 'install' });
+    const { getSkillRegistryProviders } = await import(
+      '../providers/registry.js'
+    );
+    const entries = getSkillRegistryProviders();
+    if (entries.length === 0)
+      return { success: false, message: 'No skill registry configured' };
+
+    const targetDir = projectSlug
+      ? join(projectHomeDir, 'projects', projectSlug, 'skills')
+      : join(projectHomeDir, 'skills');
+
+    await mkdir(targetDir, { recursive: true });
+
+    for (const { provider } of entries) {
+      const result = await provider.install(name, targetDir);
+      if (result.success) {
+        try {
+          const items = await provider.listAvailable().catch(() => []);
+          const item = items.find((i: any) => i.id === name);
+          const version = item?.version ?? 'unknown';
+          const skillDir = join(targetDir, name);
+          await writeFile(
+            join(skillDir, '.stallion-meta.json'),
+            JSON.stringify({
+              version,
+              installedAt: new Date().toISOString(),
+              source: 'registry',
+            }),
+          );
+          // Write skill.json for ConfigLoader persistence
+          await this.configLoader.saveSkill(name, {
+            name,
+            description: item?.description,
+            source: 'registry',
+            installedAt: new Date().toISOString(),
+            version,
+            path: skillDir,
+          });
+        } catch {}
+        await this.discoverSkills(projectHomeDir, projectSlug);
+        return result;
+      }
+    }
+
+    return {
+      success: false,
+      message: `No skill registry provider could install ${name}`,
+    };
+  }
+
+  async removeSkill(
+    name: string,
+    projectHomeDir: string,
+    projectSlug?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    skillOps.add(1, { operation: 'remove' });
+    const targetDir = projectSlug
+      ? join(projectHomeDir, 'projects', projectSlug, 'skills', name)
+      : join(projectHomeDir, 'skills', name);
+
+    if (!existsSync(targetDir))
+      return { success: false, message: `Skill '${name}' not found` };
+
+    await rm(targetDir, { recursive: true, force: true });
+    await this.discoverSkills(projectHomeDir, projectSlug);
+    return { success: true, message: `Removed ${name}` };
+  }
+
+  getSkillCount(): number {
+    return this.registry.size;
+  }
+
+  // ── Private helpers ────────────────────────────────────
+
+  private getScriptToolDefs(
+    skill: ResolvedSkill,
+  ): Array<{ name: string; description: string; path: string }> {
+    return skill.resources
+      .filter(
+        (r) =>
+          r.path.startsWith('scripts/') && SCRIPT_EXTS.has(extname(r.path)),
+      )
+      .map((r) => ({
+        name: `${skill.name}/${r.name}`,
+        description: `Script from ${skill.name} skill: ${r.name}`,
+        path: r.path,
+      }));
+  }
+
+  private getAllowedTools(skill: ResolvedSkill): string | undefined {
+    const location = skill.location;
+    if (!location || !existsSync(location)) return undefined;
+    try {
+      const content = readFileSync(location, 'utf-8');
+      const { metadata } = parseFrontmatter(content);
+      return metadata['allowed-tools'] || undefined;
+    } catch (e) {
+      this.logger.debug('Failed to parse skill frontmatter for allowed-tools', {
+        location,
+        error: e,
+      });
+      return undefined;
+    }
+  }
 }

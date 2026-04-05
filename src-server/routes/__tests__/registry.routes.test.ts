@@ -46,8 +46,7 @@ vi.mock('../../providers/registry.js', () => {
 });
 
 vi.mock('../../services/skill-service.js', () => ({
-  installSkill: vi.fn().mockResolvedValue({ success: true }),
-  uninstallSkill: vi.fn().mockResolvedValue({ success: true }),
+  SkillService: vi.fn(),
 }));
 
 const { createRegistryRoutes } = await import('../registry.js');
@@ -59,12 +58,17 @@ function setup() {
   };
   const refreshACPModes = vi.fn().mockResolvedValue(undefined);
   const reloadSkills = vi.fn().mockResolvedValue(undefined);
+  const skillService = {
+    installSkill: vi.fn().mockResolvedValue({ success: true }),
+    removeSkill: vi.fn().mockResolvedValue({ success: true }),
+  };
   const app = createRegistryRoutes(
     configLoader as any,
     refreshACPModes,
     reloadSkills,
+    skillService as any,
   );
-  return { app, configLoader, refreshACPModes, reloadSkills };
+  return { app, configLoader, refreshACPModes, reloadSkills, skillService };
 }
 
 async function json(res: Response) {

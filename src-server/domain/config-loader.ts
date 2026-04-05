@@ -50,6 +50,15 @@ export interface ConfigLoaderOptions {
   watchFiles?: boolean;
 }
 
+export interface SkillConfig {
+  name: string;
+  description?: string;
+  source: 'local' | 'registry' | 'plugin';
+  installedAt: string;
+  version?: string;
+  path: string;
+}
+
 export class ConfigLoader {
   private projectHomeDir: string;
   private watcher?: FSWatcher;
@@ -837,6 +846,67 @@ export class ConfigLoader {
         }
       }
     }
+  }
+
+  // ── Skills ──────────────────────────────────────────────
+
+  /**
+   * List installed skills by scanning skill.json files
+   */
+  async listSkills(): Promise<SkillConfig[]> {
+    const dir = join(this.projectHomeDir, 'skills');
+    if (!existsSync(dir)) return [];
+    const entries = await readdir(dir, { withFileTypes: true });
+    const results: SkillConfig[] = [];
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const cfgPath = join(dir, entry.name, 'skill.json');
+      if (!existsSync(cfgPath)) continue;
+      try {
+        results.push(JSON.parse(await readFile(cfgPath, 'utf-8')));
+      } catch {
+        logger.warn('Failed to read skill config', { path: cfgPath });
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Load a single skill config
+   */
+  async loadSkill(name: string): Promise<SkillConfig> {
+    const path = join(this.projectHomeDir, 'skills', name, 'skill.json');
+    if (!existsSync(path)) throw new Error(`Skill '${name}' not found`);
+    return JSON.parse(await readFile(path, 'utf-8'));
+  }
+
+  /**
+   * Save a skill config
+   */
+  async saveSkill(name: string, config: SkillConfig): Promise<void> {
+    const dir = join(this.projectHomeDir, 'skills', name);
+    await mkdir(dir, { recursive: true });
+    await writeFile(
+      join(dir, 'skill.json'),
+      JSON.stringify(config, null, 2),
+      'utf-8',
+    );
+  }
+
+  /**
+   * Delete a skill directory
+   */
+  async deleteSkill(name: string): Promise<void> {
+    const dir = join(this.projectHomeDir, 'skills', name);
+    if (!existsSync(dir)) throw new Error(`Skill '${name}' not found`);
+    await rm(dir, { recursive: true, force: true });
+  }
+
+  /**
+   * Check if a skill exists
+   */
+  async skillExists(name: string): Promise<boolean> {
+    return existsSync(join(this.projectHomeDir, 'skills', name, 'skill.json'));
   }
 
   /**

@@ -234,6 +234,16 @@ export const registryOps = meter.createCounter('stallion.registry.operations', {
 });
 
 // ── Skills ──
+export const skillOps = meter.createCounter('stallion.skills.operations', {
+  description: 'Skill CRUD operations',
+});
+export const skillDiscoveryDuration = meter.createHistogram(
+  'stallion.skills.discovery_duration',
+  {
+    description: 'Skill discovery duration',
+    unit: 'ms',
+  },
+);
 export const skillDiscoveries = meter.createCounter(
   'stallion.skill.discoveries',
   {
