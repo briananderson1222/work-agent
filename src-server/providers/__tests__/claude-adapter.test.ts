@@ -189,7 +189,7 @@ describe('ClaudeAdapter', () => {
   test('publishes runtime.error when the Claude SDK stream fails', async () => {
     mockQuery.mockReturnValue({
       async *[Symbol.asyncIterator]() {
-        yield undefined as never;
+        yield* [] as never[];
         throw new Error('Claude stream failed');
       },
       interrupt: vi.fn().mockResolvedValue(undefined),
