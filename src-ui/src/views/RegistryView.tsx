@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
-import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import './page-layout.css';
 
@@ -59,12 +58,14 @@ export function RegistryView() {
   );
 
   return (
-    <SplitPaneLayout
-      label="registry"
-      title="Registry"
-      subtitle="Browse and install agents, skills, integrations, and plugins"
-      loading={isLoading}
-    >
+    <div className="page page--full">
+      <div className="page-layout__header">
+        <h2 className="page-layout__title">Registry</h2>
+        <p className="page-layout__subtitle">
+          Browse and install agents, skills, integrations, and plugins
+        </p>
+      </div>
+
       <div className="page-layout__tabs">
         {TABS.map((tab) => (
           <button
@@ -79,36 +80,39 @@ export function RegistryView() {
       </div>
 
       <div className="page-layout__content">
-        {available.length === 0 && !isLoading && (
+        {isLoading && <div className="page-layout__loading">Loading...</div>}
+
+        {!isLoading && available.length === 0 && (
           <div className="page-layout__empty">
             <p>No {activeTab} available in the registry.</p>
           </div>
         )}
 
-        {available.map((item) => {
-          const id = item.id || (item as any).name || (item as any).slug;
-          const isInstalled = installedIds.has(id);
-          return (
-            <div key={id} className="page-layout__card">
-              <div className="page-layout__card-info">
-                <span className="page-layout__card-name">
-                  {item.name || id}
-                </span>
-                {item.description && (
-                  <span className="page-layout__card-desc">
-                    {item.description}
+        {!isLoading &&
+          available.map((item) => {
+            const id = item.id || (item as any).name || (item as any).slug;
+            const isInstalled = installedIds.has(id);
+            return (
+              <div key={id} className="page-layout__card">
+                <div className="page-layout__card-info">
+                  <span className="page-layout__card-name">
+                    {item.name || id}
                   </span>
-                )}
+                  {item.description && (
+                    <span className="page-layout__card-desc">
+                      {item.description}
+                    </span>
+                  )}
+                </div>
+                <span
+                  className={`page-layout__card-badge${isInstalled ? ' page-layout__card-badge--installed' : ''}`}
+                >
+                  {isInstalled ? 'Installed' : 'Available'}
+                </span>
               </div>
-              <span
-                className={`page-layout__card-badge${isInstalled ? ' page-layout__card-badge--installed' : ''}`}
-              >
-                {isInstalled ? 'Installed' : 'Available'}
-              </span>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
-    </SplitPaneLayout>
+    </div>
   );
 }

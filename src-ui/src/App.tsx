@@ -333,15 +333,23 @@ function App() {
         path === '/layouts/new' ||
         (path.startsWith('/layouts/') && path.endsWith('/edit'))
       ) {
-        setCurrentView({ type: 'layouts' });
+        setCurrentView({ type: 'agents' });
         return;
       }
       if (path === '/prompts' || path.startsWith('/prompts/')) {
-        setCurrentView({ type: 'prompts' });
+        setCurrentView({ type: 'playbooks' });
+        return;
+      }
+      if (path === '/playbooks' || path.startsWith('/playbooks/')) {
+        setCurrentView({ type: 'playbooks' });
         return;
       }
       if (path === '/skills' || path.startsWith('/skills/')) {
-        setCurrentView({ type: 'skills' });
+        setCurrentView({ type: 'registry' });
+        return;
+      }
+      if (path === '/registry' || path.startsWith('/registry/')) {
+        setCurrentView({ type: 'registry' });
         return;
       }
       if (path === '/plugins' || path.startsWith('/plugins/')) {
