@@ -6,18 +6,28 @@ vi.mock('../../telemetry/metrics.js', () => ({
 
 vi.mock('../../providers/registry.js', () => {
   const pluginProvider = {
-    listAvailable: vi.fn().mockResolvedValue([{ id: 'p1', name: 'Plugin 1', version: '1.0.0' }]),
+    listAvailable: vi
+      .fn()
+      .mockResolvedValue([{ id: 'p1', name: 'Plugin 1', version: '1.0.0' }]),
     listInstalled: vi.fn().mockResolvedValue([]),
     install: vi.fn().mockResolvedValue({ success: true }),
     uninstall: vi.fn().mockResolvedValue({ success: true }),
   };
   const skillProvider = {
-    listAvailable: vi.fn().mockResolvedValue([{ id: 's1', name: 'Skill 1', description: 'A skill' }]),
+    listAvailable: vi
+      .fn()
+      .mockResolvedValue([
+        { id: 's1', name: 'Skill 1', description: 'A skill' },
+      ]),
     getContent: vi.fn().mockResolvedValue('# Skill content'),
   };
   return {
-    getPluginRegistryProviders: vi.fn().mockReturnValue([{ provider: pluginProvider, source: 'test' }]),
-    getSkillRegistryProviders: vi.fn().mockReturnValue([{ provider: skillProvider, source: 'test' }]),
+    getPluginRegistryProviders: vi
+      .fn()
+      .mockReturnValue([{ provider: pluginProvider, source: 'test' }]),
+    getSkillRegistryProviders: vi
+      .fn()
+      .mockReturnValue([{ provider: skillProvider, source: 'test' }]),
     getAgentRegistryProvider: vi.fn().mockReturnValue({
       listAvailable: vi.fn().mockResolvedValue([]),
       listInstalled: vi.fn().mockResolvedValue([]),
@@ -43,10 +53,17 @@ vi.mock('../../services/skill-service.js', () => ({
 const { createRegistryRoutes } = await import('../registry.js');
 
 function setup() {
-  const configLoader = { getProjectHomeDir: vi.fn().mockReturnValue('/tmp'), saveIntegration: vi.fn() };
+  const configLoader = {
+    getProjectHomeDir: vi.fn().mockReturnValue('/tmp'),
+    saveIntegration: vi.fn(),
+  };
   const refreshACPModes = vi.fn().mockResolvedValue(undefined);
   const reloadSkills = vi.fn().mockResolvedValue(undefined);
-  const app = createRegistryRoutes(configLoader as any, refreshACPModes, reloadSkills);
+  const app = createRegistryRoutes(
+    configLoader as any,
+    refreshACPModes,
+    reloadSkills,
+  );
   return { app, configLoader, refreshACPModes, reloadSkills };
 }
 
@@ -68,17 +85,21 @@ describe('Registry Routes', () => {
 
   test('POST /plugins/install returns { success }', async () => {
     const { app } = setup();
-    const body = await json(await app.request('/plugins/install', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: 'p1' }),
-    }));
+    const body = await json(
+      await app.request('/plugins/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 'p1' }),
+      }),
+    );
     expect(body.success).toBe(true);
   });
 
   test('DELETE /plugins/:id returns { success }', async () => {
     const { app } = setup();
-    const body = await json(await app.request('/plugins/p1', { method: 'DELETE' }));
+    const body = await json(
+      await app.request('/plugins/p1', { method: 'DELETE' }),
+    );
     expect(body.success).toBe(true);
   });
 
@@ -95,23 +116,29 @@ describe('Registry Routes', () => {
 
   test('POST /skills/install returns { success }', async () => {
     const { app } = setup();
-    const body = await json(await app.request('/skills/install', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: 's1' }),
-    }));
+    const body = await json(
+      await app.request('/skills/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 's1' }),
+      }),
+    );
     expect(body.success).toBe(true);
   });
 
   test('DELETE /skills/:id returns { success }', async () => {
     const { app } = setup();
-    const body = await json(await app.request('/skills/s1', { method: 'DELETE' }));
+    const body = await json(
+      await app.request('/skills/s1', { method: 'DELETE' }),
+    );
     expect(body.success).toBe(true);
   });
 
   test('POST /skills/:id/update returns { success }', async () => {
     const { app } = setup();
-    const body = await json(await app.request('/skills/s1/update', { method: 'POST' }));
+    const body = await json(
+      await app.request('/skills/s1/update', { method: 'POST' }),
+    );
     expect(body.success).toBe(true);
   });
 
@@ -124,11 +151,18 @@ describe('Registry Routes', () => {
   });
 
   test('GET /skills/:id/content returns 404 for unknown skill', async () => {
-    const { getSkillRegistryProviders } = await import('../../providers/registry.js');
-    (getSkillRegistryProviders as any).mockReturnValue([{
-      provider: { listAvailable: vi.fn(), getContent: vi.fn().mockResolvedValue(null) },
-      source: 'test',
-    }]);
+    const { getSkillRegistryProviders } = await import(
+      '../../providers/registry.js'
+    );
+    (getSkillRegistryProviders as any).mockReturnValue([
+      {
+        provider: {
+          listAvailable: vi.fn(),
+          getContent: vi.fn().mockResolvedValue(null),
+        },
+        source: 'test',
+      },
+    ]);
     const { app } = setup();
     const res = await app.request('/skills/unknown/content');
     expect(res.status).toBe(404);

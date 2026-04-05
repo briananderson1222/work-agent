@@ -1,6 +1,6 @@
 import { execSync, spawn } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { homedir, tmpdir } from 'node:os';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -84,6 +84,7 @@ describe('promptYN (answer parsing logic)', () => {
 describe('createPathLink', () => {
   let tmpDir: string;
   let origAppData: string | undefined;
+  let origBinDir: string | undefined;
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'stallion-link-'));
@@ -93,6 +94,8 @@ describe('createPathLink', () => {
     rmSync(tmpDir, { recursive: true, force: true });
     if (origAppData !== undefined) process.env.APPDATA = origAppData;
     else delete process.env.APPDATA;
+    if (origBinDir !== undefined) process.env.STALLION_BIN_DIR = origBinDir;
+    else delete process.env.STALLION_BIN_DIR;
   });
 
   it.runIf(IS_WINDOWS)(
@@ -130,6 +133,8 @@ describe('createPathLink', () => {
   it.runIf(!IS_WINDOWS)(
     'Unix: errors and exits when stallion script is missing',
     () => {
+      origBinDir = process.env.STALLION_BIN_DIR;
+      process.env.STALLION_BIN_DIR = join(tmpDir, 'bin');
       const mockExit = vi
         .spyOn(process, 'exit')
         .mockImplementation((() => {}) as never);
@@ -147,6 +152,28 @@ describe('createPathLink', () => {
 // ─── createAppShortcut ────────────────────────────────────────────────────────
 
 describe('createAppShortcut', () => {
+  let tmpDir: string;
+  let origApplicationsDir: string | undefined;
+  let origLinuxAppsDir: string | undefined;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), 'stallion-shortcut-'));
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+    if (origApplicationsDir !== undefined) {
+      process.env.STALLION_APPLICATIONS_DIR = origApplicationsDir;
+    } else {
+      delete process.env.STALLION_APPLICATIONS_DIR;
+    }
+    if (origLinuxAppsDir !== undefined) {
+      process.env.STALLION_LINUX_APPS_DIR = origLinuxAppsDir;
+    } else {
+      delete process.env.STALLION_LINUX_APPS_DIR;
+    }
+  });
+
   it.runIf(IS_WINDOWS)(
     'Windows: writes a .bat launcher to the detected desktop',
     () => {
@@ -177,7 +204,9 @@ describe('createAppShortcut', () => {
   it.runIf(IS_MAC)(
     'macOS: creates .app bundle with Info.plist and launch script',
     () => {
-      const appDir = join(homedir(), 'Applications', 'Stallion.app');
+      origApplicationsDir = process.env.STALLION_APPLICATIONS_DIR;
+      process.env.STALLION_APPLICATIONS_DIR = tmpDir;
+      const appDir = join(tmpDir, 'Stallion.app');
       if (existsSync(appDir)) rmSync(appDir, { recursive: true });
 
       try {
@@ -204,7 +233,9 @@ describe('createAppShortcut', () => {
   );
 
   it.runIf(!IS_WINDOWS && !IS_MAC)('Linux: creates .desktop entry', () => {
-    const desktopDir = join(homedir(), '.local', 'share', 'applications');
+    origLinuxAppsDir = process.env.STALLION_LINUX_APPS_DIR;
+    process.env.STALLION_LINUX_APPS_DIR = tmpDir;
+    const desktopDir = tmpDir;
     const desktopFile = join(desktopDir, 'stallion.desktop');
     if (existsSync(desktopFile)) rmSync(desktopFile);
 

@@ -7,6 +7,7 @@ import {
 import type { AgentData } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import { resolveAgentExecution } from '../utils/execution';
 
 interface DerivedSession {
   id: string;
@@ -67,12 +68,14 @@ export function useChatDockActions({
 
   const openChatForAgent = useCallback(
     (agent: AgentData, projectSlug?: string, projectName?: string) => {
+      const execution = resolveAgentExecution(agent);
       const sessionId = createChatSession(
         agent.slug,
         agent.name,
         undefined,
         projectSlug,
         projectName,
+        execution,
       );
       setActiveSessionId(sessionId);
       // New chat has no conversationId yet — URL gets no ?chat= param
@@ -112,6 +115,7 @@ export function useChatDockActions({
         agent.name,
         projectSlug,
         projectName,
+        resolveAgentExecution(agent),
       );
       setActiveSessionId(sessionId);
       setActiveChat(conversationId);

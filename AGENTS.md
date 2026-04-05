@@ -1,5 +1,27 @@
 # Agent Notes
 
+## Active Work
+
+The current major initiative is the **Connected Agents Overhaul** — adding
+Claude Agent SDK and Codex as first-class provider adapters alongside the
+existing Bedrock/VoltAgent runtime.
+
+**Read `.plans/01-connected-agents-overhaul.md` before starting any work on
+this initiative.** It contains the full architecture, phased implementation
+plan, exit criteria, decision log, and file index. Pick up from wherever the
+exit criteria checkboxes indicate progress stopped.
+
+## Task Completion Requirements
+
+All of the following must pass before a task is considered complete:
+
+1. `npx biome check src-server/ src-ui/ packages/` — no lint or format errors
+2. `npx tsc --noEmit` — no type errors
+3. `npm test` — all unit tests pass
+4. If UI changes: manual smoke test or Playwright spec
+
+Never skip these gates. If a gate fails, fix the issue before marking done.
+
 ## Stallion CLI
 
 Always use `./stallion` to manage the app — never raw npm scripts, `node esbuild.config.mjs`, or `npx vite build` directly. The CLI handles build orchestration (server + UI) in the correct order.

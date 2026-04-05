@@ -8,8 +8,12 @@ vi.mock('../../telemetry/metrics.js', () => ({
 }));
 
 vi.mock('../../providers/registry.js', () => ({
-  getAgentRegistryProvider: vi.fn().mockReturnValue({ listInstalled: vi.fn().mockResolvedValue([]) }),
-  getIntegrationRegistryProvider: vi.fn().mockReturnValue({ listInstalled: vi.fn().mockResolvedValue([]) }),
+  getAgentRegistryProvider: vi
+    .fn()
+    .mockReturnValue({ listInstalled: vi.fn().mockResolvedValue([]) }),
+  getIntegrationRegistryProvider: vi
+    .fn()
+    .mockReturnValue({ listInstalled: vi.fn().mockResolvedValue([]) }),
 }));
 
 vi.mock('../../services/plugin-permissions.js', () => ({
@@ -27,7 +31,9 @@ const mockManifest = {
   version: '1.0.0',
   description: 'A test plugin',
   permissions: ['network'],
-  settings: [{ key: 'apiKey', label: 'API Key', type: 'string', default: 'default-val' }],
+  settings: [
+    { key: 'apiKey', label: 'API Key', type: 'string', default: 'default-val' },
+  ],
   providers: [{ type: 'test-provider', module: 'provider.js' }],
   layout: { slug: 'test-layout', source: 'layout.js' },
   agents: [],
@@ -44,9 +50,9 @@ vi.mock('node:fs', async (importOriginal) => {
       if (typeof p === 'string' && p.includes('dist/bundle')) return true;
       return false;
     }),
-    readdirSync: vi.fn().mockReturnValue([
-      { name: 'test-plugin', isDirectory: () => true },
-    ]),
+    readdirSync: vi
+      .fn()
+      .mockReturnValue([{ name: 'test-plugin', isDirectory: () => true }]),
     readFileSync: vi.fn().mockReturnValue(JSON.stringify(mockManifest)),
     mkdirSync: vi.fn(),
     rmSync: vi.fn(),
@@ -56,14 +62,24 @@ vi.mock('node:fs', async (importOriginal) => {
 });
 
 vi.mock('node:fs/promises', () => ({
-  readdir: vi.fn().mockResolvedValue([
-    { name: 'test-plugin', isDirectory: () => true },
-  ]),
+  readdir: vi
+    .fn()
+    .mockResolvedValue([{ name: 'test-plugin', isDirectory: () => true }]),
   readFile: vi.fn().mockResolvedValue(JSON.stringify(mockManifest)),
 }));
 
 vi.mock('node:child_process', () => ({
-  execFile: vi.fn((_cmd: string, _args: string[], _opts: any, cb: Function) => cb(null, { stdout: '', stderr: '' })),
+  execFile: vi.fn(
+    (
+      _cmd: string,
+      _args: string[],
+      _opts: any,
+      cb: (
+        error: Error | null,
+        result: { stdout: string; stderr: string },
+      ) => void,
+    ) => cb(null, { stdout: '', stderr: '' }),
+  ),
 }));
 
 vi.mock('node:util', async (importOriginal) => {
@@ -83,7 +99,9 @@ const mockOverrides: Record<string, any> = {};
 vi.mock('../../domain/config-loader.js', () => ({
   ConfigLoader: vi.fn().mockImplementation(() => ({
     loadPluginOverrides: vi.fn().mockResolvedValue(mockOverrides),
-    savePluginOverrides: vi.fn().mockImplementation(async (o: any) => Object.assign(mockOverrides, o)),
+    savePluginOverrides: vi
+      .fn()
+      .mockImplementation(async (o: any) => Object.assign(mockOverrides, o)),
   })),
 }));
 
@@ -146,11 +164,13 @@ describe('Plugin Routes', () => {
 
   test('PUT /:name/settings saves and returns { success: true }', async () => {
     const app = setup();
-    const body = await json(await app.request('/test-plugin/settings', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ settings: { apiKey: 'new-key' } }),
-    }));
+    const body = await json(
+      await app.request('/test-plugin/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ settings: { apiKey: 'new-key' } }),
+      }),
+    );
     expect(body).toEqual({ success: true });
   });
 
@@ -180,11 +200,13 @@ describe('Plugin Routes', () => {
 
   test('PUT /:name/overrides saves and returns { success: true }', async () => {
     const app = setup();
-    const body = await json(await app.request('/test-plugin/overrides', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ disabled: ['test-provider'] }),
-    }));
+    const body = await json(
+      await app.request('/test-plugin/overrides', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ disabled: ['test-provider'] }),
+      }),
+    );
     expect(body).toEqual({ success: true });
   });
 });

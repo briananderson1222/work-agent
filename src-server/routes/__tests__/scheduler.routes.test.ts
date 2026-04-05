@@ -32,7 +32,12 @@ const mockStats = {
 
 const mockStatus = {
   providers: {
-    builtin: { id: 'builtin', displayName: 'Built-in', running: true, lastTick: '2026-03-27T07:00:00Z' },
+    builtin: {
+      id: 'builtin',
+      displayName: 'Built-in',
+      running: true,
+      lastTick: '2026-03-27T07:00:00Z',
+    },
   },
 };
 
@@ -48,9 +53,15 @@ function createMockService() {
     listJobs: vi.fn().mockResolvedValue([mockJob]),
     getStats: vi.fn().mockResolvedValue(mockStats),
     getStatus: vi.fn().mockResolvedValue(mockStatus),
-    previewSchedule: vi.fn().mockResolvedValue(['2026-03-28T09:00:00Z', '2026-03-29T09:00:00Z']),
+    previewSchedule: vi
+      .fn()
+      .mockResolvedValue(['2026-03-28T09:00:00Z', '2026-03-29T09:00:00Z']),
     getJobLogs: vi.fn().mockResolvedValue([
-      { timestamp: '2026-03-27T09:00:00Z', status: 'success', output: '/path/to/output.md' },
+      {
+        timestamp: '2026-03-27T09:00:00Z',
+        status: 'success',
+        output: '/path/to/output.md',
+      },
     ]),
     readRunFile: vi.fn().mockResolvedValue('# Report content'),
     addJob: vi.fn().mockResolvedValue('created'),
@@ -131,7 +142,9 @@ describe('Scheduler Routes', () => {
 
   test('GET /jobs/preview-schedule returns array of date strings', async () => {
     const { app } = setup();
-    const body = await json(await app.request('/jobs/preview-schedule?cron=*/5+*+*+*+*'));
+    const body = await json(
+      await app.request('/jobs/preview-schedule?cron=*/5+*+*+*+*'),
+    );
     expect(body.success).toBe(true);
     expect(Array.isArray(body.data)).toBe(true);
     expect(body.data.length).toBeGreaterThan(0);
@@ -153,22 +166,26 @@ describe('Scheduler Routes', () => {
 
   test('POST /runs/output returns { success, data: { content } }', async () => {
     const { app } = setup();
-    const body = await json(await app.request('/runs/output', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path: '/tmp/output.md' }),
-    }));
+    const body = await json(
+      await app.request('/runs/output', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: '/tmp/output.md' }),
+      }),
+    );
     expect(body.success).toBe(true);
     expect(body.data.content).toBe('# Report content');
   });
 
   test('POST /jobs creates a job and returns { success, data }', async () => {
     const { app, svc } = setup();
-    const body = await json(await app.request('/jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'test-job', prompt: 'do stuff' }),
-    }));
+    const body = await json(
+      await app.request('/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'test-job', prompt: 'do stuff' }),
+      }),
+    );
     expect(body.success).toBe(true);
     expect(body.data).toBeDefined();
     expect(svc.addJob).toHaveBeenCalled();
@@ -176,18 +193,25 @@ describe('Scheduler Routes', () => {
 
   test('PUT /jobs/:target edits a job', async () => {
     const { app, svc } = setup();
-    const body = await json(await app.request('/jobs/daily-report', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: 'updated prompt' }),
-    }));
+    const body = await json(
+      await app.request('/jobs/daily-report', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'updated prompt' }),
+      }),
+    );
     expect(body.success).toBe(true);
-    expect(svc.editJob).toHaveBeenCalledWith('daily-report', expect.any(Object));
+    expect(svc.editJob).toHaveBeenCalledWith(
+      'daily-report',
+      expect.any(Object),
+    );
   });
 
   test('POST /jobs/:target/run triggers a run', async () => {
     const { app, svc } = setup();
-    const body = await json(await app.request('/jobs/daily-report/run', { method: 'POST' }));
+    const body = await json(
+      await app.request('/jobs/daily-report/run', { method: 'POST' }),
+    );
     expect(body.success).toBe(true);
     expect(svc.runJob).toHaveBeenCalledWith('daily-report');
   });
@@ -197,21 +221,27 @@ describe('Scheduler Routes', () => {
 
   test('PUT /jobs/:target/enable returns { success: true }', async () => {
     const { app, svc } = setup();
-    const body = await json(await app.request('/jobs/daily-report/enable', { method: 'PUT' }));
+    const body = await json(
+      await app.request('/jobs/daily-report/enable', { method: 'PUT' }),
+    );
     expect(body).toEqual({ success: true });
     expect(svc.enableJob).toHaveBeenCalledWith('daily-report');
   });
 
   test('PUT /jobs/:target/disable returns { success: true }', async () => {
     const { app, svc } = setup();
-    const body = await json(await app.request('/jobs/daily-report/disable', { method: 'PUT' }));
+    const body = await json(
+      await app.request('/jobs/daily-report/disable', { method: 'PUT' }),
+    );
     expect(body).toEqual({ success: true });
     expect(svc.disableJob).toHaveBeenCalledWith('daily-report');
   });
 
   test('DELETE /jobs/:target returns { success: true }', async () => {
     const { app, svc } = setup();
-    const body = await json(await app.request('/jobs/daily-report', { method: 'DELETE' }));
+    const body = await json(
+      await app.request('/jobs/daily-report', { method: 'DELETE' }),
+    );
     expect(body).toEqual({ success: true });
     expect(svc.removeJob).toHaveBeenCalledWith('daily-report');
   });

@@ -4,12 +4,25 @@ const { createEnrichedAgentRoutes } = await import('../enriched-agents.js');
 
 function setup(overrides: Record<string, unknown> = {}) {
   const metadata = new Map([
-    ['default', { name: 'Default', description: 'Default agent', updatedAt: '2026-01-01' }],
-    ['custom', { name: 'Custom', description: 'Custom agent', updatedAt: '2026-01-02' }],
+    [
+      'default',
+      {
+        name: 'Default',
+        description: 'Default agent',
+        updatedAt: '2026-01-01',
+      },
+    ],
+    [
+      'custom',
+      { name: 'Custom', description: 'Custom agent', updatedAt: '2026-01-02' },
+    ],
   ]);
   const deps = {
     agentMetadataMap: metadata,
-    activeAgents: new Map([['default', {}], ['custom', {}]]),
+    activeAgents: new Map([
+      ['default', {}],
+      ['custom', {}],
+    ]),
     loadAgent: vi.fn().mockResolvedValue({
       name: 'custom',
       prompt: 'test prompt',
@@ -19,6 +32,10 @@ function setup(overrides: Record<string, unknown> = {}) {
       maxSteps: 10,
       icon: '🤖',
       commands: [],
+      execution: {
+        runtimeConnectionId: 'claude-runtime',
+        modelId: 'claude-3',
+      },
       tools: { mcpServers: ['fs'], autoApprove: [] },
       skills: [],
       guardrails: undefined,
@@ -51,6 +68,10 @@ describe('Enriched Agent Routes', () => {
       name: 'Custom',
       prompt: 'test prompt',
       model: 'claude-3',
+      execution: {
+        runtimeConnectionId: 'claude-runtime',
+        modelId: 'claude-3',
+      },
       toolsConfig: { mcpServers: ['fs'], autoApprove: [] },
       updatedAt: '2026-01-02',
     });

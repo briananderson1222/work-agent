@@ -40,7 +40,9 @@ function createMockCtx(overrides: Record<string, unknown> = {}) {
     activeAgents: new Map([['default', mockAgent]]),
     agentTools: new Map([['default', [{ name: 'tool1' }]]]),
     globalToolRegistry: new Map(),
-    modelCatalog: { resolveModelId: vi.fn().mockResolvedValue('resolved-model') },
+    modelCatalog: {
+      resolveModelId: vi.fn().mockResolvedValue('resolved-model'),
+    },
     createBedrockModel: vi.fn().mockResolvedValue('bedrock-model'),
     framework: {
       createTempAgent: vi.fn().mockResolvedValue(mockAgent),
@@ -65,15 +67,21 @@ describe('Invoke Routes', () => {
   test('POST /agents/:slug/invoke returns { success, response, usage }', async () => {
     const ctx = createMockCtx();
     const app = createInvokeRoutes(ctx as any);
-    const body = await json(await app.request('/agents/default/invoke', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input: 'Hello' }),
-    }));
+    const body = await json(
+      await app.request('/agents/default/invoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: 'Hello' }),
+      }),
+    );
     expect(body.success).toBe(true);
     expect(body.response).toBe('Hello from agent');
     // SDK passes through usage, steps, toolCalls, toolResults, reasoning
-    expect(body.usage).toEqual({ promptTokens: 10, completionTokens: 20, totalTokens: 30 });
+    expect(body.usage).toEqual({
+      promptTokens: 10,
+      completionTokens: 20,
+      totalTokens: 30,
+    });
     expect(body.steps).toBeDefined();
     expect(body.toolCalls).toBeDefined();
     expect(body.toolResults).toBeDefined();
@@ -105,11 +113,13 @@ describe('Invoke Routes', () => {
       reasoning: null,
     });
     const app = createInvokeRoutes(ctx as any);
-    const body = await json(await app.request('/agents/default/invoke', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ input: 'Hello', schema: { type: 'object' } }),
-    }));
+    const body = await json(
+      await app.request('/agents/default/invoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ input: 'Hello', schema: { type: 'object' } }),
+      }),
+    );
     expect(body.success).toBe(true);
     expect(body.response).toEqual({ name: 'test' });
   });
@@ -118,11 +128,13 @@ describe('Invoke Routes', () => {
   test('POST /invoke returns { success, response, usage, steps }', async () => {
     const ctx = createMockCtx();
     const app = createInvokeRoutes(ctx as any);
-    const body = await json(await app.request('/invoke', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: 'Do something' }),
-    }));
+    const body = await json(
+      await app.request('/invoke', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Do something' }),
+      }),
+    );
     expect(body.success).toBe(true);
     expect(body.response).toBe('Hello from agent');
     expect(body.usage).toBeDefined();
@@ -131,7 +143,9 @@ describe('Invoke Routes', () => {
 
   test('POST /invoke returns 500 on error', async () => {
     const ctx = createMockCtx();
-    ctx.framework.createTempAgent = vi.fn().mockRejectedValue(new Error('boom'));
+    ctx.framework.createTempAgent = vi
+      .fn()
+      .mockRejectedValue(new Error('boom'));
     const app = createInvokeRoutes(ctx as any);
     const res = await app.request('/invoke', {
       method: 'POST',

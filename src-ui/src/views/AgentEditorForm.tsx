@@ -1,7 +1,10 @@
+import type { ConnectionConfig } from '@stallion-ai/shared';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { AgentIcon } from '../components/AgentIcon';
 import { Checkbox } from '../components/Checkbox';
 import { ModelSelector } from '../components/ModelSelector';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import type { NavigationView, Tool } from '../types';
 import './editor-layout.css';
 
@@ -23,6 +26,11 @@ export interface AgentFormData {
     mcpServers: string[];
     available: string[];
     autoApprove: string[];
+  };
+  execution: {
+    runtimeConnectionId: string;
+    modelConnectionId: string;
+    runtimeOptions: Record<string, unknown>;
   };
   icon: string;
   skills: string[];
@@ -73,10 +81,43 @@ export function AgentEditorForm({
   onNavigate,
   onOpenAddModal,
 }: AgentEditorFormProps) {
+  const { apiBase } = useApiBase();
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [expandedIntegrations, setExpandedIntegrations] = useState<
     Record<string, boolean>
   >({});
+  const { data: runtimeConnections = [] } = useQuery<ConnectionConfig[]>({
+    queryKey: ['connections', 'runtimes'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/connections/runtimes`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    },
+  });
+  const { data: modelConnections = [] } = useQuery<ConnectionConfig[]>({
+    queryKey: ['connections', 'models'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/connections/models`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    },
+  });
+  const availableRuntimeConnections = runtimeConnections.filter(
+    (connection) =>
+      connection.enabled &&
+      connection.type !== 'acp' &&
+      connection.capabilities.includes('agent-runtime'),
+  );
+  const selectedRuntimeId =
+    form.execution.runtimeConnectionId || 'bedrock-runtime';
+  const selectedRuntime = availableRuntimeConnections.find(
+    (connection) => connection.id === selectedRuntimeId,
+  );
+  const needsModelConnection = selectedRuntimeId === 'bedrock-runtime';
+  const readyModelConnections = modelConnections.filter(
+    (connection) =>
+      connection.enabled && connection.capabilities.includes('llm'),
+  );
 
   return (
     <>
@@ -225,6 +266,254 @@ export function AgentEditorForm({
         </div>
       </div>
 
+      <div className="agent-editor__section">
+        <div className="agent-editor__section-header">
+          <h4 className="agent-editor__section-title">Execution</h4>
+          <p className="agent-editor__section-desc">
+            Which AI engine powers this agent and how it runs. To inspect or
+            test a runtime, visit{' '}
+            <button
+              type="button"
+              className="editor-link"
+              onClick={() => onNavigate({ type: 'connections' })}
+            >
+              Connections
+            </button>
+            .
+          </p>
+        </div>
+
+        <div className="editor-field">
+          <label className="editor-label" htmlFor="ae-runtime-connection">
+            Runtime Connection
+          </label>
+          <select
+            id="ae-runtime-connection"
+            className="editor-input"
+            value={selectedRuntimeId}
+            disabled={locked}
+            onChange={(e) =>
+              setForm((current) => ({
+                ...current,
+                execution: {
+                  runtimeConnectionId: e.target.value,
+                  modelConnectionId:
+                    e.target.value === 'bedrock-runtime'
+                      ? current.execution.modelConnectionId
+                      : '',
+                  runtimeOptions:
+                    e.target.value === current.execution.runtimeConnectionId
+                      ? current.execution.runtimeOptions
+                      : {},
+                },
+              }))
+            }
+          >
+            {availableRuntimeConnections.map((connection) => (
+              <option key={connection.id} value={connection.id}>
+                {connection.name}
+              </option>
+            ))}
+          </select>
+          <span className="editor-hint">
+            {selectedRuntime?.description ||
+              (selectedRuntimeId === 'claude-runtime'
+                ? 'Runs via the Claude Agent SDK. Requires ANTHROPIC_API_KEY.'
+                : selectedRuntimeId === 'codex-runtime'
+                  ? 'Runs via the Codex CLI. Requires Codex installed and OPENAI_API_KEY.'
+                  : 'Runs via AWS Bedrock. Requires a configured Model Connection.')}
+          </span>
+        </div>
+
+        {needsModelConnection && (
+          <div className="editor-field">
+            <label className="editor-label" htmlFor="ae-model-connection">
+              Model Connection
+            </label>
+            <select
+              id="ae-model-connection"
+              className="editor-input"
+              value={form.execution.modelConnectionId}
+              disabled={locked}
+              onChange={(e) =>
+                setForm((current) => ({
+                  ...current,
+                  execution: {
+                    ...current.execution,
+                    modelConnectionId: e.target.value,
+                  },
+                }))
+              }
+            >
+              <option value="">Use app default</option>
+              {readyModelConnections.map((connection) => (
+                <option key={connection.id} value={connection.id}>
+                  {connection.name}
+                </option>
+              ))}
+            </select>
+            <span className="editor-hint">
+              Which Bedrock connection to use. Leave blank to use the app
+              default.
+            </span>
+          </div>
+        )}
+
+        <div className="editor-field">
+          <label className="editor-label" htmlFor="ae-model-id">
+            Model ID
+          </label>
+          <input
+            id="ae-model-id"
+            type="text"
+            className="editor-input"
+            name="modelId"
+            value={form.modelId}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, modelId: e.target.value }))
+            }
+            placeholder={
+              selectedRuntimeId === 'claude-runtime'
+                ? 'e.g. claude-opus-4-6'
+                : selectedRuntimeId === 'codex-runtime'
+                  ? 'e.g. codex-mini'
+                  : selectedRuntimeId === 'bedrock-runtime'
+                    ? 'e.g. anthropic.claude-3-5-sonnet-20241022-v2:0'
+                    : 'Model ID (leave blank for runtime default)'
+            }
+            disabled={locked}
+          />
+          <span className="editor-hint">
+            Leave blank to use the runtime's default model.
+          </span>
+        </div>
+
+        {selectedRuntimeId === 'claude-runtime' && (
+          <>
+            <div className="editor-field">
+              <label className="editor-label">Extended Thinking</label>
+              <label className="editor-label editor-label--inline">
+                <Checkbox
+                  checked={form.execution.runtimeOptions.thinking !== false}
+                  onChange={(checked) =>
+                    setForm((current) => ({
+                      ...current,
+                      execution: {
+                        ...current.execution,
+                        runtimeOptions: {
+                          ...current.execution.runtimeOptions,
+                          thinking: checked,
+                        },
+                      },
+                    }))
+                  }
+                  disabled={locked}
+                />
+                Enable by default
+              </label>
+              <span className="editor-hint">
+                Allows the model to reason step-by-step before responding.
+              </span>
+            </div>
+            <div className="editor-field">
+              <label className="editor-label" htmlFor="ae-claude-effort">
+                Thinking Budget
+              </label>
+              <select
+                id="ae-claude-effort"
+                className="editor-input"
+                value={String(form.execution.runtimeOptions.effort || 'medium')}
+                disabled={locked}
+                onChange={(e) =>
+                  setForm((current) => ({
+                    ...current,
+                    execution: {
+                      ...current.execution,
+                      runtimeOptions: {
+                        ...current.execution.runtimeOptions,
+                        effort: e.target.value,
+                      },
+                    },
+                  }))
+                }
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="max">Maximum</option>
+              </select>
+              <span className="editor-hint">
+                Controls how much reasoning the model does. Higher = more
+                thorough, slower, costlier.
+              </span>
+            </div>
+          </>
+        )}
+
+        {selectedRuntimeId === 'codex-runtime' && (
+          <>
+            <div className="editor-field">
+              <label className="editor-label" htmlFor="ae-codex-effort">
+                Reasoning Effort
+              </label>
+              <select
+                id="ae-codex-effort"
+                className="editor-input"
+                value={String(
+                  form.execution.runtimeOptions.reasoningEffort || 'medium',
+                )}
+                disabled={locked}
+                onChange={(e) =>
+                  setForm((current) => ({
+                    ...current,
+                    execution: {
+                      ...current.execution,
+                      runtimeOptions: {
+                        ...current.execution.runtimeOptions,
+                        reasoningEffort: e.target.value,
+                      },
+                    },
+                  }))
+                }
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="xhigh">Highest</option>
+              </select>
+              <span className="editor-hint">
+                How deeply Codex reasons before responding.
+              </span>
+            </div>
+            <div className="editor-field">
+              <label className="editor-label">Fast Mode</label>
+              <label className="editor-label editor-label--inline">
+                <Checkbox
+                  checked={form.execution.runtimeOptions.fastMode === true}
+                  onChange={(checked) =>
+                    setForm((current) => ({
+                      ...current,
+                      execution: {
+                        ...current.execution,
+                        runtimeOptions: {
+                          ...current.execution.runtimeOptions,
+                          fastMode: checked,
+                        },
+                      },
+                    }))
+                  }
+                  disabled={locked}
+                />
+                Enable fast mode
+              </label>
+              <span className="editor-hint">
+                Trades reasoning depth for faster responses.
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Integrations */}
       <div className="agent-editor__section">
         <div className="editor-field">
@@ -283,8 +572,8 @@ export function AgentEditorForm({
                     `${prefix}*`,
                   );
                   // No entries for this integration in available → all tools active
-                  const hasExplicitAvailable = form.tools.available.some(
-                    (a) => a.startsWith(prefix),
+                  const hasExplicitAvailable = form.tools.available.some((a) =>
+                    a.startsWith(prefix),
                   );
                   const allToolsActive =
                     !hasExplicitAvailable ||
@@ -458,9 +747,7 @@ export function AgentEditorForm({
                                     onClick={() => {
                                       if (locked) return;
                                       setForm((f) => {
-                                        const ap = new Set(
-                                          f.tools.autoApprove,
-                                        );
+                                        const ap = new Set(f.tools.autoApprove);
                                         if (ap.has(`${prefix}*`)) {
                                           ap.delete(`${prefix}*`);
                                           tools.forEach((t) => {
@@ -672,24 +959,26 @@ export function AgentEditorForm({
 
         {advancedOpen && (
           <div className="agent-editor__advanced-content">
-            <div className="editor-field">
-              <label className="editor-label">
-                Model{' '}
-                <span className="editor-hint">
-                  — leave empty to use default
-                </span>
-              </label>
-              <div
-                className={locked ? 'agent-editor__locked-field' : undefined}
-              >
-                <ModelSelector
-                  value={form.modelId}
-                  onChange={(modelId) => setForm((f) => ({ ...f, modelId }))}
-                  placeholder="Select a model..."
-                  defaultModel={appConfig?.defaultModel}
-                />
+            {selectedRuntimeId === 'bedrock-runtime' && (
+              <div className="editor-field">
+                <label className="editor-label">
+                  Model{' '}
+                  <span className="editor-hint">
+                    — leave empty to use default
+                  </span>
+                </label>
+                <div
+                  className={locked ? 'agent-editor__locked-field' : undefined}
+                >
+                  <ModelSelector
+                    value={form.modelId}
+                    onChange={(modelId) => setForm((f) => ({ ...f, modelId }))}
+                    placeholder="Select a model..."
+                    defaultModel={appConfig?.defaultModel}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="editor-field">
               <label className="editor-label" htmlFor="ae-region">

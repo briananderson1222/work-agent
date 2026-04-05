@@ -53,7 +53,9 @@ describe('Models Routes', () => {
 
   test('GET /pricing/:modelId returns { success, data } with pricing fields', async () => {
     const { default: app } = await import('../models.js');
-    const body = await json(await app.request('/pricing/anthropic.claude-3-sonnet'));
+    const body = await json(
+      await app.request('/pricing/anthropic.claude-3-sonnet'),
+    );
     expect(body.success).toBe(true);
     expect(body.data).toHaveProperty('modelId');
     expect(body.data).toHaveProperty('region');

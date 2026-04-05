@@ -400,6 +400,7 @@ The Grafana dashboard at `http://localhost:3333/d/stallion-overview` provides 16
 | `npm run test:coverage` | Unit tests with coverage report |
 | `npm run test:android` | Playwright Android device tests |
 | `npx playwright test` | Run integration tests |
+| `npm run install:playwright` | Install the repo-local Chromium bundle used by Playwright |
 | **Lint** | |
 | `npm run lint` | Biome lint check |
 | `npm run lint:fix` | Biome auto-fix |
@@ -424,8 +425,9 @@ npm run dev:desktop      # Dev mode with hot reload
 npm test
 
 # Integration tests (start the app first)
+npm run install:playwright
 ./stallion start
-npx playwright test tests/plugin-system.spec.ts
+PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test tests/plugin-system.spec.ts
 ```
 
 See [Testing Guide](docs/guides/testing.md) for conventions, shared utilities, and the new-feature checklist.

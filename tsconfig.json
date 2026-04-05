@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "baseUrl": ".",
     "target": "ES2022",
     "module": "ESNext",
     "lib": ["ES2022"],
@@ -15,7 +16,10 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "types": ["node", "vitest/globals"]
+    "types": ["node", "vitest/globals"],
+    "paths": {
+      "@stallion-ai/contracts/*": ["packages/contracts/src/*"]
+    }
   },
   "include": ["src-server/**/*", "src-shared/**/*"],
   "exclude": ["node_modules", "dist-server", "**/*.test.ts"]

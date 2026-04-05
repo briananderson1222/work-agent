@@ -523,7 +523,9 @@ export function PromptsView() {
                   }}
                   size="sm"
                 />
-                <span className="editor-label">Available as slash command for all agents</span>
+                <span className="editor-label">
+                  Available as slash command for all agents
+                </span>
               </div>
             </div>
 

@@ -213,7 +213,7 @@ export function shortcut(): void {
 
 export async function clean(force = false): Promise<void> {
   if (!force) {
-    console.log('\n⚠️  This will delete ~/.stallion-ai which includes:');
+    console.log(`\n⚠️  This will delete ${PROJECT_HOME} which includes:`);
     console.log('   - All installed plugins');
     console.log('   - Conversation history');
     console.log('   - Tool configurations\n');
