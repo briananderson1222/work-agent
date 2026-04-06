@@ -509,20 +509,25 @@ export function useConfigQuery(config?: QueryConfig<any>) {
 }
 
 /**
- * Fetch all registered prompts
+ * Fetch all registered playbooks (formerly prompts)
  */
-export function usePromptsQuery(config?: QueryConfig<any>) {
+export function usePlaybooksQuery(config?: QueryConfig<any>) {
   return useApiQuery(
-    ['prompts'],
+    ['playbooks'],
     async () => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/api/prompts`);
+      const response = await fetch(`${apiBase}/api/playbooks`);
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
       return result.data;
     },
     config,
   );
+}
+
+/** @deprecated Use usePlaybooksQuery instead */
+export function usePromptsQuery(config?: QueryConfig<any>) {
+  return usePlaybooksQuery(config);
 }
 
 /**
@@ -830,12 +835,19 @@ export function useKnowledgeUpdateMutation(
       metadata?: Record<string, any>;
     }) => {
       const { updateKnowledgeDoc } = await import('./api');
-      return updateKnowledgeDoc(projectSlug, docId, { content, metadata }, namespace);
+      return updateKnowledgeDoc(
+        projectSlug,
+        docId,
+        { content, metadata },
+        namespace,
+      );
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['knowledge', 'docs', projectSlug] });
       qc.invalidateQueries({ queryKey: ['knowledge', 'tree', projectSlug] });
-      qc.invalidateQueries({ queryKey: ['knowledge', 'filtered', projectSlug] });
+      qc.invalidateQueries({
+        queryKey: ['knowledge', 'filtered', projectSlug],
+      });
     },
   });
 }

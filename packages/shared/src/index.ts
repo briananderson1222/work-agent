@@ -24,6 +24,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build as esbuild } from 'esbuild';
 
+export * from './runtime-events.js';
+
 const __shared_dir = dirname(fileURLToPath(import.meta.url));
 
 // ── Plugin Manifest ────────────────────────────────────────────────
@@ -86,6 +88,7 @@ export interface AgentSpec {
   description?: string;
   icon?: string;
   model?: string;
+  execution?: AgentExecutionConfig;
   region?: string;
   maxSteps?: number;
   guardrails?: AgentGuardrails;
@@ -360,6 +363,57 @@ export interface LayoutPrompt {
   agent?: string;
 }
 
+export type ConnectionKind = 'model' | 'runtime';
+
+export type ConnectionCapability =
+  | 'llm'
+  | 'embedding'
+  | 'vectordb'
+  | 'agent-runtime'
+  | 'session-lifecycle'
+  | 'tool-calls'
+  | 'interrupt'
+  | 'approvals'
+  | 'resume'
+  | 'reasoning-events'
+  | 'external-process'
+  | 'acp';
+
+export type ConnectionStatus =
+  | 'ready'
+  | 'degraded'
+  | 'missing_prerequisites'
+  | 'disabled'
+  | 'error';
+
+export interface ConnectionConfig {
+  id: string;
+  kind: ConnectionKind;
+  type: string;
+  name: string;
+  enabled: boolean;
+  description?: string;
+  capabilities: ConnectionCapability[];
+  config: Record<string, unknown>;
+  status: ConnectionStatus;
+  prerequisites: Prerequisite[];
+  lastCheckedAt?: string | null;
+}
+
+export interface RuntimeConnectionSettings {
+  name?: string;
+  enabled?: boolean;
+  config?: Record<string, unknown>;
+}
+
+export interface AgentExecutionConfig {
+  runtimeConnectionId: string;
+  modelConnectionId?: string | null;
+  modelId?: string | null;
+  runtimeOptions?: Record<string, unknown>;
+  modelOptions?: Record<string, unknown>;
+}
+
 // ── Provider Connection ────────────────────────────────────────────
 
 export interface ProviderConnectionConfig {
@@ -427,6 +481,7 @@ export interface AppConfig {
   defaultEmbeddingProvider?: string;
   defaultEmbeddingModel?: string;
   defaultVectorDbProvider?: string;
+  runtimeConnections?: Record<string, RuntimeConnectionSettings>;
   terminalShell?: string;
   disableDefaultSkillRegistries?: boolean;
 }
@@ -438,9 +493,9 @@ export interface TemplateVariable {
   format?: string;
 }
 
-// ── Prompt ──────────────────────────────────────────────────────────
+// ── Playbook (formerly Prompt) ──────────────────────────────────────
 
-export interface Prompt {
+export interface Playbook {
   id: string;
   name: string;
   content: string;
@@ -455,6 +510,9 @@ export interface Prompt {
   createdAt: string;
   updatedAt: string;
 }
+
+/** @deprecated Use Playbook instead */
+export type Prompt = Playbook;
 
 // ── API Contracts ──────────────────────────────────────────────────
 // Shared between core server endpoints and dev server endpoints.

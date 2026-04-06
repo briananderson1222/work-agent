@@ -29,7 +29,6 @@ import { setAuthCallback } from './lib/apiClient';
 import { NotificationsPage } from './pages/NotificationsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import type { DockMode, NavigationView } from './types';
-import { AgentsHub } from './views/AgentsHub';
 import { AgentsView } from './views/AgentsView';
 import { ConnectionsHub } from './views/ConnectionsHub';
 import { IntegrationsView } from './views/IntegrationsView';
@@ -37,14 +36,15 @@ import { KnowledgeConnectionView } from './views/KnowledgeConnectionView';
 import { LayoutsView } from './views/LayoutsView';
 import { LayoutView } from './views/LayoutView';
 import { MonitoringViewWithBoundary as MonitoringView } from './views/MonitoringView';
+import { PlaybooksView } from './views/PlaybooksView';
 import { PluginManagementView } from './views/PluginManagementView';
 import { ProjectPage } from './views/ProjectPage';
 import { ProjectSettingsView } from './views/ProjectSettingsView';
-import { PromptsView } from './views/PromptsView';
 import { ProviderSettingsView } from './views/ProviderSettingsView';
+import { RegistryView } from './views/RegistryView';
+import { RuntimeConnectionView } from './views/RuntimeConnectionView';
 import { ScheduleView } from './views/ScheduleView';
 import { SettingsView } from './views/SettingsView';
-import { SkillsView } from './views/SkillsView';
 import { ToolManagementView } from './views/ToolManagementView';
 import { WorkflowManagementView } from './views/WorkflowManagementView';
 
@@ -115,13 +115,17 @@ function App() {
       return { type: 'agents' };
     }
     if (path === '/layouts' || path === '/layouts/new')
-      return { type: 'layouts' };
+      return { type: 'agents' };
     if (path.startsWith('/layouts/') && path.endsWith('/edit'))
-      return { type: 'layouts' };
+      return { type: 'agents' };
     if (path === '/prompts' || path.startsWith('/prompts/'))
-      return { type: 'prompts' };
+      return { type: 'playbooks' };
+    if (path === '/playbooks' || path.startsWith('/playbooks/'))
+      return { type: 'playbooks' };
     if (path === '/skills' || path.startsWith('/skills/'))
-      return { type: 'skills' };
+      return { type: 'registry' };
+    if (path === '/registry' || path.startsWith('/registry/'))
+      return { type: 'registry' };
     if (path === '/plugins' || path.startsWith('/plugins/'))
       return { type: 'plugins' };
     if (path === '/connections') return { type: 'connections' };
@@ -130,6 +134,10 @@ function App() {
     if (path.startsWith('/connections/providers/')) {
       const id = path.split('/')[3];
       if (id) return { type: 'connections-provider-edit', id };
+    }
+    if (path.startsWith('/connections/runtimes/')) {
+      const id = path.split('/')[3];
+      if (id) return { type: 'connections-runtime-edit', id };
     }
     if (path === '/connections/tools') return { type: 'connections-tools' };
     if (path.startsWith('/connections/tools/')) {
@@ -154,7 +162,7 @@ function App() {
     // Legacy /manage/* redirects
     if (path === '/manage') return { type: 'agents' };
     if (path.startsWith('/manage/agents')) return { type: 'agents' };
-    if (path.startsWith('/manage/prompts')) return { type: 'prompts' };
+    if (path.startsWith('/manage/prompts')) return { type: 'playbooks' };
     if (path.startsWith('/manage/plugins')) return { type: 'plugins' };
     if (path.startsWith('/manage/integrations'))
       return { type: 'connections-tools' };
@@ -232,6 +240,8 @@ function App() {
         navigate('/connections/providers');
       } else if (view.type === 'connections-provider-edit') {
         navigate(`/connections/providers/${view.id}`);
+      } else if (view.type === 'connections-runtime-edit') {
+        navigate(`/connections/runtimes/${view.id}`);
       } else if (view.type === 'connections-tools') {
         navigate('/connections/tools');
       } else if (view.type === 'connections-tool-edit') {
@@ -323,15 +333,23 @@ function App() {
         path === '/layouts/new' ||
         (path.startsWith('/layouts/') && path.endsWith('/edit'))
       ) {
-        setCurrentView({ type: 'layouts' });
+        setCurrentView({ type: 'agents' });
         return;
       }
       if (path === '/prompts' || path.startsWith('/prompts/')) {
-        setCurrentView({ type: 'prompts' });
+        setCurrentView({ type: 'playbooks' });
+        return;
+      }
+      if (path === '/playbooks' || path.startsWith('/playbooks/')) {
+        setCurrentView({ type: 'playbooks' });
         return;
       }
       if (path === '/skills' || path.startsWith('/skills/')) {
-        setCurrentView({ type: 'skills' });
+        setCurrentView({ type: 'registry' });
+        return;
+      }
+      if (path === '/registry' || path.startsWith('/registry/')) {
+        setCurrentView({ type: 'registry' });
         return;
       }
       if (path === '/plugins' || path.startsWith('/plugins/')) {
@@ -350,6 +368,13 @@ function App() {
         const id = path.split('/')[3];
         if (id) {
           setCurrentView({ type: 'connections-provider-edit', id });
+          return;
+        }
+      }
+      if (path.startsWith('/connections/runtimes/')) {
+        const id = path.split('/')[3];
+        if (id) {
+          setCurrentView({ type: 'connections-runtime-edit', id });
           return;
         }
       }
@@ -460,7 +485,7 @@ function App() {
 
       // Standalone layout paths
       if (path === '/layouts') {
-        setCurrentView({ type: 'layouts' });
+        setCurrentView({ type: 'agents' });
         return;
       }
       if (path.startsWith('/layouts/')) {
@@ -705,10 +730,15 @@ function App() {
     // Management views
     return (
       <>
-        {currentView.type === 'layouts' && <LayoutsView />}
-
         {currentView.type === 'agents' && (
-          <AgentsHub onNavigate={navigateToView} />
+          <AgentsView
+            agents={agents}
+            apiBase={API_BASE}
+            availableModels={availableModels}
+            defaultModel={appConfig?.defaultModel}
+            bedrockReady={!!systemStatus?.bedrock.credentialsFound}
+            onNavigate={navigateToView}
+          />
         )}
         {(currentView.type === 'agent-detail' ||
           currentView.type === 'agent-new' ||
@@ -722,8 +752,9 @@ function App() {
             onNavigate={navigateToView}
           />
         )}
-        {currentView.type === 'skills' && <SkillsView />}
-        {currentView.type === 'prompts' && <PromptsView />}
+        {currentView.type === 'playbooks' && <PlaybooksView />}
+        {currentView.type === 'prompts' && <PlaybooksView />}
+        {currentView.type === 'registry' && <RegistryView />}
         {currentView.type === 'plugins' && <PluginManagementView />}
         {currentView.type === 'connections' && <ConnectionsHub />}
         {currentView.type === 'connections-providers' && (
@@ -732,6 +763,12 @@ function App() {
         {currentView.type === 'connections-provider-edit' && (
           <ProviderSettingsView
             selectedProviderId={currentView.id}
+            onNavigate={navigateToView}
+          />
+        )}
+        {currentView.type === 'connections-runtime-edit' && (
+          <RuntimeConnectionView
+            selectedRuntimeId={currentView.id}
             onNavigate={navigateToView}
           />
         )}

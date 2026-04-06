@@ -13,10 +13,13 @@ import type {
   StandaloneLayoutConfig,
 } from '@stallion-ai/shared';
 import { FileStorageAdapter } from './file-storage-adapter.js';
+import { runOrchestrationEventMigration } from './migrations/003-orchestration-events.js';
 
 export async function runStartupMigrations(
   projectHomeDir: string,
 ): Promise<void> {
+  runOrchestrationEventMigration(projectHomeDir);
+
   // Seed default provider connections (runs every startup, idempotent)
   const storageAdapter = new FileStorageAdapter(projectHomeDir);
   const existing = storageAdapter.listProviderConnections();

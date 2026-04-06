@@ -1,5 +1,8 @@
+import { useAgentsQuery } from '@stallion-ai/sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
+import { AgentIcon } from '../components/AgentIcon';
+import { Checkbox } from '../components/Checkbox';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { DetailHeader } from '../components/DetailHeader';
 import { ModelSelector } from '../components/ModelSelector';
@@ -14,7 +17,12 @@ import './ProjectSettingsView.css';
 
 type ProjectForm = Pick<
   ProjectConfig,
-  'name' | 'icon' | 'description' | 'defaultModel' | 'workingDirectory'
+  | 'name'
+  | 'icon'
+  | 'description'
+  | 'defaultModel'
+  | 'workingDirectory'
+  | 'agents'
 >;
 
 export function ProjectSettingsView({ slug }: { slug: string }) {
@@ -46,6 +54,7 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         description: project.description ?? '',
         defaultModel: project.defaultModel ?? '',
         workingDirectory: project.workingDirectory ?? '',
+        agents: project.agents ?? [],
       };
       setForm(f);
       setSavedForm(f);
@@ -72,6 +81,7 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         description: saved.description ?? '',
         defaultModel: saved.defaultModel ?? '',
         workingDirectory: saved.workingDirectory ?? '',
+        agents: saved.agents ?? [],
       };
       setSavedForm(f);
       setError(null);
@@ -199,6 +209,8 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         </section>
 
         {/* Layouts — list + save as template */}
+        <AgentsSection form={form} setForm={setForm} />
+
         <LayoutsSection slug={slug} apiBase={apiBase} />
 
         {/* Knowledge */}
@@ -236,6 +248,68 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
 
       <DiscardModal />
     </div>
+  );
+}
+
+function AgentsSection({
+  form,
+  setForm,
+}: {
+  form: ProjectForm;
+  setForm: React.Dispatch<React.SetStateAction<ProjectForm | null>>;
+}) {
+  const { data: allAgents = [] } = useAgentsQuery() as {
+    data?: Array<{ slug: string; name: string; icon?: string }>;
+  };
+  const selected = new Set(form.agents ?? []);
+  const allSelected = selected.size === 0;
+
+  function toggle(slug: string) {
+    setForm((f) => {
+      if (!f) return f;
+      const current = new Set(f.agents ?? []);
+      if (current.has(slug)) current.delete(slug);
+      else current.add(slug);
+      return { ...f, agents: [...current] };
+    });
+  }
+
+  return (
+    <section className="project-settings__section">
+      <div className="project-settings__section-title project-settings__section-title--sm">
+        Agents
+      </div>
+      <span className="editor-hint">
+        {allSelected
+          ? 'All agents are available (no filter set).'
+          : `${selected.size} agent${selected.size !== 1 ? 's' : ''} selected.`}
+      </span>
+      <div className="editor__tools-server">
+        <div className="editor__tools-list">
+          {allAgents.map((agent) => (
+            <div
+              key={agent.slug}
+              className={`editor__tool-item${allSelected || selected.has(agent.slug) ? ' editor__tool-item--active' : ''}`}
+            >
+              <Checkbox
+                checked={allSelected || selected.has(agent.slug)}
+                onChange={() => toggle(agent.slug)}
+              />
+              <div className="editor__tool-info">
+                <div className="editor__tool-name">
+                  <AgentIcon
+                    agent={agent}
+                    size="small"
+                    className="editor-icon-preview"
+                  />{' '}
+                  {agent.name}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -7,6 +7,8 @@ vi.mock('../../telemetry/metrics.js', () => ({
   skillDiscoveries: { add: vi.fn() },
   skillActivations: { add: vi.fn() },
   skillActivationDuration: { record: vi.fn() },
+  skillDiscoveryDuration: { record: vi.fn() },
+  skillOps: { add: vi.fn() },
 }));
 vi.mock('agent-skills-ts-sdk', () => ({
   parseSkillContent: (content: string) => {
@@ -30,45 +32,56 @@ vi.mock('agent-skills-ts-sdk', () => ({
   parseFrontmatter: (content: string) => ({ metadata: {}, body: content }),
 }));
 
-const {
-  listSkills,
-  getSkillCount,
-  getSkillCatalogPrompt,
-  getSkillTool,
-  discoverSkills,
-} = await import('../skill-service.js');
+const { SkillService } = await import('../skill-service.js');
 
 let testDir: string;
+const mockConfigLoader = {
+  getProjectHomeDir: () => testDir,
+  loadSkill: vi.fn(),
+  saveSkill: vi.fn(),
+  deleteSkill: vi.fn(),
+  listSkills: vi.fn().mockResolvedValue([]),
+  skillExists: vi.fn().mockResolvedValue(false),
+};
+const mockLogger = {
+  info: vi.fn(),
+  warn: vi.fn(),
+  debug: vi.fn(),
+};
+
+let service: InstanceType<typeof SkillService>;
 
 beforeEach(() => {
   testDir = join(tmpdir(), `skill-test-${Date.now()}`);
   mkdirSync(testDir, { recursive: true });
+  vi.clearAllMocks();
+  service = new SkillService(mockConfigLoader as any, mockLogger);
 });
 
 describe('SkillService', () => {
   test('listSkills returns empty initially', () => {
-    expect(listSkills()).toEqual([]);
+    expect(service.listSkills()).toEqual([]);
   });
 
   test('getSkillCount returns 0 initially', () => {
-    expect(getSkillCount()).toBe(0);
+    expect(service.getSkillCount()).toBe(0);
   });
 
   test('getSkillCatalogPrompt returns empty with no skills', () => {
-    expect(getSkillCatalogPrompt()).toBe('');
+    expect(service.getSkillCatalogPrompt()).toBe('');
   });
 
   test('getSkillTool returns null with no skills', () => {
-    expect(getSkillTool()).toBeNull();
+    expect(service.getSkillTool()).toBeNull();
   });
 
   test('getSkillCatalogPrompt with empty array returns empty', () => {
-    expect(getSkillCatalogPrompt([])).toBe('');
+    expect(service.getSkillCatalogPrompt([])).toBe('');
   });
 
   test('discoverSkills handles missing directories', async () => {
-    await discoverSkills('/nonexistent/path');
-    expect(getSkillCount()).toBe(0);
+    await service.discoverSkills('/nonexistent/path');
+    expect(service.getSkillCount()).toBe(0);
   });
 
   test('discoverSkills finds skills in skills/ directory', async () => {
@@ -78,9 +91,9 @@ describe('SkillService', () => {
       join(skillDir, 'SKILL.md'),
       '---\nname: my-skill\ndescription: A test skill\n---\nBody content',
     );
-    await discoverSkills(testDir);
-    expect(getSkillCount()).toBe(1);
-    expect(listSkills()[0].name).toBe('my-skill');
+    await service.discoverSkills(testDir);
+    expect(service.getSkillCount()).toBe(1);
+    expect(service.listSkills()[0].name).toBe('my-skill');
     rmSync(testDir, { recursive: true, force: true });
   });
 
@@ -91,11 +104,11 @@ describe('SkillService', () => {
       join(skillDir, 'SKILL.md'),
       '---\nname: temp-skill\ndescription: Temp\n---\n',
     );
-    await discoverSkills(testDir);
-    expect(getSkillCount()).toBe(1);
+    await service.discoverSkills(testDir);
+    expect(service.getSkillCount()).toBe(1);
     rmSync(skillDir, { recursive: true, force: true });
-    await discoverSkills(testDir);
-    expect(getSkillCount()).toBe(0);
+    await service.discoverSkills(testDir);
+    expect(service.getSkillCount()).toBe(0);
     rmSync(testDir, { recursive: true, force: true });
   });
 
@@ -112,9 +125,9 @@ describe('SkillService', () => {
       join(dir2, 'SKILL.md'),
       '---\nname: skill-b\ndescription: B\n---\n',
     );
-    await discoverSkills(testDir);
-    expect(getSkillCount()).toBe(2);
-    const filtered = getSkillCatalogPrompt(['skill-a']);
+    await service.discoverSkills(testDir);
+    expect(service.getSkillCount()).toBe(2);
+    const filtered = service.getSkillCatalogPrompt(['skill-a']);
     expect(filtered).toContain('skill-a');
     expect(filtered).not.toContain('skill-b');
     rmSync(testDir, { recursive: true, force: true });
@@ -127,19 +140,32 @@ describe('SkillService', () => {
       join(skillDir, 'SKILL.md'),
       '---\nname: tool-skill\ndescription: Has tool\n---\n',
     );
-    await discoverSkills(testDir);
-    const tool = getSkillTool();
+    await service.discoverSkills(testDir);
+    const tool = service.getSkillTool();
     expect(tool).not.toBeNull();
     expect(tool!.name).toBe('activate_skill');
     rmSync(testDir, { recursive: true, force: true });
+  });
+
+  test('getSkill delegates to configLoader.loadSkill', async () => {
+    const config = {
+      name: 'test',
+      source: 'local',
+      installedAt: '2026-01-01',
+      path: '/test',
+    };
+    mockConfigLoader.loadSkill.mockResolvedValue(config);
+    const result = await service.getSkill('test');
+    expect(result).toEqual(config);
+    expect(mockConfigLoader.loadSkill).toHaveBeenCalledWith('test');
   });
 
   test('discoverSkills skips directories without SKILL.md', async () => {
     const noSkillDir = join(testDir, 'skills', 'not-a-skill');
     mkdirSync(noSkillDir, { recursive: true });
     writeFileSync(join(noSkillDir, 'README.md'), '# Not a skill');
-    await discoverSkills(testDir);
-    expect(getSkillCount()).toBe(0);
+    await service.discoverSkills(testDir);
+    expect(service.getSkillCount()).toBe(0);
     rmSync(testDir, { recursive: true, force: true });
   });
 });

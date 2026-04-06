@@ -17,16 +17,22 @@ function setup() {
     updateAgent: vi.fn().mockResolvedValue({ name: 'Updated' }),
     deleteAgent: vi.fn().mockResolvedValue({ success: true }),
   };
+  const skillService = {
+    listSkills: vi
+      .fn()
+      .mockReturnValue([{ name: 'known-skill', description: 'A skill' }]),
+  };
   const reinitialize = vi.fn().mockResolvedValue(undefined);
   const getVoltAgent = vi.fn().mockReturnValue({
     getAgents: vi.fn().mockResolvedValue([{ id: 'default' }]),
   });
   const app = createAgentRoutes(
     agentService as any,
+    skillService as any,
     reinitialize,
     getVoltAgent,
   );
-  return { app, agentService, reinitialize, getVoltAgent };
+  return { app, agentService, skillService, reinitialize, getVoltAgent };
 }
 
 async function json(res: Response) {
@@ -89,6 +95,46 @@ describe('Agent Routes', () => {
     expect(res.status).toBe(400);
   });
 
+  test('POST / rejects unknown skills with 400', async () => {
+    const { app } = setup();
+    const res = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Agent',
+        skills: ['unknown-skill'],
+      }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('Unknown skills');
+  });
+
+  test('PUT /:slug rejects unknown skills with 400', async () => {
+    const { app } = setup();
+    const res = await app.request('/default', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ skills: ['nonexistent'] }),
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain('Unknown skills');
+  });
+
+  test('POST / allows known skills', async () => {
+    const { app } = setup();
+    const res = await app.request('/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'Agent',
+        skills: ['known-skill'],
+      }),
+    });
+    expect(res.status).toBe(201);
+  });
+
   test('reinitialize failure does not crash the route handler', async () => {
     const agentService = {
       getEnrichedAgents: vi.fn().mockResolvedValue([]),
@@ -97,12 +143,14 @@ describe('Agent Routes', () => {
         .mockResolvedValue({ slug: 'test', spec: { name: 'Test' } }),
       deleteAgent: vi.fn().mockResolvedValue({ success: true }),
     };
+    const skillService = { listSkills: vi.fn().mockReturnValue([]) };
     const reinitialize = vi.fn().mockRejectedValue(new Error('reload failed'));
     const getVoltAgent = vi
       .fn()
       .mockReturnValue({ getAgents: vi.fn().mockResolvedValue([]) });
     const app = createAgentRoutes(
       agentService as any,
+      skillService as any,
       reinitialize,
       getVoltAgent,
     );

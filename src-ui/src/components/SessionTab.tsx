@@ -1,5 +1,6 @@
 import type { AgentData } from '../contexts/AgentsContext';
 import type { ChatSession } from '../types';
+import { isSessionExecutionActive } from '../utils/execution';
 import { AgentBadge } from './AgentBadge';
 import { AgentIcon } from './AgentIcon';
 
@@ -44,6 +45,7 @@ export function SessionTab({
   const modelInfo = isCustomModel
     ? availableModels.find((m) => m.id === session.model)
     : null;
+  const isProcessing = isSessionExecutionActive(session);
 
   return (
     <button
@@ -62,7 +64,7 @@ export function SessionTab({
           }
         }
       }}
-      className={`chat-dock__tab ${isActive ? 'is-active' : ''} ${session.hasUnread ? 'has-unread' : ''} ${session.status === 'sending' ? 'is-processing' : ''}`}
+      className={`chat-dock__tab ${isActive ? 'is-active' : ''} ${session.hasUnread ? 'has-unread' : ''} ${isProcessing ? 'is-processing' : ''}`}
       onClick={onFocus}
       title={tooltip}
     >
@@ -77,9 +79,7 @@ export function SessionTab({
             </span>
           )}
           {session.title}
-          {session.status === 'sending' && (
-            <span className="chat-dock__tab-badge">●</span>
-          )}
+          {isProcessing && <span className="chat-dock__tab-badge">●</span>}
         </div>
         <div className="chat-dock__tab-agent">
           <AgentBadge

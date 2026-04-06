@@ -1,3 +1,4 @@
+import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
 import {
   createContext,
@@ -8,6 +9,10 @@ import {
   useSyncExternalStore,
 } from 'react';
 import { log } from '@/utils/logger';
+import {
+  sendOrchestrationTurn,
+  startOrchestrationSession,
+} from '../hooks/useOrchestration';
 import { useStreamingMessage } from '../hooks/useStreamingMessage';
 import type { FileAttachment } from '../types';
 import {
@@ -35,6 +40,12 @@ type ChatUIState = {
   projectSlug?: string;
   projectName?: string;
   focusDirectoryId?: string;
+  provider?: ProviderKind;
+  providerOptions?: Record<string, unknown>;
+  orchestrationSessionStarted?: boolean;
+  orchestrationProvider?: ProviderKind;
+  orchestrationModel?: string;
+  orchestrationStatus?: string;
   // Optimistic messages (shown immediately, replaced when backend responds)
   messages?: Array<{
     role: 'user' | 'assistant' | 'system';
@@ -109,6 +120,12 @@ class ActiveChatsStore {
           model?: string;
           projectSlug?: string;
           projectName?: string;
+          provider?: ProviderKind;
+          providerOptions?: Record<string, unknown>;
+          orchestrationSessionStarted?: boolean;
+          orchestrationProvider?: ProviderKind;
+          orchestrationModel?: string;
+          orchestrationStatus?: string;
           sessionAutoApprove?: string[];
           ephemeralMessages?: any[];
           inputHistory?: string[];
@@ -126,6 +143,13 @@ class ActiveChatsStore {
             model: session.model,
             projectSlug: session.projectSlug,
             projectName: session.projectName,
+            provider: session.provider || 'bedrock',
+            providerOptions: session.providerOptions || {},
+            orchestrationSessionStarted:
+              session.orchestrationSessionStarted || false,
+            orchestrationProvider: session.orchestrationProvider,
+            orchestrationModel: session.orchestrationModel,
+            orchestrationStatus: session.orchestrationStatus,
             sessionAutoApprove: session.sessionAutoApprove || [],
             ephemeralMessages: session.ephemeralMessages || [],
           };
@@ -149,6 +173,13 @@ class ActiveChatsStore {
           model: chat.model,
           projectSlug: chat.projectSlug,
           projectName: chat.projectName,
+          provider: chat.provider || 'bedrock',
+          providerOptions: chat.providerOptions || {},
+          orchestrationSessionStarted:
+            chat.orchestrationSessionStarted || false,
+          orchestrationProvider: chat.orchestrationProvider,
+          orchestrationModel: chat.orchestrationModel,
+          orchestrationStatus: chat.orchestrationStatus,
           sessionAutoApprove: chat.sessionAutoApprove || [],
           ephemeralMessages: chat.ephemeralMessages || [],
           inputHistory: chat.inputHistory || [],
@@ -195,6 +226,9 @@ class ActiveChatsStore {
       conversationId?: string;
       projectSlug?: string;
       projectName?: string;
+      provider?: ProviderKind;
+      model?: string;
+      providerOptions?: Record<string, unknown>;
     },
   ) {
     if (!this.chats[conversationId]) {
@@ -204,6 +238,9 @@ class ActiveChatsStore {
         queuedMessages: [],
         inputHistory: [],
         hasUnread: false,
+        provider: 'bedrock',
+        providerOptions: {},
+        orchestrationSessionStarted: false,
         ...metadata,
       };
       this.notify(true);
@@ -225,10 +262,13 @@ class ActiveChatsStore {
         ...updates,
       };
 
-      // Only persist if updating conversationId, model, sessionAutoApprove, or ephemeralMessages
+      // Only persist if updating session metadata that must survive refreshes.
       const shouldPersist =
         'conversationId' in updates ||
         'model' in updates ||
+        'provider' in updates ||
+        'providerOptions' in updates ||
+        'orchestrationSessionStarted' in updates ||
         'sessionAutoApprove' in updates ||
         'ephemeralMessages' in updates;
       this.notify(shouldPersist);
@@ -782,6 +822,39 @@ export function useSendMessage(
 
         // Get model override from chat state
         const model = currentState?.model;
+        const provider = currentState?.provider || 'bedrock';
+
+        if (provider !== 'bedrock') {
+          if (attachments && attachments.length > 0) {
+            throw new Error(
+              'Attachments are not supported yet for Claude or Codex sessions.',
+            );
+          }
+
+          if (!currentState?.orchestrationSessionStarted) {
+            await startOrchestrationSession({
+              apiBase,
+              threadId: sessionId,
+              provider,
+              modelId: model,
+              modelOptions: currentState?.providerOptions,
+            });
+            updateChat(sessionId, { orchestrationSessionStarted: true });
+          }
+
+          await sendOrchestrationTurn({
+            apiBase,
+            threadId: sessionId,
+            text: content,
+            modelId: model,
+            modelOptions: currentState?.providerOptions,
+          });
+          updateChat(sessionId, {
+            status: 'sending',
+            abortController: undefined,
+          });
+          return;
+        }
 
         // Delegate to ConversationsContext for server communication
         const result = await sendToServer(
@@ -985,6 +1058,11 @@ export function useCreateChatSession() {
       title?: string,
       projectSlug?: string,
       projectName?: string,
+      execution?: {
+        provider?: ProviderKind;
+        model?: string;
+        providerOptions?: Record<string, unknown>;
+      },
     ) => {
       const sessionId = `${agentSlug}:${Date.now()}`;
       initChat(sessionId, {
@@ -993,6 +1071,9 @@ export function useCreateChatSession() {
         title: title || `${agentName} Chat`,
         projectSlug,
         projectName,
+        provider: execution?.provider,
+        model: execution?.model,
+        providerOptions: execution?.providerOptions,
       });
       return sessionId;
     },
@@ -1011,6 +1092,11 @@ export function useOpenConversation(apiBase: string) {
       agentName: string,
       projectSlug?: string,
       projectName?: string,
+      execution?: {
+        provider?: ProviderKind;
+        model?: string;
+        providerOptions?: Record<string, unknown>;
+      },
     ) => {
       const sessionId = `${agentSlug}:${Date.now()}`;
 
@@ -1021,6 +1107,9 @@ export function useOpenConversation(apiBase: string) {
         conversationId,
         projectSlug,
         projectName,
+        provider: execution?.provider,
+        model: execution?.model,
+        providerOptions: execution?.providerOptions,
       });
 
       // Load messages

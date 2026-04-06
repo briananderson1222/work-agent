@@ -1,8 +1,10 @@
 # Design: Entity Hierarchy & Navigation Restructure
 
-**Status:** Draft  
-**Date:** 2026-03-27  
+**Status:** Draft (updated)
+**Date:** 2026-03-27 (revised 2026-04-05)
 **Author:** Brian Anderson + Stallion
+**Depends on:** `.plans/01-connected-agents-overhaul.md`, `.plans/03-connections-runtime-ux.md`
+**Reference:** [t3code](https://github.com/pingdotgg/t3code) provider/orchestration architecture
 
 ---
 
@@ -12,15 +14,53 @@ Stallion's core entities (agents, skills, integrations, layouts, plugins) lack a
 
 ### Current issues
 
-1. **Skills bypass managed patterns.** No service class, no ConfigLoader persistence, no CRUD routes. A module-level `Map` with raw filesystem operations vs. the `AgentService`/`ConfigLoader` pattern everything else uses.
+1. **Skills bypass managed patterns.** A `skill-service.ts` file exists but still uses a module-level `Map` with raw filesystem operations — not the `AgentService`/`ConfigLoader` pattern everything else follows. No CRUD routes, no ConfigLoader persistence.
 
 2. **No entity hierarchy.** The sidebar and Agents Hub present agents, skills, prompts, and layouts as equal top-level concepts. Skills and integrations are capabilities *of agents*. Layouts are views *of projects*. The UI doesn't reflect this.
 
-3. **No per-project agent scoping.** Agents are global-only. Projects contain layouts but have no concept of "which agents are available here." Every agent appears everywhere.
+3. **No per-project agent scoping.** `ProjectConfig.agents?: string[]` exists in shared types but the UI doesn't use it. Every agent appears everywhere.
 
 4. **Inconsistent install lifecycle.** Agent install goes through `IAgentRegistryProvider` with proper provider pattern. Skill install is raw `fs` copy + directory re-scan. No unified registry experience.
 
 5. **No validation on assignment.** `AgentSpec.skills[]` accepts arbitrary strings with no validation that the skill names resolve to installed skills. Same for integration references.
+
+6. **No runtime model distinction.** The agent editor treats all agents the same, but managed agents (Bedrock + Strands/VoltAgent) and connected agents (Claude, Codex, ACP) have fundamentally different configuration surfaces.
+
+---
+
+## Runtime Model
+
+Stallion supports two categories of agent with different ownership boundaries. This distinction drives the entire entity hierarchy and editor design.
+
+### Managed agents (Bedrock + Strands/VoltAgent)
+
+Stallion owns everything: system prompt, skills, MCP tools, commands, model selection. This is the extensible agent platform — plugins contribute capabilities here.
+
+- Full agent configuration: prompt, skills, tools, commands
+- Model selection from configured model connections (Bedrock, Ollama, OpenAI-compat)
+- Skills and integrations are assignable per-agent
+- The entity-hierarchy's full story applies here
+
+### Connected agents (Claude, Codex, ACP, future CLIs)
+
+The native runtime owns behavior. Stallion owns abstraction and presentation. Aligned with t3code's architectural rule and Plan 01: "Native runtime owns behavior, Stallion owns abstraction."
+
+- **Claude/Codex**: Stallion selects the runtime, sets model + provider-specific knobs (effort, thinking, context window, fast mode, sandbox, approval policy), and provides `cwd`. The runtime manages its own tools, system prompt, MCP servers, and skills (via `CLAUDE.md`, `.codex/` config, etc. in the working directory).
+- **ACP**: Stallion connects to an external agent runtime. Connection + mode = agent. Predetermined capabilities.
+- Primarily for built-in coding workflows with proper abstractions for extensibility
+- No system prompt injection, no MCP injection, no skill assignment from Stallion
+
+### Provider-specific configuration (from t3code contracts)
+
+```
+Claude:  model, effort (low/medium/high/max), thinking (on/off), context window, fast mode
+Codex:   model, reasoning effort (low/medium/high/xhigh), fast mode
+ACP:     connection target, mode
+```
+
+### Why this matters
+
+The agent editor, the entity hierarchy, and the Connections page all depend on this distinction. Skills and tools are only assignable to managed agents. Connected agents get a runtime settings surface instead. The UI must reflect what the app actually controls.
 
 ---
 
@@ -30,67 +70,62 @@ Stallion's core entities (agents, skills, integrations, layouts, plugins) lack a
 Registry (browse + discover)
   └─ Global Install (on the machine, available to configure)
        ├─ Skills        ─┐
-       ├─ Integrations   ├─ assigned TO agents
+       ├─ Integrations   ├─ assigned to MANAGED agents only
        └─ Agents ────────┘
-            └─ assigned TO projects
-                 └─ Projects (contain layouts)
+            ├─ Managed agents (built-in, fully configurable)
+            └─ Connected agents (runtime-backed, coding workflows)
+                 └─ all assigned TO projects
+                      └─ Projects (contain layouts)
+
+Connections (configured backends — per Plan 03)
+  ├─ Model Connections (Bedrock, Ollama, OpenAI-compat)
+  └─ Runtime Connections (Claude, Codex, ACP)
 ```
 
 ### Key principles
 
-- **Skills and integrations are agent capabilities.** They define what an agent can do and what tools it has. They are configured per-agent, not per-project.
-- **Agents are members of projects.** A project selects which agents are available within it. When you're in a project, you only see its assigned agents.
-- **Layouts are views of projects.** They're managed within the project context, not as standalone entities.
+- **Skills and integrations are managed-agent capabilities.** They define what a managed agent can do. They don't apply to connected agents — those runtimes own their own capabilities.
+- **Agents are members of projects.** A project selects which agents (both managed and connected) are available within it.
+- **Layouts are views of projects.** Managed within the project context, not as standalone entities.
 - **Global install ≠ active.** Installing from the registry makes something available to configure. It doesn't automatically appear in every agent or project.
 - **Registry is the admin surface.** One place to browse, install, and manage what's available on the machine.
+- **Connections is the backend surface.** One place to configure and test all external AI backends (model connections + runtime connections). Per Plan 03.
 
 ---
 
 ## UI Changes
 
-### Sidebar (before → after)
+### Sidebar
 
-**Before:**
-```
-Projects (with layouts)
-  └─ New Project
-──────────────
-Agents          ← AgentsHub (agents + skills + prompts)
-Prompts
-Connections
-Plugins
-Schedule
-Monitoring
-```
-
-**After:**
 ```
 Projects (with layouts nested)
   └─ New Project
 ──────────────
-Agents          ← Agent list + CRUD
+Agents
 Playbooks       ← Renamed from "Prompts"
 Registry        ← Unified browse/install for agents, skills, integrations, plugins
-Connections     ← Infrastructure: provider connections, ACP
+Connections     ← Model + Runtime + Knowledge + Tool connections (per Plan 03)
+Plugins         ← Post-install configuration
 Schedule
 Monitoring
 ```
 
 **Removed from sidebar:**
-- Skills (managed in agent editor)
-- Plugins (install via Registry, configure via Connections or dedicated settings)
+- Skills (managed in agent editor for managed agents)
 - Layouts as standalone (managed in project editor)
 
 ### Agents page
 
 **Before:** AgentsHub — flat dashboard with agents, skills, and prompts as peer sections.
 
-**After:** Agent list view. Shows installed agents (local + ACP) with create/edit/delete. No skills or playbooks sections — those are managed in their own contexts.
+**After:** Agent list view. Shows all agents (managed + connected) with create/edit/delete. Each agent shows its type and a summary line:
+- Managed: model name
+- Connected: runtime + model (e.g., "Claude · claude-sonnet-4-6")
+- ACP: connection name + mode
 
-### Agent editor
+### Agent editor (varies by type)
 
-The agent editor becomes the primary surface for configuring agent capabilities.
-
+**Managed agent** (Bedrock + Strands/VoltAgent):
 ```
 Tabs:
   Basic       ─ name, description, icon, system prompt, model
@@ -100,17 +135,30 @@ Tabs:
   Commands    ─ slash commands (exists today)
 ```
 
-The Skills tab shows all globally installed skills with toggles. Assigning a skill validates it exists. An inline "Install from Registry" flow lets you install + assign without leaving the editor.
+**Connected agent** (Claude, Codex):
+```
+Tabs:
+  Basic       ─ name, description, icon
+  Runtime     ─ runtime connection, model, provider-specific options
+               (effort, thinking, context window, fast mode, sandbox, approval policy)
+               Link to Connections page for runtime configuration/testing
+```
+
+**ACP agent:**
+```
+Tabs:
+  Basic       ─ name, description, icon
+  Connection  ─ ACP target, mode (read-only summary of external agent)
+```
+
+The Skills tab shows all globally installed skills with toggles (managed agents only). Assigning a skill validates it exists. An inline "Install from Registry" flow lets you install + assign without leaving the editor.
 
 ### Project editor
 
-**Before:** Name, icon, description. Layouts managed separately.
-
-**After:**
 ```
 Project settings:
   Basic       ─ name, icon, description
-  Agents      ─ which agents are available in this project (multi-select)
+  Agents      ─ which agents are available in this project (multi-select, both managed + connected)
   Layouts     ─ add/remove/reorder layouts for this project
 ```
 
@@ -125,7 +173,7 @@ New project wizard:
 
 ### Registry page
 
-Unified browse/install surface with tabs or filters:
+Unified browse/install surface with tabs:
 
 ```
 Registry:
@@ -135,11 +183,25 @@ Registry:
   Plugins       ─ browse + install plugins
 ```
 
-Each tab shows available (from registry providers) and installed items. Install/uninstall/update actions. This replaces the current scattered install UIs across AgentsHub, SkillsView, IntegrationsView, and PluginManagementView.
+Each tab shows available (from registry providers) and installed items. Install/uninstall/update actions. Replaces the current scattered install UIs across AgentsHub, SkillsView, IntegrationsView, and PluginManagementView.
+
+### Connections page (per Plan 03)
+
+Unified backend-management surface with sections:
+
+```
+Connections:
+  Model Connections     ─ Bedrock, Ollama, OpenAI-compatible
+  Runtime Connections   ─ Claude Runtime, Codex Runtime, ACP
+  Knowledge Connections ─ LanceDB, etc.
+  Tool Servers          ─ MCP server infrastructure
+```
+
+Each connection shows status, prerequisites, capabilities. Shared detail shell with subtype-specific forms. This is where you configure and test backends — not where you assign them to agents (that's the agent editor).
 
 ### Playbooks
 
-Renamed from "Prompts." Standalone page stays — playbooks are reusable across agents and have their own identity. The page gets the new name and any terminology updates throughout the UI.
+Renamed from "Prompts." Standalone page stays — playbooks are reusable across agents and have their own identity.
 
 ---
 
@@ -155,24 +217,14 @@ Promote skills to the same managed pattern as agents:
 - **Validation:** `AgentSpec.skills[]` entries validated against installed skills at save time
 - **CRUD routes:** `GET/POST/PUT/DELETE /api/skills/:id` following agent route patterns
 
-### 2. Project agent assignment
+### 2. Project agent assignment ✅ (type landed)
 
-Extend `ProjectConfig` with an optional agents field:
+`ProjectConfig` already has `agents?: string[]` in shared types.
 
-```typescript
-interface ProjectConfig {
-  id: string;
-  name: string;
-  slug: string;
-  agents?: string[];  // NEW — agent slugs available in this project
-  createdAt: string;
-  updatedAt: string;
-}
-```
-
-- `agents: undefined` or absent → all agents available (backward compatible)
-- `agents: ["default", "code-reviewer"]` → only those agents appear in project context
-- Agent selector, chat, and layout agent pickers filter by project assignment
+Remaining work:
+- Add agent picker to project editor and creation flow
+- Filter agent selector/chat by project assignment
+- Default: all agents available (no breaking change)
 
 ### 3. Unified registry routes
 
@@ -186,7 +238,7 @@ DELETE /api/registry/:type/:id          ← uninstall
 POST   /api/registry/:type/:id/update   ← update
 ```
 
-All types use the same `IRegistryProvider` interface pattern (they mostly already do).
+All types use the same `IRegistryProvider` interface pattern.
 
 ### 4. Prompt → Playbook rename
 
@@ -196,46 +248,139 @@ All types use the same `IRegistryProvider` interface pattern (they mostly alread
 - Update UI components and navigation
 - Keep backward compat aliases if plugins depend on old names
 
+### 5. Agent type awareness
+
+Add agent type to `AgentSpec` or derive it from configuration:
+
+```typescript
+type AgentType = 'managed' | 'connected';
+type AgentRuntimeKind = 'bedrock' | 'claude' | 'codex' | 'acp';
+```
+
+The agent editor, agent list, and project assignment UI all need to know the agent type to render the correct configuration surface.
+
 ---
 
-## Migration
+## Migration Plan
+
+Phases are ordered by dependency and risk. Each phase is independently shippable.
 
 ### Phase 1: Skill service normalization
-- Create `SkillService` class
-- Add ConfigLoader skill methods
-- Add `skill.json` metadata files alongside existing `SKILL.md` files
-- Add validation on `AgentSpec.skills[]` save
-- Existing skills auto-discovered and registered on first startup
 
-### Phase 2: UI restructure
-- Rename Prompts → Playbooks throughout
-- Simplify AgentsHub → Agent list (remove skills/prompts sections)
-- Remove standalone Skills page (fold into agent editor + registry)
-- Remove standalone Layouts page (fold into project editor)
-- Create unified Registry page
-- Update sidebar nav items
+**Goal:** Skills follow the same managed pattern as agents.
 
-### Phase 3: Project agent assignment
-- Add `agents` field to `ProjectConfig`
-- Add agent picker to project editor and creation flow
-- Filter agent selector/chat by project assignment
-- Default: all agents available (no breaking change)
+- [ ] Refactor `skill-service.ts` into a proper `SkillService` class with constructor injection
+- [ ] Add ConfigLoader methods: `saveSkill()`, `listSkills()`, `loadSkill()`, `deleteSkill()`
+- [ ] Add `skill.json` metadata alongside existing `SKILL.md` files
+- [ ] Add CRUD routes: `GET/POST/PUT/DELETE /api/skills/:id`
+- [ ] Add validation on `AgentSpec.skills[]` save (reject unknown skill names)
+- [ ] Auto-discover and register existing skills on first startup
 
-### Phase 4: Cleanup
-- Remove orphaned routes and views
-- Consolidate registry route patterns
-- Update documentation
+**No UI changes.** Backend only. Existing skills continue to work.
+
+**Exit criteria:** Skills have the same service/config/route pattern as agents. `AgentSpec.skills[]` rejects invalid names.
+
+### Phase 2: Merge connected-agents-hardening branch
+
+**Goal:** Connection model and runtime abstractions land on main.
+
+- [ ] Review and merge `feature/connected-agents-hardening` (Plans 01-04)
+- [ ] Verify `ConnectionService`, `/api/connections/*` routes, `ConnectionConfig` types
+- [ ] Verify `AgentExecutionConfig` on `AgentSpec` for connected agents
+- [ ] Verify agent editor Execution section renders for connected agents
+- [ ] Verify ConnectionsHub shows Model + Runtime connections
+
+**Exit criteria:** Connections page works. Agent editor has runtime settings for connected agents. Plan 03 Phase 1-2 complete.
+
+### Phase 3: UI restructure
+
+**Goal:** Sidebar and navigation reflect the entity hierarchy.
+
+- [ ] Rename Prompts → Playbooks throughout (types, routes, SDK hooks, UI)
+- [ ] Simplify AgentsHub → Agent list (remove skills/prompts sections)
+- [ ] Add agent type indicator to agent list (managed vs connected + runtime summary)
+- [ ] Make agent editor tabs conditional on agent type (Skills/Tools/Commands for managed only; Runtime for connected)
+- [ ] Remove standalone Skills page (fold into agent editor + registry)
+- [ ] Remove standalone Layouts page (fold into project editor)
+- [ ] Create unified Registry page (tabs: Agents | Skills | Integrations | Plugins)
+- [ ] Update sidebar nav items to match target
+
+**Exit criteria:** Sidebar matches the target layout. Agent editor varies by type. Registry is the single install surface.
+
+### Phase 4: Project agent assignment
+
+**Goal:** Projects scope which agents are available.
+
+- [ ] Add agent picker to project editor (multi-select, both managed + connected)
+- [ ] Add agent step to project creation wizard
+- [ ] Filter agent selector in chat by project assignment
+- [ ] Filter layout agent pickers by project assignment
+- [ ] Default: all agents available when `agents` is unset (backward compatible)
+
+**Exit criteria:** Projects can restrict which agents appear. Existing projects unaffected.
+
+### Phase 5: Cleanup
+
+**Goal:** Remove dead code and consolidate patterns.
+
+- [ ] Remove orphaned routes and views (old AgentsHub sections, standalone Skills/Layouts)
+- [ ] Consolidate registry route patterns under `/api/registry/:type`
+- [ ] Remove backward compat aliases after one release cycle
+- [ ] Update documentation (README, guides, AGENTS.md)
+
+**Exit criteria:** No dead code. One registry pattern. Docs current.
 
 ---
 
-## Open Questions
+## Decisions
 
-1. **Plugins page** — fold entirely into Registry, or keep a separate "Plugin Settings" page for configuration/overrides? Plugins have settings that agents/skills don't.
+### D1: Agent categories — managed vs connected
 
-2. **Connections page scope** — currently covers MCP servers, provider connections, ACP, and knowledge. With MCP assignment moving fully into agent editor, does Connections become just "Provider Connections + ACP"? Or rename to "Infrastructure"?
+Managed agents (Bedrock + Strands/VoltAgent) are fully configurable by Stallion. Connected agents (Claude, Codex, ACP) are external runtimes where the native runtime owns behavior. Stallion controls model selection and runtime-specific knobs but does not inject system prompts, MCP servers, or skills. Aligned with t3code's architecture and Plan 01's rule: "Native runtime owns behavior, Stallion owns abstraction."
 
-3. **Playbook-agent association** — should playbooks be assignable to specific agents (like skills), or remain globally available to all agents? Currently they're global.
+### D2: Connections page (revised from original "Connections → Providers")
 
-4. **Registry provider unification** — the four registry provider interfaces (`IAgentRegistryProvider`, `ISkillRegistryProvider`, `IIntegrationRegistryProvider`, `IPluginRegistryProvider`) are nearly identical. Unify into a generic `IRegistryProvider<T>` or keep separate for type safety?
+Keep "Connections" as the canonical user-facing term. Connections is the single surface for all external AI backends — model connections, runtime connections, knowledge connections, tool servers. Per Plan 03. Do NOT rename to "Providers."
 
-5. **ACP agents and project scoping** — ACP (connected) agents come from external runtimes. Should they be assignable to projects the same way, or always global?
+### D3: Plugins page
+
+Keep separate. Registry handles install for all entity types (including plugins), but Plugins retains its own page for post-install configuration (settings, overrides, enable/disable). Plugins have richer config than other entities.
+
+### D4: Playbook-agent association
+
+Both. Playbooks can be globally available (appear for all agents) OR assigned to specific agents. "Global" toggle, on by default. When toggled off, an agent multi-select appears. Most playbooks are global — that's the zero-config path.
+
+### D5: Registry provider interfaces
+
+Use inheritance. A base `IRegistryProvider` interface with the common `listAvailable()`, `listInstalled()`, `install()`, `uninstall()`, `update()` contract. Type-specific interfaces extend it for additional methods.
+
+### D6: ACP agents and project scoping
+
+Global by default. ACP agents appear in all projects. Revisit if users need to restrict connected agents to specific projects.
+
+### D7: Registry page layout
+
+Tabs per entity type (Agents | Skills | Integrations | Plugins). Each type has different metadata and actions, so tabs give each its own context.
+
+### D8: Skill settings/configuration
+
+Toggle only (on/off per managed agent) for now. No per-agent skill configuration. If a skill needs different behavior per agent, the agent's system prompt provides that context.
+
+### D9: Agent editor varies by type
+
+The agent editor renders different tabs based on agent type. Managed agents get Skills/Tools/Commands. Connected agents get Runtime settings. ACP agents get Connection info. This reflects what the app actually controls per agent type.
+
+### D10: Runtime settings scope (per t3code)
+
+Runtime settings (model, effort, thinking, etc.) live at the agent level as defaults. Sessions resolve execution at creation time. Chat UI displays execution state read-only — it does not own runtime selection. Per Plan 03 §7 and §11.
+
+---
+
+## Landed items
+
+- `ProjectConfig.agents?: string[]` — shared type exists, UI not yet wired
+- `skill-service.ts` — file exists, needs normalization to class + ConfigLoader pattern
+- `IAgentRegistryProvider`, `ISkillRegistryProvider` — separate interfaces exist, no common base yet
+- `ConnectionConfig`, `ConnectionService`, `/api/connections/*` — on `feature/connected-agents-hardening` branch
+- `AgentExecutionConfig` on `AgentSpec` — on `feature/connected-agents-hardening` branch
+- `IProviderAdapterRegistry`, `providerAdapter` additive type — on `feature/connected-agents-hardening` branch

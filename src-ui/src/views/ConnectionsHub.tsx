@@ -2,14 +2,24 @@ import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import {
+  connectionStatusLabel,
+  connectionTypeLabel,
+  prerequisiteStatusLabel,
+} from '../utils/execution';
 import './ConnectionsHub.css';
 
-interface ProviderConnection {
+interface Connection {
   id: string;
+  kind: 'model' | 'runtime';
   type: string;
   name: string;
   enabled: boolean;
-  capabilities: ('llm' | 'embedding' | 'vectordb')[];
+  description?: string;
+  capabilities: string[];
+  status: string;
+  prerequisites: Array<{ name: string; status: string }>;
+  config: Record<string, unknown>;
 }
 
 interface ToolServer {
@@ -137,10 +147,10 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
   const { apiBase } = useApiBase();
   const { navigate } = useNavigation();
 
-  const { data: providers = [] } = useQuery<ProviderConnection[]>({
-    queryKey: ['providers'],
+  const { data: connections = [] } = useQuery<Connection[]>({
+    queryKey: ['connections'],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/providers`);
+      const res = await fetch(`${apiBase}/api/connections`);
       const json = await res.json();
       return json.success ? json.data : [];
     },
@@ -168,10 +178,37 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
     },
   });
 
-  const modelProviders = providers.filter(
-    (p) =>
-      p.capabilities.includes('llm') || p.capabilities.includes('embedding'),
+  const modelConnections = connections.filter(
+    (connection) => connection.kind === 'model',
   );
+  const runtimeConnections = connections.filter(
+    (connection) => connection.kind === 'runtime',
+  );
+
+  function statusClass(status: string): string {
+    if (status === 'ready') return 'ready';
+    if (status === 'missing_prerequisites') return 'warn';
+    if (status === 'error') return 'error';
+    if (status === 'disabled') return 'disabled';
+    return 'warn';
+  }
+
+  function describeConnection(connection: Connection): string {
+    const missing = connection.prerequisites.filter(
+      (item) => item.status !== 'installed',
+    );
+    if (missing.length > 0) {
+      return missing
+        .map((item) => `${item.name} — ${prerequisiteStatusLabel(item.status)}`)
+        .join(' · ');
+    }
+    if (connection.type === 'acp') {
+      const configured = Number(connection.config.configuredCount || 0);
+      const connected = Number(connection.config.connectedCount || 0);
+      return `${connected} of ${configured} active`;
+    }
+    return '';
+  }
 
   return (
     <div className="connections-hub">
@@ -183,11 +220,11 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
           </p>
         </div>
 
-        {/* Model Providers */}
+        {/* Model Connections */}
         <div className="connections-hub__section">
           <div className="connections-hub__section-header">
             <span className="connections-hub__section-label">
-              Model Providers
+              Model Connections
             </span>
             <button
               className="connections-hub__add-btn"
@@ -196,10 +233,14 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
               Manage
             </button>
           </div>
+          <p className="connections-hub__section-desc">
+            Raw LLM and embedding backends
+          </p>
           <div className="connections-hub__cards">
-            {modelProviders.length > 0 ? (
-              modelProviders.map((p) => {
+            {modelConnections.length > 0 ? (
+              modelConnections.map((p) => {
                 const Icon = PROVIDER_ICONS[p.type] ?? IconLink;
+                const desc = describeConnection(p);
                 return (
                   <button
                     key={p.id}
@@ -214,10 +255,17 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
                         {p.name}
                       </span>
                       <span
-                        className={`connections-hub__card-status connections-hub__card-status--${p.enabled ? 'enabled' : 'disabled'}`}
-                      />
+                        className={`connections-hub__status-badge connections-hub__status-badge--${statusClass(p.enabled ? 'ready' : 'disabled')}`}
+                      >
+                        {p.enabled ? 'Enabled' : 'Disabled'}
+                      </span>
                     </div>
-                    <span className="connections-hub__card-type">{p.type}</span>
+                    <span className="connections-hub__card-type">
+                      {connectionTypeLabel(p.type)}
+                    </span>
+                    {desc && (
+                      <span className="connections-hub__card-type">{desc}</span>
+                    )}
                   </button>
                 );
               })
@@ -226,8 +274,63 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
                 className="connections-hub__empty-card"
                 onClick={() => navigate('/connections/providers')}
               >
-                + Add a model provider to get started
+                + Add a model connection
               </button>
+            )}
+          </div>
+        </div>
+
+        <div className="connections-hub__section">
+          <div className="connections-hub__section-header">
+            <span className="connections-hub__section-label">
+              Runtime Connections
+            </span>
+          </div>
+          <p className="connections-hub__section-desc">
+            AI engines that run your agents
+          </p>
+          <div className="connections-hub__cards">
+            {runtimeConnections.length > 0 ? (
+              runtimeConnections.map((connection) => {
+                const desc = describeConnection(connection);
+                return (
+                  <button
+                    key={connection.id}
+                    className="connections-hub__card"
+                    onClick={() =>
+                      navigate(`/connections/runtimes/${connection.id}`)
+                    }
+                  >
+                    <div className="connections-hub__card-header">
+                      <span className="connections-hub__card-icon">
+                        <IconTool />
+                      </span>
+                      <span className="connections-hub__card-name">
+                        {connection.name}
+                      </span>
+                      <span
+                        className={`connections-hub__status-badge connections-hub__status-badge--${statusClass(connection.status)}`}
+                      >
+                        {connectionStatusLabel(connection.status)}
+                      </span>
+                    </div>
+                    <span className="connections-hub__card-type">
+                      {connectionTypeLabel(connection.type)}
+                    </span>
+                    {desc && (
+                      <span className="connections-hub__card-type">{desc}</span>
+                    )}
+                  </button>
+                );
+              })
+            ) : (
+              <div className="connections-hub__empty-card connections-hub__empty-card--static">
+                <div>No runtime connections available.</div>
+                <div style={{ fontSize: 11, marginTop: 4, opacity: 0.7 }}>
+                  Runtimes appear here automatically when supported AI engines
+                  are detected.
+                </div>
+              </div>
             )}
           </div>
         </div>
@@ -243,6 +346,9 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
               Manage
             </button>
           </div>
+          <p className="connections-hub__section-desc">
+            Vector database and embeddings for search
+          </p>
           <div className="connections-hub__cards">
             {knowledge?.vectorDb ? (
               <button
@@ -299,6 +405,9 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
               Manage
             </button>
           </div>
+          <p className="connections-hub__section-desc">
+            MCP and external tool integrations
+          </p>
           <div className="connections-hub__cards">
             {tools.length > 0 ? (
               tools.map((t) => (

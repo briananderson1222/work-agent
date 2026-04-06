@@ -103,6 +103,32 @@
       },
       "additionalProperties": false
     },
+    "execution": {
+      "type": ["object", "null"],
+      "description": "Runtime execution configuration",
+      "required": ["runtimeConnectionId"],
+      "properties": {
+        "runtimeConnectionId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "modelConnectionId": {
+          "type": ["string", "null"]
+        },
+        "modelId": {
+          "type": ["string", "null"]
+        },
+        "runtimeOptions": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "modelOptions": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": false
+    },
     "streaming": {
       "type": ["object", "null"],
       "description": "Streaming pipeline configuration",

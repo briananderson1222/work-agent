@@ -145,9 +145,7 @@ describe('KnowledgeService — namespace management', () => {
     const adapter = createMockStorageAdapter();
     adapter.getProject.mockReturnValue({
       slug: 'test',
-      knowledgeNamespaces: [
-        { id: 'custom', label: 'Custom', behavior: 'rag' },
-      ],
+      knowledgeNamespaces: [{ id: 'custom', label: 'Custom', behavior: 'rag' }],
     });
     const svc = new KnowledgeService(
       () => null,
@@ -249,12 +247,24 @@ describe('KnowledgeService — file-first document operations', () => {
       () => embedding as any,
       dir,
     );
-    const meta = await svc.uploadDocument('test', 'test.md', '# Hello\n\nWorld');
+    const meta = await svc.uploadDocument(
+      'test',
+      'test.md',
+      '# Hello\n\nWorld',
+    );
     expect(meta.path).toBe('test.md');
     expect(meta.id).toBeDefined();
 
     // File should exist on disk
-    const filePath = join(dir, 'projects', 'test', 'knowledge', 'default', 'files', 'test.md');
+    const filePath = join(
+      dir,
+      'projects',
+      'test',
+      'knowledge',
+      'default',
+      'files',
+      'test.md',
+    );
     expect(existsSync(filePath)).toBe(true);
     expect(readFileSync(filePath, 'utf-8')).toBe('# Hello\n\nWorld');
   });
@@ -281,8 +291,12 @@ describe('KnowledgeService — file-first document operations', () => {
     await svc.uploadDocument('test', 'note.md', content);
     // Embedding should be called with body only
     const embeddedTexts = embedding.embed.mock.calls[0][0];
-    expect(embeddedTexts.every((t: string) => !t.includes('Secret'))).toBe(true);
-    expect(embeddedTexts.some((t: string) => t.includes('Body content'))).toBe(true);
+    expect(embeddedTexts.every((t: string) => !t.includes('Secret'))).toBe(
+      true,
+    );
+    expect(embeddedTexts.some((t: string) => t.includes('Body content'))).toBe(
+      true,
+    );
   });
 
   test('getDocumentContent reads from disk', async () => {
@@ -303,7 +317,15 @@ describe('KnowledgeService — file-first document operations', () => {
       dir,
     );
     const meta = await svc.uploadDocument('test', 'test.md', '# Hello');
-    const filePath = join(dir, 'projects', 'test', 'knowledge', 'default', 'files', 'test.md');
+    const filePath = join(
+      dir,
+      'projects',
+      'test',
+      'knowledge',
+      'default',
+      'files',
+      'test.md',
+    );
     expect(existsSync(filePath)).toBe(true);
 
     await svc.deleteDocument('test', meta.id, 'default');
@@ -331,7 +353,15 @@ describe('KnowledgeService — file-first document operations', () => {
     expect(updated.metadata?.status).toBe('enhanced');
 
     // File on disk should be updated with frontmatter
-    const filePath = join(dir, 'projects', 'test', 'knowledge', 'default', 'files', 'test.md');
+    const filePath = join(
+      dir,
+      'projects',
+      'test',
+      'knowledge',
+      'default',
+      'files',
+      'test.md',
+    );
     const fileContent = readFileSync(filePath, 'utf-8');
     expect(fileContent).toContain('status: enhanced');
     expect(fileContent).toContain('# Updated');

@@ -1,0 +1,14 @@
+{
+  "name": "@stallion-ai/contracts",
+  "version": "0.1.0",
+  "description": "Runtime, provider, and orchestration contracts for Stallion",
+  "type": "module",
+  "exports": {
+    "./runtime-events": "./src/runtime-events.ts",
+    "./provider": "./src/provider.ts",
+    "./orchestration": "./src/orchestration.ts"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

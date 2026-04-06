@@ -1,3 +1,6 @@
+import type { ProviderKind } from '@stallion-ai/contracts/provider';
+import type { AgentExecutionConfig } from '@stallion-ai/shared';
+
 export interface AgentQuickPrompt {
   id: string;
   label: string;
@@ -44,6 +47,7 @@ export interface AgentSummary {
     autoApprove?: string[];
     aliases?: Record<string, string>;
   };
+  execution?: AgentExecutionConfig;
   workflowWarnings?: string[];
   // ACP agent capabilities
   supportsAttachments?: boolean;
@@ -113,7 +117,12 @@ export interface ChatSession {
   createdAt: number;
   updatedAt: number;
   hasUnread: boolean;
+  provider?: ProviderKind;
+  providerOptions?: Record<string, unknown>;
   model?: string;
+  orchestrationProvider?: ProviderKind;
+  orchestrationModel?: string;
+  orchestrationStatus?: string;
   inputHistory: string[];
   abortController?: AbortController;
   projectSlug?: string;
@@ -154,19 +163,29 @@ export type NavigationView =
   | {
       type: 'agent-edit';
       slug: string;
-      initialTab?: 'basic' | 'model' | 'tools' | 'commands';
+      initialTab?:
+        | 'basic'
+        | 'model'
+        | 'tools'
+        | 'commands'
+        | 'skills'
+        | 'runtime'
+        | 'connection';
     }
   | { type: 'agent-tools'; slug: string }
   | { type: 'workflows'; slug: string }
   | { type: 'skills' }
   | { type: 'prompts' }
+  | { type: 'playbooks' }
   | { type: 'connections' }
   | { type: 'connections-providers' }
   | { type: 'connections-provider-edit'; id: string }
+  | { type: 'connections-runtime-edit'; id: string }
   | { type: 'connections-tools' }
   | { type: 'connections-tool-edit'; id: string }
   | { type: 'connections-knowledge' }
   | { type: 'plugins' }
+  | { type: 'registry' }
   | { type: 'monitoring' }
   | { type: 'schedule' }
   | { type: 'settings' }

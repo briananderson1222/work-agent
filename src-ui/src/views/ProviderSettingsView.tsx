@@ -1,3 +1,4 @@
+import type { ConnectionConfig } from '@stallion-ai/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useEffect, useMemo, useState } from 'react';
@@ -5,15 +6,9 @@ import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import type { NavigationView } from '../types';
+import { connectionTypeLabel } from '../utils/execution';
 
-interface ProviderConnection {
-  id: string;
-  type: string;
-  name: string;
-  config: Record<string, unknown>;
-  enabled: boolean;
-  capabilities: ('llm' | 'embedding' | 'vectordb')[];
-}
+type ProviderConnection = ConnectionConfig & { kind: 'model' };
 
 const PROVIDER_TYPES: {
   type: string;
@@ -123,9 +118,9 @@ export function ProviderSettingsView({
   const [error, setError] = useState<string | null>(null);
 
   const { data: providers = [], isLoading } = useQuery<ProviderConnection[]>({
-    queryKey: ['providers'],
+    queryKey: ['connections', 'models'],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/providers`);
+      const res = await fetch(`${apiBase}/api/connections/models`);
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       return json.data;
@@ -145,11 +140,15 @@ export function ProviderSettingsView({
     const conn = providers.find((p) => p.id === selectedProviderId);
     if (conn) {
       setForm({
+        kind: 'model',
         type: conn.type,
         name: conn.name,
         config: { ...conn.config },
         enabled: conn.enabled,
         capabilities: [...conn.capabilities],
+        status: conn.status,
+        prerequisites: [...conn.prerequisites],
+        lastCheckedAt: conn.lastCheckedAt ?? null,
       });
       setIsNew(false);
       setTestResult(null);
@@ -163,8 +162,8 @@ export function ProviderSettingsView({
     mutationFn: async (data: ProviderConnection) => {
       const method = isNew ? 'POST' : 'PUT';
       const url = isNew
-        ? `${apiBase}/api/providers`
-        : `${apiBase}/api/providers/${data.id}`;
+        ? `${apiBase}/api/connections`
+        : `${apiBase}/api/connections/${data.id}`;
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
@@ -175,7 +174,7 @@ export function ProviderSettingsView({
       return json.data as ProviderConnection;
     },
     onSuccess: (saved) => {
-      qc.invalidateQueries({ queryKey: ['providers'] });
+      qc.invalidateQueries({ queryKey: ['connections'] });
       setIsNew(false);
       setError(null);
       onNavigate({ type: 'connections-provider-edit', id: saved.id });
@@ -185,14 +184,14 @@ export function ProviderSettingsView({
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${apiBase}/api/providers/${id}`, {
+      const res = await fetch(`${apiBase}/api/connections/${id}`, {
         method: 'DELETE',
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Delete failed');
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['providers'] });
+      qc.invalidateQueries({ queryKey: ['connections'] });
       setForm(null);
       setIsNew(false);
       onNavigate({ type: 'connections-providers' });
@@ -202,7 +201,7 @@ export function ProviderSettingsView({
 
   const testMutation = useMutation({
     mutationFn: async (id: string) => {
-      const res = await fetch(`${apiBase}/api/providers/${id}/test`, {
+      const res = await fetch(`${apiBase}/api/connections/${id}/test`, {
         method: 'POST',
       });
       const json = await res.json();
@@ -228,11 +227,15 @@ export function ProviderSettingsView({
     const id = crypto.randomUUID();
     setIsNew(true);
     setForm({
+      kind: 'model',
       type,
       name,
       config: defaultConfig(type),
       enabled: true,
       capabilities: capabilitiesForType(type),
+      status: 'ready',
+      prerequisites: [],
+      lastCheckedAt: null,
     });
     setShowTypePicker(false);
     setError(null);
@@ -286,7 +289,7 @@ export function ProviderSettingsView({
       p.capabilities
         .filter((c) => c !== 'vectordb')
         .map((c) => c.toUpperCase())
-        .join(' · ') + (p.type ? ` · ${p.type}` : ''),
+        .join(' · ') + (p.type ? ` · ${connectionTypeLabel(p.type)}` : ''),
     icon: (
       <span
         style={{
@@ -322,9 +325,9 @@ export function ProviderSettingsView({
   const typePicker = (
     <div className="provider-overview">
       <div className="provider-overview__header">
-        <h3 className="provider-overview__title">Add Provider</h3>
+        <h3 className="provider-overview__title">Add Model Connection</h3>
         <p className="provider-overview__desc">
-          Choose a provider type to configure
+          Choose the type of backend to add
         </p>
       </div>
       <div className="provider-overview__quickstart-options">
@@ -354,9 +357,9 @@ export function ProviderSettingsView({
   const stackOverview = (
     <div className="provider-overview">
       <div className="provider-overview__header">
-        <h3 className="provider-overview__title">Provider Status</h3>
+        <h3 className="provider-overview__title">Model Connection Status</h3>
         <p className="provider-overview__desc">
-          Your active LLM and embedding providers
+          Your active LLM and embedding connections
         </p>
       </div>
 
@@ -436,7 +439,7 @@ export function ProviderSettingsView({
                       marginLeft: 'auto',
                     }}
                   >
-                    {p.type}
+                    {connectionTypeLabel(p.type)}
                   </span>
                 </button>
               ))}
@@ -449,7 +452,7 @@ export function ProviderSettingsView({
                 margin: 0,
               }}
             >
-              No LLM provider configured
+              No language model connection configured
             </p>
           )}
         </div>
@@ -524,7 +527,7 @@ export function ProviderSettingsView({
                       marginLeft: 'auto',
                     }}
                   >
-                    {p.type}
+                    {connectionTypeLabel(p.type)}
                   </span>
                 </button>
               ))}
@@ -537,7 +540,7 @@ export function ProviderSettingsView({
                 margin: 0,
               }}
             >
-              No embedding provider — needed for knowledge search
+              No embedding connection — required for knowledge search
             </p>
           )}
         </div>
@@ -547,7 +550,7 @@ export function ProviderSettingsView({
         <div className="provider-overview__quickstart">
           <h4 className="provider-overview__quickstart-title">Quick Setup</h4>
           <p className="provider-overview__quickstart-desc">
-            Add a provider to get started
+            Add a model connection to get started
           </p>
           <div className="provider-overview__quickstart-options">
             {PROVIDER_TYPES.map((opt) => (
@@ -579,32 +582,32 @@ export function ProviderSettingsView({
     <SplitPaneLayout
       label={
         selectedProviderId
-          ? 'Connections / Providers / Edit'
-          : 'Connections / Providers'
+          ? 'Connections / Model Connections / Edit'
+          : 'Connections / Model Connections'
       }
       breadcrumbLinks={
         selectedProviderId
           ? {
-              'connections / providers': () =>
+              'connections / model connections': () =>
                 onNavigate({ type: 'connections-providers' }),
             }
           : undefined
       }
-      title="Provider Connections"
-      subtitle="Manage LLM and embedding providers"
+      title="Model Connections"
+      subtitle="Configure the model backends your agents use"
       items={items}
       loading={isLoading}
       selectedId={selectedProviderId ?? null}
       onSelect={handleSelect}
       onDeselect={() => onNavigate({ type: 'connections-providers' })}
       onSearch={setSearch}
-      searchPlaceholder="Search providers…"
+      searchPlaceholder="Search model connections…"
       onAdd={() => {
         setShowTypePicker(true);
         setForm(null);
         onNavigate({ type: 'connections-providers' });
       }}
-      addLabel="+ Add Provider"
+      addLabel="+ Add Model Connection"
       emptyContent={showTypePicker ? typePicker : stackOverview}
     >
       {form && (
@@ -612,7 +615,7 @@ export function ProviderSettingsView({
           style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
         >
           <DetailHeader
-            title={isNew ? 'New Provider' : form.name || form.type}
+            title={isNew ? 'New Model Connection' : form.name || form.type}
             badge={
               form.type
                 ? { label: form.type, variant: 'info' as const }
@@ -683,7 +686,7 @@ export function ProviderSettingsView({
                 className="editor-input"
                 type="text"
                 value={form.name}
-                placeholder="My Provider"
+                placeholder="My Model Connection"
                 onChange={(e) => setField('name', e.target.value)}
               />
             </div>

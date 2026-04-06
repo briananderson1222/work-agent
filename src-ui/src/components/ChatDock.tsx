@@ -21,6 +21,10 @@ import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { setDockModeOverride } from '../hooks/useDockModePreference';
 import { useDragResize } from '../hooks/useDragResize';
 import { useGitStatus } from '../hooks/useGitStatus';
+import {
+  providerLabel,
+  resolveSessionExecutionSummary,
+} from '../utils/execution';
 import { ChatDockBody } from './ChatDockBody';
 import { ChatDockHeader } from './ChatDockHeader';
 import { ChatDockTabBar } from './ChatDockTabBar';
@@ -149,6 +153,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   }, [rehydrateSessions]);
 
   const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
+  const executionSummary = resolveSessionExecutionSummary(activeSession);
 
   // Check if current model supports attachments
   const currentModelId =
@@ -209,7 +214,14 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         setActiveChat(null);
       }
     })();
-  }, [activeChat, apiBase, openConversation, sessions, setActiveSessionId, setActiveChat]);
+  }, [
+    activeChat,
+    apiBase,
+    openConversation,
+    sessions,
+    setActiveSessionId,
+    setActiveChat,
+  ]);
 
   // Drag to resize
   useDragResize({
@@ -427,6 +439,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
           setDockModeOverride(layoutKey, mode);
           setDockMode(mode);
         }}
+        activeProviderLabel={providerLabel(executionSummary.provider)}
+        activeModel={executionSummary.model || ''}
+        activeSessionStatus={executionSummary.status}
       />
 
       {showSessionPicker && (

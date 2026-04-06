@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
 import { usePromptsQuery } from '@stallion-ai/sdk';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
@@ -14,7 +14,10 @@ export interface SlashCommand {
 }
 
 export function promptSlug(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '');
 }
 
 function getModelDisplayName(modelId: string): string {
@@ -98,7 +101,8 @@ export function useSlashCommands(agentSlug: string | null) {
         source: 'prompt' as const,
       }));
 
-    if (!agentSlug || !currentAgent) return [...BUILTIN_COMMANDS, ...promptCommands];
+    if (!agentSlug || !currentAgent)
+      return [...BUILTIN_COMMANDS, ...promptCommands];
     if (isAcp) return acpCommands;
 
     const customCommands = currentAgent.commands

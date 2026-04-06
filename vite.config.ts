@@ -19,6 +19,26 @@ export default defineConfig({
     alias: {
       '@': path.resolve(__dirname, './src-ui/src'),
       '@shared': path.resolve(__dirname, './src-shared'),
+      '@stallion-ai/sdk': path.resolve(
+        __dirname,
+        './packages/sdk/src/index.ts',
+      ),
+      '@stallion-ai/connect': path.resolve(
+        __dirname,
+        './packages/connect/src/index.ts',
+      ),
+      '@stallion-ai/contracts/orchestration': path.resolve(
+        __dirname,
+        './packages/contracts/src/orchestration.ts',
+      ),
+      '@stallion-ai/contracts/provider': path.resolve(
+        __dirname,
+        './packages/contracts/src/provider.ts',
+      ),
+      '@stallion-ai/contracts/runtime-events': path.resolve(
+        __dirname,
+        './packages/contracts/src/runtime-events.ts',
+      ),
     },
   },
   build: {

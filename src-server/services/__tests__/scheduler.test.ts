@@ -3,14 +3,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
-// ── Temp dir isolation — set before module loads so constants resolve correctly ──
+// ── Temp dir isolation — respect the shared test home override if present ──
 
-const tempDir = join(tmpdir(), `scheduler-test-${process.pid}`);
-
-vi.mock('node:os', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('node:os')>();
-  return { ...actual, homedir: () => tempDir };
-});
+const tempDir =
+  process.env.STALLION_AI_DIR ||
+  join(tmpdir(), `scheduler-test-${process.pid}`);
 
 // Mock chatFn for executeJob tests
 let chatFnBehavior: { ok: boolean; text: string } = { ok: true, text: 'done' };
@@ -34,10 +31,8 @@ const mockLogger = {
 };
 
 beforeEach(() => {
-  rmSync(join(tempDir, '.stallion-ai'), { recursive: true, force: true });
-  mkdirSync(join(tempDir, '.stallion-ai', 'scheduler', 'logs'), {
-    recursive: true,
-  });
+  rmSync(join(tempDir, 'scheduler'), { recursive: true, force: true });
+  mkdirSync(join(tempDir, 'scheduler', 'logs'), { recursive: true });
 });
 
 afterEach(() => {
