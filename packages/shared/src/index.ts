@@ -229,6 +229,8 @@ export interface KnowledgeDocumentMeta {
   namespace: string;
   /** File path relative to namespace storage dir */
   path: string;
+  /** Absolute path on disk (present when writeFiles is enabled) */
+  storagePath?: string;
   source: 'upload' | 'directory-scan' | 'sync';
   chunkCount: number;
   createdAt: string;
@@ -772,11 +774,9 @@ export function copyPluginIntegrations(
   })) {
     if (!entry.isDirectory()) continue;
     const target = join(projectIntegrationsDir, entry.name);
+    const source = join(pluginIntegrationsDir, entry.name);
     if (!existsSync(target)) {
-      cpSync(join(pluginIntegrationsDir, entry.name), target, {
-        recursive: true,
-      });
-      // Stamp plugin source into integration.json
+      cpSync(source, target, { recursive: true });
       if (pluginName) {
         const defPath = join(target, 'integration.json');
         if (existsSync(defPath)) {
@@ -788,6 +788,21 @@ export function copyPluginIntegrations(
         }
       }
       copied.push(entry.name);
+    } else if (pluginName) {
+      // Sync updates from plugin source when the integration was originally copied from this plugin
+      const defPath = join(target, 'integration.json');
+      const srcPath = join(source, 'integration.json');
+      if (existsSync(defPath) && existsSync(srcPath)) {
+        try {
+          const existing = JSON.parse(readFileSync(defPath, 'utf-8'));
+          if (existing.plugin === pluginName) {
+            const updated = JSON.parse(readFileSync(srcPath, 'utf-8'));
+            updated.plugin = pluginName;
+            writeFileSync(defPath, JSON.stringify(updated, null, 2));
+            copied.push(entry.name);
+          }
+        } catch {}
+      }
     }
   }
   return copied;
