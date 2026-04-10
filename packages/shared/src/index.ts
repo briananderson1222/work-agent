@@ -71,11 +71,21 @@ export interface PluginManifest {
   knowledge?: { namespaces: KnowledgeNamespaceConfig[] };
   skills?: string[];
   settings?: PluginSettingField[];
+  project?: {
+    name: string;
+    slug: string;
+    icon?: string;
+    description?: string;
+    layouts?: string[];
+  };
+  env?: Record<string, PluginEnvVar>;
+  integrations?: string[];
 }
 
 export interface PluginOverrideConfig {
   disabled?: string[];
   settings?: Record<string, string | number | boolean>;
+  env?: Record<string, string>;
 }
 
 export type PluginOverrides = Record<string, PluginOverrideConfig>;
@@ -111,8 +121,28 @@ export interface AgentGuardrails {
   maxSteps?: number;
 }
 
+export interface InlineIntegration {
+  id: string;
+  kind: 'mcp';
+  displayName?: string;
+  transport?: 'stdio' | 'sse' | 'streamable-http' | 'process' | 'ws' | 'tcp';
+  command?: string;
+  args?: string[];
+  requiredEnv?: string[];
+  permissions?: ToolPermissions;
+}
+
+export interface PluginEnvVar {
+  required?: boolean;
+  default?: string;
+  description?: string;
+  sensitive?: boolean;
+  promptAt?: 'install' | 'runtime';
+}
+
 export interface AgentTools {
-  mcpServers: string[];
+  mcpServers: (string | InlineIntegration)[];
+  env?: Record<string, string>;
   available?: string[];
   autoApprove?: string[];
   aliases?: Record<string, string>;
@@ -168,6 +198,7 @@ export interface ToolDef {
   args?: string[];
   endpoint?: string;
   env?: Record<string, string>;
+  requiredEnv?: string[];
   builtinPolicy?: {
     name: 'fs_read' | 'fs_write' | 'shell_exec';
     allowedPaths?: string[];
@@ -729,10 +760,11 @@ export function resolvePluginIntegrations(
     const agentPath = join(pluginDir, agentRef.source);
     if (!existsSync(agentPath)) continue;
     const agent = readAgentSpec(agentPath);
-    for (const serverId of agent.tools?.mcpServers || []) {
-      if (tools.has(serverId)) continue;
+    for (const entry of agent.tools?.mcpServers || []) {
+      if (typeof entry !== 'string') continue;
+      if (tools.has(entry)) continue;
       try {
-        tools.set(serverId, readIntegrationDef(toolsDir, serverId));
+        tools.set(entry, readIntegrationDef(toolsDir, entry));
       } catch {}
     }
   }

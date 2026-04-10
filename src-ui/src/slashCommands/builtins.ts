@@ -258,3 +258,17 @@ registerCommand('chat', async ({ autocomplete }) => {
   autocomplete.closeAll();
   autocomplete.openNewChat();
 });
+
+// Help command - list all available commands
+registerCommand('help', async ({ addEphemeralMessage, sessionId }) => {
+  const { getAllCommands } = await import('./registry');
+  const names = getAllCommands();
+  const list = names
+    .sort()
+    .map((name) => `• **/${name}**`)
+    .join('\n');
+  addEphemeralMessage(sessionId, {
+    role: 'system',
+    content: `**Available Commands:**\n\n${list}\n\n_Use the slash menu for descriptions and runtime-specific commands._`,
+  });
+});

@@ -180,21 +180,36 @@ export function AgentsView({
     );
   }, [allAgents, search]);
 
-  // Group: standalone → workspace-scoped → ACP connections
+  // Group: global → plugin-scoped → ACP connections (runtime agents excluded)
   const listItems = useMemo(() => {
-    const standalone = filteredAgents.filter(
-      (a) => !a.slug.includes(':') && a.source !== 'acp',
+    // Filter out runtime agents — they belong on Connections page
+    const nonRuntime = filteredAgents.filter(
+      (a) => !a.slug.startsWith('__runtime:') && a.source !== 'acp',
     );
-    const layoutAgents = filteredAgents.filter(
-      (a) => a.slug.includes(':') && a.source !== 'acp',
-    );
-    const agentItems = [...standalone, ...layoutAgents].map((a) => ({
+
+    // Separate plugin/layout-scoped agents from standalone
+    const globalAgents = nonRuntime.filter((a) => !a.slug.includes(':'));
+    const pluginAgents = nonRuntime.filter((a) => a.slug.includes(':'));
+
+    const globalItems = globalAgents.map((a) => ({
       id: a.slug,
       name: a.name,
       subtitle: formatExecutionSummary(a) || a.slug,
       icon: <AgentIcon agent={a} size="small" />,
+      section: 'Global',
     }));
-    // Add one entry per ACP connection instead of individual modes
+
+    const pluginItems = pluginAgents.map((a) => {
+      const pluginName = a.slug.split(':')[0];
+      return {
+        id: a.slug,
+        name: a.name,
+        subtitle: formatExecutionSummary(a) || a.slug,
+        icon: <AgentIcon agent={a} size="small" />,
+        section: pluginName,
+      };
+    });
+
     const connItems = acpConnections.map((c: any) => ({
       id: `__acp:${c.id}`,
       name: c.name || c.id,
@@ -204,8 +219,10 @@ export function AgentsView({
       ) : (
         <span className="agents-list__acp-emoji">🔌</span>
       ),
+      section: 'ACP',
     }));
-    return [...agentItems, ...connItems];
+
+    return [...globalItems, ...pluginItems, ...connItems];
   }, [filteredAgents, acpConnections]);
 
   const loadAgent = useCallback(
@@ -570,10 +587,14 @@ export function AgentsView({
                     ))}
                   </div>
                   <button
-                    className="template-blank"
+                    className="template-card"
                     onClick={() => setTemplatePicked(true)}
                   >
-                    Start Blank →
+                    <span className="template-card__icon">✨</span>
+                    <span className="template-card__label">Custom</span>
+                    <span className="template-card__desc">
+                      Start from scratch
+                    </span>
                   </button>
                 </div>
               ) : (

@@ -35,11 +35,17 @@ export function SlashCommandSelector({
       title: `${cmd.cmd}${cmd.aliases && cmd.aliases.length > 0 ? ` (${cmd.aliases.join(', ')})` : ''}`,
       description: cmd.description,
       badge:
-        cmd.source === 'acp'
-          ? 'ACP'
-          : cmd.source === 'custom'
-            ? 'Custom'
-            : undefined,
+        cmd.source === 'runtime'
+          ? 'Runtime'
+          : cmd.source === 'acp'
+            ? 'ACP'
+            : cmd.source === 'custom'
+              ? 'Custom'
+              : cmd.source === 'prompt'
+                ? 'Prompt'
+                : cmd.source === 'builtin'
+                  ? 'Platform'
+                  : undefined,
       metadata: cmd,
     }));
   }, [query, commands]);

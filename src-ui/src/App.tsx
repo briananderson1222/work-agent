@@ -123,9 +123,16 @@ function App() {
     if (path === '/playbooks' || path.startsWith('/playbooks/'))
       return { type: 'playbooks' };
     if (path === '/skills' || path.startsWith('/skills/'))
-      return { type: 'registry' };
-    if (path === '/registry' || path.startsWith('/registry/'))
-      return { type: 'registry' };
+      return { type: 'registry', tab: 'skills' };
+    if (path === '/registry' || path.startsWith('/registry/')) {
+      const seg = path.split('/')[2] as
+        | 'agents'
+        | 'skills'
+        | 'integrations'
+        | 'plugins'
+        | undefined;
+      return { type: 'registry', tab: seg || undefined };
+    }
     if (path === '/plugins' || path.startsWith('/plugins/'))
       return { type: 'plugins' };
     if (path === '/connections') return { type: 'connections' };
@@ -135,6 +142,8 @@ function App() {
       const id = path.split('/')[3];
       if (id) return { type: 'connections-provider-edit', id };
     }
+    if (path === '/connections/runtimes')
+      return { type: 'connections-runtimes' };
     if (path.startsWith('/connections/runtimes/')) {
       const id = path.split('/')[3];
       if (id) return { type: 'connections-runtime-edit', id };
@@ -230,6 +239,8 @@ function App() {
         navigate('/agents');
       } else if (view.type === 'prompts') {
         navigate('/prompts');
+      } else if (view.type === 'registry') {
+        navigate(view.tab ? `/registry/${view.tab}` : '/registry');
       } else if (view.type === 'skills') {
         navigate('/skills');
       } else if (view.type === 'plugins') {
@@ -240,6 +251,8 @@ function App() {
         navigate('/connections/providers');
       } else if (view.type === 'connections-provider-edit') {
         navigate(`/connections/providers/${view.id}`);
+      } else if (view.type === 'connections-runtimes') {
+        navigate('/connections/runtimes');
       } else if (view.type === 'connections-runtime-edit') {
         navigate(`/connections/runtimes/${view.id}`);
       } else if (view.type === 'connections-tools') {
@@ -345,11 +358,17 @@ function App() {
         return;
       }
       if (path === '/skills' || path.startsWith('/skills/')) {
-        setCurrentView({ type: 'registry' });
+        setCurrentView({ type: 'registry', tab: 'skills' });
         return;
       }
       if (path === '/registry' || path.startsWith('/registry/')) {
-        setCurrentView({ type: 'registry' });
+        const seg = path.split('/')[2] as
+          | 'agents'
+          | 'skills'
+          | 'integrations'
+          | 'plugins'
+          | undefined;
+        setCurrentView({ type: 'registry', tab: seg || undefined });
         return;
       }
       if (path === '/plugins' || path.startsWith('/plugins/')) {
@@ -370,6 +389,10 @@ function App() {
           setCurrentView({ type: 'connections-provider-edit', id });
           return;
         }
+      }
+      if (path === '/connections/runtimes') {
+        setCurrentView({ type: 'connections-runtimes' });
+        return;
       }
       if (path.startsWith('/connections/runtimes/')) {
         const id = path.split('/')[3];
@@ -638,7 +661,11 @@ function App() {
           ? lastLayout
           : layouts[0].slug;
       setStandaloneLayout(target);
+      return;
     }
+
+    // 4. No projects or layouts — go to agents page as onboarding entry point
+    navigate('/agents');
   }, [
     layouts,
     projects,
@@ -652,6 +679,7 @@ function App() {
     lastLayout,
     lastProject,
     lastProjectLayout,
+    navigate,
   ]);
 
   const handleSettingsSaved = () => {
@@ -754,7 +782,9 @@ function App() {
         )}
         {currentView.type === 'playbooks' && <PlaybooksView />}
         {currentView.type === 'prompts' && <PlaybooksView />}
-        {currentView.type === 'registry' && <RegistryView />}
+        {currentView.type === 'registry' && (
+          <RegistryView tab={currentView.tab} onNavigate={navigateToView} />
+        )}
         {currentView.type === 'plugins' && <PluginManagementView />}
         {currentView.type === 'connections' && <ConnectionsHub />}
         {currentView.type === 'connections-providers' && (
@@ -765,6 +795,9 @@ function App() {
             selectedProviderId={currentView.id}
             onNavigate={navigateToView}
           />
+        )}
+        {currentView.type === 'connections-runtimes' && (
+          <RuntimeConnectionView onNavigate={navigateToView} />
         )}
         {currentView.type === 'connections-runtime-edit' && (
           <RuntimeConnectionView

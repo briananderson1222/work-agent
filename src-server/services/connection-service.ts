@@ -31,7 +31,6 @@ type ACPConnectionStatus = {
 const MODEL_CAPABILITY_SET = new Set<ConnectionCapability>([
   'llm',
   'embedding',
-  'vectordb',
 ]);
 
 const RUNTIME_CAPABILITY_MAP: Record<ProviderKind, ConnectionCapability[]> = {

@@ -114,7 +114,11 @@ export function SessionConversationItem({
             </span>
           )}
           {conv.agentContext && <span>{conv.agentContext}</span>}
-          <span>{conv.agentLabel || conv.agentName || conv.agentSlug}</span>
+          <span>
+            {conv.agentLabel ||
+              conv.agentName ||
+              conv.agentSlug.replace(/^__runtime:/, '')}
+          </span>
           {conv.metadata?.stats?.turns && (
             <>
               <span>•</span>

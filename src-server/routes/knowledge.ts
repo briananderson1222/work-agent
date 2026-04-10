@@ -92,7 +92,7 @@ function knowledgeHandlers(
       return c.json({
         success: true,
         data: {
-          provider: 'LanceDB (file-based)',
+          provider: 'Built-in Vector Store',
           documentCount: docs.length,
           totalChunks,
           lastIndexed,

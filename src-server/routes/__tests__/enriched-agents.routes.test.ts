@@ -43,6 +43,7 @@ function setup(overrides: Record<string, unknown> = {}) {
     defaultModel: 'claude-3-sonnet',
     defaultTools: { mcpServers: [], autoApprove: [] },
     getVirtualAgents: vi.fn().mockReturnValue([]),
+    getRuntimeConnections: vi.fn().mockResolvedValue([]),
     isACPConnected: vi.fn().mockReturnValue(false),
     reloadAgents: vi.fn().mockResolvedValue(undefined),
     logger: { warn: vi.fn(), error: vi.fn(), info: vi.fn(), debug: vi.fn() },

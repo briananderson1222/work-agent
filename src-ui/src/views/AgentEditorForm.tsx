@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { AgentIcon } from '../components/AgentIcon';
 import { Checkbox } from '../components/Checkbox';
 import { ModelSelector } from '../components/ModelSelector';
+import { Tabs } from '../components/Tabs';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import type { NavigationView, Tool } from '../types';
 import './editor-layout.css';
@@ -158,18 +159,11 @@ export function AgentEditorForm({
   return (
     <>
       {/* Tab navigation */}
-      <div className="page-layout__tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            className={`page-layout__tab${activeTab === tab.key ? ' page-layout__tab--active' : ''}`}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={(key) => setActiveTab(key as EditorTab)}
+      />
 
       {/* Basic tab */}
       {activeTab === 'basic' && (
@@ -406,6 +400,45 @@ export function AgentEditorForm({
                 </option>
               ))}
             </select>
+            {selectedRuntime && (
+              <span
+                className="editor-hint"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}
+              >
+                <span
+                  className="status-dot"
+                  style={{
+                    background:
+                      selectedRuntime.status === 'ready'
+                        ? 'var(--success-text, #22c55e)'
+                        : selectedRuntime.status === 'missing_prerequisites'
+                          ? 'var(--warning-text, #eab308)'
+                          : 'var(--text-muted)',
+                  }}
+                />
+                {selectedRuntime.status === 'ready' && 'Ready'}
+                {selectedRuntime.status === 'missing_prerequisites' && (
+                  <>
+                    Setup Required —{' '}
+                    <button
+                      type="button"
+                      className="editor-link"
+                      onClick={() =>
+                        onNavigate({
+                          type: 'connections-runtime-edit',
+                          id: selectedRuntime.id,
+                        })
+                      }
+                    >
+                      Configure
+                    </button>
+                  </>
+                )}
+                {selectedRuntime.status !== 'ready' &&
+                  selectedRuntime.status !== 'missing_prerequisites' &&
+                  selectedRuntime.status}
+              </span>
+            )}
             <span className="editor-hint">
               {selectedRuntime?.description ||
                 (selectedRuntimeId === 'claude-runtime'

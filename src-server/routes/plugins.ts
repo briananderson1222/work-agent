@@ -188,7 +188,9 @@ export function createPluginRoutes(
           description: manifest.description,
           hasBundle: existsSync(bundlePath),
           hasSettings:
-            Array.isArray(manifest.settings) && manifest.settings.length > 0,
+            (Array.isArray(manifest.settings) &&
+              manifest.settings.length > 0) ||
+            (manifest.env && Object.keys(manifest.env).length > 0),
           layout: manifest.layout,
           agents: manifest.agents,
           providers: manifest.providers,
@@ -694,6 +696,83 @@ export function createPluginRoutes(
         }
       }
 
+      // Create project if manifest defines one
+      if (
+        manifest.project &&
+        !skipSet.has(`project:${manifest.project.slug}`)
+      ) {
+        const projectsDir = join(projectHomeDir, 'projects');
+        const projectDir = join(projectsDir, manifest.project.slug);
+        if (!existsSync(join(projectDir, 'project.json'))) {
+          mkdirSync(projectDir, { recursive: true });
+          mkdirSync(join(projectDir, 'layouts'), { recursive: true });
+          const now = new Date().toISOString();
+          const projectConfig = {
+            id: crypto.randomUUID(),
+            name: manifest.project.name,
+            slug: manifest.project.slug,
+            icon: manifest.project.icon,
+            description: manifest.project.description,
+            knowledgeNamespaces: [
+              { id: 'default', label: 'Default', behavior: 'rag' },
+            ],
+            createdAt: now,
+            updatedAt: now,
+          };
+          writeFileSync(
+            join(projectDir, 'project.json'),
+            JSON.stringify(projectConfig, null, 2),
+          );
+          logger.info(
+            `Created project '${manifest.project.slug}' from plugin '${pluginName}'`,
+          );
+        }
+
+        // Wire up plugin layouts into the project
+        const layoutSlugs =
+          manifest.project.layouts ||
+          (installedLayoutSlug ? [installedLayoutSlug] : []);
+        for (const layoutSlug of layoutSlugs) {
+          const layoutSrc = join(layoutsDir, layoutSlug, 'layout.json');
+          if (!existsSync(layoutSrc)) continue;
+          const layoutData = JSON.parse(readFileSync(layoutSrc, 'utf-8'));
+          const now = new Date().toISOString();
+          const layoutConfig = {
+            id: crypto.randomUUID(),
+            projectSlug: manifest.project.slug,
+            type: 'chat',
+            name: layoutData.name || layoutSlug,
+            slug: layoutSlug,
+            icon: layoutData.icon,
+            description: layoutData.description,
+            config: {
+              plugin: pluginName,
+              tabs: layoutData.tabs,
+              globalPrompts: layoutData.globalPrompts,
+              defaultAgent: layoutData.defaultAgent,
+              availableAgents: layoutData.availableAgents,
+              requiredProviders: layoutData.requiredProviders,
+            },
+            createdAt: now,
+            updatedAt: now,
+          };
+          const projectLayoutPath = join(
+            projectDir,
+            'layouts',
+            `${layoutSlug}.json`,
+          );
+          if (!existsSync(projectLayoutPath)) {
+            writeFileSync(
+              projectLayoutPath,
+              JSON.stringify(layoutConfig, null, 2),
+            );
+            logger.info(
+              `Applied layout '${layoutSlug}' to project '${manifest.project.slug}'`,
+            );
+          }
+        }
+      }
+
       // Scan and register plugin prompts
       if (manifest.prompts?.source) {
         const { scanPromptDir } = await import('../services/prompt-scanner.js');
@@ -850,6 +929,7 @@ export function createPluginRoutes(
         tools: toolResults,
         dependencies: depResults,
         permissions: { autoGranted, pendingConsent },
+        env: manifest.env || undefined,
       });
     } catch (e: unknown) {
       logger.error('Plugin install failed', { error: errorMessage(e) });
@@ -1188,14 +1268,24 @@ export function createPluginRoutes(
     const { ConfigLoader } = await import('../domain/config-loader.js');
     const configLoader = new ConfigLoader({ projectHomeDir });
     const overrides = await configLoader.loadPluginOverrides();
-    const values = overrides[manifest.name || name]?.settings || {};
+    const pluginOverride = overrides[manifest.name || name] || {};
+    const values = pluginOverride.settings || {};
 
     const merged: Record<string, unknown> = {};
     for (const field of schema) {
       merged[field.key] = values[field.key] ?? field.default ?? null;
     }
 
-    return c.json({ schema, values: merged });
+    // Env vars from plugin.json env schema
+    const envSchema = manifest.env || {};
+    const envValues = pluginOverride.env || {};
+    const mergedEnv: Record<string, unknown> = {};
+    for (const [key, def] of Object.entries(envSchema)) {
+      const envDef = def as { default?: string };
+      mergedEnv[key] = envValues[key] ?? envDef.default ?? null;
+    }
+
+    return c.json({ schema, values: merged, envSchema, envValues: mergedEnv });
   });
 
   app.put('/:name/settings', validate(pluginSettingsSchema), async (c) => {
@@ -1207,13 +1297,15 @@ export function createPluginRoutes(
     const overrides = await configLoader.loadPluginOverrides();
 
     if (!overrides[name]) overrides[name] = {};
-    overrides[name].settings = body.settings || {};
+    if (body.settings) overrides[name].settings = body.settings;
+    if (body.env) overrides[name].env = body.env;
     await configLoader.savePluginOverrides(overrides);
 
     pluginSettingsUpdates.add(1, { plugin: name });
     eventBus?.emit('plugins:settings-changed', {
       name,
       settings: body.settings,
+      env: body.env,
     });
     return c.json({ success: true });
   });

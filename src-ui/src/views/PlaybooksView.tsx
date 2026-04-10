@@ -6,6 +6,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { DetailHeader } from '../components/DetailHeader';
 import { ImportPromptsModal } from '../components/ImportPromptsModal';
 import { PromptRunModal } from '../components/PromptRunModal';
+import { SortToolbar } from '../components/SortToolbar';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { Toggle } from '../components/Toggle';
 import {
@@ -323,7 +324,11 @@ export function PlaybooksView() {
   const listItems = filtered.map((p) => ({
     id: p.id,
     name: p.name,
-    subtitle: [p.category, p.tags?.slice(0, 2).join(', ')]
+    subtitle: [
+      p.source && p.source !== 'local' ? p.source : null,
+      p.category,
+      p.tags?.slice(0, 2).join(', '),
+    ]
       .filter(Boolean)
       .join(' · '),
   }));
@@ -348,17 +353,15 @@ export function PlaybooksView() {
         emptyDescription="Select a playbook or create a new one"
         sidebarActions={
           <>
-            <select
-              className="editor-select editor-select--small"
+            <SortToolbar
+              options={[
+                { key: 'date', label: 'Newest' },
+                { key: 'name', label: 'Name' },
+                { key: 'category', label: 'Category' },
+              ]}
               value={sortBy}
-              onChange={(e) =>
-                setSortBy(e.target.value as 'name' | 'date' | 'category')
-              }
-            >
-              <option value="date">Newest</option>
-              <option value="name">Name</option>
-              <option value="category">Category</option>
-            </select>
+              onChange={(key) => setSortBy(key as 'name' | 'date' | 'category')}
+            />
             <button
               className="split-pane__add-btn split-pane__add-btn--secondary"
               onClick={() => setShowImportModal(true)}
