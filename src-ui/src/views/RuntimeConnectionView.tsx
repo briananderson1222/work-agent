@@ -201,10 +201,11 @@ export function RuntimeConnectionView({
       breadcrumbLinks={
         selectedRuntimeId
           ? {
-              'connections / runtime connections': () =>
-                onNavigate({ type: 'connections' }),
+              connections: () => onNavigate({ type: 'connections' }),
+              'runtime connections': () =>
+                onNavigate({ type: 'connections-runtimes' } as NavigationView),
             }
-          : undefined
+          : { connections: () => onNavigate({ type: 'connections' }) }
       }
       title="Runtime Connections"
       subtitle="Check readiness and test your AI runtimes"
@@ -212,7 +213,9 @@ export function RuntimeConnectionView({
       items={items}
       selectedId={selectedRuntimeId ?? null}
       onSelect={(id) => onNavigate({ type: 'connections-runtime-edit', id })}
-      onDeselect={() => onNavigate({ type: 'connections' })}
+      onDeselect={() =>
+        onNavigate({ type: 'connections-runtimes' } as NavigationView)
+      }
       onSearch={setSearch}
       emptyTitle="No runtime connections"
       emptyDescription="Registered runtimes will appear here."
@@ -245,6 +248,22 @@ export function RuntimeConnectionView({
               <label className="editor-label">Status</label>
               <div className="editor-input editor-input--readonly">
                 {connectionStatusLabel(form.status)}
+              </div>
+            </div>
+
+            <div className="editor-field">
+              <label className="editor-label">Model Backend</label>
+              <div
+                className="editor-input"
+                style={{ background: 'var(--bg-tertiary)', cursor: 'default' }}
+              >
+                {form.type === 'bedrock'
+                  ? 'Amazon Bedrock'
+                  : form.type === 'claude'
+                    ? 'Claude API (direct)'
+                    : form.type === 'codex'
+                      ? 'Codex API (direct)'
+                      : form.type || 'Unknown'}
               </div>
             </div>
 
@@ -322,6 +341,41 @@ export function RuntimeConnectionView({
                         {item.description && (
                           <div className="plugins__registry-desc">
                             {item.description}
+                          </div>
+                        )}
+                        {item.installGuide && (
+                          <div style={{ marginTop: 8 }}>
+                            <ol
+                              style={{
+                                margin: '4px 0 0',
+                                paddingLeft: 20,
+                                fontSize: 12,
+                                color: 'var(--text-secondary)',
+                              }}
+                            >
+                              {item.installGuide.steps.map((step, i) => (
+                                <li key={i} style={{ marginBottom: 4 }}>
+                                  {step}
+                                </li>
+                              ))}
+                            </ol>
+                            {item.installGuide.links?.map((link, i) => (
+                              <a
+                                key={i}
+                                href={link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-block',
+                                  marginTop: 4,
+                                  marginRight: 12,
+                                  fontSize: 12,
+                                  color: 'var(--accent-primary)',
+                                }}
+                              >
+                                Documentation →
+                              </a>
+                            ))}
                           </div>
                         )}
                       </div>

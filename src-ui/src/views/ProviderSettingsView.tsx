@@ -7,6 +7,9 @@ import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import type { NavigationView } from '../types';
 import { connectionTypeLabel } from '../utils/execution';
+import './PluginManagementView.css';
+import './page-layout.css';
+import './editor-layout.css';
 
 type ProviderConnection = ConnectionConfig & { kind: 'model' };
 
@@ -124,6 +127,15 @@ export function ProviderSettingsView({
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
       return json.data;
+    },
+  });
+
+  const { data: runtimeConnections = [] } = useQuery<any[]>({
+    queryKey: ['connections', 'runtimes'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/connections/runtimes`);
+      const json = await res.json();
+      return json.success ? json.data : [];
     },
   });
 
@@ -292,16 +304,7 @@ export function ProviderSettingsView({
         .join(' · ') + (p.type ? ` · ${connectionTypeLabel(p.type)}` : ''),
     icon: (
       <span
-        style={{
-          width: '8px',
-          height: '8px',
-          borderRadius: '50%',
-          background: p.enabled
-            ? 'var(--success-text, #22c55e)'
-            : 'var(--text-muted)',
-          display: 'inline-block',
-          flexShrink: 0,
-        }}
+        className={`status-dot ${p.enabled ? 'status-dot--connected' : 'status-dot--disconnected'}`}
       />
     ),
   }));
@@ -363,59 +366,28 @@ export function ProviderSettingsView({
         </p>
       </div>
 
-      <div
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '16px',
-          marginBottom: '24px',
-        }}
-      >
+      <div className="provider-overview__grid">
         {/* LLM Status */}
-        <div
-          style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-primary)',
-            borderRadius: '8px',
-            padding: '16px',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '10px',
-              color: 'var(--text-muted)',
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </svg>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                textTransform: 'uppercase' as const,
-                letterSpacing: '0.06em',
-              }}
-            >
-              LLM
+        <div className="provider-overview__card">
+          <div className="provider-overview__card-header">
+            <span className="provider-overview__card-icon">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
             </span>
+            <span className="provider-overview__card-label">LLM</span>
           </div>
           {llmProviders.length > 0 ? (
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
-            >
+            <div className="provider-overview__card-items">
               {llmProviders.map((p) => (
                 <button
                   key={p.id}
@@ -423,21 +395,10 @@ export function ProviderSettingsView({
                   onClick={() => handleSelect(p.id)}
                 >
                   <span className="provider-overview__dot provider-overview__dot--active" />
+                  <span>{p.name}</span>
                   <span
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    {p.name}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      color: 'var(--text-muted)',
-                      marginLeft: 'auto',
-                    }}
+                    className="provider-overview__card-meta"
+                    style={{ marginLeft: 'auto' }}
                   >
                     {connectionTypeLabel(p.type)}
                   </span>
@@ -445,65 +406,35 @@ export function ProviderSettingsView({
               ))}
             </div>
           ) : (
-            <p
-              style={{
-                fontSize: '13px',
-                color: 'var(--text-muted)',
-                margin: 0,
-              }}
-            >
+            <p className="provider-overview__card-empty">
               No language model connection configured
             </p>
           )}
         </div>
 
         {/* Embedding Status */}
-        <div
-          style={{
-            background: 'var(--bg-secondary)',
-            border: '1px solid var(--border-primary)',
-            borderRadius: '8px',
-            padding: '16px',
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              marginBottom: '10px',
-              color: 'var(--text-muted)',
-            }}
-          >
-            <svg
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="12" cy="12" r="10" />
-              <line x1="2" y1="12" x2="22" y2="12" />
-              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-            </svg>
-            <span
-              style={{
-                fontSize: '11px',
-                fontWeight: 600,
-                textTransform: 'uppercase' as const,
-                letterSpacing: '0.06em',
-              }}
-            >
-              Embedding
+        <div className="provider-overview__card">
+          <div className="provider-overview__card-header">
+            <span className="provider-overview__card-icon">
+              <svg
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+              </svg>
             </span>
+            <span className="provider-overview__card-label">Embedding</span>
           </div>
           {embeddingProviders.length > 0 ? (
-            <div
-              style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}
-            >
+            <div className="provider-overview__card-items">
               {embeddingProviders.map((p) => (
                 <button
                   key={p.id}
@@ -511,21 +442,10 @@ export function ProviderSettingsView({
                   onClick={() => handleSelect(p.id)}
                 >
                   <span className="provider-overview__dot provider-overview__dot--active" />
+                  <span>{p.name}</span>
                   <span
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      color: 'var(--text-primary)',
-                    }}
-                  >
-                    {p.name}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: '11px',
-                      color: 'var(--text-muted)',
-                      marginLeft: 'auto',
-                    }}
+                    className="provider-overview__card-meta"
+                    style={{ marginLeft: 'auto' }}
                   >
                     {connectionTypeLabel(p.type)}
                   </span>
@@ -533,13 +453,7 @@ export function ProviderSettingsView({
               ))}
             </div>
           ) : (
-            <p
-              style={{
-                fontSize: '13px',
-                color: 'var(--text-muted)',
-                margin: 0,
-              }}
-            >
+            <p className="provider-overview__card-empty">
               No embedding connection — required for knowledge search
             </p>
           )}
@@ -588,10 +502,11 @@ export function ProviderSettingsView({
       breadcrumbLinks={
         selectedProviderId
           ? {
-              'connections / model connections': () =>
+              connections: () => onNavigate({ type: 'connections' }),
+              'model connections': () =>
                 onNavigate({ type: 'connections-providers' }),
             }
-          : undefined
+          : { connections: () => onNavigate({ type: 'connections' }) }
       }
       title="Model Connections"
       subtitle="Configure the model backends your agents use"
@@ -611,9 +526,7 @@ export function ProviderSettingsView({
       emptyContent={showTypePicker ? typePicker : stackOverview}
     >
       {form && (
-        <div
-          style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-        >
+        <div className="editor-layout">
           <DetailHeader
             title={isNew ? 'New Model Connection' : form.name || form.type}
             badge={
@@ -641,32 +554,13 @@ export function ProviderSettingsView({
           </DetailHeader>
 
           {error && (
-            <div
-              style={{
-                margin: '12px 24px',
-                padding: '10px 14px',
-                background: 'var(--error-bg)',
-                border: '1px solid var(--error-border)',
-                borderRadius: '6px',
-                color: 'var(--error-text)',
-                fontSize: '13px',
-              }}
-            >
+            <div className="plugins__message plugins__message--error">
               {error}
             </div>
           )}
 
           {/* Form body */}
-          <div
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '20px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-            }}
-          >
+          <div className="agent-editor__section">
             <div className="editor-field">
               <label className="editor-label">Type</label>
               <select
@@ -693,24 +587,12 @@ export function ProviderSettingsView({
 
             <div className="editor-field">
               <label className="editor-label">Capabilities</label>
-              <div style={{ display: 'flex', gap: '6px', marginTop: '4px' }}>
+              <div className="plugins__caps">
                 {form.capabilities
                   .filter((c) => c !== 'vectordb')
                   .map((cap) => (
-                    <span
-                      key={cap}
-                      style={{
-                        fontSize: '10px',
-                        fontWeight: 600,
-                        padding: '2px 8px',
-                        borderRadius: '4px',
-                        background: 'var(--bg-tertiary)',
-                        color: 'var(--text-muted)',
-                        textTransform: 'uppercase' as const,
-                        letterSpacing: '0.04em',
-                      }}
-                    >
-                      {cap}
+                    <span key={cap} className="plugins__cap">
+                      {cap.toUpperCase()}
                     </span>
                   ))}
               </div>
@@ -768,66 +650,62 @@ export function ProviderSettingsView({
             )}
 
             <div className="editor-field">
-              <label
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  fontSize: '13px',
-                  color: 'var(--text-primary)',
-                }}
-              >
+              <label className="editor-label">Enabled</label>
+              <label className="editor-checkbox">
                 <input
                   type="checkbox"
                   checked={form.enabled}
                   onChange={(e) => setField('enabled', e.target.checked)}
                 />
-                Enabled
+                <span>Enabled</span>
               </label>
             </div>
 
-            {!isNew && selectedProviderId && (
-              <div
-                style={{
-                  paddingTop: '8px',
-                  borderTop: '1px solid var(--border-primary)',
-                }}
-              >
-                <button
-                  className="editor-btn"
-                  onClick={() => testMutation.mutate(selectedProviderId)}
-                  disabled={testMutation.isPending}
-                  style={{ marginBottom: '8px' }}
+            {!isNew && (
+              <div className="editor__section">
+                <label className="editor-label">Used By</label>
+                <div
+                  style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}
                 >
-                  {testMutation.isPending ? 'Testing…' : 'Test Connection'}
-                </button>
-                {testResult && (
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      color: testResult.healthy
-                        ? 'var(--success-text, #22c55e)'
-                        : 'var(--error-text)',
-                      marginTop: '6px',
-                    }}
+                  {runtimeConnections
+                    .filter((r: any) => r.type === form.type)
+                    .map((r: any) => (
+                      <span key={r.id} className="page__tag">
+                        {r.name}
+                      </span>
+                    ))}
+                  {runtimeConnections.filter((r: any) => r.type === form.type)
+                    .length === 0 && (
+                    <span
+                      style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}
+                    >
+                      No runtimes using this provider
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {!isNew && selectedProviderId && (
+              <div className="editor-field">
+                <label className="editor-label">Test</label>
+                <div className="editor-row">
+                  <button
+                    className="editor-btn"
+                    onClick={() => testMutation.mutate(selectedProviderId)}
+                    disabled={testMutation.isPending}
                   >
+                    {testMutation.isPending ? 'Testing…' : 'Test Connection'}
+                  </button>
+                </div>
+                {testResult && (
+                  <p className="editor-help">
                     {testResult.healthy
                       ? '✓ Connection healthy'
                       : '✗ Connection failed'}
-                  </div>
+                  </p>
                 )}
-                {testError && (
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      color: 'var(--error-text)',
-                      marginTop: '6px',
-                    }}
-                  >
-                    ✗ {testError}
-                  </div>
-                )}
+                {testError && <p className="editor-error">✗ {testError}</p>}
               </div>
             )}
           </div>

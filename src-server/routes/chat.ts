@@ -434,10 +434,19 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
           memory = agent.getMemory();
           memoryAdapter = ctx.memoryAdapters.get(slug);
-          const isFileBackedAgent = ctx.agentSpecs.has(slug);
-          const conversationStorage = isFileBackedAgent
-            ? memory
-            : memoryAdapter;
+          if (!memoryAdapter) {
+            const { FileMemoryAdapter } = await import(
+              '../adapters/file/memory-adapter.js'
+            );
+            memoryAdapter = new FileMemoryAdapter({
+              projectHomeDir: ctx.configLoader.getProjectHomeDir(),
+            });
+            ctx.memoryAdapters.set(slug, memoryAdapter);
+          }
+          // Always use memoryAdapter (FileMemoryAdapter) for conversation creation.
+          // VoltAgent's Memory may use InMemoryStorageAdapter internally, which
+          // never writes to disk. The FileMemoryAdapter guarantees persistence.
+          const conversationStorage = memoryAdapter || memory;
           if (
             conversationStorage &&
             operationContext.conversationId &&
@@ -563,9 +572,10 @@ export function createChatRoutes(ctx: RuntimeContext) {
           });
 
           if (isNewConversation && operationContext.conversationId) {
-            const mem = agent.getMemory();
-            const conversation = mem
-              ? await mem.getConversation(operationContext.conversationId)
+            const conversation = memoryAdapter
+              ? await memoryAdapter.getConversation(
+                  operationContext.conversationId,
+                )
               : null;
             await streamWriter.write(
               `data: ${JSON.stringify({
@@ -667,13 +677,7 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
           ctx.agentStatus.set(slug, 'idle');
 
-          const isFileBackedAgent = ctx.agentSpecs.has(slug);
-          if (
-            !isFileBackedAgent &&
-            memoryAdapter &&
-            conversationId &&
-            accumulatedText
-          ) {
+          if (memoryAdapter && conversationId && accumulatedText) {
             try {
               const userText =
                 typeof input === 'string'
@@ -708,7 +712,8 @@ export function createChatRoutes(ctx: RuntimeContext) {
                 { model: modelOverride || ctx.agentSpecs.get(slug)?.model },
               );
             } catch (e) {
-              ctx.logger.error('Failed to persist messages for temp agent', {
+              ctx.logger.error('Failed to persist messages', {
+                agent: slug,
                 error: e,
               });
             }
