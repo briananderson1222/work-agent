@@ -25,7 +25,7 @@ services:
   # ── Development (docker compose --profile dev up) ──
   server-dev:
     profiles: [dev]
-    image: node:20-slim
+    image: node:24-slim
     working_dir: /app
     command: npm run dev:server
     ports:
@@ -47,7 +47,7 @@ services:
 
   ui-dev:
     profiles: [dev]
-    image: node:20-slim
+    image: node:24-slim
     working_dir: /app
     command: npm run dev:ui
     ports:

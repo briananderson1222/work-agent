@@ -1,5 +1,5 @@
 # ── Stage 1: Install dependencies ──
-FROM node:20-slim AS deps
+FROM node:24-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 COPY packages/sdk/package.json packages/sdk/
@@ -13,7 +13,7 @@ COPY . .
 RUN npm run build:server && npm run build:ui
 
 # ── Stage 3: Production server ──
-FROM node:20-slim AS server
+FROM node:24-slim AS server
 WORKDIR /app
 COPY --from=build /app/dist-server ./dist-server
 COPY --from=deps /app/node_modules ./node_modules
