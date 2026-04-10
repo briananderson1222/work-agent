@@ -79,6 +79,17 @@ export function createOrchestrationRoutes(
     return c.json({ success: true, data });
   });
 
+  app.get('/providers/:provider/commands', async (c) => {
+    const provider = c.req.param('provider');
+    if (!['bedrock', 'claude', 'codex'].includes(provider)) {
+      return c.json({ success: false, error: 'Unknown provider' }, 404);
+    }
+    const data = await orchestrationService.getProviderCommands(
+      provider as 'bedrock' | 'claude' | 'codex',
+    );
+    return c.json({ success: true, data });
+  });
+
   app.get('/sessions', async (c) => {
     const data = await orchestrationService.listSessions();
     return c.json({ success: true, data });

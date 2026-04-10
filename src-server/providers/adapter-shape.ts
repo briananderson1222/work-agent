@@ -32,4 +32,12 @@ export interface ProviderAdapterShape {
   stopAll(): Promise<void>;
   streamEvents(): AsyncIterable<CanonicalRuntimeEvent>;
   getPrerequisites?(): Promise<Prerequisite[]>;
+  getCommands?(): Promise<
+    Array<{
+      name: string;
+      description: string;
+      argumentHint?: string;
+      passthrough: boolean;
+    }>
+  >;
 }

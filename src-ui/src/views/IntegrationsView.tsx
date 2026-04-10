@@ -1,9 +1,9 @@
-import { LoadingState } from '@stallion-ai/sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useNavigation } from '../contexts/NavigationContext';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import './PluginManagementView.css';
 import './IntegrationsView.css';
@@ -27,174 +27,10 @@ interface IntegrationDef {
   connected?: boolean;
 }
 
-interface RegistryItem {
-  id: string;
-  displayName?: string;
-  description?: string;
-  version?: string;
-  installed?: boolean;
-  source?: string;
-}
-
-/* ── Integration Registry Modal ── */
-function RegistryModal({
-  apiBase,
-  onClose,
-}: {
-  apiBase: string;
-  onClose: () => void;
-}) {
-  const qc = useQueryClient();
-  const [message, setMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
-  const [filter, setFilter] = useState('');
-
-  const { data: items = [], isLoading } = useQuery<RegistryItem[]>({
-    queryKey: ['registry', 'integrations'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/registry/integrations`);
-      if (!res.ok) throw new Error('Failed to fetch');
-      const data = await res.json();
-      return data.success ? data.data || [] : [];
-    },
-  });
-
-  const actionMutation = useMutation({
-    mutationFn: async ({
-      item,
-      action,
-    }: {
-      item: RegistryItem;
-      action: 'install' | 'uninstall';
-    }) => {
-      const res =
-        action === 'install'
-          ? await fetch(`${apiBase}/api/registry/integrations/install`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id: item.id }),
-            })
-          : await fetch(
-              `${apiBase}/api/registry/integrations/${encodeURIComponent(item.id)}`,
-              { method: 'DELETE' },
-            );
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error || `${action} failed`);
-      return { action, name: item.displayName || item.id };
-    },
-    onSuccess: ({ action, name }) => {
-      setMessage({
-        type: 'success',
-        text: `${action === 'install' ? 'Installed' : 'Removed'} ${name}`,
-      });
-      qc.invalidateQueries({ queryKey: ['registry', 'integrations'] });
-    },
-    onError: (e: Error) => setMessage({ type: 'error', text: e.message }),
-  });
-
-  const filtered = items.filter((item) => {
-    if (!filter) return true;
-    const q = filter.toLowerCase();
-    return (
-      (item.displayName || item.id).toLowerCase().includes(q) ||
-      item.description?.toLowerCase().includes(q)
-    );
-  });
-
-  return (
-    <div className="plugins__modal-overlay" onClick={onClose}>
-      <div className="plugins__modal" onClick={(e) => e.stopPropagation()}>
-        <div className="plugins__modal-header">
-          <h3 className="plugins__modal-title">Integration Registry</h3>
-          <button className="plugins__modal-close" onClick={onClose}>
-            &times;
-          </button>
-        </div>
-        <div className="plugins__modal-body">
-          {message && (
-            <div
-              className={`plugins__modal-message plugins__message--${message.type}`}
-            >
-              {message.text}
-            </div>
-          )}
-          {isLoading ? (
-            <LoadingState message="Loading registry..." />
-          ) : items.length === 0 ? (
-            <div className="plugins__empty">
-              No integration registry configured.
-            </div>
-          ) : (
-            <>
-              <input
-                className="plugins__filter-input"
-                type="text"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter integrations..."
-                autoFocus
-              />
-              <div className="plugins__registry-list">
-                {filtered.length === 0 ? (
-                  <div className="plugins__empty">
-                    No matches for &ldquo;{filter}&rdquo;
-                  </div>
-                ) : (
-                  filtered.map((item) => (
-                    <div key={item.id} className="plugins__registry-item">
-                      <div className="plugins__registry-info">
-                        <div className="plugins__registry-name">
-                          {item.displayName || item.id}
-                          {item.version && (
-                            <span className="plugins__card-version">
-                              v{item.version}
-                            </span>
-                          )}
-                          {item.source && (
-                            <span className="plugins__cap plugins__cap--ref">
-                              {item.source}
-                            </span>
-                          )}
-                        </div>
-                        {item.description && (
-                          <div className="plugins__registry-desc plugins__registry-desc--clamp">
-                            {item.description.replace(/\\n/g, ' ')}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        className={`plugins__btn ${item.installed ? 'plugins__btn--uninstall' : 'plugins__btn--install'}`}
-                        onClick={() =>
-                          actionMutation.mutate({
-                            item,
-                            action: item.installed ? 'uninstall' : 'install',
-                          })
-                        }
-                        disabled={actionMutation.isPending}
-                      >
-                        {actionMutation.isPending
-                          ? '...'
-                          : item.installed
-                            ? 'Remove'
-                            : 'Install'}
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Integrations View ── */
 export function IntegrationsView() {
   const { apiBase } = useApiBase();
+  const { navigate } = useNavigation();
   const qc = useQueryClient();
   const { data: integrations = [], isLoading } = useQuery<IntegrationDef[]>({
     queryKey: ['integrations'],
@@ -204,7 +40,6 @@ export function IntegrationsView() {
       return data.success ? data.data || [] : [];
     },
   });
-  const [showRegistry, setShowRegistry] = useState(false);
   const [search, setSearch] = useState('');
   const [message, setMessage] = useState<{
     type: 'success' | 'error';
@@ -415,6 +250,7 @@ export function IntegrationsView() {
     <>
       <SplitPaneLayout
         label="connections / tools"
+        breadcrumbLinks={{ connections: () => navigate('/connections') }}
         title="Tool Servers"
         subtitle="MCP server connections"
         items={items}
@@ -436,7 +272,7 @@ export function IntegrationsView() {
         sidebarActions={
           <button
             className="split-pane__add-btn split-pane__add-btn--secondary"
-            onClick={() => setShowRegistry(true)}
+            onClick={() => navigate('/registry/integrations')}
           >
             Browse Registry
           </button>
@@ -788,16 +624,6 @@ export function IntegrationsView() {
           </div>
         )}
       </SplitPaneLayout>
-
-      {showRegistry && (
-        <RegistryModal
-          apiBase={apiBase}
-          onClose={() => {
-            setShowRegistry(false);
-            qc.invalidateQueries({ queryKey: ['integrations'] });
-          }}
-        />
-      )}
 
       {deleteConfirm && (
         <div

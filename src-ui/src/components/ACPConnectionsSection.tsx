@@ -5,6 +5,7 @@ import {
   useACPConnections,
 } from '../hooks/useACPConnections';
 import type { AgentSummary } from '../types';
+import { Button } from './Button';
 import { ConfirmModal } from './ConfirmModal';
 
 interface ACPConnectionsSectionProps {
@@ -113,12 +114,9 @@ export function ACPConnectionsSection({
         >
           Agent Client Protocol (ACP)
         </h2>
-        <button
-          className="button button--secondary"
-          onClick={() => setShowCustomModal(true)}
-        >
+        <Button variant="secondary" onClick={() => setShowCustomModal(true)}>
           + Add Connection
-        </button>
+        </Button>
       </div>
 
       {showCustomModal && (
@@ -352,8 +350,9 @@ function ConnectionCard({
       )}
 
       <div style={{ display: 'flex', gap: '8px', marginTop: 'auto' }}>
-        <button
-          className={`button button--small ${conn.enabled ? 'button--success' : 'button--secondary'}`}
+        <Button
+          size="sm"
+          variant={conn.enabled ? 'success' : 'secondary'}
           onClick={(e) => {
             e.stopPropagation();
             if (conn.enabled) setShowDisableConfirm(true);
@@ -361,29 +360,31 @@ function ConnectionCard({
           }}
         >
           {conn.enabled ? '● Enabled' : '○ Disabled'}
-        </button>
+        </Button>
         {(isDisconnected || isError) && conn.enabled && (
-          <button
-            className="button button--small button--secondary"
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={(e) => {
               e.stopPropagation();
               onReconnect();
             }}
           >
             ↻ Reconnect
-          </button>
+          </Button>
         )}
         <div style={{ flex: 1 }} />
         {!isPlugin && (
-          <button
-            className="button button--small button--danger-outline"
+          <Button
+            variant="danger-outline"
+            size="sm"
             onClick={(e) => {
               e.stopPropagation();
               setShowRemoveConfirm(true);
             }}
           >
             Remove
-          </button>
+          </Button>
         )}
       </div>
       <ConfirmModal
@@ -509,11 +510,11 @@ function AddConnectionModal({
           </div>
         </div>
         <div className="modal-footer">
-          <button className="button button--secondary" onClick={onCancel}>
+          <Button variant="secondary" onClick={onCancel}>
             Cancel
-          </button>
-          <button
-            className="button button--primary"
+          </Button>
+          <Button
+            variant="primary"
             onClick={() =>
               id &&
               command &&
@@ -522,7 +523,7 @@ function AddConnectionModal({
             disabled={!id || !command}
           >
             Add Connection
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -782,9 +783,9 @@ function ConnectionDetailModal({
             justifyContent: 'flex-end',
           }}
         >
-          <button className="button button--secondary" onClick={onClose}>
+          <Button variant="secondary" onClick={onClose}>
             Close
-          </button>
+          </Button>
         </div>
       </div>
     </div>

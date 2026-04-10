@@ -1,0 +1,196 @@
+/* ── Registry Detail Panel ── */
+
+.registry-detail {
+  padding: 28px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Hero: icon + name + badges + actions */
+.registry-detail__hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.registry-detail__icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  flex-shrink: 0;
+  border: 1px solid var(--border-primary);
+}
+
+.registry-detail__hero-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.registry-detail__name {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 6px;
+  letter-spacing: -0.01em;
+}
+
+.registry-detail__meta {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.registry-detail__actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Badges */
+.registry-detail__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.registry-detail__badge--installed {
+  background: rgba(52, 211, 153, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(52, 211, 153, 0.2);
+}
+
+.registry-detail__badge--available {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  border: 1px solid var(--border-primary);
+}
+
+.registry-detail__badge--version {
+  background: rgba(168, 85, 247, 0.1);
+  color: #a855f7;
+  border: 1px solid rgba(168, 85, 247, 0.15);
+}
+
+.registry-detail__badge--source {
+  background: rgba(74, 158, 255, 0.1);
+  color: var(--accent-primary);
+  border: 1px solid rgba(74, 158, 255, 0.15);
+}
+
+/* Buttons */
+.registry-detail__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: "DM Sans", system-ui, sans-serif;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+}
+
+.registry-detail__btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.registry-detail__btn--install {
+  background: var(--accent-primary);
+  color: #fff;
+}
+
+.registry-detail__btn--install:hover:not(:disabled) {
+  filter: brightness(1.1);
+}
+
+.registry-detail__btn--uninstall {
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px solid var(--border-primary);
+}
+
+.registry-detail__btn--uninstall:hover:not(:disabled) {
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.06);
+}
+
+.registry-detail__btn-icon {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* Content sections */
+.registry-detail__section {
+  padding: 16px 20px;
+  background: var(--bg-secondary);
+  border-radius: 10px;
+  border: 1px solid var(--border-primary);
+}
+
+.registry-detail__description {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.65;
+  color: var(--text-secondary);
+}
+
+.registry-detail__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+/* Hint */
+.registry-detail__hint {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 12px 16px;
+  border-left: 2px solid var(--accent-primary);
+  background: rgba(74, 158, 255, 0.04);
+  border-radius: 0 6px 6px 0;
+}
+
+/* ── Mobile ── */
+@media (max-width: 768px) {
+  .registry-detail {
+    padding: 16px;
+    gap: 16px;
+  }
+
+  .registry-detail__hero {
+    flex-wrap: wrap;
+  }
+
+  .registry-detail__actions {
+    width: 100%;
+  }
+
+  .registry-detail__btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .registry-detail__name {
+    font-size: 18px;
+  }
+}

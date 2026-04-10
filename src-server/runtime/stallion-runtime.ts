@@ -438,8 +438,10 @@ export class StallionRuntime {
     const mcpServers = Array.from(
       new Set([
         'stallion-control',
-        ...Array.from(this.agentSpecs.values()).flatMap(
-          (spec) => spec.tools?.mcpServers ?? [],
+        ...Array.from(this.agentSpecs.values()).flatMap((spec) =>
+          (spec.tools?.mcpServers ?? []).filter(
+            (e): e is string => typeof e === 'string',
+          ),
         ),
       ]),
     );
@@ -564,9 +566,8 @@ export class StallionRuntime {
     this.modelCatalog = new BedrockModelCatalog(this.appConfig.region);
     this.logger.debug('Bedrock model catalog initialized');
 
-    // Load plugin providers
+    // Load plugin providers (clearAll() inside resets the registry)
     await this.loadPluginProviders();
-
     // Re-scan plugin prompts so they're available via the API
     await this.loadPluginPrompts();
 
@@ -655,6 +656,17 @@ export class StallionRuntime {
       );
     };
     scheduleDailyReload();
+
+    // Reload agents when a plugin is installed so contributed agents appear immediately
+    this.eventBus.subscribe((evt) => {
+      if (evt.event === 'plugins:installed') {
+        this.reloadAgents().catch((err) =>
+          this.logger.error('Failed to reload agents after plugin install', {
+            error: err,
+          }),
+        );
+      }
+    });
 
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
@@ -1076,6 +1088,22 @@ export class StallionRuntime {
           autoApprove: SC_READ_ONLY_TOOLS,
         },
         getVirtualAgents: () => this.acpBridge.getVirtualAgents(),
+        getRuntimeConnections: async () => {
+          const conns = await this.connectionService.listRuntimeConnections();
+          return conns
+            .filter((c) => c.type !== 'acp')
+            .map((c) => ({
+              id: c.id,
+              name: c.name,
+              description: c.description,
+              status: c.status,
+              enabled: c.enabled,
+              defaultModel:
+                typeof c.config?.defaultModel === 'string'
+                  ? c.config.defaultModel
+                  : undefined,
+            }));
+        },
         isACPConnected: () => this.acpBridge.isConnected(),
         reloadAgents: () => this.reloadAgents(),
         logger: this.logger,
@@ -1302,7 +1330,8 @@ export class StallionRuntime {
         if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
           checks.integrationsConfigured = true;
 
-          for (const id of spec.tools.mcpServers) {
+          for (const entry of spec.tools.mcpServers) {
+            const id = typeof entry === 'string' ? entry : entry.id;
             const key = `${slug}:${id}`;
             const status = this.mcpConnectionStatus.get(key);
             const metadata = this.integrationMetadata.get(key);
@@ -1682,7 +1711,7 @@ export class StallionRuntime {
 
     const { resolvePluginProviders } = await import('../providers/resolver.js');
     const {
-      clearAll,
+      clearPluginProviders,
       registerProvider,
       registerBrandingProvider,
       registerSettingsProvider,
@@ -1694,7 +1723,7 @@ export class StallionRuntime {
       registerPluginRegistryProvider,
     } = await import('../providers/registry.js');
 
-    clearAll();
+    clearPluginProviders();
     const overrides = await this.configLoader.loadPluginOverrides();
     const { resolved, conflicts } = resolvePluginProviders(
       pluginsDir,

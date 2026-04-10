@@ -191,7 +191,9 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   useEffect(() => {
     if (!activeChat) return;
     if (triedChatRef.current === activeChat) return;
-    const existing = sessions.find((s) => s.conversationId === activeChat);
+    const existing = sessions.find(
+      (s) => s.conversationId === activeChat || s.id === activeChat,
+    );
     if (existing) {
       setActiveSessionId(existing.id);
       return;

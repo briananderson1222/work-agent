@@ -180,12 +180,13 @@ export type NavigationView =
   | { type: 'connections' }
   | { type: 'connections-providers' }
   | { type: 'connections-provider-edit'; id: string }
+  | { type: 'connections-runtimes' }
   | { type: 'connections-runtime-edit'; id: string }
   | { type: 'connections-tools' }
   | { type: 'connections-tool-edit'; id: string }
   | { type: 'connections-knowledge' }
   | { type: 'plugins' }
-  | { type: 'registry' }
+  | { type: 'registry'; tab?: 'agents' | 'skills' | 'integrations' | 'plugins' }
   | { type: 'monitoring' }
   | { type: 'schedule' }
   | { type: 'settings' }

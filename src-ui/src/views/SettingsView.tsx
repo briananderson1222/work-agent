@@ -4,6 +4,7 @@ import './page-layout.css';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { ModelSelector } from '../components/ModelSelector';
 import { ThemeToggle } from '../components/ThemeToggle';
@@ -532,25 +533,21 @@ function NotificationSubscribeButton({ apiBase }: { apiBase: string }) {
           <span className="settings__notif-status">
             ✓ Subscribed to push notifications
           </span>
-          <button
-            type="button"
-            className="button button--secondary button--small"
-            onClick={notifs.unsubscribe}
-          >
+          <Button variant="secondary" size="sm" onClick={notifs.unsubscribe}>
             Unsubscribe
-          </button>
+          </Button>
         </div>
       ) : (
-        <button
-          type="button"
-          className="button button--secondary button--small"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={notifs.subscribe}
           disabled={notifs.permission === 'denied'}
         >
           {notifs.permission === 'denied'
             ? 'Notifications blocked by browser'
             : 'Enable push notifications'}
-        </button>
+        </Button>
       )}
       {notifs.error && (
         <div className="settings__notif-error">{notifs.error}</div>

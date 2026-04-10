@@ -1,6 +1,7 @@
 import { LoadingState } from '@stallion-ai/sdk';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import type { WorkflowFile } from '../types';
 
@@ -176,13 +177,9 @@ export function WorkflowManagementView({
     return (
       <div className="management-view">
         <div className="management-view__header">
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={onBack}
-          >
+          <Button variant="secondary" onClick={onBack}>
             Back
-          </button>
+          </Button>
           <h2>Manage Workflows: {agentName}</h2>
         </div>
         <LoadingState message="Loading workflows..." />
@@ -194,13 +191,12 @@ export function WorkflowManagementView({
     <>
       <div className="management-view">
         <div className="management-view__header">
-          <button
-            type="button"
-            className="button button--secondary"
+          <Button
+            variant="secondary"
             onClick={viewMode === 'list' ? onBack : cancelEdit}
           >
             {viewMode === 'list' ? 'Back' : 'Cancel'}
-          </button>
+          </Button>
           <h2>
             {viewMode === 'list'
               ? `Manage Workflows: ${agentName}`
@@ -209,23 +205,18 @@ export function WorkflowManagementView({
                 : `Edit: ${currentWorkflow?.name}`}
           </h2>
           {viewMode === 'list' && (
-            <button
-              type="button"
-              className="button button--primary"
-              onClick={startCreate}
-            >
+            <Button variant="primary" onClick={startCreate}>
               New Workflow
-            </button>
+            </Button>
           )}
           {(viewMode === 'edit' || viewMode === 'create') && (
-            <button
-              type="button"
-              className="button button--primary"
+            <Button
+              variant="primary"
               onClick={saveWorkflow}
               disabled={isSaving}
             >
               {isSaving ? 'Saving...' : 'Save'}
-            </button>
+            </Button>
           )}
         </div>
 
@@ -237,13 +228,9 @@ export function WorkflowManagementView({
               <div className="empty-state">
                 <h3>No workflows yet</h3>
                 <p>Create your first workflow to get started.</p>
-                <button
-                  type="button"
-                  className="button button--primary"
-                  onClick={startCreate}
-                >
+                <Button variant="primary" onClick={startCreate}>
                   New Workflow
-                </button>
+                </Button>
               </div>
             ) : (
               <div className="workflow-grid">
@@ -259,20 +246,20 @@ export function WorkflowManagementView({
                       <span>Modified: {formatDate(workflow.lastModified)}</span>
                     </div>
                     <div className="workflow-card__actions">
-                      <button
-                        type="button"
-                        className="button button--secondary button--small"
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => loadWorkflowContent(workflow.id)}
                       >
                         Edit
-                      </button>
-                      <button
-                        type="button"
-                        className="button button--danger button--small"
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
                         onClick={() => setWorkflowToDelete(workflow.id)}
                       >
                         Delete
-                      </button>
+                      </Button>
                     </div>
                   </div>
                 ))}

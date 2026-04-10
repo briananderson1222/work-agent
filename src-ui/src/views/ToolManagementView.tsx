@@ -1,6 +1,7 @@
 import { LoadingState } from '@stallion-ai/sdk';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 
 export interface ToolManagementViewProps {
@@ -224,13 +225,9 @@ export function ToolManagementView({
     return (
       <div className="management-view">
         <div className="management-view__header">
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={onBack}
-          >
+          <Button variant="secondary" onClick={onBack}>
             Back
-          </button>
+          </Button>
           <h2>Manage Tools: {agentName}</h2>
         </div>
         <LoadingState message="Loading tools..." />
@@ -249,13 +246,9 @@ export function ToolManagementView({
     <>
       <div className="management-view">
         <div className="management-view__header">
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={onBack}
-          >
+          <Button variant="secondary" onClick={onBack}>
             Back
-          </button>
+          </Button>
           <h2>Manage Tools: {agentName}</h2>
         </div>
 
@@ -294,14 +287,14 @@ export function ToolManagementView({
                       </div>
                       {tool.parameters && renderParameters(tool.parameters)}
                     </div>
-                    <button
-                      type="button"
-                      className="button button--small button--secondary"
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => addTool(tool.id)}
                       disabled={isSaving}
                     >
                       Add
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -343,47 +336,45 @@ export function ToolManagementView({
                             }
                             placeholder="Alias name"
                           />
-                          <button
-                            type="button"
-                            className="button button--small button--primary"
+                          <Button
+                            variant="primary"
+                            size="sm"
                             onClick={saveAliases}
                             disabled={isSaving}
                           >
                             Save
-                          </button>
+                          </Button>
                         </div>
                       ) : (
                         aliasValues[tool.id] && (
                           <div className="tool-alias">
                             Alias: <strong>{aliasValues[tool.id]}</strong>
-                            <button
-                              type="button"
-                              className="button--link"
+                            <Button
+                              variant="link"
                               onClick={() => toggleAliasEdit(tool.id)}
                             >
                               Edit
-                            </button>
+                            </Button>
                           </div>
                         )
                       )}
                       {!aliasEditMode[tool.id] && !aliasValues[tool.id] && (
-                        <button
-                          type="button"
-                          className="button--link"
+                        <Button
+                          variant="link"
                           onClick={() => toggleAliasEdit(tool.id)}
                         >
                           Add alias
-                        </button>
+                        </Button>
                       )}
                     </div>
-                    <button
-                      type="button"
-                      className="button button--small button--danger"
+                    <Button
+                      variant="danger"
+                      size="sm"
                       onClick={() => setToolToRemove(tool.id)}
                       disabled={isSaving}
                     >
                       Remove
-                    </button>
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -402,14 +393,13 @@ export function ToolManagementView({
                   onChange={(e) => setAllowListText(e.target.value)}
                   placeholder="tool1, tool2, tool3"
                 />
-                <button
-                  type="button"
-                  className="button button--primary"
+                <Button
+                  variant="primary"
                   onClick={saveAllowList}
                   disabled={isSaving}
                 >
                   Update
-                </button>
+                </Button>
               </div>
             </div>
           </div>

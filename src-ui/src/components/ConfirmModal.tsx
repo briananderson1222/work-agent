@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { Button } from './Button';
 
 export interface ConfirmModalProps {
   isOpen: boolean;
@@ -60,20 +61,15 @@ export function ConfirmModal({
           <p>{message}</p>
         </div>
         <div className="modal-footer">
-          <button
-            type="button"
-            className="button button--secondary"
-            onClick={onCancel}
-          >
+          <Button variant="secondary" onClick={onCancel}>
             {cancelLabel}
-          </button>
-          <button
-            type="button"
-            className={`button button--${variant === 'danger' ? 'danger' : 'primary'}`}
+          </Button>
+          <Button
+            variant={variant === 'danger' ? 'danger' : 'primary'}
             onClick={onConfirm}
           >
             {confirmLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -71,7 +71,10 @@ export function useChatInput({
   const cancelMessage = useCancelMessage();
 
   // Slash commands
-  const { commands: slashCommands } = useSlashCommands(agentSlug);
+  const { commands: slashCommands } = useSlashCommands(
+    agentSlug,
+    activeChatState?.provider,
+  );
   const handleSlashCommand = useSlashCommandHandler();
 
   // Wrap slash command handler

@@ -150,6 +150,12 @@ export function createRegistryRoutes(
     return c.json({ success: true, data });
   });
 
+  app.get('/skills/installed', async (c) => {
+    registryOps.add(1, { operation: 'list-skills-installed' });
+    const data = skillService ? skillService.listSkills() : [];
+    return c.json({ success: true, data });
+  });
+
   app.post('/skills/install', validate(skillInstallSchema), async (c) => {
     const { id } = getBody(c);
     registryOps.add(1, { operation: 'install-skill', item: id });

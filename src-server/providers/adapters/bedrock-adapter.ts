@@ -92,11 +92,14 @@ export class BedrockAdapter implements ProviderAdapterShape {
         category: 'required',
         installGuide: {
           steps: [
-            'Configure AWS credentials or an AWS CLI profile with Bedrock access.',
-            'If you use AWS SSO, run `aws sso login` for the active profile before starting Stallion.',
+            'Option 1: Configure AWS CLI credentials — run `aws configure` or edit ~/.aws/credentials',
+            'Option 2: Use AWS SSO — run `aws sso login --profile <your-profile>` before starting Stallion',
+            'Option 3: Set a credential_process helper in ~/.aws/config for automatic token refresh',
+            'Ensure the credentials have Amazon Bedrock model access in the target region.',
           ],
           links: [
             'https://docs.aws.amazon.com/bedrock/latest/userguide/setting-up.html',
+            'https://docs.aws.amazon.com/cli/latest/userguide/cli-configure-sso.html',
           ],
         },
       },

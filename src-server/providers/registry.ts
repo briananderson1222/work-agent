@@ -93,6 +93,21 @@ export function clearAll(): void {
   additiveStore.clear();
 }
 
+/**
+ * Clear plugin-provided entries only, preserving built-in registrations
+ * (e.g. provider adapters registered during core initialization).
+ */
+export function clearPluginProviders(): void {
+  store.clear();
+  for (const [type, entries] of additiveStore) {
+    const builtIn = entries.filter((e) => BUILTIN_SOURCES.has(e.source));
+    if (builtIn.length > 0) additiveStore.set(type, builtIn);
+    else additiveStore.delete(type);
+  }
+}
+
+const BUILTIN_SOURCES = new Set(['bedrock', 'claude', 'codex']);
+
 // ── Provider Adapters ──────────────────────────────────
 
 export function registerProviderAdapter(adapter: ProviderAdapterShape): void {

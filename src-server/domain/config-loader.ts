@@ -520,6 +520,75 @@ export class ConfigLoader {
   }
 
   /**
+   * Build a resolved env map for an integration using the resolution chain:
+   * legacy toolDef.env → plugin.json env defaults → agent-level tools.env overrides
+   * Then validate toolDef.requiredEnv — warn on missing but don't throw.
+   */
+  async resolveEnvForIntegration(
+    pluginDir: string,
+    agentSpec: AgentSpec,
+    toolDef: ToolDef,
+  ): Promise<Record<string, string>> {
+    const resolved: Record<string, string> = {};
+
+    // 1. Legacy: toolDef.env as base values
+    if (toolDef.env) {
+      Object.assign(resolved, toolDef.env);
+    }
+
+    // 2. Plugin.json env schema defaults
+    const manifestPath = join(pluginDir, 'plugin.json');
+    let pluginName: string | undefined;
+    if (existsSync(manifestPath)) {
+      try {
+        const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
+        pluginName = manifest.name;
+        for (const [key, def] of Object.entries(manifest.env ?? {})) {
+          const envDef = def as { default?: string };
+          if (envDef.default !== undefined && !(key in resolved)) {
+            resolved[key] = envDef.default;
+          }
+        }
+      } catch (error) {
+        logger.warn('Failed to read plugin.json env schema', {
+          pluginDir,
+          error,
+        });
+      }
+    }
+
+    // 3. Host config store (user-set values from install or settings UI)
+    if (pluginName) {
+      try {
+        const overrides = await this.loadPluginOverrides();
+        const pluginEnv = overrides[pluginName]?.env;
+        if (pluginEnv) {
+          Object.assign(resolved, pluginEnv);
+        }
+      } catch {}
+    }
+
+    // 4. Agent-level tools.env overrides
+    if (agentSpec.tools?.env) {
+      Object.assign(resolved, agentSpec.tools.env);
+    }
+
+    // 5. Validate requiredEnv
+    if (toolDef.requiredEnv) {
+      for (const key of toolDef.requiredEnv) {
+        if (!(key in resolved)) {
+          logger.warn('Missing required env var for integration', {
+            integration: toolDef.id,
+            key,
+          });
+        }
+      }
+    }
+
+    return resolved;
+  }
+
+  /**
    * Save tool definition
    */
   async saveIntegration(id: string, def: ToolDef): Promise<void> {
@@ -540,14 +609,66 @@ export class ConfigLoader {
   }
 
   /**
-   * List all tools in catalog
+   * List all tools in catalog.
+   * If plugin.json has an explicit `integrations` array, read those paths.
+   * Otherwise fall back to scanning the integrations/ directory.
    */
   async listIntegrations(): Promise<ToolMetadata[]> {
-    const integrationsDir = join(this.projectHomeDir, 'integrations');
-
-    if (!existsSync(integrationsDir)) {
-      return [];
+    // Try plugin.json explicit integrations list first
+    const manifestPath = join(this.projectHomeDir, 'plugin.json');
+    if (existsSync(manifestPath)) {
+      try {
+        const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
+        if (Array.isArray(manifest.integrations)) {
+          return this.loadIntegrationsFromPaths(manifest.integrations);
+        }
+      } catch (error) {
+        logger.warn('Failed to read plugin.json for integrations list', {
+          error,
+        });
+      }
     }
+
+    // Fall back to directory scan
+    return this.scanIntegrationsDir();
+  }
+
+  private async loadIntegrationsFromPaths(
+    paths: string[],
+  ): Promise<ToolMetadata[]> {
+    const tools: ToolMetadata[] = [];
+    for (const relPath of paths) {
+      const fullPath = join(this.projectHomeDir, relPath);
+      if (!existsSync(fullPath)) {
+        logger.warn('Integration path from plugin.json not found', {
+          path: relPath,
+        });
+        continue;
+      }
+      try {
+        const content = await readFile(fullPath, 'utf-8');
+        const def: ToolDef = JSON.parse(content);
+        tools.push({
+          id: def.id,
+          kind: def.kind,
+          displayName: def.displayName,
+          description: def.description,
+          transport: def.transport,
+          source: def.command || def.endpoint,
+        });
+      } catch (error) {
+        logger.error('Failed to load integration from path', {
+          path: relPath,
+          error,
+        });
+      }
+    }
+    return tools;
+  }
+
+  private async scanIntegrationsDir(): Promise<ToolMetadata[]> {
+    const integrationsDir = join(this.projectHomeDir, 'integrations');
+    if (!existsSync(integrationsDir)) return [];
 
     const entries = await readdir(integrationsDir, { withFileTypes: true });
     const tools: ToolMetadata[] = [];
@@ -593,7 +714,8 @@ export class ConfigLoader {
       if (!entry.isDirectory()) continue;
       try {
         const spec = await this.loadAgent(entry.name);
-        for (const toolId of spec.tools?.mcpServers || []) {
+        for (const mcpEntry of spec.tools?.mcpServers || []) {
+          const toolId = typeof mcpEntry === 'string' ? mcpEntry : mcpEntry.id;
           if (!map[toolId]) map[toolId] = [];
           map[toolId].push(spec.name || entry.name);
         }

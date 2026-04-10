@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import './KnowledgeConnectionView.css';
+import './editor-layout.css';
 
 type ProviderConnection = ConnectionConfig & { kind: 'model' };
 
@@ -145,6 +146,16 @@ export function KnowledgeConnectionView() {
   return (
     <div className="knowledge-view">
       <div className="knowledge-view__inner">
+        <div className="split-pane__label">
+          <span
+            className="split-pane__label-link"
+            onClick={() => navigate('/connections')}
+          >
+            Connections
+          </span>
+          <span className="split-pane__label-sep"> / </span>
+          <span>Knowledge</span>
+        </div>
         <div className="knowledge-view__header">
           <h2 className="knowledge-view__title">Knowledge</h2>
           <p className="knowledge-view__desc">
@@ -176,11 +187,9 @@ export function KnowledgeConnectionView() {
               </div>
 
               <div className="knowledge-view__field">
-                <label className="knowledge-view__field-label">
-                  Data Directory
-                </label>
+                <label className="editor-label">Data Directory</label>
                 <input
-                  className="knowledge-view__field-input"
+                  className="editor-input"
                   type="text"
                   value={editingDataDir}
                   onChange={(e) => setDataDir(e.target.value)}

@@ -32,6 +32,12 @@ export function ProfilePage() {
 
   return (
     <div className="profile-page page page--narrow">
+      <div className="page__header">
+        <div className="page__header-text">
+          <div className="page__label">profile</div>
+          <h1 className="page__title">{userName}</h1>
+        </div>
+      </div>
       <div className="profile-container">
         <div className="profile-card">
           <div className="profile-card__edit-btn">

@@ -85,7 +85,9 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
       toolCalls.add(1, { op: 'remove_tool' });
       const agent = await ctx.configLoader.loadAgent(slug);
       const tools = agent.tools || { mcpServers: [] };
-      tools.mcpServers = tools.mcpServers.filter((id: string) => id !== toolId);
+      tools.mcpServers = tools.mcpServers.filter(
+        (entry) => (typeof entry === 'string' ? entry : entry.id) !== toolId,
+      );
       await ctx.configLoader.updateAgent(slug, { tools });
       await ctx.initialize();
       return c.json({ success: true });
@@ -161,7 +163,8 @@ export function createAgentToolRoutes(ctx: RuntimeContext) {
     if (spec?.tools?.mcpServers?.length) {
       checks.integrationsConfigured = true;
 
-      for (const id of spec.tools.mcpServers) {
+      for (const entry of spec.tools.mcpServers) {
+        const id = typeof entry === 'string' ? entry : entry.id;
         const key = `${slug}:${id}`;
         const status = ctx.mcpConnectionStatus.get(key);
         const metadata = ctx.integrationMetadata.get(key);

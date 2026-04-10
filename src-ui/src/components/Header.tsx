@@ -17,12 +17,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { NavigationView } from '../types';
-import {
-  buildRuntimeChatAgent,
-  canAgentStartChat,
-  preferredChatRuntime,
-  resolveAgentExecution,
-} from '../utils/execution';
+import { canAgentStartChat, resolveAgentExecution } from '../utils/execution';
 import { getInitials } from '../utils/layout';
 import { NotificationHistory } from './NotificationHistory';
 import './chat.css';
@@ -145,13 +140,11 @@ export function Header({
   function handleHelpPrompt(prompt: string) {
     setShowHelp(false);
     setDockState(true);
-    const preferredRuntime = preferredChatRuntime(runtimeConnections);
-    const preferredAgent = agents.find((agent) =>
-      canAgentStartChat(agent, runtimeConnections),
+    const chatTarget = agents.find(
+      (agent) =>
+        agent.slug.startsWith('__runtime:') ||
+        canAgentStartChat(agent, runtimeConnections),
     );
-    const chatTarget = preferredRuntime
-      ? buildRuntimeChatAgent(preferredRuntime)
-      : preferredAgent;
     if (!chatTarget) {
       navigate('/connections/runtimes');
       return;

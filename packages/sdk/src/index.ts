@@ -84,6 +84,8 @@ export {
   useKnowledgeDocs,
   useKnowledgeNamespaces,
   useKnowledgeSearch,
+  // Chat utilities
+  useLaunchChat,
   useLayout,
   // Layout management
   useLayouts,
@@ -101,7 +103,6 @@ export {
   // SDK access
   useSDK,
   useSendMessage,
-  // Chat utilities
   useSendToChat,
   // Server-side fetch proxy
   useServerFetch,
@@ -166,6 +167,7 @@ export {
   useGitLogQuery,
   useGitStatusQuery,
   useInsightsQuery,
+  useInstallRegistryItemMutation,
   useInstallSkillMutation,
   useInvalidateQuery,
   useInvokeAgent,
@@ -202,6 +204,9 @@ export {
   useProjectQuery,
   useProjectsQuery,
   usePromptsQuery,
+  useRegistryAgentsQuery,
+  useRegistryInstalledQuery,
+  useRegistryIntegrationsQuery,
   useRegistryPluginsQuery,
   useRegistrySkillsQuery,
   useRunJob,
@@ -213,6 +218,7 @@ export {
   useSkillsQuery,
   useStatsQuery,
   useToggleJob,
+  useUninstallRegistryItemMutation,
   useUninstallSkillMutation,
   useUpdateProjectMutation,
   useUpdateSkillMutation,

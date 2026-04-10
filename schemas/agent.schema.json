@@ -74,10 +74,32 @@
       "properties": {
         "mcpServers": {
           "type": "array",
-          "description": "MCP server IDs to load from catalog",
+          "description": "MCP server IDs to load from catalog, or inline integration objects",
           "items": {
-            "type": "string"
+            "oneOf": [
+              { "type": "string" },
+              {
+                "type": "object",
+                "required": ["id", "kind"],
+                "properties": {
+                  "id": { "type": "string" },
+                  "kind": { "type": "string", "enum": ["mcp"] },
+                  "displayName": { "type": "string" },
+                  "transport": { "type": "string", "enum": ["stdio", "sse", "streamable-http", "process", "ws", "tcp"] },
+                  "command": { "type": "string" },
+                  "args": { "type": "array", "items": { "type": "string" } },
+                  "requiredEnv": { "type": "array", "items": { "type": "string" } },
+                  "permissions": { "type": "object" }
+                },
+                "additionalProperties": false
+              }
+            ]
           }
+        },
+        "env": {
+          "type": "object",
+          "description": "Agent-level env var overrides for MCP servers",
+          "additionalProperties": { "type": "string" }
         },
         "available": {
           "type": "array",

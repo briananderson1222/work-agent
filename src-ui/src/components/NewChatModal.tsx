@@ -11,11 +11,7 @@ import {
   getRecentAgentSlugs,
   trackRecentAgent,
 } from '../hooks/useRecentAgents';
-import {
-  buildRuntimeChatAgent,
-  canAgentStartChat,
-  isRuntimeConnectionSelectable,
-} from '../utils/execution';
+import { canAgentStartChat } from '../utils/execution';
 import { AgentIcon } from './AgentIcon';
 
 interface NewChatModalProps {
@@ -64,7 +60,7 @@ export function NewChatModal({
   const contextRef = useRef<HTMLDivElement>(null);
   const agentInputRef = useRef<HTMLInputElement>(null);
 
-  const { selectedLayout } = useNavigation();
+  const { selectedLayout, navigate } = useNavigation();
   const { data: layout } = useLayoutQuery(selectedLayout || '', {
     enabled: !!selectedLayout,
   });
@@ -145,14 +141,6 @@ export function NewChatModal({
 
   const { groups, flatList } = useMemo(() => {
     const query = agentSearch.toLowerCase();
-    const runtimeChats = runtimeConnections
-      .filter(
-        (connection) =>
-          connection.type !== 'acp' &&
-          isRuntimeConnectionSelectable(connection),
-      )
-      .map((connection) => buildRuntimeChatAgent(connection) as AgentData);
-    const runtimeChatSlugs = new Set(runtimeChats.map((agent) => agent.slug));
     const chatReadyAgents = (agents || []).filter(
       (agent) =>
         canAgentStartChat(agent, runtimeConnections) &&
@@ -161,28 +149,28 @@ export function NewChatModal({
           projectAgentFilter.length === 0 ||
           projectAgentFilter.includes(agent.slug)),
     );
-    const filtered = [...runtimeChats, ...chatReadyAgents].filter(
+    const filtered = chatReadyAgents.filter(
       (a) =>
         a.name.toLowerCase().includes(query) ||
         a.slug.toLowerCase().includes(query),
     );
 
+    const isRuntimeAgent = (a: AgentData) => a.slug.startsWith('__runtime:');
+
     const isLayoutAgent = (a: AgentData) => {
       if (a.source === 'acp') return false;
+      if (isRuntimeAgent(a)) return false;
       if (wsAgentSlugs.has(a.slug)) return true;
       if (a.slug.includes(':')) return true;
       return false;
     };
 
-    const runtimeAgents = filtered.filter((a) => runtimeChatSlugs.has(a.slug));
+    const runtimeAgents = filtered.filter(isRuntimeAgent);
     const wsAgents = filtered.filter(
-      (a) => !runtimeChatSlugs.has(a.slug) && isLayoutAgent(a),
+      (a) => !isRuntimeAgent(a) && isLayoutAgent(a),
     );
     const globalAgents = filtered.filter(
-      (a) =>
-        a.source !== 'acp' &&
-        !runtimeChatSlugs.has(a.slug) &&
-        !isLayoutAgent(a),
+      (a) => a.source !== 'acp' && !isRuntimeAgent(a) && !isLayoutAgent(a),
     );
     const acpAgents = filtered.filter((a) => a.source === 'acp');
 
@@ -383,8 +371,23 @@ export function NewChatModal({
 
         <div className="new-chat-modal__list">
           {flatList.length === 0 && (
-            <div className="new-chat-modal__group-label">
-              No chat-capable agents or runtimes are ready.
+            <div className="new-chat-modal__empty-state">
+              <div className="new-chat-modal__group-label">
+                No chat-capable agents or runtimes are ready.
+              </div>
+              <p className="new-chat-modal__empty-hint">
+                Configure a runtime connection to get started.{' '}
+                <button
+                  type="button"
+                  className="new-chat-modal__empty-link"
+                  onClick={() => {
+                    onClose();
+                    navigate('/connections/runtimes');
+                  }}
+                >
+                  Go to Connections →
+                </button>
+              </p>
             </div>
           )}
           {groups.map((group, gi) => (

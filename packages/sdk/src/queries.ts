@@ -1312,3 +1312,98 @@ export function useSkillContentQuery(
     { ...config, enabled: !!id && (config?.enabled ?? true) },
   );
 }
+
+export function useRegistryAgentsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['registry', 'agents'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/registry/agents`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data ?? [];
+    },
+    config,
+  );
+}
+
+export function useRegistryIntegrationsQuery(config?: QueryConfig<any>) {
+  return useApiQuery(
+    ['registry', 'integrations'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/registry/integrations`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data ?? [];
+    },
+    config,
+  );
+}
+
+export function useInstallRegistryItemMutation(tab: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/registry/${tab}/install`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message || 'Install failed');
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['registry', tab] });
+      // Also invalidate legacy query keys used by existing hooks
+      if (tab === 'skills')
+        queryClient.invalidateQueries({ queryKey: ['skills', 'registry'] });
+      if (tab === 'plugins')
+        queryClient.invalidateQueries({ queryKey: ['registry-plugins'] });
+    },
+  });
+}
+
+export function useUninstallRegistryItemMutation(tab: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(
+        `${apiBase}/api/registry/${tab}/${encodeURIComponent(id)}`,
+        {
+          method: 'DELETE',
+        },
+      );
+      const json = await res.json();
+      if (!json.success) throw new Error(json.message || 'Uninstall failed');
+      return json;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['registry', tab] });
+      if (tab === 'skills')
+        queryClient.invalidateQueries({ queryKey: ['skills', 'registry'] });
+      if (tab === 'plugins')
+        queryClient.invalidateQueries({ queryKey: ['registry-plugins'] });
+    },
+  });
+}
+
+export function useRegistryInstalledQuery(
+  tab: string,
+  config?: QueryConfig<any>,
+) {
+  return useApiQuery(
+    ['registry', tab, 'installed'],
+    async () => {
+      const apiBase = await _getApiBase();
+      const res = await fetch(`${apiBase}/api/registry/${tab}/installed`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+      return json.data ?? [];
+    },
+    config,
+  );
+}

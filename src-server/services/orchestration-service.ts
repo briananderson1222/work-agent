@@ -117,6 +117,19 @@ export class OrchestrationService {
     return providers.sort((a, b) => a.provider.localeCompare(b.provider));
   }
 
+  async getProviderCommands(provider: ProviderKind): Promise<
+    Array<{
+      name: string;
+      description: string;
+      argumentHint?: string;
+      passthrough: boolean;
+    }>
+  > {
+    const adapter = this.options.adapterRegistry.get(provider);
+    if (!adapter) return [];
+    return (await adapter.getCommands?.()) ?? [];
+  }
+
   async listSessions(): Promise<ProviderSession[]> {
     this.initialize();
     const sessions = (

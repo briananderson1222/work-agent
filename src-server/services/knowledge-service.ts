@@ -453,7 +453,9 @@ export class KnowledgeService {
       source,
       chunkCount: chunks.length,
       createdAt: new Date().toISOString(),
-      ...(shouldWriteFiles && { storagePath: join(storageDir, 'files', filePath) }),
+      ...(shouldWriteFiles && {
+        storagePath: join(storageDir, 'files', filePath),
+      }),
       ...(Object.keys(mergedMeta).length > 0 && { metadata: mergedMeta }),
     };
     const existing = loadMeta(storageDir, this.dataDir, projectSlug, namespace);

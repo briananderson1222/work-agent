@@ -313,6 +313,43 @@ export class ClaudeAdapter implements ProviderAdapterShape {
     });
   }
 
+  async getCommands() {
+    return [
+      {
+        name: 'compact',
+        description: 'Compact conversation context',
+        passthrough: true,
+      },
+      {
+        name: 'clear',
+        description: 'Clear conversation history',
+        passthrough: true,
+      },
+      {
+        name: 'undo',
+        description: 'Undo last assistant action',
+        passthrough: true,
+      },
+      {
+        name: 'resume',
+        description: 'Resume a previous session',
+        passthrough: true,
+      },
+      {
+        name: 'help',
+        description: 'Show available commands',
+        passthrough: true,
+      },
+      {
+        name: 'init',
+        description: 'Reset session to initial state',
+        passthrough: true,
+      },
+      { name: 'bug', description: 'Report a bug', passthrough: true },
+      { name: 'doctor', description: 'Run diagnostics', passthrough: true },
+    ];
+  }
+
   private buildOptions(input: ProviderSessionStartInput): Options {
     return {
       cwd: input.cwd,
@@ -500,29 +537,9 @@ export class ClaudeAdapter implements ProviderAdapterShape {
       return;
     }
 
+    // Skip 'assistant' messages — they echo the full accumulated text from
+    // includePartialMessages and duplicate the stream_event deltas we already handle.
     if (message.type === 'assistant') {
-      const content = (message.message as any)?.content;
-      const textParts = Array.isArray(content)
-        ? content
-            .filter(
-              (part: any) =>
-                part?.type === 'text' && typeof part.text === 'string',
-            )
-            .map((part: any) => part.text)
-            .join('')
-        : '';
-      if (textParts) {
-        this.publish({
-          eventId: crypto.randomUUID(),
-          provider: this.provider,
-          threadId: record.session.threadId,
-          createdAt,
-          turnId: record.activeTurnId,
-          itemId: `${message.session_id}:${message.uuid}`,
-          method: 'content.text-delta',
-          delta: textParts,
-        });
-      }
       return;
     }
 

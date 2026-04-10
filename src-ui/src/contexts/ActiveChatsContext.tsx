@@ -12,6 +12,7 @@ import { log } from '@/utils/logger';
 import {
   sendOrchestrationTurn,
   startOrchestrationSession,
+  useOrchestration,
 } from '../hooks/useOrchestration';
 import { useStreamingMessage } from '../hooks/useStreamingMessage';
 import type { FileAttachment } from '../types';
@@ -19,6 +20,7 @@ import {
   conversationsStore,
   useConversationActions,
 } from './ConversationsContext';
+import { useNavigation } from './NavigationContext';
 
 type ChatUIState = {
   input: string;
@@ -522,6 +524,13 @@ const ActiveChatsContext = createContext<ActiveChatsContextType | undefined>(
 );
 
 export function ActiveChatsProvider({ children }: { children: ReactNode }) {
+  // Connect orchestration SSE for claude/codex runtime events
+  const apiBase =
+    (window as any).__API_BASE__ ||
+    (import.meta as any).env?.VITE_API_BASE ||
+    'http://localhost:3141';
+  useOrchestration(apiBase);
+
   // Prune sessions whose conversations no longer exist on the backend
   useEffect(() => {
     const chats = activeChatsStore.getSnapshot();
@@ -724,7 +733,7 @@ export function useSendMessage(
 ) {
   const { updateChat, clearInput, assignConversationId, addEphemeralMessage } =
     useActiveChatActions();
-  const { sendMessage: sendToServer, fetchMessages } = useConversationActions();
+  const { sendMessage: sendToServer } = useConversationActions();
   const { handleStreamEvent, clearStreamingMessage } = useStreamingMessage(
     apiBase,
     onActiveSessionChange,
@@ -886,11 +895,8 @@ export function useSendMessage(
 
         // Replace messages with backend truth (use sessionId, not conversationId)
         try {
-          // Fetch messages from backend to get the complete conversation
-          if (newConversationId) {
-            await fetchMessages(apiBase, agentSlug, newConversationId);
-          }
-
+          // ConversationsStore.sendMessage already called refreshMessages —
+          // snapshot is populated when sendToServer resolves. No second fetch needed.
           const messagesKey = `messages:${agentSlug}:${newConversationId}`;
           const backendMessages =
             conversationsStore.getSnapshot().messages[messagesKey] || [];
@@ -905,12 +911,18 @@ export function useSendMessage(
           const updates: Partial<ChatUIState> = {
             status: 'idle',
             abortController: undefined,
-            messages: backendMessages.map((m) => ({
+          };
+
+          // Only overwrite local messages if backend returned data.
+          // The server may not have finished persisting yet, so an empty
+          // response should NOT wipe the optimistic messages the user saw.
+          if (backendMessages.length > 0) {
+            updates.messages = backendMessages.map((m) => ({
               role: m.role,
               content: m.content,
               contentParts: m.contentParts,
-            })),
-          };
+            }));
+          }
 
           // Show contextual ephemeral messages based on finish reason
           if (effectiveFinishReason === 'tool-calls') {
@@ -919,6 +931,24 @@ export function useSendMessage(
                 role: 'system',
                 content:
                   '🔄 **Conversation paused** - I reached the maximum number of tool calls in this turn. Click Continue to let me keep working.',
+                action: {
+                  label: 'Continue',
+                  handler: () =>
+                    sendMessage(
+                      sessionId,
+                      agentSlug,
+                      newConversationId,
+                      'continue',
+                    ),
+                },
+              },
+            ];
+          } else if (effectiveFinishReason === 'max_turns') {
+            updates.ephemeralMessages = [
+              {
+                role: 'system',
+                content:
+                  '🔄 **Turn limit reached** - The agent hit its maximum number of turns. Click Continue to keep going.',
                 action: {
                   label: 'Continue',
                   handler: () =>
@@ -1007,7 +1037,6 @@ export function useSendMessage(
       clearInput,
       assignConversationId,
       sendToServer,
-      fetchMessages,
       handleStreamEvent,
       clearStreamingMessage,
       onActiveSessionChange,
@@ -1171,6 +1200,47 @@ export function useRehydrateSessions(apiBase: string) {
       }
     }
   }, [apiBase, fetchMessages, updateChat]);
+}
+
+/**
+ * Hook that encapsulates the "create session → open dock → activate → send" pattern.
+ * Used by both core tab actions (LayoutView) and SDK's useSendToChat.
+ */
+export function useLaunchChat(
+  apiBase: string,
+  handleSlashCommand?: (
+    sessionId: string,
+    content: string,
+  ) => Promise<boolean | string | 'CLEAR'>,
+) {
+  const createChatSession = useCreateChatSession();
+  const { setDockState, setActiveChat } = useNavigation();
+  const sendMessage = useSendMessage(
+    apiBase,
+    undefined,
+    undefined,
+    handleSlashCommand,
+  );
+
+  return useCallback(
+    (
+      agentSlug: string,
+      agentName: string,
+      message: string,
+      options?: { title?: string; projectSlug?: string },
+    ) => {
+      const sessionId = createChatSession(
+        agentSlug,
+        agentName,
+        options?.title,
+        options?.projectSlug,
+      );
+      setDockState(true);
+      setActiveChat(sessionId);
+      return sendMessage(sessionId, agentSlug, undefined, message);
+    },
+    [createChatSession, setDockState, setActiveChat, sendMessage],
+  );
 }
 
 export type { ChatUIState };
