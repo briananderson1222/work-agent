@@ -2471,6 +2471,38 @@ if (domainValidator.includes("./types.js")) {
   errors.push('src-server/domain/validator.ts must not import from ./types.js.');
 }
 
+const fileStorageAdapter = readFileSync(
+  new URL('../src-server/domain/file-storage-adapter.ts', import.meta.url),
+  'utf8',
+);
+if (!fileStorageAdapter.includes("./file-storage-helpers.js")) {
+  errors.push('file-storage-adapter.ts must delegate shared filesystem helpers to file-storage-helpers.ts.');
+}
+for (const retiredInlineStorageSnippet of [
+  'throw new Error(`Project not found for id: ${record.projectId}`);',
+  "return JSON.parse(readFileSync(f, 'utf-8'));",
+  "writeFileSync(f, JSON.stringify(records, null, 2), 'utf-8');",
+]) {
+  if (fileStorageAdapter.includes(retiredInlineStorageSnippet)) {
+    errors.push(`file-storage-adapter.ts must not inline extracted storage helper ${retiredInlineStorageSnippet}.`);
+  }
+}
+
+const fileStorageHelpers = readFileSync(
+  new URL('../src-server/domain/file-storage-helpers.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function readJsonFile',
+  'export function writeJsonFile',
+  'export function listProjectSlugs',
+  'export function resolveProjectSlugById',
+]) {
+  if (!fileStorageHelpers.includes(requiredHelper)) {
+    errors.push(`file-storage-helpers.ts must include ${requiredHelper}.`);
+  }
+}
+
 const sdkQueries = readFileSync(
   new URL('../packages/sdk/src/queries.ts', import.meta.url),
   'utf8',

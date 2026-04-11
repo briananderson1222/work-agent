@@ -1,10 +1,10 @@
 import {
   existsSync,
-  mkdirSync,
   readdirSync,
-  readFileSync,
   rmSync,
   writeFileSync,
+  readFileSync,
+  mkdirSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import type {
@@ -12,43 +12,39 @@ import type {
   LayoutMetadata,
   LayoutTemplate,
 } from '@stallion-ai/contracts/layout';
-import type { ProjectConfig, ProjectMetadata } from '@stallion-ai/contracts/project';
+import type {
+  ProjectConfig,
+  ProjectMetadata,
+} from '@stallion-ai/contracts/project';
 import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 import type {
-  LayoutAgentReference,
   ConversationRecord,
   DocumentRecord,
   IStorageAdapter,
+  LayoutAgentReference,
 } from './storage-adapter.js';
+import {
+  listProjectSlugs,
+  readJsonFile,
+  resolveProjectSlugById,
+  writeJsonFile,
+} from './file-storage-helpers.js';
 
-/**
- * Filesystem implementation of IStorageAdapter.
- *
- * Storage layout:
- *   <projectHomeDir>/
- *   ├── projects/<slug>/
- *   │   ├── project.json
- *   │   └── layouts/<slug>.json
- *   └── config/
- *       └── providers.json
- */
 export class FileStorageAdapter implements IStorageAdapter {
   constructor(private readonly projectHomeDir: string) {}
-
-  // ── Projects ──────────────────────────────────────────────────────
 
   listProjects(): ProjectMetadata[] {
     const dir = join(this.projectHomeDir, 'projects');
     if (!existsSync(dir)) return [];
     return readdirSync(dir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .flatMap((e) => {
-        const p = join(dir, e.name, 'project.json');
-        if (!existsSync(p)) return [];
-        const config: ProjectConfig = JSON.parse(readFileSync(p, 'utf-8'));
-        const layoutsDir = join(dir, e.name, 'layouts');
+      .filter((entry) => entry.isDirectory())
+      .flatMap((entry) => {
+        const projectPath = join(dir, entry.name, 'project.json');
+        if (!existsSync(projectPath)) return [];
+        const config: ProjectConfig = JSON.parse(readFileSync(projectPath, 'utf-8'));
+        const layoutsDir = join(dir, entry.name, 'layouts');
         const layoutCount = existsSync(layoutsDir)
-          ? readdirSync(layoutsDir).filter((f) => f.endsWith('.json')).length
+          ? readdirSync(layoutsDir).filter((file) => file.endsWith('.json')).length
           : 0;
         return [
           {
@@ -61,7 +57,7 @@ export class FileStorageAdapter implements IStorageAdapter {
             workingDirectory: config.workingDirectory,
             layoutCount,
             hasKnowledge: existsSync(
-              join(dir, e.name, 'documents', 'metadata.json'),
+              join(dir, entry.name, 'documents', 'metadata.json'),
             ),
             defaultProviderId: config.defaultProviderId,
           } satisfies ProjectMetadata,
@@ -70,9 +66,9 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   getProject(slug: string): ProjectConfig {
-    const p = join(this.projectHomeDir, 'projects', slug, 'project.json');
-    if (!existsSync(p)) throw new Error(`Project '${slug}' not found`);
-    return JSON.parse(readFileSync(p, 'utf-8'));
+    const path = join(this.projectHomeDir, 'projects', slug, 'project.json');
+    if (!existsSync(path)) throw new Error(`Project '${slug}' not found`);
+    return JSON.parse(readFileSync(path, 'utf-8'));
   }
 
   saveProject(config: ProjectConfig): void {
@@ -91,16 +87,14 @@ export class FileStorageAdapter implements IStorageAdapter {
     rmSync(dir, { recursive: true, force: true });
   }
 
-  // ── Layouts ───────────────────────────────────────────────────────
-
   listLayouts(projectSlug: string): LayoutMetadata[] {
     const dir = join(this.projectHomeDir, 'projects', projectSlug, 'layouts');
     if (!existsSync(dir)) return [];
     return readdirSync(dir)
-      .filter((f) => f.endsWith('.json'))
-      .flatMap((f) => {
+      .filter((file) => file.endsWith('.json'))
+      .flatMap((file) => {
         const config: LayoutConfig = JSON.parse(
-          readFileSync(join(dir, f), 'utf-8'),
+          readFileSync(join(dir, file), 'utf-8'),
         );
         return [
           {
@@ -117,43 +111,48 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   getLayout(projectSlug: string, layoutSlug: string): LayoutConfig {
-    const p = join(
+    const path = join(
       this.projectHomeDir,
       'projects',
       projectSlug,
       'layouts',
       `${layoutSlug}.json`,
     );
-    if (!existsSync(p))
+    if (!existsSync(path)) {
       throw new Error(
         `Layout '${layoutSlug}' not found in project '${projectSlug}'`,
       );
-    return JSON.parse(readFileSync(p, 'utf-8'));
+    }
+    return JSON.parse(readFileSync(path, 'utf-8'));
   }
 
   saveLayout(projectSlug: string, config: LayoutConfig): void {
-    const dir = join(this.projectHomeDir, 'projects', projectSlug, 'layouts');
-    mkdirSync(dir, { recursive: true });
-    writeFileSync(
-      join(dir, `${config.slug}.json`),
-      JSON.stringify(config, null, 2),
-      'utf-8',
+    writeJsonFile(
+      join(
+        this.projectHomeDir,
+        'projects',
+        projectSlug,
+        'layouts',
+        `${config.slug}.json`,
+      ),
+      config,
     );
   }
 
   deleteLayout(projectSlug: string, layoutSlug: string): void {
-    const p = join(
+    const path = join(
       this.projectHomeDir,
       'projects',
       projectSlug,
       'layouts',
       `${layoutSlug}.json`,
     );
-    if (!existsSync(p))
+    if (!existsSync(path)) {
       throw new Error(
         `Layout '${layoutSlug}' not found in project '${projectSlug}'`,
       );
-    rmSync(p, { force: true });
+    }
+    rmSync(path, { force: true });
   }
 
   findLayoutsUsingAgent(agentSlug: string): LayoutAgentReference[] {
@@ -199,24 +198,16 @@ export class FileStorageAdapter implements IStorageAdapter {
     return references;
   }
 
-  // ── Provider Connections ──────────────────────────────────────────
-
   private get providersPath(): string {
     return join(this.projectHomeDir, 'config', 'providers.json');
   }
 
   private readProviders(): ProviderConnectionConfig[] {
-    if (!existsSync(this.providersPath)) return [];
-    return JSON.parse(readFileSync(this.providersPath, 'utf-8'));
+    return readJsonFile(this.providersPath, []);
   }
 
   private writeProviders(providers: ProviderConnectionConfig[]): void {
-    mkdirSync(join(this.projectHomeDir, 'config'), { recursive: true });
-    writeFileSync(
-      this.providersPath,
-      JSON.stringify(providers, null, 2),
-      'utf-8',
-    );
+    writeJsonFile(this.providersPath, providers);
   }
 
   listProviderConnections(): ProviderConnectionConfig[] {
@@ -224,51 +215,40 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   getProviderConnection(id: string): ProviderConnectionConfig {
-    const found = this.readProviders().find((p) => p.id === id);
+    const found = this.readProviders().find((provider) => provider.id === id);
     if (!found) throw new Error(`Provider connection '${id}' not found`);
     return found;
   }
 
   saveProviderConnection(config: ProviderConnectionConfig): void {
     const providers = this.readProviders();
-    const idx = providers.findIndex((p) => p.id === config.id);
-    if (idx >= 0) providers[idx] = config;
+    const index = providers.findIndex((provider) => provider.id === config.id);
+    if (index >= 0) providers[index] = config;
     else providers.push(config);
     this.writeProviders(providers);
   }
 
   deleteProviderConnection(id: string): void {
     const providers = this.readProviders();
-    const idx = providers.findIndex((p) => p.id === id);
-    if (idx < 0) throw new Error(`Provider connection '${id}' not found`);
-    providers.splice(idx, 1);
+    const index = providers.findIndex((provider) => provider.id === id);
+    if (index < 0) throw new Error(`Provider connection '${id}' not found`);
+    providers.splice(index, 1);
     this.writeProviders(providers);
   }
 
-  // ── Conversations ─────────────────────────────────────────────────
-
   private conversationsFile(projectSlug: string): string {
-    return join(
-      this.projectHomeDir,
-      'projects',
-      projectSlug,
-      'conversations.json',
-    );
+    return join(this.projectHomeDir, 'projects', projectSlug, 'conversations.json');
   }
 
   private readConversations(projectSlug: string): ConversationRecord[] {
-    const f = this.conversationsFile(projectSlug);
-    if (!existsSync(f)) return [];
-    return JSON.parse(readFileSync(f, 'utf-8'));
+    return readJsonFile(this.conversationsFile(projectSlug), []);
   }
 
   private writeConversations(
     projectSlug: string,
     records: ConversationRecord[],
   ): void {
-    const f = this.conversationsFile(projectSlug);
-    mkdirSync(join(f, '..'), { recursive: true });
-    writeFileSync(f, JSON.stringify(records, null, 2), 'utf-8');
+    writeJsonFile(this.conversationsFile(projectSlug), records);
   }
 
   listConversations(
@@ -276,65 +256,42 @@ export class FileStorageAdapter implements IStorageAdapter {
     opts?: { limit?: number; offset?: number },
   ): ConversationRecord[] {
     let records = this.readConversations(projectSlug);
-    records.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    records.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
     if (opts?.offset) records = records.slice(opts.offset);
     if (opts?.limit) records = records.slice(0, opts.limit);
     return records;
   }
 
   getConversation(id: string): ConversationRecord | null {
-    const dir = join(this.projectHomeDir, 'projects');
-    if (!existsSync(dir)) return null;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const records = this.readConversations(entry.name);
-      const found = records.find((r) => r.id === id);
+    for (const slug of listProjectSlugs(this.projectHomeDir)) {
+      const found = this.readConversations(slug).find(
+        (conversation) => conversation.id === id,
+      );
       if (found) return found;
     }
     return null;
   }
 
   saveConversation(record: ConversationRecord): void {
-    // Derive projectSlug from projectId by scanning projects
-    let projectSlug = '';
-    const dir = join(this.projectHomeDir, 'projects');
-    if (existsSync(dir)) {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue;
-        const pFile = join(dir, entry.name, 'project.json');
-        if (!existsSync(pFile)) continue;
-        const p: { id: string } = JSON.parse(readFileSync(pFile, 'utf-8'));
-        if (p.id === record.projectId) {
-          projectSlug = entry.name;
-          break;
-        }
-      }
-    }
-    if (!projectSlug)
-      throw new Error(`Project not found for id: ${record.projectId}`);
+    const projectSlug = resolveProjectSlugById(this.projectHomeDir, record.projectId);
     const records = this.readConversations(projectSlug);
-    const idx = records.findIndex((r) => r.id === record.id);
-    if (idx >= 0) records[idx] = record;
+    const index = records.findIndex((conversation) => conversation.id === record.id);
+    if (index >= 0) records[index] = record;
     else records.push(record);
     this.writeConversations(projectSlug, records);
   }
 
   deleteConversation(id: string): void {
-    const dir = join(this.projectHomeDir, 'projects');
-    if (!existsSync(dir)) return;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const records = this.readConversations(entry.name);
-      const idx = records.findIndex((r) => r.id === id);
-      if (idx >= 0) {
-        records.splice(idx, 1);
-        this.writeConversations(entry.name, records);
+    for (const slug of listProjectSlugs(this.projectHomeDir)) {
+      const records = this.readConversations(slug);
+      const index = records.findIndex((conversation) => conversation.id === id);
+      if (index >= 0) {
+        records.splice(index, 1);
+        this.writeConversations(slug, records);
         return;
       }
     }
   }
-
-  // ── Documents ─────────────────────────────────────────────────────
 
   private documentsFile(projectSlug: string): string {
     return join(
@@ -347,15 +304,11 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   private readDocuments(projectSlug: string): DocumentRecord[] {
-    const f = this.documentsFile(projectSlug);
-    if (!existsSync(f)) return [];
-    return JSON.parse(readFileSync(f, 'utf-8'));
+    return readJsonFile(this.documentsFile(projectSlug), []);
   }
 
   private writeDocuments(projectSlug: string, records: DocumentRecord[]): void {
-    const f = this.documentsFile(projectSlug);
-    mkdirSync(join(f, '..'), { recursive: true });
-    writeFileSync(f, JSON.stringify(records, null, 2), 'utf-8');
+    writeJsonFile(this.documentsFile(projectSlug), records);
   }
 
   listDocuments(projectSlug: string): DocumentRecord[] {
@@ -363,75 +316,46 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   getDocument(id: string): DocumentRecord | null {
-    const dir = join(this.projectHomeDir, 'projects');
-    if (!existsSync(dir)) return null;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const records = this.readDocuments(entry.name);
-      const found = records.find((r) => r.id === id);
+    for (const slug of listProjectSlugs(this.projectHomeDir)) {
+      const found = this.readDocuments(slug).find(
+        (document) => document.id === id,
+      );
       if (found) return found;
     }
     return null;
   }
 
   saveDocument(record: DocumentRecord): void {
-    // Find project slug from projectId
-    let projectSlug = '';
-    const dir = join(this.projectHomeDir, 'projects');
-    if (existsSync(dir)) {
-      for (const entry of readdirSync(dir, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue;
-        const pFile = join(dir, entry.name, 'project.json');
-        if (!existsSync(pFile)) continue;
-        const p: { id: string } = JSON.parse(readFileSync(pFile, 'utf-8'));
-        if (p.id === record.projectId) {
-          projectSlug = entry.name;
-          break;
-        }
-      }
-    }
-    if (!projectSlug)
-      throw new Error(`Project not found for id: ${record.projectId}`);
+    const projectSlug = resolveProjectSlugById(this.projectHomeDir, record.projectId);
     const records = this.readDocuments(projectSlug);
-    const idx = records.findIndex((r) => r.id === record.id);
-    if (idx >= 0) records[idx] = record;
+    const index = records.findIndex((document) => document.id === record.id);
+    if (index >= 0) records[index] = record;
     else records.push(record);
     this.writeDocuments(projectSlug, records);
   }
 
   deleteDocument(id: string): void {
-    const dir = join(this.projectHomeDir, 'projects');
-    if (!existsSync(dir)) return;
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const records = this.readDocuments(entry.name);
-      const idx = records.findIndex((r) => r.id === id);
-      if (idx >= 0) {
-        records.splice(idx, 1);
-        this.writeDocuments(entry.name, records);
+    for (const slug of listProjectSlugs(this.projectHomeDir)) {
+      const records = this.readDocuments(slug);
+      const index = records.findIndex((document) => document.id === id);
+      if (index >= 0) {
+        records.splice(index, 1);
+        this.writeDocuments(slug, records);
         return;
       }
     }
   }
-
-  // ── Layout Templates ──────────────────────────────────────────────
 
   private get templatesPath(): string {
     return join(this.projectHomeDir, 'config', 'templates.json');
   }
 
   private readTemplates(): LayoutTemplate[] {
-    if (!existsSync(this.templatesPath)) return [];
-    return JSON.parse(readFileSync(this.templatesPath, 'utf-8'));
+    return readJsonFile(this.templatesPath, []);
   }
 
   private writeTemplates(templates: LayoutTemplate[]): void {
-    mkdirSync(join(this.projectHomeDir, 'config'), { recursive: true });
-    writeFileSync(
-      this.templatesPath,
-      JSON.stringify(templates, null, 2),
-      'utf-8',
-    );
+    writeJsonFile(this.templatesPath, templates);
   }
 
   listTemplates(): LayoutTemplate[] {
@@ -439,22 +363,22 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   getTemplate(id: string): LayoutTemplate | null {
-    return this.readTemplates().find((t) => t.id === id) ?? null;
+    return this.readTemplates().find((template) => template.id === id) ?? null;
   }
 
   saveTemplate(template: LayoutTemplate): void {
     const templates = this.readTemplates();
-    const idx = templates.findIndex((t) => t.id === template.id);
-    if (idx >= 0) templates[idx] = template;
+    const index = templates.findIndex((entry) => entry.id === template.id);
+    if (index >= 0) templates[index] = template;
     else templates.push(template);
     this.writeTemplates(templates);
   }
 
   deleteTemplate(id: string): void {
     const templates = this.readTemplates();
-    const idx = templates.findIndex((t) => t.id === id);
-    if (idx < 0) throw new Error(`Template '${id}' not found`);
-    templates.splice(idx, 1);
+    const index = templates.findIndex((template) => template.id === id);
+    if (index < 0) throw new Error(`Template '${id}' not found`);
+    templates.splice(index, 1);
     this.writeTemplates(templates);
   }
 }
