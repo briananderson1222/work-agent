@@ -603,7 +603,7 @@ for (const [relativePath, requiredImport] of [
   ['../packages/cli/src/commands/helpers.ts', '@stallion-ai/contracts/plugin'],
   ['../packages/cli/src/commands/install.ts', '@stallion-ai/contracts/plugin'],
   ['../packages/cli/src/dev/registry.ts', '@stallion-ai/contracts/layout'],
-  ['../packages/sdk/src/query-domains/plugins.ts', '@stallion-ai/contracts/plugin'],
+  ['../packages/sdk/src/query-domains/plugin-types.ts', '@stallion-ai/contracts/plugin'],
   ['../packages/sdk/src/types/index.ts', '@stallion-ai/contracts/runtime'],
   ['../packages/sdk/src/query-domains/workspaceConnections.ts', '@stallion-ai/contracts/tool'],
   ['../packages/sdk/src/query-domains/acpWorkspace.ts', '@stallion-ai/contracts/catalog'],
@@ -2306,6 +2306,22 @@ const sdkApi = readFileSync(
   new URL('../packages/sdk/src/api.ts', import.meta.url),
   'utf8',
 );
+const sdkPluginsDomain = readFileSync(
+  new URL('../packages/sdk/src/query-domains/plugins.ts', import.meta.url),
+  'utf8',
+);
+const sdkPluginTypes = readFileSync(
+  new URL('../packages/sdk/src/query-domains/plugin-types.ts', import.meta.url),
+  'utf8',
+);
+const sdkPluginQueries = readFileSync(
+  new URL('../packages/sdk/src/query-domains/plugin-queries.ts', import.meta.url),
+  'utf8',
+);
+const sdkPluginMutations = readFileSync(
+  new URL('../packages/sdk/src/query-domains/plugin-mutations.ts', import.meta.url),
+  'utf8',
+);
 for (const domainExport of [
   "./query-domains/agentAdmin",
   "./query-domains/acpWorkspace",
@@ -2333,6 +2349,75 @@ for (const retiredLayoutExport of [
   }
   if (sdkIndex.includes(retiredLayoutExport)) {
     errors.push(`packages/sdk/src/index.ts must not re-export retired standalone layout helper ${retiredLayoutExport}.`);
+  }
+}
+for (const requiredPluginDomainExport of [
+  "export * from './plugin-types';",
+  "export * from './plugin-queries';",
+  "export * from './plugin-mutations';",
+]) {
+  if (!sdkPluginsDomain.includes(requiredPluginDomainExport)) {
+    errors.push(`packages/sdk/src/query-domains/plugins.ts must re-export ${requiredPluginDomainExport}.`);
+  }
+}
+for (const retiredInlinePluginSnippet of [
+  'async function requestPluginSettings(',
+  'export async function reloadPlugins(',
+  'export function usePluginInstallMutation()',
+  'export interface PluginSettingsData',
+]) {
+  if (sdkPluginsDomain.includes(retiredInlinePluginSnippet)) {
+    errors.push(
+      `packages/sdk/src/query-domains/plugins.ts must not inline extracted plugin helper ${retiredInlinePluginSnippet}.`,
+    );
+  }
+}
+for (const requiredPluginTypeExport of [
+  'export interface PluginSettingsData',
+  'export interface PluginChangelogData',
+  'export interface PluginProviderDetail',
+  'export interface AgentHealthStatus',
+]) {
+  if (!sdkPluginTypes.includes(requiredPluginTypeExport)) {
+    errors.push(`plugin-types.ts must include ${requiredPluginTypeExport}.`);
+  }
+}
+for (const requiredPluginQueryExport of [
+  'export async function requestAgentHealth',
+  'export async function waitForAgentHealth',
+  'export function usePluginsQuery',
+  'export function useRegistryPluginsQuery',
+]) {
+  if (!sdkPluginQueries.includes(requiredPluginQueryExport)) {
+    errors.push(`plugin-queries.ts must include ${requiredPluginQueryExport}.`);
+  }
+}
+for (const retiredMutationSnippet of [
+  'export function usePluginInstallMutation()',
+  'export function useReloadPluginsMutation(',
+]) {
+  if (sdkPluginQueries.includes(retiredMutationSnippet)) {
+    errors.push(`plugin-queries.ts must not inline mutation helper ${retiredMutationSnippet}.`);
+  }
+}
+for (const requiredPluginMutationExport of [
+  'export async function reloadPlugins',
+  'export function usePluginInstallMutation()',
+  'export function usePluginSettingsMutation(',
+  'export function useAddProjectLayoutFromPluginMutation(',
+]) {
+  if (!sdkPluginMutations.includes(requiredPluginMutationExport)) {
+    errors.push(`plugin-mutations.ts must include ${requiredPluginMutationExport}.`);
+  }
+}
+for (const requiredPluginInvalidationHelper of [
+  'function invalidatePluginQueries(',
+  'function invalidatePluginGraphQueries(',
+]) {
+  if (!sdkPluginMutations.includes(requiredPluginInvalidationHelper)) {
+    errors.push(
+      `plugin-mutations.ts must keep shared invalidation helper ${requiredPluginInvalidationHelper}.`,
+    );
   }
 }
 if (sdkApi.includes('export async function fetchLayouts(')) {
