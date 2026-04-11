@@ -1846,11 +1846,44 @@ for (const [relativePath, requiredImport] of [
   ['../src-server/providers/defaults.ts', './provider-interfaces.js'],
   ['../src-server/providers/json-manifest-registry.ts', './provider-interfaces.js'],
   ['../src-server/providers/registry.ts', './provider-interfaces.js'],
+  ['../src-server/providers/registry.ts', './integration-registry-provider.js'],
   ['../src-server/providers/resolver.ts', './provider-interfaces.js'],
 ]) {
   const fileContents = readFileSync(new URL(relativePath, import.meta.url), 'utf8');
   if (!fileContents.includes(requiredImport)) {
     errors.push(`${relativePath} must import from ${requiredImport}.`);
+  }
+}
+
+const providerRegistry = readFileSync(
+  new URL('../src-server/providers/registry.ts', import.meta.url),
+  'utf8',
+);
+for (const retiredInlineProviderRegistrySnippet of [
+  'function readDiskIntegrations(',
+  'const diskItems = readDiskIntegrations();',
+  'No provider could install command ${command}',
+]) {
+  if (providerRegistry.includes(retiredInlineProviderRegistrySnippet)) {
+    errors.push(
+      `src-server/providers/registry.ts must not inline extracted integration registry logic ${retiredInlineProviderRegistrySnippet}.`,
+    );
+  }
+}
+
+const integrationRegistryProvider = readFileSync(
+  new URL('../src-server/providers/integration-registry-provider.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function readDiskIntegrations',
+  'export function mergeRegistryItems',
+  'export function createIntegrationRegistryProvider',
+]) {
+  if (!integrationRegistryProvider.includes(requiredHelper)) {
+    errors.push(
+      `src-server/providers/integration-registry-provider.ts must include ${requiredHelper}.`,
+    );
   }
 }
 

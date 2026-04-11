@@ -2,11 +2,7 @@
  * Provider registry — generic workspace-scoped store with backward-compat wrappers
  */
 
-import { execSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import type { ProviderKind } from '@stallion-ai/contracts/provider';
-import { resolveHomeDir } from '../utils/paths.js';
 import type { ProviderAdapterShape } from './adapter-shape.js';
 import {
   DefaultAgentRegistryProvider,
@@ -17,6 +13,7 @@ import {
   DefaultUserDirectoryProvider,
   DefaultUserIdentityProvider,
 } from './defaults.js';
+import { createIntegrationRegistryProvider } from './integration-registry-provider.js';
 import type {
   IAgentRegistryProvider,
   IAuthProvider,
@@ -206,135 +203,8 @@ export function registerIntegrationRegistryProvider(
 export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
   const entries = listProviders('integrationRegistry');
   if (entries.length === 0) return new DefaultIntegrationRegistryProvider();
-
-  const providers = entries.map(
-    (e) => e.provider as IIntegrationRegistryProvider,
-  );
-
-  // Scan on-disk integrations (plugin-bundled + manually added)
-  function readDiskIntegrations(): import('@stallion-ai/contracts/catalog').RegistryItem[] {
-    const dir = join(resolveHomeDir(), 'integrations');
-    if (!existsSync(dir)) return [];
-    const items: import('@stallion-ai/contracts/catalog').RegistryItem[] = [];
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory()) continue;
-      const defPath = join(dir, entry.name, 'integration.json');
-      if (!existsSync(defPath)) continue;
-      try {
-        const def = JSON.parse(readFileSync(defPath, 'utf-8'));
-        let commandExists = false;
-        if (def.command) {
-          try {
-            const cmd =
-              process.platform === 'win32'
-                ? `where ${def.command}`
-                : `which ${def.command}`;
-            execSync(cmd, { stdio: 'pipe', windowsHide: true });
-            commandExists = true;
-          } catch (e) {
-            console.debug('Command not found for integration:', def.command, e);
-          }
-        }
-        items.push({
-          id: def.id || entry.name,
-          displayName: def.displayName || entry.name,
-          description: def.description || '',
-          installed: true,
-          status: commandExists ? 'connected' : 'missing binary',
-        });
-      } catch (e) {
-        console.debug('Failed to read integration definition:', entry.name, e);
-      }
-    }
-    return items;
-  }
-
-  return {
-    async listAvailable() {
-      const results = await Promise.all(
-        entries.map(async (e) => {
-          const items = await (
-            e.provider as IIntegrationRegistryProvider
-          ).listAvailable();
-          return items.map((item) => ({ ...item, source: e.source }));
-        }),
-      );
-      // Merge disk integrations first (they take priority as "installed")
-      const diskItems = readDiskIntegrations();
-      const seen = new Set<string>();
-      const merged: import('@stallion-ai/contracts/catalog').RegistryItem[] = [];
-      for (const item of diskItems) {
-        if (!seen.has(item.id)) {
-          seen.add(item.id);
-          merged.push(item);
-        }
-      }
-      for (const item of results.flat()) {
-        if (!seen.has(item.id)) {
-          seen.add(item.id);
-          merged.push(item);
-        }
-      }
-      return merged;
-    },
-    async listInstalled() {
-      const results = await Promise.all(
-        providers.map((p) => p.listInstalled()),
-      );
-      const diskItems = readDiskIntegrations();
-      const seen = new Set<string>();
-      const merged: import('@stallion-ai/contracts/catalog').RegistryItem[] = [];
-      for (const item of diskItems) {
-        if (!seen.has(item.id)) {
-          seen.add(item.id);
-          merged.push(item);
-        }
-      }
-      for (const item of results.flat()) {
-        if (!seen.has(item.id)) {
-          seen.add(item.id);
-          merged.push(item);
-        }
-      }
-      return merged;
-    },
-    async install(id) {
-      for (const p of providers) {
-        const result = await p.install(id);
-        if (result.success) return result;
-      }
-      return { success: false, message: `No provider could install ${id}` };
-    },
-    async uninstall(id) {
-      for (const p of providers) {
-        const result = await p.uninstall(id);
-        if (result.success) return result;
-      }
-      return { success: false, message: `No provider could uninstall ${id}` };
-    },
-    async getToolDef(id) {
-      for (const p of providers) {
-        const def = await p.getToolDef(id);
-        if (def) return def;
-      }
-      return null;
-    },
-    async sync() {
-      await Promise.all(providers.map((p) => p.sync()));
-    },
-    async installByCommand(command) {
-      for (const p of providers) {
-        if (p.installByCommand) {
-          const result = await p.installByCommand(command);
-          if (result.success) return result;
-        }
-      }
-      return {
-        success: false,
-        message: `No provider could install command ${command}`,
-      };
-    },
-  };
+  const providers = entries.map((entry) => entry.provider as IIntegrationRegistryProvider);
+  return createIntegrationRegistryProvider(providers);
 }
 
 // ── Skill Registry ─────────────────────────────────────
