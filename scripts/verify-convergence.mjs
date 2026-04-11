@@ -417,6 +417,45 @@ for (const requiredHook of ['fetchMonitoringEvents', 'useMonitoringStatsQuery'])
   }
 }
 
+const eventEntry = readFileSync(
+  new URL('../src-ui/src/components/monitoring/EventEntry.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredImport of [
+  './event-entry/EventEntryHeader',
+  './event-entry/EventEntrySections',
+]) {
+  if (!eventEntry.includes(requiredImport)) {
+    errors.push(`EventEntry.tsx must delegate extracted monitoring UI to ${requiredImport}.`);
+  }
+}
+for (const retiredInlineEventEntrySnippet of [
+  'function IntegrationBadges(',
+  'function HealthChecksSection(',
+  'function ToolResultSection(',
+  'function UsageStatsSection(',
+]) {
+  if (eventEntry.includes(retiredInlineEventEntrySnippet)) {
+    errors.push(`EventEntry.tsx must not inline extracted monitoring helper ${retiredInlineEventEntrySnippet}.`);
+  }
+}
+
+const eventEntryUtils = readFileSync(
+  new URL('../src-ui/src/components/monitoring/event-entry/utils.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function buildEventTimestampTitle',
+  'export function buildToolInputDisplay',
+  'export function getArtifactSummary',
+  'export function getTotalChars',
+  'export function getTotalTokens',
+]) {
+  if (!eventEntryUtils.includes(requiredHelper)) {
+    errors.push(`event-entry/utils.ts must include ${requiredHelper}.`);
+  }
+}
+
 const conversationsContext = readFileSync(
   new URL('../src-ui/src/contexts/ConversationsContext.tsx', import.meta.url),
   'utf8',
