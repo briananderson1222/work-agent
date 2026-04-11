@@ -146,11 +146,13 @@ const playbooksView = readFileSync(playbooksViewPath, 'utf8');
 if (playbooksView.includes('fetch(')) {
   errors.push('PlaybooksView must not issue raw fetch() calls.');
 }
-if (!playbooksView.includes('useCreatePlaybookMutation')) {
-  errors.push('PlaybooksView must use SDK playbook mutation hooks.');
+if (!playbooksView.includes('usePlaybooksViewModel')) {
+  errors.push('PlaybooksView must delegate orchestration to usePlaybooksViewModel.');
 }
 for (const requiredImport of [
   './playbooks/PlaybooksEditor',
+  './playbooks/PlaybooksModalStack',
+  './playbooks/usePlaybooksViewModel',
   './playbooks/utils',
 ]) {
   if (!playbooksView.includes(requiredImport)) {
@@ -164,6 +166,11 @@ for (const retiredInlinePlaybooksSnippet of [
   'function exportPrompt(prompt: Playbook) {',
   'function buildPayload() {',
   'function validateTemplateVariables(content: string) {',
+  '<ConfirmModal',
+  '<PromptRunModal',
+  '<ImportPromptsModal',
+  'const categories = useMemo(',
+  'const filtered = useMemo(',
 ]) {
   if (playbooksView.includes(retiredInlinePlaybooksSnippet)) {
     errors.push(`PlaybooksView must not inline extracted playbook helper ${retiredInlinePlaybooksSnippet}.`);
@@ -199,6 +206,49 @@ for (const requiredHelper of [
 ]) {
   if (!playbooksUtils.includes(requiredHelper)) {
     errors.push(`playbooks/utils.ts must include ${requiredHelper}.`);
+  }
+}
+
+const playbooksViewModel = readFileSync(
+  new URL('../src-ui/src/views/playbooks/usePlaybooksViewModel.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function usePlaybooksViewModel',
+  '../../hooks/useActiveChatSessions',
+  './view-utils',
+]) {
+  if (!playbooksViewModel.includes(requiredHelper)) {
+    errors.push(`usePlaybooksViewModel.ts must include ${requiredHelper}.`);
+  }
+}
+
+const playbooksModalStack = readFileSync(
+  new URL('../src-ui/src/views/playbooks/PlaybooksModalStack.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function PlaybooksModalStack',
+  '../../components/ConfirmModal',
+  '../../components/ImportPromptsModal',
+  '../../components/PromptRunModal',
+]) {
+  if (!playbooksModalStack.includes(requiredHelper)) {
+    errors.push(`PlaybooksModalStack.tsx must include ${requiredHelper}.`);
+  }
+}
+
+const playbooksViewUtils = readFileSync(
+  new URL('../src-ui/src/views/playbooks/view-utils.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function buildPlaybookCategories',
+  'export function filterAndSortPlaybooks',
+  'export function buildPlaybookListItems',
+]) {
+  if (!playbooksViewUtils.includes(requiredHelper)) {
+    errors.push(`playbooks/view-utils.ts must include ${requiredHelper}.`);
   }
 }
 
@@ -2498,6 +2548,70 @@ for (const requiredHelper of [
 ]) {
   if (!sdkWorkspaceWorkflows.includes(requiredHelper)) {
     errors.push(`packages/sdk/src/query-domains/workspaceWorkflows.ts must include ${requiredHelper}.`);
+  }
+}
+
+const sdkHooksBarrel = readFileSync(
+  new URL('../packages/sdk/src/hooks.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredExport of [
+  "export * from './hooks/context';",
+  "export * from './hooks/knowledge';",
+  "export * from './hooks/operations';",
+]) {
+  if (!sdkHooksBarrel.includes(requiredExport)) {
+    errors.push(`packages/sdk/src/hooks.ts must re-export ${requiredExport}.`);
+  }
+}
+for (const retiredHookSnippet of [
+  'export function useNotifications() {',
+  'export function useSendToChat(',
+  'export function useUserLookup(',
+  'export function useServerFetch() {',
+  "import { useCallback, useContext, useEffect, useState } from 'react';",
+]) {
+  if (sdkHooksBarrel.includes(retiredHookSnippet)) {
+    errors.push(`packages/sdk/src/hooks.ts must stay a thin barrel and not inline ${retiredHookSnippet}.`);
+  }
+}
+
+const sdkHookModules = new Map([
+  [
+    'packages/sdk/src/hooks/context.ts',
+    [
+      'export function useSDK()',
+      'export function useAgents()',
+      'export function useResolveAgent(',
+      'export function useLaunchChat()',
+      'export function useDockState()',
+      'export function useWorkflows(',
+    ],
+  ],
+  [
+    'packages/sdk/src/hooks/knowledge.ts',
+    [
+      'export function useKnowledgeNamespaces(',
+      'export function useKnowledgeDocs(',
+      'export function useKnowledgeSearch(',
+    ],
+  ],
+  [
+    'packages/sdk/src/hooks/operations.ts',
+    [
+      'export function useNotifications()',
+      'export function useSendToChat(',
+      'export function useUserLookup(',
+      'export function useServerFetch()',
+    ],
+  ],
+]);
+for (const [relativePath, requiredSnippets] of sdkHookModules) {
+  const hookModule = readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8');
+  for (const requiredSnippet of requiredSnippets) {
+    if (!hookModule.includes(requiredSnippet)) {
+      errors.push(`${relativePath} must include ${requiredSnippet}.`);
+    }
   }
 }
 

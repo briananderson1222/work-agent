@@ -323,11 +323,7 @@ export async function loadAgentTools(
 ): Promise<Tool<any>[]> {
   const tools: Tool<any>[] = [];
 
-  if (
-    !spec.tools ||
-    !spec.tools.mcpServers ||
-    spec.tools.mcpServers.length === 0
-  ) {
+  if (!spec.tools?.mcpServers || spec.tools.mcpServers.length === 0) {
     return tools;
   }
 
