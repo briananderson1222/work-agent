@@ -2,50 +2,14 @@
  * Layout Service - handles layout CRUD operations
  */
 
+import type { WorkflowMetadata } from '@stallion-ai/contracts/runtime';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type {
-  StandaloneLayoutConfig,
-  StandaloneLayoutMetadata,
-  WorkflowMetadata,
-} from '../domain/types.js';
-import { layoutOps } from '../telemetry/metrics.js';
 
 export class LayoutService {
   constructor(
     private configLoader: ConfigLoader,
     _logger: any,
   ) {}
-
-  async listLayouts(): Promise<StandaloneLayoutMetadata[]> {
-    layoutOps.add(1, { operation: 'list' });
-    return this.configLoader.listLayouts();
-  }
-
-  async getLayout(slug: string): Promise<StandaloneLayoutConfig> {
-    return this.configLoader.loadLayout(slug);
-  }
-
-  async createLayout(
-    config: StandaloneLayoutConfig,
-  ): Promise<StandaloneLayoutConfig> {
-    await this.configLoader.createLayout(config);
-    layoutOps.add(1, { operation: 'create' });
-    return config;
-  }
-
-  async updateLayout(
-    slug: string,
-    updates: Partial<StandaloneLayoutConfig>,
-  ): Promise<StandaloneLayoutConfig> {
-    const result = await this.configLoader.updateLayout(slug, updates);
-    layoutOps.add(1, { operation: 'update', layout: slug });
-    return result;
-  }
-
-  async deleteLayout(slug: string): Promise<void> {
-    await this.configLoader.deleteLayout(slug);
-    layoutOps.add(1, { operation: 'delete', layout: slug });
-  }
 
   // Workflow management (workflows are per-agent but related to layout functionality)
   async listAgentWorkflows(agentSlug: string): Promise<WorkflowMetadata[]> {

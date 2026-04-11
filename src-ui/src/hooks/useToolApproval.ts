@@ -1,3 +1,4 @@
+import { submitToolApproval } from '@stallion-ai/sdk';
 import { useCallback } from 'react';
 import { log } from '@/utils/logger';
 import {
@@ -6,7 +7,7 @@ import {
 } from '../contexts/ActiveChatsContext';
 import { useToast } from '../contexts/ToastContext';
 
-export function useToolApproval(apiBase: string) {
+export function useToolApproval(_apiBase: string) {
   const { updateChat } = useActiveChatActions();
   const { dismissToast } = useToast();
 
@@ -83,15 +84,11 @@ export function useToolApproval(apiBase: string) {
 
       // Send approval to backend
       try {
-        await fetch(`${apiBase}/tool-approval/${approvalId}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ approved }),
-        });
+        await submitToolApproval(approvalId, approved);
       } catch (err) {
         log.api('Failed to send tool approval:', err);
       }
     },
-    [apiBase, updateChat, dismissToast],
+    [updateChat, dismissToast],
   );
 }

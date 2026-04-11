@@ -191,8 +191,7 @@ app.route('/tools', toolRoutes);
 Group related endpoints in the same file:
 
 ```typescript
-// routes/layouts.ts - includes workflow routes
-export function createLayoutRoutes(deps) { /* layout CRUD */ }
+// routes/layouts.ts - workflow routes only
 export function createWorkflowRoutes(deps) { /* workflow operations */ }
 ```
 

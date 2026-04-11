@@ -90,8 +90,10 @@ vi.mock('node:util', async (importOriginal) => {
   };
 });
 
-vi.mock('@stallion-ai/shared', () => ({
+vi.mock('@stallion-ai/shared/build', () => ({
   buildPlugin: vi.fn().mockResolvedValue({ built: false }),
+}));
+vi.mock('@stallion-ai/shared/parsers', () => ({
   copyPluginIntegrations: vi.fn(),
 }));
 

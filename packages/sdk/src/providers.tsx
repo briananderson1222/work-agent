@@ -7,8 +7,8 @@ import React, {
   useEffect,
   useState,
 } from 'react';
+import type { LayoutDefinition } from '@stallion-ai/contracts/layout';
 import { _setLayoutContext } from './api';
-import type { StandaloneLayoutConfig } from './types';
 
 /**
  * SDK Context - Provides access to all core app contexts and hooks
@@ -72,7 +72,7 @@ export function SDKProvider({ value, children }: SDKProviderProps) {
  */
 interface LayoutProviderProps {
   sdk: SDKContextValue;
-  layout?: StandaloneLayoutConfig;
+  layout?: LayoutDefinition;
   project?: { slug: string; name: string; [key: string]: any };
   activeLayout?: { slug: string; type: string; [key: string]: any };
   children: ReactNode;

@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react';
+import { useFileSystemBrowseQuery } from '@stallion-ai/sdk';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 export function PathAutocomplete({
   value,
@@ -7,7 +8,7 @@ export function PathAutocomplete({
   onBlur,
   placeholder,
   disabled,
-  apiBase,
+  apiBase: _apiBase,
   className,
 }: {
   value: string;
@@ -19,7 +20,6 @@ export function PathAutocomplete({
   apiBase: string;
   className?: string;
 }) {
-  const [suggestions, setSuggestions] = useState<string[]>([]);
   const [selectedIdx, setSelectedIdx] = useState(-1);
   const [show, setShow] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -30,38 +30,42 @@ export function PathAutocomplete({
     inputRef.current?.focus();
   }, []);
 
-  useEffect(() => {
-    if (!value.startsWith('/') && !value.startsWith('~')) {
-      setSuggestions([]);
-      return;
-    }
-    const endsWithSlash = value.endsWith('/');
-    const dir = endsWithSlash
+  const shouldSuggest = value.startsWith('/') || value.startsWith('~');
+  const endsWithSlash = value.endsWith('/');
+  const browsePath = !shouldSuggest
+    ? undefined
+    : endsWithSlash
       ? value.replace(/\/$/, '')
       : value.lastIndexOf('/') <= 0
         ? '/'
         : value.substring(0, value.lastIndexOf('/'));
-    const prefix = endsWithSlash
+  const prefix = !shouldSuggest
+    ? ''
+    : endsWithSlash
       ? ''
       : value.substring(value.lastIndexOf('/') + 1).toLowerCase();
-    const controller = new AbortController();
-    fetch(`${apiBase}/api/fs/browse?path=${encodeURIComponent(dir)}`, {
-      signal: controller.signal,
-    })
-      .then((r) => r.json())
-      .then((raw) => {
-        const data = raw.data ?? raw;
-        if (!data.entries) return;
-        const matches = data.entries
-          .filter((e: any) => !prefix || e.name.toLowerCase().includes(prefix))
-          .map((e: any) => `${data.path}/${e.name}`);
-        setSuggestions(matches);
-        setSelectedIdx(-1);
-        setShow(matches.length > 0);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [value, apiBase]);
+
+  const { data } = useFileSystemBrowseQuery(browsePath, {
+    enabled: shouldSuggest,
+  });
+
+  const suggestions = useMemo(() => {
+    if (!shouldSuggest || !data?.entries) {
+      return [];
+    }
+    return data.entries
+      .filter((entry) => !prefix || entry.name.toLowerCase().includes(prefix))
+      .map((entry) => `${data.path}/${entry.name}`);
+  }, [data, prefix, shouldSuggest]);
+
+  useEffect(() => {
+    setSelectedIdx(-1);
+    if (!shouldSuggest) {
+      setShow(false);
+      return;
+    }
+    setShow(suggestions.length > 0);
+  }, [shouldSuggest, suggestions]);
 
   const pick = (path: string) => {
     pickingRef.current = true;

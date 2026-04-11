@@ -40,7 +40,6 @@ import { ApiBaseProvider } from './contexts/ApiBaseContext';
 import { AuthProvider } from './contexts/AuthContext';
 import { ConversationsProvider } from './contexts/ConversationsContext';
 import { KeyboardShortcutsProvider } from './contexts/KeyboardShortcutsContext';
-import { LayoutsProvider } from './contexts/LayoutsContext';
 import { MessageContextContext } from './contexts/MessageContextContext';
 import { NavigationProvider } from './contexts/NavigationContext';
 import { PreviewProvider } from './contexts/PreviewContext';
@@ -48,7 +47,6 @@ import { StreamingProvider } from './contexts/StreamingContext';
 import { SyntaxHighlighterProvider } from './contexts/SyntaxHighlighterContext';
 import { ToastProvider } from './contexts/ToastContext';
 import { VoiceProviderContext } from './contexts/VoiceProviderContext';
-import { WorkflowsProvider } from './contexts/WorkflowsContext';
 import { PermissionManager } from './core/PermissionManager';
 import { pluginRegistry } from './core/PluginRegistry';
 // Register default voice + context providers
@@ -122,26 +120,22 @@ pluginRegistry.initialize().then(() => {
                   <NavigationProvider>
                     <KeyboardShortcutsProvider>
                       <ToastProvider>
-                        <LayoutsProvider>
-                          <WorkflowsProvider>
-                            <ConversationsProvider>
-                              <ActiveChatsProvider>
-                                <VoiceProviderContext>
-                                  <MessageContextContext>
-                                    <StreamingProvider>
-                                      <AnalyticsProvider>
-                                        <PreviewProvider>
-                                          <App />
-                                          <NotificationContainer />
-                                        </PreviewProvider>
-                                      </AnalyticsProvider>
-                                    </StreamingProvider>
-                                  </MessageContextContext>
-                                </VoiceProviderContext>
-                              </ActiveChatsProvider>
-                            </ConversationsProvider>
-                          </WorkflowsProvider>
-                        </LayoutsProvider>
+                        <ConversationsProvider>
+                          <ActiveChatsProvider>
+                            <VoiceProviderContext>
+                              <MessageContextContext>
+                                <StreamingProvider>
+                                  <AnalyticsProvider>
+                                    <PreviewProvider>
+                                      <App />
+                                      <NotificationContainer />
+                                    </PreviewProvider>
+                                  </AnalyticsProvider>
+                                </StreamingProvider>
+                              </MessageContextContext>
+                            </VoiceProviderContext>
+                          </ActiveChatsProvider>
+                        </ConversationsProvider>
                       </ToastProvider>
                     </KeyboardShortcutsProvider>
                   </NavigationProvider>

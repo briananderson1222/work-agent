@@ -1,4 +1,4 @@
-import type { SchedulerJob } from '@stallion-ai/shared';
+import type { SchedulerJob } from '@stallion-ai/contracts/scheduler';
 import { useEffect, useState } from 'react';
 import type { SchedulerProviderInfo } from '../../hooks/useScheduler';
 import { useAddJob, useEditJob } from '../../hooks/useScheduler';

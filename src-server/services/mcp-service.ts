@@ -5,9 +5,10 @@
 type MCPConfiguration = any;
 type Tool<_T = any> = any;
 
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import type { ToolDef, ToolMetadata } from '@stallion-ai/contracts/tool';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { AgentSpec, ToolDef, ToolMetadata } from '../domain/types.js';
 import { mcpLifecycle } from '../telemetry/metrics.js';
 
 // Type extensions for MCP service

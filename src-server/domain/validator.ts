@@ -4,21 +4,11 @@
 
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import type { AppConfig } from '@stallion-ai/contracts/config';
+import type { ToolDef } from '@stallion-ai/contracts/tool';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
-import type {
-  AgentSpec,
-  AppConfig,
-  StandaloneLayoutConfig,
-  ToolDef,
-} from './types.js';
-
-// Type extensions for validator
-interface LayoutConfigCandidate {
-  name?: unknown;
-  slug?: unknown;
-  tabs?: unknown;
-}
 
 export class ValidationError extends Error {
   constructor(
@@ -79,40 +69,6 @@ export class SchemaValidator {
    */
   validateToolDef(data: unknown): asserts data is ToolDef {
     this.validate('tool', data);
-  }
-
-  /**
-   * Validate layout configuration
-   */
-  validateLayoutConfig(data: unknown): asserts data is StandaloneLayoutConfig {
-    // Basic structure validation
-    if (!data || typeof data !== 'object') {
-      throw new ValidationError('Layout config must be an object', []);
-    }
-
-    const config = data as LayoutConfigCandidate;
-
-    if (!config.name || typeof config.name !== 'string') {
-      throw new ValidationError('Layout must have a name', []);
-    }
-
-    if (!config.slug || typeof config.slug !== 'string') {
-      throw new ValidationError('Layout must have a slug', []);
-    }
-
-    if (!Array.isArray(config.tabs) || config.tabs.length === 0) {
-      throw new ValidationError('Layout must have at least one tab', []);
-    }
-
-    // Validate tabs
-    for (const tab of config.tabs) {
-      if (!tab.id || !tab.label || !tab.component) {
-        throw new ValidationError(
-          'Each tab must have id, label, and component',
-          [],
-        );
-      }
-    }
   }
 
   /**

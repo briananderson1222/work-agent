@@ -2,7 +2,7 @@ import { execFile as execFileCallback } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { platform } from 'node:os';
 import { promisify } from 'node:util';
-import type { Prerequisite } from '@stallion-ai/shared';
+import type { Prerequisite } from '@stallion-ai/contracts/tool';
 
 const execFile = promisify(execFileCallback);
 

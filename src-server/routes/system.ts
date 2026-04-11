@@ -10,7 +10,7 @@ const execFileAsync = promisify(execFileCb);
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { resolveGitInfo } from '@stallion-ai/shared';
+import { resolveGitInfo } from '@stallion-ai/shared/git';
 import { Hono } from 'hono';
 import { checkBedrockCredentials } from '../providers/bedrock.js';
 import { getAllPrerequisites } from '../providers/registry.js';

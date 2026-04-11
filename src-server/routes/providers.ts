@@ -3,7 +3,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { ProviderConnectionConfig } from '@stallion-ai/shared';
+import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 import { Hono } from 'hono';
 import {
   createEmbeddingProvider,

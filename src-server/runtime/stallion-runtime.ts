@@ -5,168 +5,83 @@
 
 import { EventEmitter } from 'node:events';
 import {
-  createReadStream,
-  existsSync,
-  readdirSync,
-  readFileSync,
-} from 'node:fs';
-import { appendFile, mkdir, readdir } from 'node:fs/promises';
-import { dirname, join } from 'node:path';
-import { createInterface } from 'node:readline';
-import {
   Agent,
   type MCPConfiguration,
   type Tool,
   VoltAgent,
 } from '@voltagent/core';
-import { type HonoServerConfig, honoServer } from '@voltagent/server-hono';
-import { cors } from 'hono/cors';
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import type { AppConfig } from '@stallion-ai/contracts/config';
+import type { HonoServerConfig } from '@voltagent/server-hono';
 import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
-import { FileTerminalHistoryStore } from '../adapters/file-terminal-history-store.js';
-import { NodePtyAdapter } from '../adapters/node-pty-adapter.js';
-import { UsageAggregator } from '../analytics/usage-aggregator.js';
+import type { UsageAggregator } from '../analytics/usage-aggregator.js';
 import {
   ConfigLoader,
-  DEFAULT_SYSTEM_PROMPT,
 } from '../domain/config-loader.js';
-import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
-import { runStartupMigrations } from '../domain/migration.js';
+import type { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import { getOrchestrationDatabasePath } from '../domain/migrations/003-orchestration-events.js';
-import type { AgentSpec, AppConfig } from '../domain/types.js';
-import { ACPStatus } from '../domain/types.js';
-import { MonitoringEmitter } from '../monitoring/emitter.js';
-import { createOtlpReceiverRoutes } from '../monitoring/otlp-receiver.js';
+import type { MonitoringEmitter } from '../monitoring/emitter.js';
 import { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
 import { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
 import { CodexAdapter } from '../providers/adapters/codex-adapter.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
-import {
-  createEmbeddingProvider,
-  createVectorDbProvider,
-} from '../providers/connection-factories.js';
-import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
-import {
-  createProviderAdapterRegistry,
-  getNotificationProviders,
-  listProviders,
-  registerAgentRegistryProvider,
-  registerIntegrationRegistryProvider,
-  registerProviderAdapter,
-} from '../providers/registry.js';
-import { createACPRoutes } from '../routes/acp.js';
-import { createAgentToolRoutes } from '../routes/agent-tools.js';
-import { createAgentRoutes } from '../routes/agents.js';
-import { createAnalyticsRoutes } from '../routes/analytics.js';
-import {
-  createAuthRoutes,
-  createUserRoutes,
-  getCachedUser,
-} from '../routes/auth.js';
-import { createBedrockRoutes } from '../routes/bedrock.js';
-import { createBrandingRoutes } from '../routes/branding.js';
-import { createChatRoutes } from '../routes/chat.js';
-import { createCodingRoutes } from '../routes/coding.js';
-import { createConfigRoutes } from '../routes/config.js';
-import { createConnectionRoutes } from '../routes/connections.js';
-import {
-  createConversationRoutes,
-  createGlobalConversationRoutes,
-} from '../routes/conversations.js';
-import { createEnrichedAgentRoutes } from '../routes/enriched-agents.js';
-import { createEventRoutes } from '../routes/events.js';
-import { createFeedbackRoutes } from '../routes/feedback.js';
-import { createFsRoutes } from '../routes/fs.js';
-import { createInsightsRoutes } from '../routes/insights.js';
-import { createInvokeRoutes } from '../routes/invoke.js';
-import {
-  createCrossProjectKnowledgeRoutes,
-  createKnowledgeRoutes,
-} from '../routes/knowledge.js';
-import { createLayoutRoutes, createWorkflowRoutes } from '../routes/layouts.js';
-import modelsRoute from '../routes/models.js';
-import { createMonitoringRoutes } from '../routes/monitoring.js';
-import { createNotificationRoutes } from '../routes/notifications.js';
-import { createOrchestrationRoutes } from '../routes/orchestration.js';
-import { createPluginRoutes } from '../routes/plugins.js';
-import { createProjectRoutes } from '../routes/projects.js';
-import { createPromptRoutes } from '../routes/prompts.js';
-import { createProviderRoutes } from '../routes/providers.js';
-import { createRegistryRoutes } from '../routes/registry.js';
-import { createSchedulerRoutes } from '../routes/scheduler.js';
-import { createSkillRoutes } from '../routes/skills.js';
-import { createSystemRoutes } from '../routes/system.js';
-import { createTelemetryRoutes } from '../routes/telemetry-events.js';
-import { createTemplateRoutes } from '../routes/templates.js';
-import { createToolRoutes } from '../routes/tools.js';
-import { createUICommandRoutes } from '../routes/ui-commands.js';
-import { attachVoiceWebSocket, createVoiceRoutes } from '../routes/voice.js';
-import { ACPManager } from '../services/acp-bridge.js';
-import { AgentService } from '../services/agent-service.js';
+import type { ACPManager } from '../services/acp-bridge.js';
+import type { AgentService } from '../services/agent-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
-import { ConnectionService } from '../services/connection-service.js';
+import type { ConnectionService } from '../services/connection-service.js';
 import { EventBus } from '../services/event-bus.js';
 import { EventStore } from '../services/event-store.js';
-import { FeedbackService } from '../services/feedback-service.js';
-import { FileTreeService } from '../services/file-tree-service.js';
-import { KnowledgeService } from '../services/knowledge-service.js';
-import { LayoutService } from '../services/layout-service.js';
-import { MCPService } from '../services/mcp-service.js';
-import { NotificationService } from '../services/notification-service.js';
+import type { FeedbackService } from '../services/feedback-service.js';
+import type { FileTreeService } from '../services/file-tree-service.js';
+import type { KnowledgeService } from '../services/knowledge-service.js';
+import type { LayoutService } from '../services/layout-service.js';
+import type { MCPService } from '../services/mcp-service.js';
+import type { NotificationService } from '../services/notification-service.js';
 import { OrchestrationService } from '../services/orchestration-service.js';
-import { ProjectService } from '../services/project-service.js';
-import { PromptService } from '../services/prompt-service.js';
-import { ProviderService } from '../services/provider-service.js';
-import { SchedulerService } from '../services/scheduler-service.js';
-import { SkillService } from '../services/skill-service.js';
-import { TerminalService } from '../services/terminal-service.js';
-import { TerminalWebSocketServer } from '../services/terminal-ws-server.js';
-import { registerObservableGauges } from '../telemetry/metrics.js';
-import { isAuthError } from '../utils/auth-errors.js';
+import type { ProjectService } from '../services/project-service.js';
+import type { ProviderService } from '../services/provider-service.js';
+import type { SchedulerService } from '../services/scheduler-service.js';
+import type { SkillService } from '../services/skill-service.js';
+import type { TerminalService } from '../services/terminal-service.js';
+import type { TerminalWebSocketServer } from '../services/terminal-ws-server.js';
 import { createLogger } from '../utils/logger.js';
 import { resolveHomeDir } from '../utils/paths.js';
-import { NovaSonicProvider } from '../voice/providers/nova-sonic.js';
-import { VoiceSessionService } from '../voice/voice-session.js';
+import type { VoiceSessionService } from '../voice/voice-session.js';
 import { createAgentHooks } from './agent-hooks.js';
+import { buildRuntimeAgentInstance } from './runtime-agent-builder.js';
+import {
+  reloadRuntimeAgents,
+  reloadRuntimeSkillsAndAgents,
+  switchRuntimeAgent,
+} from './runtime-agent-lifecycle.js';
+import {
+  createRuntimeFrameworkModel,
+  resolveRuntimeEmbeddingProvider,
+  resolveRuntimeVectorDbProvider,
+} from './runtime-provider-resolution.js';
+import { createRuntimeServiceBundle } from './runtime-service-bootstrap.js';
 import * as MCPManager from './mcp-manager.js';
+import { buildRuntimeContext as createRuntimeContext } from './runtime-context-builder.js';
+import {
+  runRuntimeHealthChecks,
+  startRuntimeHealthChecks,
+} from './runtime-health.js';
+import { SC_READ_ONLY_TOOLS } from './runtime-control-tools.js';
+import { initializeRuntime } from './runtime-initialize.js';
+import { configureRuntimeRoutes } from './runtime-routes.js';
+import { shutdownRuntimeServices } from './runtime-shutdown.js';
+import { replaceRuntimeTemplateVariables } from './runtime-template-variables.js';
+import { bootstrapRuntimeVoiceAgent } from './runtime-voice-agent.js';
 import { StrandsFramework } from './strands-adapter.js';
-import * as ToolExecutor from './tool-executor.js';
 import type { RuntimeContext } from './types.js';
 import { VoltAgentFramework } from './voltagent-adapter.js';
+import { RuntimeEventLog } from './runtime-event-log.js';
 
 export interface StallionRuntimeOptions {
   projectHomeDir?: string;
   port?: number;
   logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 }
-
-// Read-only stallion-control tools safe for auto-approve
-const SC_READ_ONLY_TOOLS = [
-  'list_agents',
-  'get_agent',
-  'list_skills',
-  'list_registry_skills',
-  'list_integrations',
-  'get_integration',
-  'list_registry_integrations',
-  'list_providers',
-  'list_prompts',
-  'list_jobs',
-  'system_status',
-  'list_models',
-  'navigate_to',
-  'list_projects',
-  'get_project',
-  'list_project_layouts',
-  'list_layouts',
-  'get_layout',
-  'list_conversations',
-  'get_conversation_messages',
-  'get_config',
-  'list_plugins',
-  'check_plugin_updates',
-  'get_usage',
-  'get_achievements',
-].map((t) => `stallion-control_${t}`);
 
 /**
  * Main runtime for Stallion system
@@ -226,7 +141,7 @@ export class StallionRuntime {
     cost?: number;
   }> = [];
   private eventLogPath: string;
-  private persistedEvents: Array<any> = [];
+  private eventLog: RuntimeEventLog;
   private modelCatalog?: BedrockModelCatalog;
   private usageAggregator?: UsageAggregator;
   private port: number;
@@ -275,90 +190,51 @@ export class StallionRuntime {
       name: 'stallion',
       level: options.logLevel || 'info',
     });
+    this.eventLog = new RuntimeEventLog(this.eventLogPath, this.logger);
 
-    // Initialize services
     this.approvalRegistry = new ApprovalRegistry(this.logger);
-    this.agentService = new AgentService(
-      this.configLoader,
-      this.activeAgents,
-      this.agentMetadataMap,
-      this.agentSpecs,
-      this.logger,
-    );
-    this.skillService = new SkillService(this.configLoader, this.logger);
-    this.mcpService = new MCPService(
-      this.configLoader,
-      this.mcpConfigs,
-      this.mcpConnectionStatus,
-      this.integrationMetadata,
-      this.agentTools,
-      this.toolNameMapping,
-      this.logger,
-    );
-    this.layoutService = new LayoutService(this.configLoader, this.logger);
-    this.storageAdapter = new FileStorageAdapter(
-      this.configLoader.getProjectHomeDir(),
-    );
-    this.projectService = new ProjectService(this.storageAdapter);
-    this.providerService = new ProviderService(this.storageAdapter, () =>
-      this.configLoader.loadAppConfig(),
-    );
-    this.knowledgeService = new KnowledgeService(
-      () => this.resolveVectorDbProvider(),
-      () => this.resolveEmbeddingProvider(),
+    const services = createRuntimeServiceBundle({
       projectHomeDir,
-      this.storageAdapter,
-    );
-    this.fileTreeService = new FileTreeService();
-    const ptyAdapter = new NodePtyAdapter();
-    const historyStore = new FileTerminalHistoryStore();
-    this.terminalService = new TerminalService(
-      ptyAdapter,
-      historyStore,
-      () => this.appConfig?.terminalShell,
-    );
-    this.terminalWsServer = new TerminalWebSocketServer(this.terminalService);
-    this.terminalWsServer.start(this.port + 1);
-    this.voiceService = new VoiceSessionService({
-      providerFactory: () => new NovaSonicProvider({ region: 'us-east-1' }),
-      agentTools: this.agentTools,
+      port: this.port,
+      logger: this.logger,
+      configLoader: this.configLoader,
+      approvalRegistry: this.approvalRegistry,
+      eventBus: this.eventBus,
+      monitoringEvents: this.monitoringEvents,
+      memoryAdapters: this.memoryAdapters,
+      activeAgents: this.activeAgents,
+      agentMetadataMap: this.agentMetadataMap,
       agentSpecs: this.agentSpecs,
-      voiceAgentSlug: 'stallion-voice',
-      onFirstSession: () => this.bootstrapVoiceAgent(),
+      agentTools: this.agentTools,
+      mcpConfigs: this.mcpConfigs,
+      mcpConnectionStatus: this.mcpConnectionStatus,
+      integrationMetadata: this.integrationMetadata,
+      toolNameMapping: this.toolNameMapping,
+      usageAggregatorRef: { get: () => this.usageAggregator },
+      getTerminalShell: () => this.appConfig?.terminalShell,
+      persistEvent: (event: any) => this.eventLog.persist(event),
+      bootstrapVoiceAgent: async () => this.bootstrapVoiceAgent(),
+      resolveVectorDbProvider: () =>
+        resolveRuntimeVectorDbProvider(this.providerService),
+      resolveEmbeddingProvider: () =>
+        resolveRuntimeEmbeddingProvider(this.providerService),
     });
-    this.monitoringEmitter = new MonitoringEmitter(
-      this.monitoringEvents,
-      (event: any) => this.persistEvent(event),
-    );
-    this.acpBridge = new ACPManager(
-      this.approvalRegistry,
-      this.logger,
-      process.cwd(),
-      this.memoryAdapters,
-      (_slug: string) => {
-        const adapter = new FileMemoryAdapter({
-          projectHomeDir: this.configLoader.getProjectHomeDir(),
-          usageAggregator: this.usageAggregator,
-        });
-        return adapter;
-      },
-      { get: () => this.usageAggregator },
-      this.eventBus,
-      this.monitoringEvents,
-      (event: any) => this.persistEvent(event),
-      this.monitoringEmitter,
-    );
-    this.connectionService = new ConnectionService(
-      this.providerService,
-      () => createProviderAdapterRegistry().list(),
-      async () => {
-        const config = await this.configLoader.loadACPConfig();
-        return config.connections;
-      },
-      () => this.acpBridge.getStatus(),
-      () => this.configLoader.loadAppConfig(),
-      (updates) => this.configLoader.updateAppConfig(updates),
-    );
+    this.storageAdapter = services.storageAdapter;
+    this.agentService = services.agentService;
+    this.skillService = services.skillService;
+    this.mcpService = services.mcpService;
+    this.layoutService = services.layoutService;
+    this.projectService = services.projectService;
+    this.providerService = services.providerService;
+    this.knowledgeService = services.knowledgeService;
+    this.fileTreeService = services.fileTreeService;
+    this.terminalService = services.terminalService;
+    this.terminalWsServer = services.terminalWsServer;
+    this.voiceService = services.voiceService;
+    this.monitoringEmitter = services.monitoringEmitter;
+    this.acpBridge = services.acpBridge;
+    this.connectionService = services.connectionService;
+    this.feedbackService = services.feedbackService;
 
     // Log versions for debugging
     this.logger.info('Stallion Runtime initializing', {
@@ -366,515 +242,121 @@ export class StallionRuntime {
       aiSdkBedrock: '3.0.56',
       nodeVersion: process.version,
     });
-
-    // Feedback service (provider-agnostic — analyze callback set after agents load)
-    this.feedbackService = new FeedbackService(projectHomeDir);
   }
 
   /**
    * Reload agents from disk
    */
   async reloadAgents(): Promise<void> {
-    // Refresh app config so template variables (date/time) are current
-    this.appConfig = await this.configLoader.loadAppConfig();
-
-    // Apply log level changes at runtime
-    if (this.appConfig.logLevel) {
-      (this.logger as any).level = this.appConfig.logLevel;
-    }
-
-    const agentMetadataList = await this.configLoader.listAgents();
-    const currentSlugs = new Set(agentMetadataList.map((m) => m.slug));
-
-    // Remove deleted agents and cleanup MCP servers (skip built-in default)
-    for (const slug of this.activeAgents.keys()) {
-      if (slug === 'default') continue;
-      if (!currentSlugs.has(slug)) {
-        // Cleanup MCP configs for this agent
-        for (const [key, config] of this.mcpConfigs.entries()) {
-          if (key.startsWith(`${slug}:`)) {
-            await config.disconnect();
-            this.mcpConfigs.delete(key);
-            this.mcpConnectionStatus.delete(key);
-            this.integrationMetadata.delete(key);
-          }
+    this.appConfig = await reloadRuntimeAgents({
+      configLoader: this.configLoader,
+      activeAgents: this.activeAgents,
+      agentMetadataMap: this.agentMetadataMap,
+      agentSpecs: this.agentSpecs,
+      agentTools: this.agentTools,
+      memoryAdapters: this.memoryAdapters,
+      mcpConfigs: this.mcpConfigs,
+      mcpConnectionStatus: this.mcpConnectionStatus,
+      integrationMetadata: this.integrationMetadata,
+      voltAgent: this.voltAgent,
+      logger: this.logger,
+      eventBus: this.eventBus,
+      createVoltAgentInstance: async (slug) => this.createVoltAgentInstance(slug),
+      loadAppConfig: async () => this.configLoader.loadAppConfig(),
+      applyLogLevel: (appConfig) => {
+        if (appConfig.logLevel) {
+          (this.logger as any).level = appConfig.logLevel;
         }
-
-        this.activeAgents.delete(slug);
-        this.agentMetadataMap.delete(slug);
-        this.agentSpecs.delete(slug);
-        this.agentTools.delete(slug);
-        this.memoryAdapters.delete(slug);
-        this.logger.info('Agent removed', { agent: slug });
-      }
-    }
-
-    // Add new agents
-    for (const meta of agentMetadataList) {
-      if (!this.activeAgents.has(meta.slug)) {
-        try {
-          const agent = await this.createVoltAgentInstance(meta.slug);
-          this.activeAgents.set(meta.slug, agent);
-          this.voltAgent?.registerAgent(agent);
-          this.logger.info('Agent added', { agent: meta.slug });
-        } catch (error) {
-          this.logger.error('Failed to add agent', { agent: meta.slug, error });
-        }
-      }
-    }
-
-    // Update metadata map (preserve default agent)
-    const defaultMeta = this.agentMetadataMap.get('default');
-    this.agentMetadataMap = new Map(
-      agentMetadataList.map((meta) => [meta.slug, meta]),
-    );
-    if (defaultMeta) this.agentMetadataMap.set('default', defaultMeta);
-
-    this.logger.info('Agents reloaded', { count: agentMetadataList.length });
-    this.eventBus.emit('agents:changed', { count: agentMetadataList.length });
+      },
+    });
   }
 
   private async bootstrapVoiceAgent(): Promise<void> {
-    const mcpServers = Array.from(
-      new Set([
-        'stallion-control',
-        ...Array.from(this.agentSpecs.values()).flatMap((spec) =>
-          (spec.tools?.mcpServers ?? []).filter(
-            (e): e is string => typeof e === 'string',
-          ),
-        ),
-      ]),
-    );
-    const voiceSpec = {
-      name: 'Stallion Voice',
-      prompt:
-        'You are Stallion Voice, a hands-free voice assistant. You can navigate the app, query data, and perform actions. Be concise — this is voice, not text. Use short sentences. Always confirm before creating, modifying, or deleting anything.',
-      tools: {
-        mcpServers,
-        autoApprove: ['stallion-control_*'],
-        available: ['*'],
-      },
-    };
-    if (await this.configLoader.agentExists('stallion-voice')) {
-      await this.configLoader.updateAgent('stallion-voice', voiceSpec);
-    } else {
-      await this.configLoader.createAgent(voiceSpec);
-    }
-
-    // Load tools into agentTools so the voice session can use them
-    try {
-      await this.createVoltAgentInstance('stallion-voice');
-      this.logger.info('Bootstrapped stallion-voice agent', {
-        mcpServers,
-        toolCount: this.agentTools.get('stallion-voice')?.length ?? 0,
-      });
-    } catch (err) {
-      this.logger.warn('Failed to load stallion-voice tools', { error: err });
-      this.logger.info('Bootstrapped stallion-voice agent (no tools)', {
-        mcpServers,
-      });
-    }
+    await bootstrapRuntimeVoiceAgent({
+      agentSpecs: this.agentSpecs.values(),
+      configLoader: this.configLoader,
+      createVoltAgentInstance: async (slug) => this.createVoltAgentInstance(slug),
+      agentTools: this.agentTools,
+      logger: this.logger,
+    });
   }
 
   /**
    * Re-discover skills and rebuild all agents so skill assignments take effect.
    */
   async reloadSkillsAndAgents(): Promise<void> {
-    const projects = this.storageAdapter?.listProjects() || [];
-    const activeProject = projects[0]?.slug;
-    await this.skillService.discoverSkills(
-      this.configLoader.getProjectHomeDir(),
-      activeProject,
-    );
-
-    // Rebuild all non-default agents so they pick up skill changes
-    const agentMetadataList = await this.configLoader.listAgents();
-    for (const meta of agentMetadataList) {
-      try {
-        const agent = await this.createVoltAgentInstance(meta.slug);
-        this.activeAgents.set(meta.slug, agent);
-        this.logger.info('Agent rebuilt with updated skills', {
-          agent: meta.slug,
-        });
-      } catch (error) {
-        this.logger.error('Failed to rebuild agent', {
-          agent: meta.slug,
-          error,
-        });
-      }
-    }
+    await reloadRuntimeSkillsAndAgents({
+      skillService: this.skillService,
+      configLoader: this.configLoader,
+      storageAdapter: this.storageAdapter,
+      activeAgents: this.activeAgents,
+      logger: this.logger,
+      createVoltAgentInstance: async (slug) => this.createVoltAgentInstance(slug),
+    });
   }
 
   /**
    * Initialize the runtime
    */
   async initialize(): Promise<void> {
-    this.logger.debug('Initializing Stallion Runtime...');
-
-    // Load app configuration
-    this.appConfig = await this.configLoader.loadAppConfig();
-
-    // Apply feature flags from STALLION_FEATURES env var
-    const features = (process.env.STALLION_FEATURES || '')
-      .split(',')
-      .filter(Boolean);
-    if (features.includes('strands-runtime')) {
-      this.appConfig.runtime = 'strands';
-    }
-
-    // Select agent framework based on config
-    const runtime = this.appConfig.runtime || 'voltagent';
-    this.framework =
-      runtime === 'strands' ? new StrandsFramework() : new VoltAgentFramework();
-    this.logger.info('App config loaded', {
-      region: this.appConfig.region,
-      model: this.appConfig.defaultModel,
-      runtime,
-    });
-
-    // Apply log level from config (config overrides startup default)
-    if (this.appConfig.logLevel) {
-      (this.logger as any).level = this.appConfig.logLevel;
-    }
-
-    // Registry providers are registered by plugins via loadProviders()
-    registerProviderAdapter(this.bedrockAdapter);
-    registerProviderAdapter(this.claudeAdapter);
-    registerProviderAdapter(this.codexAdapter);
-    this.orchestrationService = new OrchestrationService({
-      adapterRegistry: createProviderAdapterRegistry(),
-      eventBus: this.eventBus,
-      eventStore: this.orchestrationEventStore,
+    const initialized = await initializeRuntime({
+      port: this.port,
       logger: this.logger,
-    });
-    this.orchestrationService.initialize();
-
-    // JSON manifest fallback for environments without plugins
-    if (this.appConfig.registryUrl) {
-      const registryProvider = new JsonManifestRegistryProvider(
-        this.appConfig.registryUrl,
-        this.configLoader.getProjectHomeDir(),
-      );
-      registerAgentRegistryProvider(registryProvider);
-      registerIntegrationRegistryProvider(registryProvider);
-      this.logger.info('JSON manifest registry configured', {
-        url: this.appConfig.registryUrl,
-      });
-    }
-
-    // Initialize Bedrock model catalog
-    this.modelCatalog = new BedrockModelCatalog(this.appConfig.region);
-    this.logger.debug('Bedrock model catalog initialized');
-
-    // Load plugin providers (clearAll() inside resets the registry)
-    await this.loadPluginProviders();
-    // Re-scan plugin prompts so they're available via the API
-    await this.loadPluginPrompts();
-
-    // Discover Agent Skills (scans project skills/, global skills/, and plugins/)
-    const projects = this.storageAdapter?.listProjects() || [];
-    const activeProject = projects[0]?.slug;
-
-    // Register default skill registry (unless disabled by config or plugin)
-    const overrides = await this.configLoader.loadPluginOverrides();
-    const pluginDisabled =
-      overrides['aws-internal']?.settings?.disableDefaultSkillRegistries;
-    if (!this.appConfig.disableDefaultSkillRegistries && !pluginDisabled) {
-      const { GitHubSkillRegistryProvider } = await import(
-        '../providers/github-skill-registry.js'
-      );
-      const { registerSkillRegistryProvider } = await import(
-        '../providers/registry.js'
-      );
-      registerSkillRegistryProvider(new GitHubSkillRegistryProvider());
-    }
-
-    await this.skillService.discoverSkills(
-      this.configLoader.getProjectHomeDir(),
-      activeProject,
-    );
-
-    // Initialize usage aggregator
-    this.usageAggregator = new UsageAggregator(
-      this.configLoader.getProjectHomeDir(),
-    );
-    this.logger.debug('Usage aggregator initialized');
-
-    // Background rescan on startup + every 30 min
-    this.usageAggregator.fullRescan().catch(() => {});
-    this.timers.push(
-      setInterval(
-        () => {
-          this.usageAggregator?.fullRescan().catch(() => {});
-        },
-        30 * 60 * 1000,
-      ),
-    );
-
-    // Migrate legacy workspaces to project structure
-    await runStartupMigrations(this.configLoader.getProjectHomeDir());
-
-    // Seed default provider connections if none exist
-    const existingProviders = this.storageAdapter.listProviderConnections();
-    if (existingProviders.length === 0) {
-      try {
+      eventBus: this.eventBus,
+      timers: this.timers,
+      configLoader: this.configLoader,
+      storageAdapter: this.storageAdapter,
+      skillService: this.skillService,
+      feedbackService: this.feedbackService,
+      voiceService: this.voiceService,
+      acpBridge: this.acpBridge,
+      orchestrationEventStore: this.orchestrationEventStore,
+      usageAggregator: this.usageAggregator,
+      activeAgents: this.activeAgents,
+      agentMetadataMap: this.agentMetadataMap,
+      memoryAdapters: this.memoryAdapters,
+      agentTools: this.agentTools,
+      agentSpecs: this.agentSpecs,
+      mcpConfigs: this.mcpConfigs,
+      mcpConnectionStatus: this.mcpConnectionStatus,
+      integrationMetadata: this.integrationMetadata,
+      toolNameMapping: this.toolNameMapping,
+      toolNameReverseMapping: this.toolNameReverseMapping,
+      eventLog: this.eventLog,
+      bedrockAdapter: this.bedrockAdapter,
+      claudeAdapter: this.claudeAdapter,
+      codexAdapter: this.codexAdapter,
+      createVoltAgentInstance: async (slug) => this.createVoltAgentInstance(slug),
+      configureRoutes: (app: any) => this.configureRoutes(app),
+      reloadAgents: async () => this.reloadAgents(),
+      replaceTemplateVariables: (text, agentName) =>
+        this.replaceTemplateVariables(text, agentName),
+      checkBedrockCredentials: async () => {
         const { checkBedrockCredentials } = await import(
           '../providers/bedrock.js'
         );
-        const hasCreds = await checkBedrockCredentials();
-        if (hasCreds) {
-          this.storageAdapter.saveProviderConnection({
-            id: crypto.randomUUID(),
-            type: 'bedrock',
-            name: 'Amazon Bedrock',
-            config: { region: this.appConfig.region },
-            enabled: true,
-            capabilities: ['llm'],
-          });
-          this.logger.info('Seeded default Bedrock provider connection');
-        }
-      } catch (e) {
-        this.logger.debug('Failed to check Bedrock credentials for seeding', {
-          error: e,
-        });
-      }
-    }
-
-    // Daily agent reload at midnight so config changes take effect
-    const msUntilMidnight = () => {
-      const now = new Date();
-      const midnight = new Date(now);
-      midnight.setHours(24, 0, 0, 0);
-      return midnight.getTime() - now.getTime();
-    };
-    const scheduleDailyReload = () => {
-      this.timers.push(
-        setTimeout(() => {
-          this.reloadAgents().catch(() => {});
-          scheduleDailyReload();
-        }, msUntilMidnight()),
-      );
-    };
-    scheduleDailyReload();
-
-    // Reload agents when a plugin is installed so contributed agents appear immediately
-    this.eventBus.subscribe((evt) => {
-      if (evt.event === 'plugins:installed') {
-        this.reloadAgents().catch((err) =>
-          this.logger.error('Failed to reload agents after plugin install', {
-            error: err,
-          }),
-        );
-      }
-    });
-
-    // Load all agents
-    const agentMetadataList = await this.configLoader.listAgents();
-    this.logger.info('Found agents', { count: agentMetadataList.length });
-
-    // Create VoltAgent instances for each agent
-    const agents: Record<string, Agent> = {};
-
-    // Seed built-in stallion-control integration (MCP server for managing Stallion itself)
-    const selfIntegrationId = 'stallion-control';
-    const selfServerPath = join(
-      import.meta.dirname || process.cwd(),
-      'stallion-control.js',
-    );
-    const selfIntegration = {
-      id: selfIntegrationId,
-      displayName: 'Stallion Control',
-      description:
-        'Manage agents, skills, integrations, prompts, and jobs via natural language',
-      kind: 'mcp' as const,
-      transport: 'stdio' as const,
-      command: 'node',
-      args: [selfServerPath],
-      env: { STALLION_PORT: String(this.port) },
-    };
-    await this.configLoader.saveIntegration(selfIntegrationId, selfIntegration);
-
-    // Create default agent with stallion-control tools
-    // Auto-approve read-only tools; write ops (create/update/delete/install/remove) require user approval
-    const defaultSpec = {
-      model: this.appConfig.defaultModel,
-      tools: {
-        mcpServers: [selfIntegrationId],
-        autoApprove: SC_READ_ONLY_TOOLS,
+        return checkBedrockCredentials();
       },
-    } as AgentSpec;
-    const defaultModel = await this.createBedrockModel(defaultSpec);
-
-    // Load stallion-control tools for the default agent
-    let defaultTools: any[] = [];
-    try {
-      defaultTools = await MCPManager.loadAgentTools(
-        'default',
-        defaultSpec,
-        this.configLoader,
-        this.mcpConfigs,
-        this.mcpConnectionStatus,
-        this.integrationMetadata,
-        this.toolNameMapping,
-        this.toolNameReverseMapping,
-        this.logger,
-      );
-      this.logger.info('Default agent tools loaded', {
-        count: defaultTools.length,
-      });
-    } catch (e) {
-      this.logger.warn(
-        'Failed to load stallion-control tools for default agent',
-        { error: e },
-      );
-    }
-
-    const rawSystemPrompt =
-      this.appConfig.systemPrompt || DEFAULT_SYSTEM_PROMPT;
-    const defaultAgent = await this.framework.createTempAgent({
-      name: 'default',
-      instructions: () => this.replaceTemplateVariables(rawSystemPrompt),
-      model: defaultModel,
-      tools: defaultTools,
-    });
-    agents.default = defaultAgent as any;
-    this.activeAgents.set('default', defaultAgent as any);
-    this.agentTools.set('default', defaultTools);
-    // Register memory adapter for default agent so conversations persist
-    const defaultMemoryAdapter = new FileMemoryAdapter({
-      projectHomeDir: this.configLoader.getProjectHomeDir(),
-      usageAggregator: this.usageAggregator,
-    });
-    this.memoryAdapters.set('default', defaultMemoryAdapter);
-    this.agentMetadataMap.set('default', {
-      slug: 'default',
-      name: 'Stallion',
-      description: 'Default agent with full access to manage Stallion',
-      updatedAt: new Date().toISOString(),
-    });
-    this.logger.info('Default agent created', {
-      model: this.appConfig.defaultModel,
-    });
-
-    for (const meta of agentMetadataList) {
-      try {
-        const agent = await this.createVoltAgentInstance(meta.slug);
-        agents[meta.slug] = agent;
-        this.activeAgents.set(meta.slug, agent);
-        this.logger.info('Agent loaded', { agent: meta.slug });
-      } catch (error) {
-        this.logger.error('Failed to load agent', { agent: meta.slug, error });
-      }
-    }
-
-    // Store agent metadata for enriching API responses (preserve default agent)
-    const savedDefaultMeta = this.agentMetadataMap.get('default');
-    this.agentMetadataMap = new Map(
-      agentMetadataList.map((meta) => [meta.slug, meta]),
-    );
-    if (savedDefaultMeta)
-      this.agentMetadataMap.set('default', savedDefaultMeta);
-    this.logger.info('Agent metadata map created', {
-      count: this.agentMetadataMap.size,
-      keys: Array.from(this.agentMetadataMap.keys()),
-      sample: this.agentMetadataMap.get(agentMetadataList[0]?.slug),
-    });
-
-    // Initialize VoltAgent with all agents and server
-    this.voltAgent = new VoltAgent({
-      agents,
-      logger: this.logger,
-      server: honoServer({
-        port: this.port,
-        configureApp: (app) => this.configureRoutes(app),
-      }),
-    });
-
-    // Attach voice WebSocket on its own port (port + 2), same pattern as terminal WS
-    if (!this.voiceWsAttached) {
-      const voiceWsPort = this.port + 2;
-      attachVoiceWebSocket(voiceWsPort, this.voiceService);
-      this.logger.info('Voice WebSocket listening', { port: voiceWsPort });
-      this.voiceWsAttached = true;
-    }
-
-    this.logger.debug('Stallion Runtime initialized', { port: this.port });
-
-    // Register OTel observable gauges
-    registerObservableGauges({
-      activeAgents: () => this.activeAgents.size,
-      mcpConnections: () => this.mcpConnectionStatus.size,
-    });
-
-    // Load persisted events from disk
-    await this.loadEventsFromDisk();
-
-    // Start periodic health checks (every 60 seconds)
-    this.startHealthChecks();
-
-    // Start feedback analysis loop (uses first available agent for LLM calls)
-    this.feedbackService.setAnalyzeCallback(async (prompt: string) => {
-      const agent =
-        this.activeAgents.get('default') ||
-        this.activeAgents.values().next().value;
-      if (!agent) throw new Error('No agents available for feedback analysis');
-      const result = await agent.generateText(prompt);
-      return result.text;
-    });
-    this.feedbackService.start();
-
-    // Start ACP bridge (non-blocking — no-op if kiro-cli not found)
-    this.configLoader
-      .loadACPConfig()
-      .then((acpConfig: any) => {
-        // Merge connections from acpConnections providers (e.g. aws-internal plugin)
-        const providerEntries = listProviders('acpConnections');
-        const providerConns = providerEntries.flatMap(
-          (e: any) => e.provider.getConnections?.() || [],
+      createDefaultSkillRegistryProvider: async () => {
+        const { GitHubSkillRegistryProvider } = await import(
+          '../providers/github-skill-registry.js'
         );
-        const configIds = new Set(acpConfig.connections.map((c: any) => c.id));
-        const merged = [
-          ...acpConfig.connections,
-          ...providerConns.filter((c: any) => !configIds.has(c.id)),
-        ];
-        return this.acpBridge.startAll(merged);
-      })
-      .then(() => {
-        if (this.acpBridge.isConnected()) {
-          this.logger.info('[Runtime] ACP connections established');
-        }
-      })
-      .catch((err: any) => {
-        this.logger.warn('[Runtime] ACP startup failed', {
-          error: err.message,
-        });
-      });
+        return new GitHubSkillRegistryProvider();
+      },
+      runStartupMigrations: async (projectHomeDir) => {
+        const { runStartupMigrations } = await import('../domain/migration.js');
+        await runStartupMigrations(projectHomeDir);
+      },
+      startHealthChecks: () => this.startHealthChecks(),
+    });
 
-    // Check for plugin updates after startup (delayed, non-blocking)
-    this.timers.push(
-      setTimeout(async () => {
-        try {
-          const res = await fetch(
-            `http://localhost:${this.port}/api/plugins/check-updates`,
-          );
-          if (!res.ok) return;
-          const { updates } = (await res.json()) as { updates: any[] };
-          if (updates.length > 0) {
-            this.eventBus.emit('plugins:updates-available', {
-              count: updates.length,
-              updates,
-            });
-            this.logger.info('Plugin updates available', {
-              count: updates.length,
-            });
-          }
-        } catch (error: any) {
-          this.logger.debug('Failed to check for plugin updates', {
-            error: error.message,
-          });
-        }
-      }, 5000),
-    );
+    this.appConfig = initialized.appConfig;
+    this.framework = initialized.framework;
+    this.orchestrationService = initialized.orchestrationService;
+    this.modelCatalog = initialized.modelCatalog;
+    this.usageAggregator = initialized.usageAggregator;
+    this.voltAgent = initialized.voltAgent;
+    this.voiceWsAttached = initialized.voiceWsAttached;
   }
 
   /**
@@ -884,387 +366,63 @@ export class StallionRuntime {
   private configureRoutes(
     app: Parameters<NonNullable<HonoServerConfig['configureApp']>>[0],
   ): void {
-    // Global error handler middleware
-    app.onError((err, c) => {
-      if (isAuthError(err)) {
-        return c.json({ success: false, error: err.message }, 401);
-      }
-      return c.json({ success: false, error: err.message }, 500);
+    const { schedulerService, notificationService } = configureRuntimeRoutes({
+      app,
+      logger: this.logger,
+      eventBus: this.eventBus,
+      appConfig: this.appConfig,
+      port: this.port,
+      usageAggregator: this.usageAggregator,
+      skillService: this.skillService,
+      configLoader: this.configLoader,
+      feedbackService: this.feedbackService,
+      fileTreeService: this.fileTreeService,
+      storageAdapter: this.storageAdapter,
+      providerService: this.providerService,
+      projectService: this.projectService,
+      agentService: this.agentService,
+      connectionService: this.connectionService,
+      mcpService: this.mcpService,
+      orchestrationService: this.orchestrationService,
+      layoutService: this.layoutService,
+      modelCatalog: this.modelCatalog,
+      acpBridge: this.acpBridge,
+      knowledgeService: this.knowledgeService,
+      voiceService: this.voiceService,
+      activeAgents: this.activeAgents,
+      agentMetadataMap: this.agentMetadataMap,
+      memoryAdapters: this.memoryAdapters,
+      agentFixedTokens: this.agentFixedTokens,
+      agentTools: this.agentTools,
+      agentStats: this.agentStats,
+      agentStatus: this.agentStatus,
+      metricsLog: this.metricsLog,
+      monitoringEvents: this.monitoringEvents,
+      monitoringEmitter: this.monitoringEmitter,
+      eventLogPath: this.eventLogPath,
+      queryEventsFromDisk: (start: number, end: number, userId: string) =>
+        this.eventLog.queryEvents(start, end, userId),
+      buildRuntimeContext: () => this.buildRuntimeContext(),
+      reloadAgents: async () => this.reloadAgents(),
+      reloadSkillsAndAgents: async () => this.reloadSkillsAndAgents(),
+      initialize: async () => this.initialize(),
+      getVoltAgent: () => this.voltAgent,
+      defaultAutoApprovedTools: SC_READ_ONLY_TOOLS,
+      createMemoryAdapter: (_slug: string) =>
+        new FileMemoryAdapter({
+          projectHomeDir: this.configLoader.getProjectHomeDir(),
+          usageAggregator: this.usageAggregator,
+        }),
     });
-
-    // Request logger for debugging Tauri connectivity
-    app.use('*', async (c, next) => {
-      const start = Date.now();
-      await next();
-      const origin = c.req.header('origin') || '-';
-      this.logger.info(
-        `${c.req.method} ${c.req.path} ${c.res.status} ${Date.now() - start}ms origin=${origin}`,
-      );
-    });
-
-    app.use(
-      '*',
-      cors({
-        origin: (origin) => {
-          if (!origin) return origin;
-          if (
-            origin.startsWith('http://localhost:') ||
-            origin.startsWith('https://localhost:') ||
-            origin === 'tauri://localhost' ||
-            origin === 'https://tauri.localhost'
-          ) {
-            return origin;
-          }
-          // Allow private network origins (LAN access)
-          try {
-            const host = new URL(origin).hostname;
-            if (
-              host.startsWith('192.168.') ||
-              host.startsWith('10.') ||
-              /^172\.(1[6-9]|2\d|3[01])\./.test(host)
-            ) {
-              return origin;
-            }
-          } catch {}
-          const allowed = process.env.ALLOWED_ORIGINS?.split(',') || [];
-          return allowed.includes(origin) ? origin : null;
-        },
-        credentials: true,
-      }),
-    );
-
-    // Cache invalidation middleware — emit data:changed for mutating requests
-    app.use('*', async (c, next) => {
-      await next();
-      if (['POST', 'PUT', 'DELETE', 'PATCH'].includes(c.req.method)) {
-        const path = c.req.path;
-        const keys: string[] = [];
-        if (path.startsWith('/agents')) keys.push('agents');
-        if (path.startsWith('/integrations')) keys.push('integrations');
-        if (path.includes('/prompts')) keys.push('prompts');
-        if (path.includes('/skills')) keys.push('skills');
-        if (path.includes('/providers')) keys.push('providers');
-        if (path.includes('/scheduler') || path.includes('/jobs'))
-          keys.push('scheduler-jobs');
-        if (path.includes('/projects')) keys.push('projects');
-        if (path.includes('/knowledge')) keys.push('knowledge');
-        if (path.includes('/registry'))
-          keys.push('skills', 'integrations', 'agents');
-        if (keys.length > 0) {
-          this.eventBus.emit('data:changed', { keys: [...new Set(keys)] });
-        }
-      }
-    });
-
-    // Models capabilities and pricing endpoints
-    app.route('/api/models', modelsRoute);
-
-    // System status (onboarding readiness)
-    app.route(
-      '/api/system',
-      createSystemRoutes(
-        {
-          getACPStatus: () => {
-            const s = this.acpBridge.getStatus();
-            return {
-              connected: s.connections.some(
-                (c: any) => c.status === ACPStatus.AVAILABLE,
-              ),
-              connections: s.connections,
-            };
-          },
-          getAppConfig: () => this.appConfig,
-          eventBus: this.eventBus,
-          appConfig: this.appConfig,
-          port: this.port,
-          skillService: this.skillService,
-        },
-        this.logger,
-      ),
-    );
-
-    // Analytics endpoints
-    app.route('/api/analytics', createAnalyticsRoutes(this.usageAggregator));
-
-    // Plugin telemetry endpoints
-    app.route('/api/telemetry', createTelemetryRoutes(this.logger));
-
-    // Auth endpoints
-    app.route('/api/auth', createAuthRoutes());
-
-    // User directory endpoints
-    app.route('/api/users', createUserRoutes());
-
-    // Plugin endpoints (list, serve bundles, reload providers)
-    app.route(
-      '/api/plugins',
-      createPluginRoutes(
-        this.configLoader.getProjectHomeDir(),
-        this.logger,
-        this.eventBus,
-      ),
-    );
-
-    // Filesystem browse (folder picker for plugin install)
-    app.route('/api/fs', createFsRoutes());
-
-    // Package registry endpoints (browse/install agents and tools)
-    app.route(
-      '/api/registry',
-      createRegistryRoutes(
-        this.configLoader,
-        async () => {
-          const acpConfig = await this.configLoader.loadACPConfig();
-          await this.acpBridge.startAll(acpConfig.connections);
-        },
-        () => this.reloadSkillsAndAgents(),
-        this.skillService,
-      ),
-    );
-
-    // === Agent CRUD Endpoints ===
-    const agentRoutes = createAgentRoutes(
-      this.agentService,
-      this.skillService,
-      () => this.reloadAgents(),
-      () => this.voltAgent,
-    );
-    app.route('/agents', agentRoutes);
-
-    // === Skill CRUD Endpoints ===
-    app.route(
-      '/api/skills',
-      createSkillRoutes(this.skillService, () =>
-        this.configLoader.getProjectHomeDir(),
-      ),
-    );
-
-    // List all integrations (MCP server configs)
-    app.route(
-      '/integrations',
-      createToolRoutes(this.mcpService, () => this.initialize()),
-    );
-
-    // SSE event stream
-    app.route(
-      '/events',
-      createEventRoutes({
-        eventBus: this.eventBus,
-        getACPStatus: () => {
-          const s = this.acpBridge.getStatus();
-          return {
-            connected: s.connections.some(
-              (c) => c.status === ACPStatus.AVAILABLE,
-            ),
-            connections: s.connections,
-          };
-        },
-        logger: this.logger,
-      }),
-    );
-
-    app.route('/api/ui', createUICommandRoutes(this.eventBus));
-    app.route(
-      '/api/orchestration',
-      createOrchestrationRoutes(this.orchestrationService, {
-        eventBus: this.eventBus,
-        logger: this.logger,
-      }),
-    );
-
-    // Build RuntimeContext for extracted route modules
-    const ctx = this.buildRuntimeContext();
-
-    // Enriched agent list + single agent (extracted to route file)
-    app.route(
-      '/api/agents',
-      createEnrichedAgentRoutes({
-        agentMetadataMap: this.agentMetadataMap,
-        activeAgents: this.activeAgents,
-        loadAgent: (slug) => this.configLoader.loadAgent(slug),
-        defaultModel: this.appConfig.defaultModel,
-        defaultTools: {
-          mcpServers: ['stallion-control'],
-          autoApprove: SC_READ_ONLY_TOOLS,
-        },
-        getVirtualAgents: () => this.acpBridge.getVirtualAgents(),
-        getRuntimeConnections: async () => {
-          const conns = await this.connectionService.listRuntimeConnections();
-          return conns
-            .filter((c) => c.type !== 'acp')
-            .map((c) => ({
-              id: c.id,
-              name: c.name,
-              description: c.description,
-              status: c.status,
-              enabled: c.enabled,
-              defaultModel:
-                typeof c.config?.defaultModel === 'string'
-                  ? c.config.defaultModel
-                  : undefined,
-            }));
-        },
-        isACPConnected: () => this.acpBridge.isConnected(),
-        reloadAgents: () => this.reloadAgents(),
-        logger: this.logger,
-      }),
-    );
-
-    // === Extracted Route Modules ===
-    app.route('/acp', createACPRoutes(ctx));
-    app.route('/agents', createAgentToolRoutes(ctx));
-    app.route('/', createInvokeRoutes(ctx));
-    app.route('/api/agents', createChatRoutes(ctx));
-
-    // === Layout Management Endpoints ===
-    app.route('/layouts', createLayoutRoutes(this.layoutService));
-
-    // === Layout & Workflow Management ===
-    app.route('/agents', createWorkflowRoutes(this.layoutService));
-
-    // === Project Management ===
-    app.route(
-      '/api/projects',
-      createProjectRoutes(
-        this.projectService,
-        this.storageAdapter,
-        this.configLoader.getProjectHomeDir(),
-      ),
-    );
-    app.route('/api/providers', createProviderRoutes(this.providerService));
-    app.route(
-      '/api/connections',
-      createConnectionRoutes(this.connectionService),
-    );
-
-    // Project conversations — aggregate across all agents
-    app.get('/api/projects/:slug/conversations', async (c) => {
-      const limit = Number(c.req.query('limit') || 50);
-      const adapter = this.memoryAdapters.values().next().value;
-      if (!adapter) return c.json({ success: true, data: [] });
-      const convs = await adapter.queryConversations({});
-      convs.sort((a: any, b: any) =>
-        (b.updatedAt || '').localeCompare(a.updatedAt || ''),
-      );
-      return c.json({ success: true, data: convs.slice(0, limit) });
-    });
-
-    app.route(
-      '/api/projects/:slug/knowledge',
-      createKnowledgeRoutes(this.knowledgeService),
-    );
-    app.route(
-      '/api/knowledge',
-      createCrossProjectKnowledgeRoutes(
-        this.knowledgeService,
-        this.storageAdapter,
-        this.providerService,
-      ),
-    );
-    app.route('/api/coding', createCodingRoutes(this.fileTreeService));
-    app.route('/api/templates', createTemplateRoutes(this.storageAdapter));
-
-    // === Route Modules ===
-    app.route(
-      '/config',
-      createConfigRoutes(this.configLoader, this.logger, this.eventBus, () =>
-        this.reloadAgents(),
-      ),
-    );
-    app.route(
-      '/bedrock',
-      createBedrockRoutes(() => this.modelCatalog, this.appConfig, this.logger),
-    );
-    app.route('/api/branding', createBrandingRoutes());
-    app.route(
-      '/monitoring',
-      createMonitoringRoutes({
-        activeAgents: this.activeAgents,
-        agentStats: this.agentStats,
-        agentStatus: this.agentStatus,
-        memoryAdapters: this.memoryAdapters,
-        metricsLog: this.metricsLog,
-        monitoringEvents: this.monitoringEvents,
-        queryEventsFromDisk: (start, end, userId) =>
-          this.queryEventsFromDisk(start, end, userId),
-        acpBridge: this.acpBridge,
-      }),
-    );
-    app.route(
-      '',
-      createOtlpReceiverRoutes((event) =>
-        this.monitoringEmitter.emitRaw(event),
-      ),
-    );
-    app.route(
-      '/agents',
-      createConversationRoutes(
-        this.memoryAdapters,
-        this.logger,
-        this.agentFixedTokens,
-        this.agentTools,
-        this.configLoader,
-        this.appConfig,
-        this.modelCatalog,
-        (_slug: string) => {
-          return new FileMemoryAdapter({
-            projectHomeDir: this.configLoader.getProjectHomeDir(),
-            usageAggregator: this.usageAggregator,
-          });
-        },
-      ),
-    );
-    app.route(
-      '/api/conversations',
-      createGlobalConversationRoutes(
-        this.memoryAdapters,
-        this.storageAdapter,
-        this.logger,
-      ),
-    );
-    this.schedulerService = new SchedulerService(this.logger);
-    this.schedulerService.setChatFn(async (agentSlug, prompt) => {
-      const slug =
-        agentSlug === 'default'
-          ? this.activeAgents.keys().next().value || agentSlug
-          : agentSlug;
-      const agent = this.activeAgents.get(slug);
-      if (!agent) throw new Error(`Agent '${slug}' not found`);
-      const result = await agent.generateText(prompt);
-      return result.text;
-    });
-    app.route(
-      '/scheduler',
-      createSchedulerRoutes(this.schedulerService, this.logger),
-    );
-    // Notification service
-    this.notificationService = new NotificationService(
-      this.eventBus,
-      this.configLoader.getProjectHomeDir(),
-      60_000,
-    );
-    for (const { provider } of getNotificationProviders()) {
-      this.notificationService.addProvider(provider);
-    }
-    this.notificationService.start();
-    this.schedulerService.setNotificationService(this.notificationService);
-    app.route(
-      '/notifications',
-      createNotificationRoutes(this.notificationService),
-    );
-    app.route('/api/feedback', createFeedbackRoutes(this.feedbackService));
-    app.route('/api/insights', createInsightsRoutes(this.eventLogPath));
-    app.route('/api/voice', createVoiceRoutes(this.voiceService));
-    const promptRoutes = createPromptRoutes(new PromptService(), this.logger);
-    app.route('/api/prompts', promptRoutes);
-    app.route('/api/playbooks', promptRoutes);
+    this.schedulerService = schedulerService;
+    this.notificationService = notificationService;
   }
 
   /**
    * Build RuntimeContext for extracted route modules
    */
   private buildRuntimeContext(): RuntimeContext {
-    return {
+    return createRuntimeContext({
       activeAgents: this.activeAgents,
       agentSpecs: this.agentSpecs,
       agentTools: this.agentTools,
@@ -1293,665 +451,90 @@ export class StallionRuntime {
       monitoringEmitter: this.monitoringEmitter,
       agentStats: this.agentStats,
       metricsLog: this.metricsLog,
-      persistEvent: (event: any) => this.persistEvent(event),
-      createBedrockModel: (spec: AgentSpec) => this.createBedrockModel(spec),
+      persistEvent: (event: any) => this.eventLog.persist(event),
+      createBedrockModel: (spec: AgentSpec) =>
+        createRuntimeFrameworkModel(spec, {
+          framework: this.framework,
+          appConfig: this.appConfig,
+          projectHomeDir: this.configLoader.getProjectHomeDir(),
+          modelCatalog: this.modelCatalog,
+        }),
       replaceTemplateVariables: (text: string) =>
         this.replaceTemplateVariables(text),
-      getNormalizedToolName: (name: string) => this.getNormalizedToolName(name),
-      getOriginalToolName: (name: string) => this.getOriginalToolName(name),
+      getNormalizedToolName: (name: string) =>
+        MCPManager.getNormalizedToolName(name, this.toolNameReverseMapping),
+      getOriginalToolName: (name: string) =>
+        MCPManager.getOriginalToolName(name, this.toolNameMapping),
       reloadAgents: () => this.reloadAgents(),
       initialize: () => this.initialize(),
-    };
+    });
   }
 
   /**
    * Start periodic health checks for all agents
    */
   private startHealthChecks() {
-    const interval = 60000; // 60 seconds
-
-    const runHealthChecks = async () => {
-      for (const [slug, agent] of this.activeAgents.entries()) {
-        const checks: Record<string, boolean> = {
-          loaded: true,
-          hasModel: !!agent.model,
-          hasMemory: this.memoryAdapters.has(slug),
-        };
-
-        const spec = this.agentSpecs.get(slug);
-        const integrations: Array<{
-          id: string;
-          type: string;
-          connected: boolean;
-          metadata?: any;
-        }> = [];
-
-        // Only check integrations if agent has MCP servers configured
-        if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
-          checks.integrationsConfigured = true;
-
-          for (const entry of spec.tools.mcpServers) {
-            const id = typeof entry === 'string' ? entry : entry.id;
-            const key = `${slug}:${id}`;
-            const status = this.mcpConnectionStatus.get(key);
-            const metadata = this.integrationMetadata.get(key);
-
-            integrations.push({
-              id,
-              type: metadata?.type || 'mcp',
-              connected: status?.connected === true,
-              metadata: metadata
-                ? {
-                    transport: metadata.transport,
-                    toolCount: metadata.toolCount,
-                  }
-                : undefined,
-            });
-          }
-
-          checks.integrationsConnected = integrations.every((i) => i.connected);
-        }
-
-        const healthy = Object.values(checks).every((v) => v);
-
-        // Generate trace ID for health check
-        const traceId = `health:${slug}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
-
-        this.monitoringEmitter.emitHealth({
-          slug,
-          userId: getCachedUser().alias,
-          traceId,
-          healthy,
-          checks,
-          integrations,
-        });
-      }
-
-      // ACP connection health checks
-      const acpStatus = this.acpBridge.getStatus();
-      for (const conn of acpStatus.connections) {
-        const traceId = `health:acp:${conn.id}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
-        const healthy = conn.status === 'available';
-
-        this.monitoringEmitter.emitHealth({
-          slug: `acp:${conn.id}`,
-          userId: getCachedUser().alias,
-          traceId,
-          healthy,
-          checks: {
-            connected: healthy,
-            modesAvailable: conn.modes.length > 0,
-          },
-        });
-      }
-    };
-
-    // Run initial health check immediately
-    runHealthChecks();
-
-    // Then run periodically
-    this.timers.push(setInterval(runHealthChecks, interval));
-
-    this.logger.debug('Health checks started', { interval });
-  }
-
-  /**
-   * Get today's event log file path
-   */
-  private getTodayEventLogPath(): string {
-    const today = new Date().toISOString().split('T')[0];
-    return join(this.eventLogPath, `events-${today}.ndjson`);
-  }
-
-  /**
-   * Load recent events from disk (last 1000 or last 24 hours)
-   */
-  /**
-   * Query events from disk for a specific time range
-   */
-  private async queryEventsFromDisk(
-    start: number,
-    end: number,
-    userId: string,
-  ): Promise<any[]> {
-    const events: any[] = [];
-
-    try {
-      const eventFiles = await readdir(this.eventLogPath);
-      const logFiles = eventFiles.filter(
-        (f) => f.startsWith('events-') && f.endsWith('.ndjson'),
-      );
-
-      for (const file of logFiles) {
-        const filePath = join(this.eventLogPath, file);
-        const fileStream = createReadStream(filePath);
-        const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
-
-        for await (const line of rl) {
-          if (line.trim()) {
-            try {
-              const event = JSON.parse(line);
-              const eventTime = new Date(event.timestamp).getTime();
-
-              if (
-                eventTime >= start &&
-                eventTime <= end &&
-                (event.userId === userId ||
-                  event['stallion.user.id'] === userId)
-              ) {
-                events.push(event);
-              }
-            } catch (err) {
-              this.logger.warn('Failed to parse event line', {
-                line,
-                error: err,
-              });
-            }
-          }
-        }
-      }
-    } catch (error) {
-      this.logger.error('Failed to query events from disk', {
-        error,
-        start,
-        end,
-      });
-    }
-
-    return events;
-  }
-
-  /**
-   * Load events from disk for the last 24 hours
-   */
-  private async loadEventsFromDisk(): Promise<void> {
-    try {
-      // Ensure monitoring directory exists
-      if (!existsSync(this.eventLogPath)) {
-        await mkdir(this.eventLogPath, { recursive: true });
-        this.logger.debug('Created monitoring directory', {
-          path: this.eventLogPath,
-        });
-        return;
-      }
-
-      const files = await readdir(this.eventLogPath);
-      const eventFiles = files
-        .filter((f) => f.startsWith('events-') && f.endsWith('.ndjson'))
-        .sort()
-        .reverse()
-        .slice(0, 2); // Last 2 days
-
-      const events: any[] = [];
-      const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-
-      for (const file of eventFiles) {
-        const filePath = join(this.eventLogPath, file);
-        const fileStream = createReadStream(filePath);
-        const rl = createInterface({ input: fileStream, crlfDelay: Infinity });
-
-        for await (const line of rl) {
-          if (line.trim()) {
-            try {
-              const event = JSON.parse(line);
-              const eventTime = new Date(event.timestamp).getTime();
-
-              if (eventTime >= oneDayAgo) {
-                events.push(event);
-              }
-            } catch (err) {
-              this.logger.warn('Failed to parse event line', {
-                line,
-                error: err,
-              });
-            }
-          }
-        }
-      }
-
-      // Keep only last 1000 events
-      this.persistedEvents = events.slice(-1000);
-      this.logger.info('Loaded persisted events', {
-        count: this.persistedEvents.length,
-      });
-    } catch (error) {
-      this.logger.error('Failed to load events from disk', { error });
-    }
-  }
-
-  /**
-   * Persist event to disk
-   */
-  private async persistEvent(event: any): Promise<void> {
-    try {
-      // Ensure monitoring directory exists
-      if (!existsSync(this.eventLogPath)) {
-        await mkdir(this.eventLogPath, { recursive: true });
-      }
-
-      const logPath = this.getTodayEventLogPath();
-      await appendFile(logPath, `${JSON.stringify(event)}\n`, 'utf-8');
-
-      // Add to in-memory cache
-      this.persistedEvents.push(event);
-
-      // Keep only last 1000 in memory
-      if (this.persistedEvents.length > 1000) {
-        this.persistedEvents = this.persistedEvents.slice(-1000);
-      }
-    } catch (error) {
-      this.logger.error('Failed to persist event', { error, event });
-    }
+    startRuntimeHealthChecks({
+      timers: this.timers,
+      logger: this.logger,
+      runHealthChecks: async () =>
+        runRuntimeHealthChecks({
+          activeAgents: this.activeAgents,
+          agentSpecs: this.agentSpecs,
+          memoryAdapters: this.memoryAdapters,
+          mcpConnectionStatus: this.mcpConnectionStatus,
+          integrationMetadata: this.integrationMetadata,
+          acpStatus: this.acpBridge.getStatus(),
+          monitoringEmitter: this.monitoringEmitter,
+        }),
+    });
   }
 
   /**
    * Create a VoltAgent Agent instance from agent spec
    */
   private async createVoltAgentInstance(agentSlug: string): Promise<Agent> {
-    const spec = await this.configLoader.loadAgent(agentSlug);
-    this.agentSpecs.set(agentSlug, spec);
-
-    // Keep raw templates so date/time variables resolve fresh per-invocation
-    const rawSystemPrompt = this.appConfig.systemPrompt || '';
-    const rawAgentPrompt = spec.prompt;
-    const skillCatalog = this.skillService.getSkillCatalogPrompt(spec.skills);
-    const instructions = () => {
-      const parts = [
-        rawSystemPrompt ? this.replaceTemplateVariables(rawSystemPrompt) : '',
-        this.replaceTemplateVariables(rawAgentPrompt),
-        skillCatalog,
-      ].filter(Boolean);
-      return parts.join('\n\n');
-    };
-
-    const memoryAdapter = new FileMemoryAdapter({
-      projectHomeDir: this.configLoader.getProjectHomeDir(),
-      usageAggregator: this.usageAggregator,
-    });
-
-    // Delegate to whichever framework adapter is active
-    const hooks = createAgentHooks({
-      spec,
+    return buildRuntimeAgentInstance({
+      agentSlug,
       appConfig: this.appConfig,
       configLoader: this.configLoader,
-      modelCatalog: this.modelCatalog,
-      agentFixedTokens: this.agentFixedTokens,
-      memoryAdapters: this.memoryAdapters,
-      approvalRegistry: this.approvalRegistry,
+      framework: this.framework,
+      skillService: this.skillService,
       logger: this.logger,
-    });
-
-    const bundle = await this.framework.createAgent(
-      agentSlug,
-      spec,
-      {
-        appConfig: this.appConfig,
-        projectHomeDir: this.configLoader.getProjectHomeDir(),
-        usageAggregator: this.usageAggregator,
-        modelCatalog: this.modelCatalog,
-        approvalRegistry: this.approvalRegistry,
-        hooks,
-      },
-      {
-        processedPrompt: instructions,
-        memoryAdapter,
-        configLoader: this.configLoader,
-        mcpConfigs: this.mcpConfigs,
-        mcpConnectionStatus: this.mcpConnectionStatus,
-        integrationMetadata: this.integrationMetadata,
-        toolNameMapping: this.toolNameMapping,
-        toolNameReverseMapping: this.toolNameReverseMapping,
-        approvalRegistry: this.approvalRegistry,
-        agentFixedTokens: this.agentFixedTokens,
-        memoryAdapters: this.memoryAdapters,
-        logger: this.logger,
-      },
-    );
-
-    // Unpack bundle into runtime state
-    this.memoryAdapters.set(agentSlug, bundle.memoryAdapter);
-    const agentTools = bundle.tools as Tool<any>[];
-
-    // Register activate_skill tool if agent has skills assigned
-    const skillTool = this.skillService.getSkillTool(spec.skills);
-    if (skillTool) {
-      agentTools.push(skillTool as Tool<any>);
-    }
-
-    this.agentTools.set(agentSlug, agentTools);
-    this.agentFixedTokens.set(agentSlug, bundle.fixedTokens);
-    this.agentHooksMap.set(agentSlug, hooks);
-
-    for (const tool of agentTools) {
-      if (!this.globalToolRegistry.has(tool.name)) {
-        this.globalToolRegistry.set(tool.name, tool as Tool<any>);
-      }
-    }
-
-    this.logger.info('[Agent Initialized]', {
-      agent: agentSlug,
-      runtime: this.appConfig.runtime || 'voltagent',
-      ...bundle.fixedTokens,
-      totalFixedTokens:
-        bundle.fixedTokens.systemPromptTokens +
-        bundle.fixedTokens.mcpServerTokens,
-    });
-
-    // Return raw VoltAgent Agent for backward compat, or the IAgent wrapper for Strands
-    return (bundle.agent as any).raw || bundle.agent;
-  }
-
-  /**
-   * Create Bedrock model instance (used by inline routes for model overrides)
-   */
-  private async createBedrockModel(spec: AgentSpec) {
-    return this.framework.createModel(spec, {
-      appConfig: this.appConfig,
-      projectHomeDir: this.configLoader.getProjectHomeDir(),
       modelCatalog: this.modelCatalog,
+      usageAggregator: this.usageAggregator,
+      approvalRegistry: this.approvalRegistry,
+      mcpConfigs: this.mcpConfigs,
+      mcpConnectionStatus: this.mcpConnectionStatus,
+      integrationMetadata: this.integrationMetadata,
+      toolNameMapping: this.toolNameMapping,
+      toolNameReverseMapping: this.toolNameReverseMapping,
+      memoryAdapters: this.memoryAdapters,
+      agentFixedTokens: this.agentFixedTokens,
+      agentTools: this.agentTools,
+      globalToolRegistry: this.globalToolRegistry,
+      agentHooksMap: this.agentHooksMap,
+      agentSpecs: this.agentSpecs,
+      replaceTemplateVariables: (text, agentName) =>
+        this.replaceTemplateVariables(text, agentName),
     });
-  }
-
-  /**
-   * Get original tool name from normalized name
-   */
-  private getOriginalToolName(normalizedName: string): string {
-    return MCPManager.getOriginalToolName(normalizedName, this.toolNameMapping);
-  }
-
-  /**
-   * Get normalized tool name from original name
-   */
-  private getNormalizedToolName(originalName: string): string {
-    return MCPManager.getNormalizedToolName(
-      originalName,
-      this.toolNameReverseMapping,
-    );
-  }
-
-  /**
-   * Wrap a tool to add elicitation-based approval for non-auto-approved tools
-   */
-  private wrapToolWithElicitation(tool: Tool<any>, spec: AgentSpec): Tool<any> {
-    return ToolExecutor.wrapToolWithElicitation(
-      tool,
-      spec,
-      this.toolNameMapping,
-      this.approvalRegistry,
-      this.logger,
-    );
-  }
-
-  /** Scan installed plugins for prompt files and register them. */
-  private async loadPluginPrompts(): Promise<void> {
-    const pluginsDir = join(this.configLoader.getProjectHomeDir(), 'plugins');
-    if (!existsSync(pluginsDir)) return;
-    const { scanPromptDir } = await import('../services/prompt-scanner.js');
-    const { PromptService } = await import('../services/prompt-service.js');
-    const svc = new PromptService();
-    for (const name of readdirSync(pluginsDir)) {
-      const manifestPath = join(pluginsDir, name, 'plugin.json');
-      if (!existsSync(manifestPath)) continue;
-      try {
-        const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
-        if (!manifest.prompts?.source) continue;
-        const promptsDir = join(pluginsDir, name, manifest.prompts.source);
-        const scanned = scanPromptDir(promptsDir, name);
-        if (scanned.length > 0) svc.registerPluginPrompts(scanned);
-      } catch {}
-    }
-  }
-
-  /**
-   * Replace template variables in prompts
-   */
-  private async loadPluginProviders(): Promise<void> {
-    const pluginsDir = join(this.configLoader.getProjectHomeDir(), 'plugins');
-    if (!existsSync(pluginsDir)) return;
-
-    const { resolvePluginProviders } = await import('../providers/resolver.js');
-    const {
-      clearPluginProviders,
-      registerProvider,
-      registerBrandingProvider,
-      registerSettingsProvider,
-      registerAuthProvider,
-      registerUserIdentityProvider,
-      registerUserDirectoryProvider,
-      registerAgentRegistryProvider,
-      registerIntegrationRegistryProvider,
-      registerPluginRegistryProvider,
-    } = await import('../providers/registry.js');
-
-    clearPluginProviders();
-    const overrides = await this.configLoader.loadPluginOverrides();
-    const { resolved, conflicts } = resolvePluginProviders(
-      pluginsDir,
-      overrides,
-    );
-
-    for (const conflict of conflicts) {
-      this.logger.warn(
-        'Provider conflict — multiple plugins provide singleton type',
-        {
-          type: conflict.type,
-          layout: conflict.layout,
-          candidates: conflict.candidates,
-        },
-      );
-    }
-
-    for (const entry of resolved) {
-      const modulePath = join(pluginsDir, entry.pluginName, entry.module);
-      if (!existsSync(modulePath)) {
-        this.logger.warn('Plugin provider module not found', {
-          plugin: entry.pluginName,
-          module: entry.module,
-        });
-        continue;
-      }
-      try {
-        // JSON files for registry types → auto-wrap with JsonManifestRegistryProvider
-        if (
-          modulePath.endsWith('.json') &&
-          (entry.type === 'agentRegistry' ||
-            entry.type === 'integrationRegistry' ||
-            entry.type === 'pluginRegistry')
-        ) {
-          const { JsonManifestRegistryProvider } = await import(
-            '../providers/json-manifest-registry.js'
-          );
-          const instance = new JsonManifestRegistryProvider(
-            modulePath,
-            dirname(pluginsDir),
-          );
-          if (entry.type === 'agentRegistry')
-            registerAgentRegistryProvider(instance);
-          else if (entry.type === 'pluginRegistry')
-            registerPluginRegistryProvider(instance, entry.pluginName);
-          else registerIntegrationRegistryProvider(instance);
-          this.logger.info('Registered plugin provider (JSON manifest)', {
-            plugin: entry.pluginName,
-            type: entry.type,
-          });
-          continue;
-        }
-
-        const fileUrl = `file://${modulePath}?t=${Date.now()}`;
-        const mod = await import(fileUrl);
-        const factory = mod.default || mod;
-        const instance = typeof factory === 'function' ? factory() : factory;
-
-        if (entry.type === 'auth') registerAuthProvider(instance);
-        else if (entry.type === 'userIdentity')
-          registerUserIdentityProvider(instance);
-        else if (entry.type === 'userDirectory')
-          registerUserDirectoryProvider(instance);
-        else if (entry.type === 'agentRegistry')
-          registerAgentRegistryProvider(instance);
-        else if (entry.type === 'integrationRegistry')
-          registerIntegrationRegistryProvider(instance);
-        else if (entry.type === 'pluginRegistry')
-          registerPluginRegistryProvider(instance, entry.pluginName);
-        else if (entry.type === 'branding') registerBrandingProvider(instance);
-        else if (entry.type === 'settings') registerSettingsProvider(instance);
-        else
-          registerProvider(entry.type, instance, {
-            layout: entry.layout,
-            source: entry.pluginName,
-          });
-
-        this.logger.info('Registered plugin provider', {
-          plugin: entry.pluginName,
-          type: entry.type,
-        });
-      } catch (e: any) {
-        this.logger.error('Failed to load plugin provider', {
-          plugin: entry.pluginName,
-          type: entry.type,
-          error: e.message,
-        });
-      }
-    }
   }
 
   private replaceTemplateVariables(text: string, _agentName?: string): string {
-    const now = new Date();
-
-    // User identity (from auth/OS)
-    let userVars: Record<string, string> = {};
-    try {
-      const user = getCachedUser();
-      userVars = {
-        '{{user_alias}}': user.alias || '',
-        '{{user_name}}': user.name || user.alias || '',
-        '{{user_email}}': user.email || '',
-        '{{user_title}}': user.title || '',
-      };
-    } catch (e) {
-      console.debug('Auth module not loaded yet:', e);
-    }
-
-    // Built-in variables (always available)
-    const builtInReplacements: Record<string, string> = {
-      '{{date}}': now.toLocaleDateString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      }),
-      '{{time}}': now.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: true,
-      }),
-      '{{datetime}}': now.toLocaleString('en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true,
-      }),
-      '{{iso_date}}': now.toISOString().split('T')[0],
-      '{{iso_datetime}}': now.toISOString(),
-      '{{timestamp}}': now.getTime().toString(),
-      '{{year}}': now.getFullYear().toString(),
-      '{{month}}': (now.getMonth() + 1).toString(),
-      '{{day}}': now.getDate().toString(),
-      '{{weekday}}': now.toLocaleDateString('en-US', { weekday: 'long' }),
-    };
-
-    // Custom variables from config
-    const customReplacements: Record<string, string> = {};
-    if (this.appConfig.templateVariables) {
-      for (const variable of this.appConfig.templateVariables) {
-        const key = `{{${variable.key}}}`;
-
-        switch (variable.type) {
-          case 'static':
-            customReplacements[key] = variable.value || '';
-            break;
-          case 'date':
-            customReplacements[key] = variable.format
-              ? now.toLocaleDateString('en-US', JSON.parse(variable.format))
-              : now.toLocaleDateString();
-            break;
-          case 'time':
-            customReplacements[key] = variable.format
-              ? now.toLocaleTimeString('en-US', JSON.parse(variable.format))
-              : now.toLocaleTimeString();
-            break;
-          case 'datetime':
-            customReplacements[key] = variable.format
-              ? now.toLocaleString('en-US', JSON.parse(variable.format))
-              : now.toLocaleString();
-            break;
-          case 'custom':
-            // For future extensibility (e.g., environment variables, API calls)
-            customReplacements[key] = variable.value || '';
-            break;
-        }
-      }
-    }
-
-    // Apply all replacements
-    let result = text;
-    const allReplacements = {
-      ...builtInReplacements,
-      ...userVars,
-      ...customReplacements,
-    };
-
-    for (const [key, value] of Object.entries(allReplacements)) {
-      result = result.replace(
-        new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'),
-        value,
-      );
-    }
-
-    return result;
-  }
-
-  private resolveVectorDbProvider() {
-    const connections = this.providerService.listProviderConnections();
-    const conn = connections.find(
-      (c) => c.enabled && c.capabilities.includes('vectordb'),
-    );
-    if (!conn) return null;
-    return createVectorDbProvider(conn);
-  }
-
-  private resolveEmbeddingProvider() {
-    const connections = this.providerService.listProviderConnections();
-    const conn = connections.find(
-      (c) => c.enabled && c.capabilities.includes('embedding'),
-    );
-    if (!conn) return null;
-    return createEmbeddingProvider(conn);
+    return replaceRuntimeTemplateVariables(text, this.appConfig);
   }
 
   /**
    * Switch to a different agent (for CLI usage)
    */
   async switchAgent(targetSlug: string): Promise<Agent> {
-    this.logger.info('Switching agent', { from: 'current', to: targetSlug });
-
-    // Check if agent already exists
-    if (this.activeAgents.has(targetSlug)) {
-      this.logger.info('Agent already loaded', { agent: targetSlug });
-      return this.activeAgents.get(targetSlug)!;
-    }
-
-    // Load new agent
-    const agent = await this.createVoltAgentInstance(targetSlug);
-    this.activeAgents.set(targetSlug, agent);
-    this.voltAgent?.registerAgent(agent);
-
-    this.logger.info('Agent switched successfully', { agent: targetSlug });
-    return agent;
+    return switchRuntimeAgent({
+      targetSlug,
+      activeAgents: this.activeAgents,
+      voltAgent: this.voltAgent,
+      logger: this.logger,
+      createVoltAgentInstance: async (slug) => this.createVoltAgentInstance(slug),
+    });
   }
 
   /**
@@ -1972,44 +555,19 @@ export class StallionRuntime {
    * Shutdown the runtime
    */
   async shutdown(): Promise<void> {
-    this.logger.info('Shutting down Stallion Runtime...');
-
-    for (const t of this.timers) clearTimeout(t);
-    this.timers.length = 0;
-
-    // Stop scheduler first (awaits in-flight jobs that need active agents)
-    await this.schedulerService.stop();
-
-    // Disconnect all MCP configurations
-    for (const [key, mcpConfig] of this.mcpConfigs.entries()) {
-      try {
-        await mcpConfig.disconnect();
-        this.logger.info('MCP disconnected', { mcp: key });
-      } catch (error) {
-        this.logger.error('Failed to disconnect MCP', { mcp: key, error });
-      }
-    }
-
-    this.mcpConfigs.clear();
-    this.activeAgents.clear();
-
-    // Shutdown ACP bridge
-    await this.acpBridge.shutdown();
-
-    // Stop feedback and notifications
-    this.feedbackService.stop();
-    this.notificationService.stop();
-
-    // Shutdown voice sessions
-    await this.voiceService.stop();
-
-    // Shutdown terminal
-    this.terminalWsServer.stop();
-    await this.terminalService.dispose();
-
-    // Dispose config loader
-    await this.configLoader.dispose();
-
-    this.logger.info('Shutdown complete');
+    await shutdownRuntimeServices({
+      logger: this.logger,
+      timers: this.timers,
+      schedulerService: this.schedulerService,
+      mcpConfigs: this.mcpConfigs,
+      activeAgents: this.activeAgents,
+      acpBridge: this.acpBridge,
+      feedbackService: this.feedbackService,
+      notificationService: this.notificationService,
+      voiceService: this.voiceService,
+      terminalWsServer: this.terminalWsServer,
+      terminalService: this.terminalService,
+      configLoader: this.configLoader,
+    });
   }
 }

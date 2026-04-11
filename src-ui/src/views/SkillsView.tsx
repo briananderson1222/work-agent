@@ -6,7 +6,7 @@ import {
   useUninstallSkillMutation,
   useUpdateSkillMutation,
 } from '@stallion-ai/sdk';
-import type { Skill } from '@stallion-ai/shared';
+import type { Skill } from '@stallion-ai/contracts/catalog';
 import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';

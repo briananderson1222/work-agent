@@ -1,10 +1,5 @@
 import { useConnectionStatus } from '@stallion-ai/connect';
-
-function checkServerHealth(url: string): Promise<boolean> {
-  return fetch(`${url}/api/system/status`)
-    .then((r) => r.ok)
-    .catch(() => false);
-}
+import { checkServerHealth } from '../lib/serverHealth';
 
 export function OfflineBanner() {
   const { status } = useConnectionStatus({

@@ -73,15 +73,9 @@ POST /api/agents/default/chat
 
 > **Update**: `ToolManagementView.tsx` uses `/integrations` (GET), `/agents` (GET), `/agents/:slug/tools` (GET and POST), making integration management 3/9 in use rather than 1/7.
 
-### Layout Management (5/5)
+### Layout Management
 
-| Endpoint | Method | Status | Used By |
-|----------|--------|--------|---------|
-| `/layouts` | GET | ✅ in-use | `LayoutsContext.tsx`, `LayoutView.tsx` |
-| `/layouts/:slug` | GET | ✅ in-use | `LayoutsContext.tsx`, `LayoutEditorView.tsx` |
-| `/layouts` | POST | ✅ in-use | `LayoutsContext.tsx`, `LayoutView.tsx` |
-| `/layouts/:slug` | PUT | ✅ in-use | `LayoutsContext.tsx` |
-| `/layouts/:slug` | DELETE | ✅ in-use | `LayoutsContext.tsx` |
+Standalone `/layouts` endpoints were removed. Layout management is project-scoped under `/api/projects/:slug/layouts`.
 
 ### Workflow Management (1/5)
 
@@ -323,7 +317,7 @@ These endpoints are called by the frontend but not yet documented in `api.md`:
 | `/projects/:slug/layouts` | GET | ✅ in-use | `useProjectLayoutsQuery` hook |
 | `/projects/:slug/layouts` | POST | ✅ in-use | `ProjectsView.tsx` (add layout to project) |
 | `/projects/:slug/layouts/:layoutSlug` | GET | ✅ in-use | `LayoutView.tsx` |
-| `/projects/:slug/layouts/:layoutSlug` | PUT | ✅ in-use | `LayoutEditorView.tsx` |
+| `/projects/:slug/layouts/:layoutSlug` | PUT | ✅ in-use | `Project-scoped layout editor flows` |
 | `/projects/:slug/layouts/:layoutSlug` | DELETE | ✅ in-use | `ProjectsView.tsx` (remove layout) |
 | `/projects/layouts/available` | GET | ✅ in-use | `ProjectsView.tsx` (available layout sources) |
 | `/projects/:slug/layouts/from-plugin` | POST | ✅ in-use | `ProjectsView.tsx` (add layout from plugin) |
@@ -372,7 +366,7 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 | React Context | Endpoints Used |
 |---------------|----------------|
 | `AgentsContext` | `/api/agents`, `/agents` (POST/PUT/DELETE) |
-| `LayoutsContext` | `/layouts` (GET/POST/PUT/DELETE), `/layouts/:slug` |
+| `LayoutsContext` | removed during project-layout convergence |
 | `ConversationsContext` | `/agents/:slug/conversations`, `/agents/:slug/conversations/:id/messages`, `/agents/:slug/tools`, `/api/agents/:slug/chat` |
 | `ActiveChatsContext` | `/agents/:slug/conversations` |
 | `StatsContext` | `/agents/:slug/conversations/:id/stats` |
@@ -410,8 +404,7 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 | `ACPConnectionsSection.tsx` | `/acp/connections` (GET/POST/PUT/DELETE) |
 | `UserDetailModal.tsx` | `/api/users/:alias` |
 | `OnboardingGate.tsx` / `Header.tsx` | `/api/system/status` |
-| `LayoutView.tsx` | `/layouts` (POST) |
-| `LayoutEditorView.tsx` | `/api/agents`, `/layouts/:slug` |
+| `LayoutView.tsx` | `/api/projects/:slug/layouts/:layoutSlug` |
 
 ---
 

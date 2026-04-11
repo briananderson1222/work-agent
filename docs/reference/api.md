@@ -497,129 +497,10 @@ PUT /agents/:slug/tools/aliases
 
 ## Layout Management
 
-### List All Layouts
-```http
-GET /layouts
-```
+Standalone `/layouts` endpoints were removed during project-layout convergence.
+Use the project-scoped layout endpoints under `/api/projects/:slug/layouts` instead.
 
-**Response**:
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "name": "My Workspace",
-      "slug": "my-layout",
-      "icon": "💼",
-      "description": "Workspace description",
-      "tabs": [
-        {
-          "id": "main",
-          "label": "Main",
-          "component": "my-agent-dashboard"
-        }
-      ],
-      "globalPrompts": []
-    }
-  ]
-}
-```
-
-**Used by**: `LayoutsContext.tsx`, layout selector
-
----
-
-### Get Layout
-```http
-GET /layouts/:slug
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "data": { /* layout config */ }
-}
-```
-
-**Used by**: `LayoutsContext.tsx`, layout view
-
----
-
-### Create Layout
-```http
-POST /layouts
-```
-
-**Request Body**:
-```json
-{
-  "name": "My Workspace",
-  "slug": "my-layout",
-  "icon": "💼",
-  "description": "Workspace description",
-  "tabs": [
-    {
-      "id": "main",
-      "label": "Main",
-      "component": "my-agent-dashboard",
-      "prompts": [
-        {
-          "id": "daily-standup",
-          "label": "Daily Standup",
-          "prompt": "Generate my daily standup update",
-          "agent": "my-agent"
-        }
-      ]
-    }
-  ]
-}
-```
-
-**Response**:
-```json
-{
-  "success": true,
-  "data": { /* created layout */ }
-}
-```
-
-**Used by**: `LayoutsContext.tsx`, layout editor
-
----
-
-### Update Layout
-```http
-PUT /layouts/:slug
-```
-
-**Request Body**: Partial layout configuration
-
-**Response**:
-```json
-{
-  "success": true,
-  "data": { /* updated layout */ }
-}
-```
-
-**Used by**: `LayoutsContext.tsx`, layout editor
-
----
-
-### Delete Layout
-```http
-DELETE /layouts/:slug
-```
-
-**Response**:
-```json
-{
-  "success": true
-}
-```
-
-**Used by**: `LayoutsContext.tsx`, layout management
+**Used by**: project-scoped layout management flows
 
 ---
 
@@ -1442,7 +1323,7 @@ Triggered when error message contains:
 | Context | Endpoints Used |
 |---------|---------------|
 | `AgentsContext` | `/api/agents`, `/agents/:slug`, `/agents` (POST/PUT/DELETE) |
-| `LayoutsContext` | `/layouts`, `/layouts/:slug` (GET/POST/PUT/DELETE) |
+| `LayoutsContext` | removed during project-layout convergence |
 | `ConversationsContext` | `/agents/:slug/conversations`, `/agents/:slug/conversations/:id/messages`, `/agents/:slug/tools` |
 | `StatsContext` | `/agents/:slug/conversations/:id/stats` |
 | `ConfigContext` | `/config/app` (GET/PUT) |

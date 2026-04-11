@@ -1,5 +1,8 @@
+import {
+  fetchMonitoringEvents,
+  useMonitoringStatsQuery,
+} from '@stallion-ai/sdk';
 import { K } from '@shared/monitoring-keys';
-import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { log } from '@/utils/logger';
 import { useApiBase } from './ApiBaseContext';
@@ -117,18 +120,7 @@ class MonitoringStore {
     try {
       this.isLoading = true;
       this.notify();
-      const params = new URLSearchParams();
-      if (start) params.set('start', start.toISOString());
-      if (end) params.set('end', end.toISOString());
-
-      const response = await fetch(
-        `${this.apiBase}/monitoring/events?${params}`,
-      );
-      const result = await response.json();
-
-      if (result.success) {
-        this.events = result.data;
-      }
+      this.events = (await fetchMonitoringEvents(start, end)) as MonitoringEvent[];
     } catch (error) {
       log.api('Failed to fetch historical events:', error);
     } finally {
@@ -286,25 +278,13 @@ export function releaseStore(apiBase: string) {
   }
 }
 
-async function fetchMonitoringStats(
-  apiBase: string,
-): Promise<MonitoringStats | null> {
-  const response = await fetch(`${apiBase}/monitoring/stats`);
-  const result = await response.json();
-  return result.success ? result.data : null;
-}
-
 export function useMonitoring() {
   const { apiBase } = useApiBase();
   const store = useMemo(() => getStore(apiBase), [apiBase]);
   const data = useSyncExternalStore(store.subscribe, store.getSnapshot);
 
   // Stats via useQuery — replaces manual polling
-  const { data: stats } = useQuery<MonitoringStats | null>({
-    queryKey: ['monitoring-stats', apiBase],
-    queryFn: () => fetchMonitoringStats(apiBase),
-    refetchInterval: 5000,
-  });
+  const { data: stats } = useMonitoringStatsQuery();
 
   const clearEvents = useCallback(() => store.clearEvents(), [store]);
   const setDateRange = useCallback(

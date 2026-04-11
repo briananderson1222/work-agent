@@ -202,11 +202,11 @@ if (theme) {
 
 ### Implementing a Custom Branding Provider
 
-Implement `IBrandingProvider` from `src-server/providers/types.ts` and register it:
+Implement `IBrandingProvider` from `src-server/providers/provider-interfaces.ts` and register it:
 
 ```ts
 // Internal server imports — not a published npm package
-import type { IBrandingProvider } from '../providers/types.js';
+import type { IBrandingProvider } from '../providers/provider-interfaces.js';
 import { registerBrandingProvider } from '../providers/registry.js';
 
 class MyBranding implements IBrandingProvider {

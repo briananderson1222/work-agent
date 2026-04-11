@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { IPromptRegistryProvider, Prompt } from '../providers/types.js';
+import type { Prompt } from '@stallion-ai/contracts/catalog';
+import type { IPromptRegistryProvider } from '../providers/provider-interfaces.js';
 import { promptOps } from '../telemetry/metrics.js';
 import { resolveHomeDir } from '../utils/paths.js';
 

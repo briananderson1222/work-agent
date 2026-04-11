@@ -9,22 +9,38 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join, resolve } from 'node:path';
-import {
-  buildPlugin,
-  copyPluginIntegrations,
-  type PluginManifest,
-} from '@stallion-ai/shared';
+import { buildPlugin } from '@stallion-ai/shared/build';
+import { copyPluginIntegrations } from '@stallion-ai/shared/parsers';
+import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 import {
   AGENTS_DIR,
   extractPluginName,
   isGitUrl,
-  LAYOUTS_DIR,
   lookupDepInRegistries,
   PLUGINS_DIR,
   PROJECT_HOME,
   parseGitSource,
   readManifest,
 } from './helpers.js';
+
+function findInstalledLayoutProvider(layoutSlug: string, pluginName: string) {
+  if (!existsSync(PLUGINS_DIR)) return null;
+
+  for (const entry of readdirSync(PLUGINS_DIR, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    try {
+      const installed = readManifest(join(PLUGINS_DIR, entry.name));
+      if (
+        installed.name !== pluginName &&
+        installed.layout?.slug === layoutSlug
+      ) {
+        return installed.name;
+      }
+    } catch {}
+  }
+
+  return null;
+}
 
 export function preview(source: string): void {
   console.log(`🔍 Previewing plugin from ${source}...`);
@@ -67,11 +83,14 @@ export function preview(source: string): void {
         conflicts.push({ type: 'agent', id: slug });
       }
     }
-    if (
-      manifest.layout &&
-      existsSync(join(LAYOUTS_DIR, manifest.layout.slug, 'layout.json'))
-    ) {
-      conflicts.push({ type: 'layout', id: manifest.layout.slug });
+    if (manifest.layout) {
+      const existingPlugin = findInstalledLayoutProvider(
+        manifest.layout.slug,
+        manifest.name,
+      );
+      if (existingPlugin) {
+        conflicts.push({ type: 'layout', id: manifest.layout.slug });
+      }
     }
 
     console.log(`\n✅ Valid plugin\n`);
@@ -247,18 +266,10 @@ export async function install(
   }
 
   if (manifest.layout && !skipSet.has(`layout:${manifest.layout.slug}`)) {
-    mkdirSync(LAYOUTS_DIR, { recursive: true });
     const sourcePath = join(finalDir, manifest.layout.source);
-    const targetDir = join(LAYOUTS_DIR, manifest.layout.slug);
     if (existsSync(sourcePath)) {
-      mkdirSync(targetDir, { recursive: true });
       const layoutConfig = JSON.parse(readFileSync(sourcePath, 'utf-8'));
-      layoutConfig.plugin = manifest.name;
-      writeFileSync(
-        join(targetDir, 'layout.json'),
-        JSON.stringify(layoutConfig, null, 2),
-      );
-      console.log(`  ✓ Layout: ${manifest.layout.slug}`);
+      console.log(`  ✓ Layout available: ${manifest.layout.slug}`);
 
       // Auto-apply layout to project
       const projectsDir = join(PROJECT_HOME, 'projects');
@@ -410,10 +421,6 @@ export function remove(name: string): void {
       const agentJson = join(AGENTS_DIR, `${name}:${agent.slug}`, 'agent.json');
       if (existsSync(agentJson)) rmSync(agentJson);
     }
-  }
-  if (manifest.layout) {
-    const layoutDir = join(LAYOUTS_DIR, manifest.layout.slug);
-    if (existsSync(layoutDir)) rmSync(layoutDir, { recursive: true });
   }
   rmSync(pluginDir, { recursive: true });
   console.log(`✅ Removed ${manifest.displayName}`);

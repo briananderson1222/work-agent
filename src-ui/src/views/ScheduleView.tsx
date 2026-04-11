@@ -1,15 +1,8 @@
 import { LoadingState } from '@stallion-ai/sdk';
-import type { SchedulerJob } from '@stallion-ai/shared';
-import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import type { SchedulerJob } from '@stallion-ai/contracts/scheduler';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
-import {
-  cronToHuman,
-  JobDetail,
-  JobFormModal,
-  localTime,
-  RateCell,
-  relTime,
-} from '../components/scheduler';
+import { JobFormModal } from '../components/scheduler';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
 import {
@@ -23,69 +16,13 @@ import {
   useSchedulerStatus,
   useToggleJob,
 } from '../hooks/useScheduler';
-import { SortHeader, TableFilter, useSortableTable } from './SortableTable';
+import { useSortableTable } from './SortableTable';
+import { ScheduleEmptyState } from './schedule/ScheduleEmptyState';
+import { ScheduleJobsTable } from './schedule/ScheduleJobsTable';
+import { ScheduleStats } from './schedule/ScheduleStats';
+import { buildEnrichedSchedulerJobs } from './schedule/utils';
 import './ScheduleView.css';
 import './page-layout.css';
-
-/* ── SVG Icons ── */
-const IconPlay = () => (
-  <svg viewBox="0 0 16 16" fill="currentColor">
-    <path d="M4 2.5v11l9-5.5z" />
-  </svg>
-);
-const IconFile = () => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M9 1.5H4a1 1 0 00-1 1v11a1 1 0 001 1h8a1 1 0 001-1V5.5L9 1.5z" />
-    <path d="M9 1.5V5.5h4" />
-  </svg>
-);
-const IconX = () => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-  >
-    <path d="M4 4l8 8M12 4l-8 8" />
-  </svg>
-);
-const IconChevron = () => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M6 4l4 4-4 4" />
-  </svg>
-);
-const IconSpinner = () => (
-  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M8 2a6 6 0 11-4.24 1.76" strokeLinecap="round" />
-  </svg>
-);
-const IconEdit = () => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M11.5 2.5l2 2-8 8H3.5v-2z" />
-  </svg>
-);
 
 export function ScheduleView() {
   const { data: jobs = [], isLoading, isError: jobsError } = useSchedulerJobs();
@@ -139,25 +76,7 @@ export function ScheduleView() {
     }
   }, [jobs, isLoading, updateParams]);
 
-  const statsMap = new Map<
-    string,
-    { name: string; total: number; success_rate: number }
-  >();
-  if (stats?.providers) {
-    for (const provStats of Object.values(stats.providers) as {
-      jobs?: { name: string; total: number; success_rate: number }[];
-    }[]) {
-      for (const s of provStats.jobs || []) statsMap.set(s.name, s);
-    }
-  }
-
-  const enrichedJobs = jobs.map((job) => {
-    const js = statsMap.get(job.name);
-    return {
-      ...job,
-      successRate: js ? (js.total > 0 ? js.success_rate : -1) : -1,
-    };
-  });
+  const enrichedJobs = buildEnrichedSchedulerJobs({ jobs, stats });
 
   const {
     sorted: sortedJobs,
@@ -249,444 +168,84 @@ export function ScheduleView() {
         <LoadingState message="Loading scheduler..." />
       ) : (
         <>
-          {/* Stats */}
-          <div
-            className="schedule__stats"
-            role="status"
-            aria-label="Scheduler statistics"
-          >
-            <div
-              className={`stat-card ${statusError ? 'stat-card--warning' : daemonOk && schedulerHealthy ? 'stat-card--success' : daemonOk ? 'stat-card--warning' : 'stat-card--error'}`}
-            >
-              <div className="stat-card__label">Scheduler</div>
-              <div
-                className={`stat-card__value ${
-                  statusError
-                    ? 'stat-card__value--warning'
-                    : daemonOk && schedulerHealthy
-                      ? 'stat-card__value--success'
-                      : daemonOk
-                        ? 'stat-card__value--warning'
-                        : 'stat-card__value--error'
-                }`}
-              >
-                {statusError
-                  ? '⚠ Unreachable'
-                  : daemonOk && schedulerHealthy
-                    ? '● Healthy'
-                    : daemonOk
-                      ? '⚠ Degraded'
-                      : '○ Stopped'}
-              </div>
-              {lastTickAt?.lastTickAt && (
-                <div className="stat-card__hint">
-                  Last tick {relTime(lastTickAt.lastTickAt)}
-                </div>
-              )}
-            </div>
-            <div className="stat-card stat-card--accent">
-              <div className="stat-card__label">Jobs</div>
-              <div className="stat-card__value">{jobs.length}</div>
-            </div>
-            <div className="stat-card stat-card--accent">
-              <div className="stat-card__label">Success Rate</div>
-              <div className="stat-card__value">
-                {successRate >= 0 ? `${successRate}%` : '-'}
-              </div>
-            </div>
-            <div className="stat-card stat-card--accent">
-              <div className="stat-card__label">Total Runs</div>
-              <div className="stat-card__value">
-                {totalRuns >= 0 ? totalRuns : '-'}
-              </div>
-            </div>
-          </div>
+          <ScheduleStats
+            daemonOk={daemonOk}
+            jobsCount={jobs.length}
+            lastTickAt={lastTickAt?.lastTickAt}
+            schedulerHealthy={schedulerHealthy}
+            statusError={statusError}
+            successRate={successRate}
+            totalRuns={totalRuns}
+          />
 
-          {/* Table */}
-          <div className="schedule__table-wrap">
-            <div className="schedule__filter">
-              <TableFilter
-                value={filterText}
-                onChange={setFilterText}
-                placeholder="Filter jobs…"
-              />
-            </div>
+          {sortedJobs.length === 0 ? (
+            <ScheduleEmptyState
+              filterText={filterText}
+              onSelectTemplate={(template) => {
+                setPrefill(template);
+                setShowAddForm(true);
+              }}
+            />
+          ) : (
+            <ScheduleJobsTable
+              autoOpenRun={autoOpenRun}
+              daemonOk={daemonOk}
+              expanded={expanded}
+              filterText={filterText}
+              getMissedCount={getMissedCount}
+              handleRun={handleRun}
+              isRunning={isRunning}
+              onDelete={(job) => {
+                setConfirmAction({
+                  title: 'Delete Job',
+                  message: `Delete job "${job.name}"? This cannot be undone.`,
+                  variant: 'danger',
+                  onConfirm: () => {
+                    deleteJob.mutate(job.name);
+                    setConfirmAction(null);
+                  },
+                });
+              }}
+              onDuplicate={(job) => {
+                setPrefill({
+                  name: `${job.name}-copy`,
+                  cron: job.cron,
+                  prompt: job.prompt,
+                });
+                setShowAddForm(true);
+              }}
+              onEdit={setEditingJob}
+              onExpand={setExpanded}
+              onFilterChange={setFilterText}
+              onOpenArtifact={(artifactPath) => openArtifact.mutate(artifactPath)}
+              onToggle={(job, running) => {
+                if (running) {
+                  setConfirmAction({
+                    title: 'Cancel Running Job',
+                    message: `Disabling '${job.name}' will cancel the currently running job. Continue?`,
+                    variant: 'warning',
+                    onConfirm: () => {
+                      toggleJob.mutate({
+                        target: job.name,
+                        enabled: false,
+                      });
+                      setConfirmAction(null);
+                    },
+                  });
+                  return;
+                }
 
-            {isLoading ? (
-              <LoadingState message="Loading jobs..." />
-            ) : sortedJobs.length === 0 ? (
-              <div className="schedule__empty">
-                {filterText ? (
-                  'No matching jobs'
-                ) : (
-                  <div>
-                    <p className="schedule__empty-intro">
-                      No scheduled jobs yet. Pick a template to get started:
-                    </p>
-                    <div className="schedule__starters">
-                      {(() => {
-                        // Convert local hour to UTC for cron
-                        const utcHour = (localHour: number) => {
-                          const d = new Date();
-                          d.setHours(localHour, 0, 0, 0);
-                          return d.getUTCHours();
-                        };
-                        return [
-                          {
-                            name: 'good-morning',
-                            label: '☀️ Morning Briefing',
-                            cron: `0 ${utcHour(8)} * * 1-5`,
-                            prompt:
-                              'Review my calendar and email for today. Summarize priorities, prep for meetings, and flag anything urgent.',
-                            meta: 'Weekdays · 8:00 AM',
-                          },
-                          {
-                            name: 'catch-up-emails',
-                            label: '📧 Email Catch-up',
-                            cron: `0 ${utcHour(12)} * * 1-5`,
-                            prompt:
-                              'Check my recent emails and summarize anything I need to respond to or follow up on.',
-                            meta: 'Weekdays · 12:00 PM',
-                          },
-                          {
-                            name: 'wrap-up-day',
-                            label: '🌙 End of Day Wrap',
-                            cron: `0 ${utcHour(17)} * * 1-5`,
-                            prompt:
-                              'Summarize what I accomplished today. Check for any customer meetings that need activity logging. Preview tomorrow.',
-                            meta: 'Weekdays · 5:00 PM',
-                          },
-                          {
-                            name: 'prep-week',
-                            label: '📋 Weekly Prep',
-                            cron: `0 ${utcHour(8)} * * 1`,
-                            prompt:
-                              'Prepare my weekly overview: key meetings, customer engagements, deadlines, and priorities for the week ahead.',
-                            meta: 'Mondays · 8:00 AM',
-                          },
-                        ];
-                      })().map((t) => (
-                        <button
-                          key={t.name}
-                          onClick={() => {
-                            setPrefill({
-                              name: t.name,
-                              cron: t.cron,
-                              prompt: t.prompt,
-                            });
-                            setShowAddForm(true);
-                          }}
-                          className="schedule__starter-btn"
-                        >
-                          <div className="schedule__starter-label">
-                            {t.label}
-                          </div>
-                          <div className="schedule__starter-meta">{t.meta}</div>
-                        </button>
-                      ))}
-                    </div>
-                    <p className="schedule__starter-hint">
-                      Templates pre-fill the form — you choose the agent and
-                      schedule.
-                    </p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="schedule__table-scroll">
-                <span className="schedule__mobile-hint">Swipe for more →</span>
-                <table className="schedule__table" aria-label="Scheduled jobs">
-                  <thead>
-                    <tr>
-                      <SortHeader
-                        label="Name"
-                        sortKey="name"
-                        active={sortKey === 'name'}
-                        dir={sortDir}
-                        onClick={toggle}
-                      />
-                      <th className="sortable-table__th">Schedule</th>
-                      <th className="sortable-table__th">Status</th>
-                      <SortHeader
-                        label="Last Run"
-                        sortKey="lastRun"
-                        active={sortKey === 'lastRun'}
-                        dir={sortDir}
-                        onClick={toggle}
-                      />
-                      <SortHeader
-                        label="Next Fire"
-                        sortKey="nextRun"
-                        active={sortKey === 'nextRun'}
-                        dir={sortDir}
-                        onClick={toggle}
-                      />
-                      <SortHeader
-                        label="Success%"
-                        sortKey="successRate"
-                        active={sortKey === 'successRate'}
-                        dir={sortDir}
-                        onClick={toggle}
-                      />
-                      <th className="sortable-table__th">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sortedJobs.map((job) => {
-                      const isExpanded = expanded === job.name;
-                      const running = isRunning(job.name);
-                      const missed = getMissedCount(job.name);
-                      return (
-                        <Fragment key={job.id}>
-                          <tr
-                            data-testid={`job-row-${job.name}`}
-                            className={`schedule__row ${isExpanded ? 'schedule__row--expanded' : ''}`}
-                            aria-expanded={isExpanded}
-                            onClick={() =>
-                              setExpanded(isExpanded ? null : job.name)
-                            }
-                          >
-                            <td className="schedule__td schedule__td--name">
-                              <span
-                                className={`schedule__chevron ${isExpanded ? 'schedule__chevron--open' : ''}`}
-                              >
-                                <IconChevron />
-                              </span>
-                              {job.name}
-                              {missed > 0 && (
-                                <span
-                                  className="schedule__missed-badge"
-                                  title={`${missed} scheduled run${missed > 1 ? 's' : ''} missed (job still running)`}
-                                >
-                                  ⚠ {missed} missed
-                                </span>
-                              )}
-                            </td>
-                            <td className="schedule__td schedule__td--schedule">
-                              <div>{job.cron || '-'}</div>
-                              {job.cron && (
-                                <div className="schedule__cron-human-inline">
-                                  {cronToHuman(
-                                    job.cron,
-                                    job.nextRun
-                                      ? new Date(job.nextRun)
-                                      : undefined,
-                                  ) || ''}
-                                </div>
-                              )}
-                            </td>
-                            <td
-                              className="schedule__td"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                if (running) {
-                                  setConfirmAction({
-                                    title: 'Cancel Running Job',
-                                    message: `Disabling '${job.name}' will cancel the currently running job. Continue?`,
-                                    variant: 'warning',
-                                    onConfirm: () => {
-                                      toggleJob.mutate({
-                                        target: job.name,
-                                        enabled: false,
-                                      });
-                                      setConfirmAction(null);
-                                    },
-                                  });
-                                } else {
-                                  toggleJob.mutate({
-                                    target: job.name,
-                                    enabled: !job.enabled,
-                                  });
-                                }
-                              }}
-                            >
-                              <span
-                                className={`schedule__status schedule__status--clickable`}
-                              >
-                                <span
-                                  className={`schedule__status-dot ${
-                                    running
-                                      ? 'schedule__status-dot--running'
-                                      : job.enabled
-                                        ? (
-                                            daemonOk
-                                              ? 'schedule__status-dot--on'
-                                              : 'schedule__status-dot--warn'
-                                          )
-                                        : 'schedule__status-dot--off'
-                                  }`}
-                                />
-                                {running
-                                  ? 'running'
-                                  : job.enabled
-                                    ? 'on'
-                                    : 'off'}
-                              </span>
-                            </td>
-                            <td className="schedule__td schedule__td--muted">
-                              {relTime(job.lastRun)}
-                            </td>
-                            <td className="schedule__td schedule__td--muted">
-                              {localTime(job.nextRun)}
-                            </td>
-                            <td className="schedule__td">
-                              <RateCell rate={job.successRate} />
-                            </td>
-                            <td
-                              className="schedule__td schedule__td--actions"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <div className="schedule__actions">
-                                <button
-                                  title="Edit"
-                                  aria-label={`Edit ${job.name}`}
-                                  onClick={() => setEditingJob(job)}
-                                  className="schedule__action-btn"
-                                >
-                                  <IconEdit />
-                                </button>
-                                <button
-                                  title="Duplicate"
-                                  aria-label={`Duplicate ${job.name}`}
-                                  onClick={() => {
-                                    setPrefill({
-                                      name: `${job.name}-copy`,
-                                      cron: job.cron,
-                                      prompt: job.prompt,
-                                    });
-                                    setShowAddForm(true);
-                                  }}
-                                  className="schedule__action-btn"
-                                >
-                                  ⧉
-                                </button>
-                                <button
-                                  title="Run now"
-                                  aria-label={`Run ${job.name}`}
-                                  data-testid={`run-${job.name}`}
-                                  disabled={running}
-                                  onClick={() => handleRun(job.name)}
-                                  className="schedule__action-btn"
-                                >
-                                  {running ? <IconSpinner /> : <IconPlay />}
-                                </button>
-                                {job.openArtifact && (
-                                  <button
-                                    title="Open artifact"
-                                    aria-label={`Open artifact for ${job.name}`}
-                                    onClick={() =>
-                                      openArtifact.mutate(job.openArtifact)
-                                    }
-                                    className="schedule__action-btn"
-                                  >
-                                    <IconFile />
-                                  </button>
-                                )}
-                                <button
-                                  title="Delete"
-                                  aria-label={`Delete ${job.name}`}
-                                  onClick={() => {
-                                    setConfirmAction({
-                                      title: 'Delete Job',
-                                      message: `Delete job "${job.name}"? This cannot be undone.`,
-                                      variant: 'danger',
-                                      onConfirm: () => {
-                                        deleteJob.mutate(job.name);
-                                        setConfirmAction(null);
-                                      },
-                                    });
-                                  }}
-                                  className="schedule__action-btn schedule__action-btn--danger"
-                                >
-                                  <IconX />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                          {isExpanded && (
-                            <tr
-                              key={`${job.id}-detail`}
-                              className="schedule__detail-row"
-                            >
-                              <td colSpan={7}>
-                                <div className="schedule__detail">
-                                  <div className="schedule__detail-header">
-                                    <span>{job.name} — Run History</span>
-                                    <div className="schedule__detail-actions">
-                                      {job.openArtifact && (
-                                        <button
-                                          onClick={() =>
-                                            openArtifact.mutate(
-                                              job.openArtifact,
-                                            )
-                                          }
-                                          className="page__btn-primary schedule__detail-artifact-btn"
-                                        >
-                                          Open Latest Artifact
-                                        </button>
-                                      )}
-                                    </div>
-                                  </div>
-                                  {(job.description ||
-                                    job.prompt ||
-                                    job.command ||
-                                    job.agent) && (
-                                    <div className="schedule__detail-meta">
-                                      {job.description && (
-                                        <div className="schedule__detail-desc">
-                                          {job.description}
-                                        </div>
-                                      )}
-                                      {job.agent && (
-                                        <div className="schedule__detail-field">
-                                          <span className="schedule__detail-label">
-                                            Agent
-                                          </span>
-                                          <span className="schedule__detail-value">
-                                            {job.agent}
-                                          </span>
-                                        </div>
-                                      )}
-                                      {job.prompt && (
-                                        <div className="schedule__detail-field">
-                                          <span className="schedule__detail-label">
-                                            Prompt
-                                          </span>
-                                          <span className="schedule__detail-value">
-                                            {job.prompt}
-                                          </span>
-                                        </div>
-                                      )}
-                                      {job.command && (
-                                        <div className="schedule__detail-field">
-                                          <span className="schedule__detail-label">
-                                            Command
-                                          </span>
-                                          <code className="schedule__detail-code">
-                                            {job.command}
-                                          </code>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  <JobDetail
-                                    name={job.name}
-                                    autoOpenRun={
-                                      expanded === job.name ? autoOpenRun : null
-                                    }
-                                  />
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
+                toggleJob.mutate({
+                  target: job.name,
+                  enabled: !job.enabled,
+                });
+              }}
+              sortDir={sortDir}
+              sortKey={sortKey}
+              sortedJobs={sortedJobs}
+              toggleSort={toggle}
+            />
+          )}
         </>
       )}
       {editingJob && (

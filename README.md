@@ -238,14 +238,15 @@ The npm link symlink picks up the new dist automatically.
 
 | Package | Path | Description |
 |---------|------|-------------|
+| `@stallion-ai/contracts` | `packages/contracts/` | Canonical cross-package API, runtime, and orchestration contract types |
 | `@stallion-ai/sdk` | `packages/sdk/` | TypeScript SDK for plugin development — hooks, components, types |
 | `@stallion-ai/connect` | `packages/connect/` | Standalone bidirectional pairing library for the Stallion AI ecosystem |
-| `@stallion-ai/shared` | `packages/shared/` | Canonical types, config parsing, and MCP client factory |
+| `@stallion-ai/shared` | `packages/shared/` | Shared runtime helpers, config parsing, and compatibility re-exports |
 | `@stallion-ai/cli` | `packages/cli/` | Unified CLI (`stallion`) for managing and developing plugins |
 
 ## Provider System
 
-The core platform defines provider interfaces that plugins can implement. Data types (`AuthStatus`, `RegistryItem`, `UserIdentity`, etc.) are exported from `@stallion-ai/shared` — plugins should import from there, not redefine them.
+The core platform defines provider interfaces that plugins can implement. Contract-owned data types (`AuthStatus`, `RegistryItem`, `UserIdentity`, etc.) now live under `@stallion-ai/contracts/*`, with `@stallion-ai/shared` retaining compatibility re-exports and runtime helpers.
 
 | Provider | Cardinality | Default | Purpose |
 |----------|-------------|---------|---------|
@@ -279,6 +280,7 @@ Providers are declared in `plugin.json` and loaded when the server starts. For r
 │       └── components/   # Shared UI components
 ├── src-desktop/          # Tauri desktop app (Rust)
 ├── packages/
+│   ├── contracts/        # @stallion-ai/contracts
 │   ├── sdk/              # @stallion-ai/sdk
 │   ├── connect/          # @stallion-ai/connect
 │   ├── shared/           # @stallion-ai/shared
@@ -475,6 +477,7 @@ See [Deployment Guide](docs/guides/deployment.md) for reverse proxy setup and en
 | Doc | Description |
 |-----|-------------|
 | [SDK](docs/reference/sdk.md) | @stallion-ai/sdk — hooks, components, types |
+| [Contracts](docs/reference/contracts.md) | @stallion-ai/contracts — canonical cross-package contract modules |
 | [API](docs/reference/api.md) | All endpoints (~97) with request/response shapes |
 | [API Summary](docs/reference/api-summary.md) | Quick endpoint reference by category |
 | [Endpoints in Use](docs/reference/endpoints.md) | Which endpoints the frontend calls |
@@ -482,7 +485,7 @@ See [Deployment Guide](docs/guides/deployment.md) for reverse proxy setup and en
 | [Environment Variables](docs/reference/env-vars.md) | All env vars with defaults and descriptions |
 | [CLI](docs/reference/cli.md) | Full CLI command and flag reference |
 | [Connect](docs/reference/connect.md) | @stallion-ai/connect — multi-device connectivity |
-| [Shared](docs/reference/shared.md) | @stallion-ai/shared — types and utilities |
+| [Shared](docs/reference/shared.md) | @stallion-ai/shared — runtime helpers and compatibility re-exports |
 
 ### Patterns
 | Doc | Description |

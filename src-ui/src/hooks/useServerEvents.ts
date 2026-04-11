@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { navigationStore } from '../contexts/NavigationContext';
 import { toastStore } from '../contexts/ToastContext';
+import { pluginRegistry } from '../core/PluginRegistry';
 
 type EventHandler = (data: Record<string, unknown>) => void;
 
@@ -86,18 +87,12 @@ const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {
     qc.invalidateQueries({ queryKey: ['plugins'] });
     qc.invalidateQueries({ queryKey: ['layouts'] });
     qc.invalidateQueries({ queryKey: ['agents'] });
-    // Hot-reload plugin bundles
-    import('../core/PluginRegistry')
-      .then(({ pluginRegistry }) => pluginRegistry.reload())
-      .catch(() => {});
+    void pluginRegistry.reload().catch(() => {});
   },
   'plugins:updated': (qc) => {
     qc.invalidateQueries({ queryKey: ['plugins'] });
     qc.invalidateQueries({ queryKey: ['layouts'] });
-    // Hot-reload plugin bundles
-    import('../core/PluginRegistry')
-      .then(({ pluginRegistry }) => pluginRegistry.reload())
-      .catch(() => {});
+    void pluginRegistry.reload().catch(() => {});
   },
   'plugins:updates-available': (qc) => {
     qc.invalidateQueries({ queryKey: ['plugin-updates'] });

@@ -9,10 +9,8 @@ import type {
   ProviderAdapterShape,
   ProviderTurnStartResult,
 } from '../providers/adapter-shape.js';
-import type {
-  IProviderAdapterRegistry,
-  Prerequisite,
-} from '../providers/types.js';
+import type { IProviderAdapterRegistry } from '../providers/provider-interfaces.js';
+import type { Prerequisite } from '../providers/provider-contracts.js';
 import {
   adapterSessionStartDuration,
   adapterTurnDuration,

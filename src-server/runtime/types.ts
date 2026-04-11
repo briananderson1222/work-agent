@@ -13,8 +13,8 @@
  * those hooks into its native lifecycle system. Adding a new framework means
  * implementing the hook wiring, not reimplementing business logic.
  */
-
-import type { AgentSpec, AppConfig } from '../domain/types.js';
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import type { AppConfig } from '@stallion-ai/contracts/config';
 
 // ── Stream Events ──────────────────────────────────────
 

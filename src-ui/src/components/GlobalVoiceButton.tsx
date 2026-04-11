@@ -8,10 +8,8 @@
  * Returns null when voice is not supported in this browser.
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import {
-  useAllActiveChats,
-  useSendMessage,
-} from '../contexts/ActiveChatsContext';
+import { useAllActiveChats } from '../contexts/ActiveChatsContext';
+import { useSendMessage } from '../hooks/useActiveChatSessions';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useSTT } from '../hooks/useSTT';
 import './GlobalVoiceButton.css';

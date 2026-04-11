@@ -6,7 +6,7 @@ import type {
   IVectorDbProvider,
   VectorDocument,
   VectorSearchResult,
-} from './types.js';
+} from './model-provider-types.js';
 
 function cosineSimilarity(a: number[], b: number[]): number {
   let dot = 0,

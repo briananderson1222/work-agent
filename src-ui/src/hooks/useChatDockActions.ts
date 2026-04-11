@@ -1,9 +1,9 @@
 import { useCallback } from 'react';
+import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import {
-  useActiveChatActions,
   useCreateChatSession,
   useOpenConversation,
-} from '../contexts/ActiveChatsContext';
+} from './useActiveChatSessions';
 import type { AgentData } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';

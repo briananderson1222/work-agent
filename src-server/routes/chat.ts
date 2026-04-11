@@ -4,28 +4,38 @@
  */
 
 import { SpanStatusCode } from '@opentelemetry/api';
-import type { ProviderConnectionConfig } from '@stallion-ai/shared';
 import { Hono } from 'hono';
 import { stream } from 'hono/streaming';
 import * as StreamOrchestrator from '../runtime/stream-orchestrator.js';
 import { InjectableStream } from '../runtime/streaming/InjectableStream.js';
-import type { ITool, RuntimeContext } from '../runtime/types.js';
-import {
-  createLLMProviderFromConfig,
-  streamWithProvider,
-} from '../services/llm-router.js';
+import type { RuntimeContext } from '../runtime/types.js';
 import {
   chatDuration,
   chatErrors,
   chatRequests,
   costEstimated,
-  feedbackOps,
   tokensInput,
   tokensOutput,
   tracer,
 } from '../telemetry/metrics.js';
 import { estimateCost, findModelPricing } from '../utils/pricing.js';
 import { getCachedUser } from './auth.js';
+import { streamAlternateProviderChat } from './chat-alternate-provider.js';
+import {
+  applyCombinedContextToInput,
+  injectConversationFeedbackContext,
+} from './chat-context.js';
+import { resolveChatAgentModelOverride } from './chat-model-override.js';
+import {
+  type ChatMessage,
+  prepareChatRequest,
+} from './chat-request-preparation.js';
+import {
+  createChatConversationId,
+  createChatTraceId,
+  ensureChatConversation,
+  persistTemporaryAgentMessages,
+} from './chat-persistence.js';
 import {
   chatSchema,
   errorMessage,
@@ -33,11 +43,6 @@ import {
   param,
   validate,
 } from './schemas.js';
-
-interface ChatMessage {
-  role: string;
-  parts?: Array<{ type: string; text?: string }>;
-}
 
 export function createChatRoutes(ctx: RuntimeContext) {
   const app = new Hono();
@@ -47,7 +52,7 @@ export function createChatRoutes(ctx: RuntimeContext) {
     const plugin = c.req.header('x-stallion-plugin') || '';
 
     try {
-      const { input, options = {}, projectSlug } = getBody(c);
+      const { input, options: rawOptions = {}, projectSlug } = getBody(c);
 
       // ACP routing — delegate to kiro-cli if this is an ACP agent
       if (ctx.acpBridge.hasAgent(slug)) {
@@ -60,187 +65,42 @@ export function createChatRoutes(ctx: RuntimeContext) {
             console.debug('Failed to resolve project working directory:', e);
           }
         }
-        return ctx.acpBridge.handleChat(c, slug, input, options, {
+        return ctx.acpBridge.handleChat(c, slug, input, rawOptions, {
           ...(acpCwd && { cwd: acpCwd }),
-          ...(options.conversationId && {
-            conversationId: options.conversationId,
+          ...(rawOptions.conversationId && {
+            conversationId: rawOptions.conversationId,
           }),
         });
       }
 
-      // Resolve project provider override when projectSlug is provided
-      let useAlternateProvider = false;
-      let resolvedProviderConn: ProviderConnectionConfig | null = null;
-      if (projectSlug && !options.model) {
-        try {
-          const resolved = await ctx.providerService.resolveProvider({
-            projectSlug,
-          });
-          if (resolved.model) {
-            options.model = resolved.model;
-          }
-          if (resolved.providerId && resolved.providerId !== 'bedrock') {
-            const connections = ctx.providerService.listProviderConnections();
-            resolvedProviderConn =
-              connections.find((c) => c.id === resolved.providerId) ?? null;
-            if (
-              resolvedProviderConn &&
-              resolvedProviderConn.type !== 'bedrock'
-            ) {
-              useAlternateProvider = true;
-            }
-          }
-        } catch (err: unknown) {
-          ctx.logger.warn('Failed to resolve project provider', {
-            projectSlug,
-            error: errorMessage(err),
-          });
-        }
-      }
-
-      // Inject context — project rules and inject-behavior knowledge namespaces
-      let injectContext: string | null = null;
-      if (projectSlug) {
-        try {
-          injectContext =
-            await ctx.knowledgeService.getInjectContext(projectSlug);
-        } catch (err: unknown) {
-          ctx.logger.debug('Inject context retrieval failed', {
-            projectSlug,
-            error: errorMessage(err),
-          });
-        }
-      }
-
-      // RAG context injection — query project knowledge base
-      let ragContext: string | null = null;
-      if (projectSlug) {
-        try {
-          const userMessage =
-            typeof input === 'string'
-              ? input
-              : Array.isArray(input)
-                ? input
-                    .find((m: ChatMessage) => m.role === 'user')
-                    ?.parts?.find(
-                      (p: { type: string; text?: string }) => p.type === 'text',
-                    )?.text || ''
-                : '';
-          if (userMessage) {
-            ragContext = await ctx.knowledgeService.getRAGContext(
-              projectSlug,
-              userMessage,
-            );
-          }
-        } catch (err: unknown) {
-          ctx.logger.debug('RAG context retrieval failed', {
-            projectSlug,
-            error: errorMessage(err),
-          });
-        }
-      }
-
-      // Feedback guidelines injection
-      const feedbackGuidelines = ctx.feedbackService.getBehaviorGuidelines();
-      if (feedbackGuidelines) {
-        ragContext = ragContext
-          ? `${ragContext}\n\n${feedbackGuidelines}`
-          : feedbackGuidelines;
-      }
+      const {
+        options,
+        useAlternateProvider,
+        resolvedProviderConn,
+        injectContext,
+        ragContext: preparedRagContext,
+      } = await prepareChatRequest({
+        ctx,
+        input,
+        options: rawOptions,
+        projectSlug,
+      });
+      let ragContext = preparedRagContext;
 
       // Route to alternate provider (Ollama, OpenAI-compat) if resolved
       if (useAlternateProvider && resolvedProviderConn) {
-        const llmProvider = createLLMProviderFromConfig(resolvedProviderConn);
-        if (llmProvider) {
-          c.header('Content-Type', 'text/event-stream');
-          c.header('Cache-Control', 'no-cache');
-          c.header('Connection', 'keep-alive');
-          c.header('X-Accel-Buffering', 'no');
-
-          return stream(c, async (streamWriter) => {
-            const convId = options.conversationId || `${slug}:${Date.now()}`;
-            const messages: Array<{ role: string; content: string }> = [];
-
-            const agentSpec = ctx.agentSpecs.get(slug);
-            const globalPrompt = ctx.appConfig.systemPrompt
-              ? ctx.replaceTemplateVariables(ctx.appConfig.systemPrompt)
-              : '';
-            const agentPrompt = agentSpec?.prompt
-              ? ctx.replaceTemplateVariables(agentSpec.prompt)
-              : '';
-            const combinedPrompt = [globalPrompt, agentPrompt]
-              .filter(Boolean)
-              .join('\n\n');
-            const systemPrompt = [injectContext, ragContext, combinedPrompt]
-              .filter(Boolean)
-              .join('\n\n');
-            if (systemPrompt) {
-              messages.push({ role: 'system', content: systemPrompt });
-            }
-
-            if (options.conversationId) {
-              try {
-                const adapter = ctx.memoryAdapters.get(slug);
-                if (adapter) {
-                  const userId = options.userId || getCachedUser().alias;
-                  const msgs = await adapter.getMessages(
-                    userId,
-                    options.conversationId,
-                  );
-                  if (msgs) {
-                    for (const msg of msgs) {
-                      const textParts = (msg.parts || [])
-                        .filter(
-                          (p: { type: string; text?: string }) =>
-                            p.type === 'text',
-                        )
-                        .map((p: { type: string; text?: string }) => p.text);
-                      const content = textParts.join('\n') || '';
-                      if (content)
-                        messages.push({ role: msg.role as string, content });
-                    }
-                  }
-                }
-              } catch (e) {
-                console.debug('Failed to load conversation history:', e);
-              }
-            }
-
-            const userText =
-              typeof input === 'string'
-                ? input
-                : Array.isArray(input)
-                  ? input
-                      .find((m: ChatMessage) => m.role === 'user')
-                      ?.parts?.find(
-                        (p: { type: string; text?: string }) =>
-                          p.type === 'text',
-                      )?.text || ''
-                  : '';
-            messages.push({ role: 'user', content: userText });
-
-            try {
-              await streamWithProvider(
-                llmProvider,
-                options.model ||
-                  (resolvedProviderConn.config?.defaultModel as string) ||
-                  'default',
-                messages as unknown as Parameters<typeof streamWithProvider>[2],
-                {
-                  write: (data: string) => {
-                    streamWriter.write(data);
-                    return Promise.resolve();
-                  },
-                },
-                convId,
-                c.req.raw.signal,
-              );
-            } catch (err: unknown) {
-              await streamWriter.write(
-                `data: ${JSON.stringify({ type: 'error', error: errorMessage(err) })}\n\n`,
-              );
-            }
-          });
+        const alternateProviderResponse = streamAlternateProviderChat({
+          c,
+          ctx,
+          slug,
+          input,
+          options,
+          injectContext,
+          ragContext,
+          resolvedProviderConn,
+        });
+        if (alternateProviderResponse) {
+          return alternateProviderResponse;
         }
       }
 
@@ -270,79 +130,23 @@ export function createChatRoutes(ctx: RuntimeContext) {
         return c.json({ success: false, error: 'Agent not found' }, 404);
       }
 
-      // If model override, get or create cached agent with that model
-      if (modelOverride) {
-        if (ctx.modelCatalog) {
-          try {
-            const isValid =
-              await ctx.modelCatalog.validateModelId(modelOverride);
-            if (!isValid) {
-              return c.json(
-                {
-                  success: false,
-                  error: `Invalid model ID: ${modelOverride}. Please select a valid model from the list.`,
-                },
-                400,
-              );
-            }
-          } catch (validationError: unknown) {
-            ctx.logger.warn('Model validation failed', {
-              modelOverride,
-              error: validationError,
-            });
-          }
-        }
-
-        const cacheKey = `${slug}:${modelOverride}`;
-        let cachedAgent = ctx.activeAgents.get(cacheKey);
-
-        if (!cachedAgent) {
-          try {
-            const originalSpec = ctx.agentSpecs.get(slug);
-            const originalTools = ctx.agentTools.get(slug);
-
-            const resolvedModel = ctx.modelCatalog
-              ? await ctx.modelCatalog.resolveModelId(modelOverride)
-              : modelOverride;
-            const newModel = await ctx.createBedrockModel({
-              model: resolvedModel,
-              region: originalSpec?.region || ctx.appConfig.region,
-            } as unknown as Parameters<typeof ctx.createBedrockModel>[0]);
-
-            const tempWrapper = await ctx.framework.createTempAgent({
-              name: cacheKey,
-              instructions:
-                (agent as { instructions?: string }).instructions || '',
-              model: newModel,
-              tools: originalTools as unknown as ITool[],
-            });
-            cachedAgent =
-              ((tempWrapper as { raw?: unknown }).raw as typeof cachedAgent) ||
-              tempWrapper;
-
-            ctx.activeAgents.set(cacheKey, cachedAgent);
-            ctx.logger.info('Created agent with model override', {
-              slug,
-              modelOverride,
-            });
-          } catch (modelError: unknown) {
-            ctx.logger.error('Failed to create agent with model override', {
-              slug,
-              modelOverride,
-              error: modelError,
-            });
-            return c.json(
-              {
-                success: false,
-                error: `Failed to switch to model ${modelOverride}: ${errorMessage(modelError)}`,
-              },
-              500,
-            );
-          }
-        }
-
-        agent = cachedAgent;
+      const modelOverrideResult = await resolveChatAgentModelOverride({
+        ctx,
+        slug,
+        modelOverride,
+        agent,
+      });
+      if (modelOverrideResult.error) {
+        const status = (modelOverrideResult.status || 500) as 400 | 500;
+        return c.json(
+          {
+            success: false,
+            error: modelOverrideResult.error,
+          },
+          status,
+        );
       }
+      agent = modelOverrideResult.agent;
 
       // Set SSE headers
       c.header('Content-Type', 'text/event-stream');
@@ -416,7 +220,9 @@ export function createChatRoutes(ctx: RuntimeContext) {
           // Generate conversationId if not provided
           isNewConversation = !operationContext.conversationId;
           if (isNewConversation && operationContext.userId) {
-            operationContext.conversationId = `${operationContext.userId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+            operationContext.conversationId = createChatConversationId(
+              operationContext.userId,
+            );
           }
 
           const abortController = new AbortController();
@@ -434,86 +240,33 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
           memory = agent.getMemory();
           memoryAdapter = ctx.memoryAdapters.get(slug);
-          if (!memoryAdapter) {
-            const { FileMemoryAdapter } = await import(
-              '../adapters/file/memory-adapter.js'
-            );
-            memoryAdapter = new FileMemoryAdapter({
-              projectHomeDir: ctx.configLoader.getProjectHomeDir(),
-            });
-            ctx.memoryAdapters.set(slug, memoryAdapter);
-          }
-          // Always use memoryAdapter (FileMemoryAdapter) for conversation creation.
-          // VoltAgent's Memory may use InMemoryStorageAdapter internally, which
-          // never writes to disk. The FileMemoryAdapter guarantees persistence.
-          const conversationStorage = memoryAdapter || memory;
-          if (
-            conversationStorage &&
-            operationContext.conversationId &&
-            operationContext.userId
-          ) {
-            const existing = await conversationStorage.getConversation(
-              operationContext.conversationId,
-            );
-            if (!existing) {
-              const title =
-                operationContext.title ||
-                (input.length > 50 ? `${input.substring(0, 50)}...` : input);
-              await conversationStorage.createConversation({
-                id: operationContext.conversationId,
-                resourceId: slug,
-                userId: operationContext.userId,
-                title,
-                metadata: {},
-              });
-            }
-          }
+          const isFileBackedAgent = ctx.agentSpecs.has(slug);
+          const conversationStorage = isFileBackedAgent
+            ? memory
+            : memoryAdapter;
+          await ensureChatConversation({
+            conversationStorage,
+            conversationId: operationContext.conversationId,
+            userId: operationContext.userId,
+            slug,
+            input: input as string | ChatMessage[],
+            title: operationContext.title,
+          });
 
-          const traceId = `${operationContext.conversationId}:${Date.now()}:${Math.random().toString(36).substr(2, 9)}`;
+          const traceId = createChatTraceId(operationContext.conversationId!);
           operationContext.traceId = traceId;
 
-          // Inject conversation-scoped negative ratings
-          if (operationContext.conversationId) {
-            const negativeRatings = ctx.feedbackService
-              .getRatings()
-              .filter(
-                (r) =>
-                  r.conversationId === operationContext.conversationId &&
-                  r.rating === 'thumbs_down',
-              );
-            if (negativeRatings.length > 0) {
-              const ratingLines = negativeRatings
-                .map(
-                  (r) =>
-                    `- Message #${r.messageIndex} was rated negatively${r.reason ? `: "${r.reason}"` : ''}`,
-                )
-                .join('\n');
-              const block = `<conversation_feedback>\nThe user has flagged these responses in this conversation:\n${ratingLines}\nAdjust your approach accordingly.\n</conversation_feedback>`;
-              ragContext = ragContext ? `${ragContext}\n\n${block}` : block;
-              feedbackOps.add(negativeRatings.length, {
-                operation: 'inject-conversation',
-              });
-            }
-          }
+          ragContext = injectConversationFeedbackContext(
+            ctx.feedbackService.getRatings(),
+            operationContext.conversationId,
+            ragContext,
+          );
 
-          // Inject RAG context into input
-          let finalInput = input;
-          const combinedContext =
-            [injectContext, ragContext].filter(Boolean).join('\n\n') || null;
-          if (combinedContext && typeof input === 'string') {
-            finalInput = `${combinedContext}\n\n${input}`;
-          } else if (combinedContext && Array.isArray(input)) {
-            const clone = JSON.parse(JSON.stringify(input));
-            const userMsg = clone.find((m: ChatMessage) => m.role === 'user');
-            if (userMsg?.parts) {
-              const textPart = userMsg.parts.find(
-                (p: { type: string; text?: string }) => p.type === 'text',
-              );
-              if (textPart)
-                textPart.text = `${combinedContext}\n\n${textPart.text}`;
-            }
-            finalInput = clone;
-          }
+          const finalInput = applyCombinedContextToInput(
+            input as string | ChatMessage[],
+            injectContext,
+            ragContext,
+          );
 
           result = await agent.streamText(finalInput, operationContext);
 
@@ -572,10 +325,9 @@ export function createChatRoutes(ctx: RuntimeContext) {
           });
 
           if (isNewConversation && operationContext.conversationId) {
-            const conversation = memoryAdapter
-              ? await memoryAdapter.getConversation(
-                  operationContext.conversationId,
-                )
+            const mem = agent.getMemory();
+            const conversation = mem
+              ? await mem.getConversation(operationContext.conversationId)
               : null;
             await streamWriter.write(
               `data: ${JSON.stringify({
@@ -677,43 +429,24 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
           ctx.agentStatus.set(slug, 'idle');
 
-          if (memoryAdapter && conversationId && accumulatedText) {
+          const isFileBackedAgent = ctx.agentSpecs.has(slug);
+          if (
+            !isFileBackedAgent &&
+            memoryAdapter &&
+            conversationId &&
+            accumulatedText
+          ) {
             try {
-              const userText =
-                typeof input === 'string'
-                  ? input
-                  : Array.isArray(input)
-                    ? input
-                        .find((m: ChatMessage) => m.role === 'user')
-                        ?.parts?.find(
-                          (p: { type: string; text?: string }) =>
-                            p.type === 'text',
-                        )?.text || ''
-                    : '';
-              if (userText) {
-                await memoryAdapter.addMessage(
-                  {
-                    id: crypto.randomUUID(),
-                    role: 'user',
-                    parts: [{ type: 'text', text: userText }],
-                  },
-                  operationContext.userId || getCachedUser().alias,
-                  conversationId,
-                );
-              }
-              await memoryAdapter.addMessage(
-                {
-                  id: crypto.randomUUID(),
-                  role: 'assistant',
-                  parts: [{ type: 'text', text: accumulatedText }],
-                },
-                operationContext.userId || getCachedUser().alias,
+              await persistTemporaryAgentMessages({
+                memoryAdapter,
                 conversationId,
-                { model: modelOverride || ctx.agentSpecs.get(slug)?.model },
-              );
+                input: input as string | ChatMessage[],
+                accumulatedText,
+                model: modelOverride || ctx.agentSpecs.get(slug)?.model,
+                userId: operationContext.userId,
+              });
             } catch (e) {
-              ctx.logger.error('Failed to persist messages', {
-                agent: slug,
+              ctx.logger.error('Failed to persist messages for temp agent', {
                 error: e,
               });
             }

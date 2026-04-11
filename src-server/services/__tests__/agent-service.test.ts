@@ -26,7 +26,12 @@ function createMockConfigLoader() {
         Promise.resolve({ name: 'Default', ...updates }),
       ),
     deleteAgent: vi.fn().mockResolvedValue(undefined),
-    getLayoutsUsingAgent: vi.fn().mockResolvedValue([]),
+  };
+}
+
+function createMockStorageAdapter() {
+  return {
+    findLayoutsUsingAgent: vi.fn().mockReturnValue([]),
   };
 }
 
@@ -42,6 +47,7 @@ describe('AgentService', () => {
     const loader = createMockConfigLoader();
     const svc = new AgentService(
       loader as any,
+      createMockStorageAdapter() as any,
       new Map(),
       new Map(),
       new Map(),
@@ -55,6 +61,7 @@ describe('AgentService', () => {
     const loader = createMockConfigLoader();
     const svc = new AgentService(
       loader as any,
+      createMockStorageAdapter() as any,
       new Map(),
       new Map(),
       new Map(),
@@ -66,9 +73,13 @@ describe('AgentService', () => {
 
   test('deleteAgent fails if layouts reference agent', async () => {
     const loader = createMockConfigLoader();
-    loader.getLayoutsUsingAgent.mockResolvedValue(['dashboard']);
+    const storageAdapter = createMockStorageAdapter();
+    storageAdapter.findLayoutsUsingAgent.mockReturnValue([
+      { projectSlug: 'default', layoutSlug: 'dashboard' },
+    ]);
     const svc = new AgentService(
       loader as any,
+      storageAdapter as any,
       new Map(),
       new Map(),
       new Map(),
@@ -83,6 +94,7 @@ describe('AgentService', () => {
     const loader = createMockConfigLoader();
     const svc = new AgentService(
       loader as any,
+      createMockStorageAdapter() as any,
       new Map(),
       new Map(),
       new Map(),
@@ -97,6 +109,7 @@ describe('AgentService', () => {
     const active = new Map([['default', { id: 'default' }]]);
     const svc = new AgentService(
       loader as any,
+      createMockStorageAdapter() as any,
       active,
       new Map(),
       new Map(),
@@ -110,6 +123,7 @@ describe('AgentService', () => {
     const active = new Map([['default', {}]]);
     const svc = new AgentService(
       {} as any,
+      createMockStorageAdapter() as any,
       active,
       new Map(),
       new Map(),
@@ -124,6 +138,7 @@ describe('AgentService', () => {
     const active = new Map([['default', agent]]);
     const svc = new AgentService(
       {} as any,
+      createMockStorageAdapter() as any,
       active,
       new Map(),
       new Map(),
@@ -137,6 +152,7 @@ describe('AgentService', () => {
     const loader = createMockConfigLoader();
     const svc = new AgentService(
       loader as any,
+      createMockStorageAdapter() as any,
       new Map(),
       new Map(),
       new Map(),

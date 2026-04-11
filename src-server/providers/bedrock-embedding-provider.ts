@@ -1,6 +1,6 @@
 import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { checkBedrockCredentials } from './bedrock.js';
-import type { IEmbeddingProvider } from './types.js';
+import type { IEmbeddingProvider } from './model-provider-types.js';
 
 export class BedrockEmbeddingProvider implements IEmbeddingProvider {
   readonly id = 'bedrock-embedding';
@@ -59,7 +59,7 @@ export class BedrockEmbeddingProvider implements IEmbeddingProvider {
   }
 
   async getPrerequisites(): Promise<
-    import('@stallion-ai/shared').Prerequisite[]
+    import('@stallion-ai/contracts/tool').Prerequisite[]
   > {
     const hasCreds = await checkBedrockCredentials();
     return [

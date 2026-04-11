@@ -8,7 +8,8 @@ All environment variables recognized by Stallion, grouped by category.
 |----------|---------|-------------|--------|
 | `PORT` | `3141` | Server listen port | `src-server/index.ts` |
 | `STALLION_AI_DIR` | `~/.stallion-ai` | Data directory for all runtime state | `src-server/utils/paths.ts` |
-| `STALLION_PORT` | `3141` | Port used by the stallion-control MCP server to reach the API | `src-server/tools/stallion-control-server.ts` |
+| `STALLION_API_BASE` | `http://127.0.0.1:3141` | Explicit API base URL used by the built-in `stallion-control` MCP server | `src-server/tools/stallion-control-shared.ts` |
+| `STALLION_PORT` | `3141` | Legacy port fallback used by the built-in `stallion-control` MCP server when `STALLION_API_BASE` is unset | `src-server/tools/stallion-control-shared.ts` |
 | `STALLION_FEATURES` | _(none)_ | Comma-separated feature flags (e.g. `strands-runtime`) | `src-server/runtime/stallion-runtime.ts` |
 | `ALLOWED_ORIGINS` | _(none)_ | Comma-separated additional CORS origins (localhost origins are always allowed) | `src-server/runtime/stallion-runtime.ts` |
 | `AWS_REGION` | `us-east-1` | Default AWS region for Bedrock API calls | `src-server/routes/models.ts` |

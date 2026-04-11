@@ -3,7 +3,7 @@
  * Handles streaming pipeline setup, handler creation, and SSE output
  */
 
-import type { AgentSpec } from '../domain/types.js';
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import { parseToolName } from '../utils/tool-name-normalizer.js';
 import { CompletionHandler } from './streaming/handlers/CompletionHandler.js';

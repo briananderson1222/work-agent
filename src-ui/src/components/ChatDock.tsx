@@ -1,9 +1,11 @@
-import { useProjectLayoutsQuery } from '@stallion-ai/sdk';
+import {
+  fetchConversationById,
+  useProjectLayoutsQuery,
+} from '@stallion-ai/sdk';
 import { useEffect, useRef, useState } from 'react';
 import {
   activeChatsStore,
   useActiveChatActions,
-  useRehydrateSessions,
 } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -13,6 +15,7 @@ import { useModels } from '../contexts/ModelsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useProject, useProjects } from '../contexts/ProjectsContext';
 import { useActiveProject } from '../hooks/useActiveProject';
+import { useRehydrateSessions } from '../hooks/useActiveChatSessions';
 import { useChatDockActions } from '../hooks/useChatDockActions';
 import { useChatDockKeyboardShortcuts } from '../hooks/useChatDockKeyboardShortcuts';
 import { useChatDockState } from '../hooks/useChatDockState';
@@ -202,16 +205,16 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     triedChatRef.current = activeChat;
     (async () => {
       try {
-        const res = await fetch(
-          `${apiBase}/api/conversations/${encodeURIComponent(activeChat)}`,
-        );
-        const json = await res.json();
-        if (!json.success || !json.data) {
+        const conversation = await fetchConversationById(activeChat, apiBase);
+        if (!conversation) {
           setActiveChat(null);
           return;
         }
-        const conv = json.data;
-        await openConversation(conv.id, conv.agentSlug, conv.projectSlug);
+        await openConversation(
+          conversation.id,
+          conversation.agentSlug,
+          conversation.projectSlug,
+        );
       } catch {
         setActiveChat(null);
       }
@@ -449,7 +452,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
       {showSessionPicker && (
         <SessionPickerModal
           isOpen={showSessionPicker}
-          apiBase={apiBase}
           agents={agents}
           activeConversationIds={
             sessions.map((s) => s.conversationId).filter(Boolean) as string[]

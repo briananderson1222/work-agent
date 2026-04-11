@@ -25,6 +25,10 @@
   "publishConfig": {
     "access": "public"
   },
+  "dependencies": {
+    "@stallion-ai/contracts": "^0.1.0",
+    "@stallion-ai/shared": "^0.4.0"
+  },
   "peerDependencies": {
     "react": "^18.0.0 || ^19.0.0"
   },

@@ -1,10 +1,14 @@
-import { useAgentsQuery } from '@stallion-ai/sdk';
-import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ACPConnectionsSection } from '../components/ACPConnectionsSection';
-import { AgentIcon } from '../components/AgentIcon';
-import { ConfirmModal } from '../components/ConfirmModal';
-import { DetailHeader } from '../components/DetailHeader';
+import {
+  type AgentTemplate,
+  useAgentQuery,
+  useAgentTemplatesQuery,
+  useAgentsQuery,
+  useAgentToolsQuery,
+  useIntegrationsQuery,
+  usePromptsQuery,
+  useSkillsQuery,
+} from '@stallion-ai/sdk';
+import { useEffect, useMemo, useState } from 'react';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
 import {
   type AgentData,
@@ -16,84 +20,37 @@ import { useACPConnections } from '../hooks/useACPConnections';
 import { useAIEnrich } from '../hooks/useAIEnrich';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import { useUrlSelection } from '../hooks/useUrlSelection';
-import type { AgentSummary, NavigationView, Tool } from '../types';
-import { formatExecutionSummary } from '../utils/execution';
-import { AgentAddModal } from './AgentAddModal';
-import { AgentEditorForm, type AgentFormData } from './AgentEditorForm';
+import type { NavigationView, Tool } from '../types';
+import {
+  buildAgentPayload,
+  createEmptyAgentForm,
+  createNewAgentForm,
+  formFromAgent,
+  groupAgentToolsByServer,
+  isAgentFormDirty,
+  validateAgentForm,
+} from './agent-editor/agentsViewUtils';
+import {
+  buildAgentsViewEmptyContent,
+  buildAgentsViewItems,
+} from './agent-editor/agentsViewHelpers';
+import {
+  AgentsViewEditorPane,
+} from './agent-editor/AgentsViewEditorPane';
+import type { AgentFormData } from './agent-editor/types';
 import './editor-layout.css';
 import './page-layout.css';
 
 interface AgentsViewProps {
   agents: AgentData[];
-  apiBase: string;
   availableModels: Array<{ id: string; name: string }>;
   defaultModel?: string;
   bedrockReady: boolean;
   onNavigate: (view: NavigationView) => void;
 }
 
-const EMPTY_FORM: AgentFormData = {
-  slug: '',
-  name: '',
-  description: '',
-  prompt: '',
-  modelId: '',
-  region: '',
-  guardrails: null,
-  maxSteps: '',
-  tools: { mcpServers: [], available: [], autoApprove: [] },
-  execution: {
-    runtimeConnectionId: 'bedrock-runtime',
-    modelConnectionId: '',
-    runtimeOptions: {},
-  },
-  icon: '',
-  skills: [],
-  prompts: [],
-};
-
-function formFromAgent(agent: any): AgentFormData {
-  return {
-    slug: agent.slug || agent.id || '',
-    name: agent.name || '',
-    description: agent.description || '',
-    prompt: agent.prompt || '',
-    modelId:
-      typeof agent.execution?.modelId === 'string'
-        ? agent.execution.modelId
-        : typeof agent.model === 'string'
-          ? agent.model
-          : agent.model?.modelId || '',
-    region: agent.region || '',
-    guardrails:
-      typeof agent.guardrails === 'object' && agent.guardrails
-        ? agent.guardrails
-        : null,
-    maxSteps: agent.maxSteps?.toString() || '',
-    tools: {
-      mcpServers: agent.toolsConfig?.mcpServers || [],
-      available: agent.toolsConfig?.available || [],
-      autoApprove: agent.toolsConfig?.autoApprove || [],
-    },
-    execution: {
-      runtimeConnectionId:
-        agent.execution?.runtimeConnectionId || 'bedrock-runtime',
-      modelConnectionId: agent.execution?.modelConnectionId || '',
-      runtimeOptions: agent.execution?.runtimeOptions || {},
-    },
-    icon: agent.icon || '',
-    skills: agent.skills || [],
-    prompts: agent.prompts || [],
-  };
-}
-
-function isDirty(form: AgentFormData, saved: AgentFormData): boolean {
-  return JSON.stringify(form) !== JSON.stringify(saved);
-}
-
 export function AgentsView({
   agents,
-  apiBase,
   bedrockReady: _bedrockReady,
   onNavigate,
 }: AgentsViewProps) {
@@ -108,59 +65,53 @@ export function AgentsView({
     deselect: urlDeselect,
   } = useUrlSelection('/agents');
 
-  const { data: templates = [] } = useQuery({
-    queryKey: ['templates', 'agent'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/templates?type=agent`);
-      const json = await res.json();
-      return json.data || [];
-    },
-  });
-
   const selectedSlug = urlSlug === 'new' ? null : urlSlug;
+  const selectedAcpConnection = selectedSlug?.startsWith('__acp:')
+    ? selectedSlug.slice(6)
+    : null;
+  const selectedAgentSlug =
+    selectedSlug && !selectedAcpConnection ? selectedSlug : undefined;
   const [isCreating, setIsCreating] = useState(urlSlug === 'new');
   const [templatePicked, setTemplatePicked] = useState(false);
   const [search, setSearch] = useState('');
 
-  const [form, setForm] = useState<AgentFormData>(EMPTY_FORM);
-  const [savedForm, setSavedForm] = useState<AgentFormData>(EMPTY_FORM);
-  const [isLoading, setIsLoading] = useState(false);
+  const [form, setForm] = useState<AgentFormData>(() => createEmptyAgentForm());
+  const [savedForm, setSavedForm] = useState<AgentFormData>(() =>
+    createEmptyAgentForm(),
+  );
   const [isSaving, setIsSaving] = useState(false);
   const [isLocked, setIsLocked] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
-  const [_toolsConfig, setToolsConfig] = useState<any>(null);
-  const { data: availableTools = [] } = useQuery<Tool[]>({
-    queryKey: ['integrations'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/integrations`);
-      if (!res.ok) return [];
-      const data = await res.json();
-      return data.data || [];
-    },
+  const { data: templates = [] } = useAgentTemplatesQuery() as {
+    data?: AgentTemplate[];
+  };
+  const { data: availableTools = [] } = useIntegrationsQuery() as {
+    data?: Tool[];
+  };
+  const { data: availableSkills = [] } = useSkillsQuery() as {
+    data?: any[];
+  };
+  const { data: availablePrompts = [] } = usePromptsQuery() as {
+    data?: any[];
+  };
+  const {
+    data: loadedAgent,
+    isLoading,
+    error: loadError,
+    refetch: refetchAgent,
+  } = useAgentQuery(selectedAgentSlug, {
+    enabled: !!selectedAgentSlug && !isCreating,
   });
-  const { data: availableSkills = [] } = useQuery<any[]>({
-    queryKey: ['skills'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/system/skills`);
-      const json = await res.json();
-      return json.data ?? [];
-    },
-  });
-  const { data: availablePrompts = [] } = useQuery<any[]>({
-    queryKey: ['prompts'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/prompts`);
-      const json = await res.json();
-      return json.data ?? [];
-    },
-  });
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [addModalType, setAddModalType] = useState<
-    'integrations' | 'skills' | 'prompts' | null
-  >(null);
+  const { data: agentTools = [], refetch: refetchAgentTools } =
+    useAgentToolsQuery(selectedAgentSlug, {
+      enabled: !!selectedAgentSlug && !isCreating,
+    }) as {
+      data?: Tool[];
+      refetch: () => Promise<unknown>;
+    };
   const [integrationTools, setIntegrationTools] = useState<
     Record<string, Tool[]>
   >({});
@@ -180,107 +131,42 @@ export function AgentsView({
     );
   }, [allAgents, search]);
 
-  // Group: global → plugin-scoped → ACP connections (runtime agents excluded)
   const listItems = useMemo(() => {
-    // Filter out runtime agents — they belong on Connections page
-    const nonRuntime = filteredAgents.filter(
-      (a) => !a.slug.startsWith('__runtime:') && a.source !== 'acp',
-    );
-
-    // Separate plugin/layout-scoped agents from standalone
-    const globalAgents = nonRuntime.filter((a) => !a.slug.includes(':'));
-    const pluginAgents = nonRuntime.filter((a) => a.slug.includes(':'));
-
-    const globalItems = globalAgents.map((a) => ({
-      id: a.slug,
-      name: a.name,
-      subtitle: formatExecutionSummary(a) || a.slug,
-      icon: <AgentIcon agent={a} size="small" />,
-      section: 'Global',
-    }));
-
-    const pluginItems = pluginAgents.map((a) => {
-      const pluginName = a.slug.split(':')[0];
-      return {
-        id: a.slug,
-        name: a.name,
-        subtitle: formatExecutionSummary(a) || a.slug,
-        icon: <AgentIcon agent={a} size="small" />,
-        section: pluginName,
-      };
-    });
-
-    const connItems = acpConnections.map((c: any) => ({
-      id: `__acp:${c.id}`,
-      name: c.name || c.id,
-      subtitle: `${(c.modes || []).length} agents · ACP`,
-      icon: c.icon ? (
-        <img src={c.icon} alt="" className="agents-list__acp-icon" />
-      ) : (
-        <span className="agents-list__acp-emoji">🔌</span>
-      ),
-      section: 'ACP',
-    }));
-
-    return [...globalItems, ...pluginItems, ...connItems];
+    return buildAgentsViewItems(filteredAgents, acpConnections);
   }, [filteredAgents, acpConnections]);
 
-  const loadAgent = useCallback(
-    async (slug: string) => {
-      try {
-        setIsLoading(true);
-        setError(null);
-        const res = await fetch(
-          `${apiBase}/api/agents/${encodeURIComponent(slug)}`,
-        );
-        if (res.status === 404) throw new Error('Agent not found');
-        if (!res.ok) throw new Error('Failed to load agent');
-        const data = await res.json();
-        const agent = data.data;
-        if (!agent) throw new Error('Agent not found');
-        const f = formFromAgent(agent);
-        setForm(f);
-        setSavedForm(f);
-        setToolsConfig(agent.toolsConfig || null);
-        setIsLocked(true);
-
-        // Fetch per-agent tools with server metadata
-        try {
-          const toolsRes = await fetch(`${apiBase}/agents/${slug}/tools`);
-          if (toolsRes.ok) {
-            const toolsData = await toolsRes.json();
-            const grouped: Record<string, Tool[]> = {};
-            for (const tool of toolsData.data || []) {
-              if (tool.server) {
-                if (!grouped[tool.server]) grouped[tool.server] = [];
-                grouped[tool.server].push(tool);
-              }
-            }
-            setIntegrationTools(grouped);
-          }
-        } catch {
-          /* non-critical */
-        }
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setIsLoading(false);
-      }
+  const emptyContent = buildAgentsViewEmptyContent({
+    agentsCount: agents.length,
+    templates,
+    onCreateFromTemplate: (templateForm) => {
+      handleNew(templateForm);
     },
-    [apiBase],
-  );
+    onCreateBlank: () => {
+      handleNew();
+      setTemplatePicked(true);
+    },
+  });
 
   useEffect(() => {
-    if (selectedSlug && !isCreating) {
-      loadAgent(selectedSlug);
+    if (!loadedAgent || isCreating) {
+      return;
     }
-  }, [selectedSlug, isCreating, loadAgent]);
+
+    const nextForm = formFromAgent(loadedAgent);
+    setForm(nextForm);
+    setSavedForm(nextForm);
+    setIsLocked(true);
+  }, [loadedAgent, isCreating]);
+
+  useEffect(() => {
+    setIntegrationTools(groupAgentToolsByServer(agentTools));
+  }, [agentTools]);
 
   function handleSelect(slug: string) {
     guard(() => {
       urlSelect(slug);
       setIsCreating(false);
-      setError(null);
+      setActionError(null);
       setValidationErrors({});
     });
   }
@@ -290,10 +176,10 @@ export function AgentsView({
       urlSelect('new');
       setIsCreating(true);
       setTemplatePicked(!!initialForm || agents.length === 0);
-      const base = initialForm ? { ...EMPTY_FORM, ...initialForm } : EMPTY_FORM;
+      const base = createNewAgentForm(initialForm);
       setForm(base);
       setSavedForm(base);
-      setError(null);
+      setActionError(null);
       setValidationErrors({});
     });
   }
@@ -301,18 +187,11 @@ export function AgentsView({
   function handleDeselect() {
     urlDeselect();
     setIsCreating(false);
-    setError(null);
+    setActionError(null);
   }
 
   function validate(): boolean {
-    const errors: Record<string, string> = {};
-    if (!form.name.trim()) errors.name = 'Name is required';
-    if (!form.prompt.trim()) errors.prompt = 'System prompt is required';
-    if (isCreating) {
-      if (!form.slug.trim()) errors.slug = 'Slug is required';
-      else if (!/^[a-z0-9-]+$/.test(form.slug))
-        errors.slug = 'Lowercase letters, numbers, hyphens only';
-    }
+    const errors = validateAgentForm(form, isCreating);
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -321,40 +200,18 @@ export function AgentsView({
     if (!validate()) return;
     try {
       setIsSaving(true);
-      setError(null);
-      const payload: Record<string, any> = {
-        slug: form.slug,
-        name: form.name,
-        description: form.description || undefined,
-        prompt: form.prompt || undefined,
-        model: form.modelId || undefined,
-        region: form.region || undefined,
-        guardrails: form.guardrails || undefined,
-        maxSteps: form.maxSteps ? parseInt(form.maxSteps, 10) : undefined,
-        tools: form.tools.mcpServers.length > 0 ? form.tools : undefined,
-        execution: {
-          runtimeConnectionId: form.execution.runtimeConnectionId,
-          modelConnectionId: form.execution.modelConnectionId || undefined,
-          modelId: form.modelId || undefined,
-          runtimeOptions:
-            Object.keys(form.execution.runtimeOptions).length > 0
-              ? form.execution.runtimeOptions
-              : undefined,
-        },
-        icon: form.icon || undefined,
-        skills: form.skills.length > 0 ? form.skills : undefined,
-        prompts: form.prompts.length > 0 ? form.prompts : undefined,
-      };
+      setActionError(null);
+      const payload = buildAgentPayload(form);
       if (isCreating) {
         await createAgent(payload as any);
         setIsCreating(false);
         urlSelect(form.slug);
       } else {
         await updateAgent(selectedSlug!, payload);
-        await loadAgent(selectedSlug!);
+        await Promise.all([refetchAgent(), refetchAgentTools()]);
       }
     } catch (err: any) {
-      setError(err.message);
+      setActionError(err.message);
     } finally {
       setIsSaving(false);
     }
@@ -365,23 +222,21 @@ export function AgentsView({
       await deleteAgent(selectedSlug!);
       urlDeselect();
       setIsCreating(false);
-      setShowDeleteModal(false);
     } catch (err: any) {
-      setError(err.message);
-      setShowDeleteModal(false);
+      setActionError(err.message);
     }
   }
 
-  const dirty = isDirty(form, savedForm);
+  const dirty = isAgentFormDirty(form, savedForm);
   const { guard, DiscardModal } = useUnsavedGuard(dirty);
 
-  const isPlugin = selectedSlug?.includes(':') && !isCreating;
+  const isPlugin = !!selectedSlug?.includes(':') && !isCreating;
   const selectedAgent = allAgents.find((a) => a.slug === selectedSlug);
   const isAcp = selectedAgent?.source === 'acp';
   const locked = !!(isPlugin && isLocked) || !!isAcp;
-  const selectedAcpConnection = selectedSlug?.startsWith('__acp:')
-    ? selectedSlug.slice(6)
-    : null;
+  const error =
+    actionError ??
+    (loadError instanceof Error ? loadError.message : loadError ? String(loadError) : null);
   const notFound = !isCreating && error === 'Agent not found';
 
   const editorId = isCreating ? '__new__' : (selectedSlug ?? null);
@@ -404,245 +259,49 @@ export function AgentsView({
         emptyIcon="⬡"
         emptyTitle="No agent selected"
         emptyDescription="Select an agent to edit, or create a new one"
-        emptyContent={
-          <div className="agents-empty-wrapper">
-            {agents.length === 0 ? (
-              <div className="agents-onboard">
-                <h3 className="agents-onboard__title">Get started</h3>
-                <p className="agents-onboard__desc">
-                  Create your first agent from a template
-                </p>
-                <div className="template-grid">
-                  {templates.map((t: any) => (
-                    <button
-                      key={t.id}
-                      className="template-card"
-                      onClick={() => handleNew(t.form)}
-                    >
-                      <span className="template-card__icon">{t.icon}</span>
-                      <span className="template-card__label">{t.label}</span>
-                      <span className="template-card__desc">
-                        {t.description}
-                      </span>
-                      {t.source !== 'built-in' && (
-                        <span className="template-card__source">
-                          {t.source}
-                        </span>
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="split-pane__empty">
-                <div className="split-pane__empty-icon">⬡</div>
-                <p className="split-pane__empty-title">No agent selected</p>
-                <p className="split-pane__empty-desc">
-                  Select an agent to edit, or create a new one
-                </p>
-              </div>
-            )}
-          </div>
-        }
+        emptyContent={emptyContent}
       >
-        {selectedAcpConnection ? (
-          <div className="agent-editor__acp-section">
-            <ACPConnectionsSection
-              acpAgents={acpAgents as unknown as AgentSummary[]}
-              apiBase={apiBase}
-            />
-          </div>
-        ) : isLoading ? (
-          <div className="editor__loading">Loading agent...</div>
-        ) : notFound ? (
-          <div className="split-pane__empty">
-            <div className="split-pane__empty-icon">⬡</div>
-            <p className="split-pane__empty-title">Agent not found</p>
-            <p className="split-pane__empty-desc">
-              The agent "{selectedSlug}" doesn't exist or was deleted.
-            </p>
-            <button
-              type="button"
-              className="editor-btn editor-btn--primary"
-              onClick={handleDeselect}
-            >
-              Back to agents
-            </button>
-          </div>
-        ) : (
-          <div className="agent-inline-editor">
-            {/* Editor header */}
-            <DetailHeader
-              title={isCreating ? 'New Agent' : form.name || selectedSlug || ''}
-              icon={
-                !isCreating && selectedAgent ? (
-                  <AgentIcon
-                    agent={selectedAgent}
-                    size="medium"
-                    className="editor-icon-preview"
-                  />
-                ) : undefined
-              }
-              badge={
-                isAcp
-                  ? { label: 'ACP', variant: 'muted' as const }
-                  : isPlugin
-                    ? {
-                        label: selectedSlug?.split(':')[0] || 'plugin',
-                        variant: 'info' as const,
-                      }
-                    : undefined
-              }
-            >
-              {!isCreating && selectedSlug && !isAcp && (
-                <button
-                  type="button"
-                  className="editor-btn editor-btn--danger"
-                  onClick={() => setShowDeleteModal(true)}
-                  disabled={locked}
-                >
-                  Delete
-                </button>
-              )}
-              {!isAcp && (
-                <button
-                  type="button"
-                  className="editor-btn editor-btn--primary agent-editor__save-btn"
-                  onClick={handleSave}
-                  disabled={isSaving || locked}
-                >
-                  {dirty && !isSaving && (
-                    <span
-                      className="agent-inline-editor__dirty-dot"
-                      aria-label="Unsaved changes"
-                    />
-                  )}
-                  {isSaving
-                    ? 'Saving…'
-                    : isCreating
-                      ? 'Create Agent'
-                      : 'Save Changes'}
-                </button>
-              )}
-            </DetailHeader>
-
-            {error && (
-              <div className="management-view__error agent-editor__error-banner">
-                {error}
-              </div>
-            )}
-
-            {/* Plugin lock banner */}
-            {isPlugin && isLocked && (
-              <div className="editor__lock-banner">
-                <span>
-                  🔒 This agent is managed by a plugin. Edits will be
-                  overwritten on plugin updates.
-                </span>
-                <button
-                  type="button"
-                  className="editor__lock-btn"
-                  onClick={() => setIsLocked(false)}
-                >
-                  Unlock
-                </button>
-              </div>
-            )}
-
-            {/* ACP info banner */}
-            {isAcp && (
-              <div className="editor__lock-banner editor__lock-banner--info">
-                <span>
-                  ℹ️ This agent is managed by ACP. Configuration is read-only.
-                </span>
-              </div>
-            )}
-
-            <div className="agent-inline-editor__body">
-              {isCreating && !templatePicked && agents.length > 0 ? (
-                <div className="agent-editor__template-picker">
-                  <h3 className="agent-editor__template-title">
-                    Start with a template
-                  </h3>
-                  <p className="agent-editor__template-desc">
-                    Pick a starting point or start from scratch
-                  </p>
-                  <div className="template-grid">
-                    {templates.map((t: any) => (
-                      <button
-                        key={t.id}
-                        className="template-card"
-                        onClick={() => {
-                          setForm((f) => ({ ...f, ...t.form }));
-                          setSavedForm((f) => ({ ...f, ...t.form }));
-                          setTemplatePicked(true);
-                        }}
-                      >
-                        <span className="template-card__icon">{t.icon}</span>
-                        <span className="template-card__label">{t.label}</span>
-                        <span className="template-card__desc">
-                          {t.description}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    className="template-card"
-                    onClick={() => setTemplatePicked(true)}
-                  >
-                    <span className="template-card__icon">✨</span>
-                    <span className="template-card__label">Custom</span>
-                    <span className="template-card__desc">
-                      Start from scratch
-                    </span>
-                  </button>
-                </div>
-              ) : (
-                <AgentEditorForm
-                  form={form}
-                  setForm={setForm}
-                  isCreating={isCreating}
-                  locked={locked}
-                  isPlugin={isPlugin}
-                  isLocked={isLocked}
-                  validationErrors={validationErrors}
-                  availableTools={availableTools}
-                  availableSkills={availableSkills}
-                  availablePrompts={availablePrompts}
-                  integrationTools={integrationTools}
-                  appConfig={appConfig}
-                  enrich={enrich}
-                  isEnriching={isEnriching}
-                  onNavigate={onNavigate}
-                  onOpenAddModal={setAddModalType}
-                />
-              )}
-            </div>
-          </div>
-        )}
-      </SplitPaneLayout>
-
-      <ConfirmModal
-        isOpen={showDeleteModal}
-        title="Delete Agent"
-        message={`Are you sure you want to delete "${form.name || selectedSlug}"? This cannot be undone.`}
-        confirmLabel="Delete"
-        onConfirm={handleDelete}
-        onCancel={() => setShowDeleteModal(false)}
-        variant="danger"
-      />
-
-      {addModalType && (
-        <AgentAddModal
-          type={addModalType}
+        <AgentsViewEditorPane
+          selectedAcpConnection={selectedAcpConnection}
+          acpAgents={acpAgents}
+          isLoading={isLoading}
+          notFound={notFound}
+          error={error}
+          isCreating={isCreating}
+          templatePicked={templatePicked}
+          agentsCount={agents.length}
+          selectedSlug={selectedSlug}
+          selectedAgent={selectedAgent}
+          isAcp={isAcp}
+          isPlugin={isPlugin}
+          locked={locked}
+          isLocked={isLocked}
+          dirty={dirty}
+          isSaving={isSaving}
+          validationErrors={validationErrors}
           availableTools={availableTools}
           availableSkills={availableSkills}
           availablePrompts={availablePrompts}
+          integrationTools={integrationTools}
+          appConfig={appConfig}
+          enrich={enrich}
+          isEnriching={isEnriching}
+          onNavigate={onNavigate}
+          onDeselect={handleDeselect}
+          onDelete={handleDelete}
+          onSave={handleSave}
+          onUnlockPlugin={() => setIsLocked(false)}
           form={form}
           setForm={setForm}
-          onClose={() => setAddModalType(null)}
+          templates={templates}
+          onPickTemplate={(templateForm) => {
+            setForm((current) => ({ ...current, ...templateForm }));
+            setSavedForm((current) => ({ ...current, ...templateForm }));
+            setTemplatePicked(true);
+          }}
+          onStartBlank={() => setTemplatePicked(true)}
         />
-      )}
+      </SplitPaneLayout>
 
       <DiscardModal />
     </div>

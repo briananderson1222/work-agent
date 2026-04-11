@@ -2,12 +2,11 @@ import { useCallback, useRef, useState } from 'react';
 import {
   useActiveChatActions,
   useActiveChatState,
-  useCancelMessage,
-  useSendMessage,
 } from '../contexts/ActiveChatsContext';
 import { useToast } from '../contexts/ToastContext';
 import type { FileAttachment } from '../types';
 import { useAutocompleteState } from './useAutocompleteState';
+import { useCancelMessage, useSendMessage } from './useActiveChatSessions';
 import { useSlashCommandHandler } from './useSlashCommandHandler';
 import type { SlashCommand } from './useSlashCommands';
 import { useSlashCommands } from './useSlashCommands';

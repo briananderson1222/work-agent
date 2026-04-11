@@ -1,4 +1,4 @@
-import type { StandaloneLayoutConfig } from '../types';
+import type { LayoutDefinition } from '@stallion-ai/contracts/layout';
 
 /**
  * Resolve agent name within workspace context
@@ -8,7 +8,7 @@ import type { StandaloneLayoutConfig } from '../types';
  */
 export function resolveAgentName(
   agentName: string,
-  layout?: StandaloneLayoutConfig,
+  layout?: LayoutDefinition,
 ): string {
   // Already fully qualified
   if (agentName.includes(':')) {

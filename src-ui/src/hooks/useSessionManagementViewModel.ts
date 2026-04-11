@@ -1,6 +1,6 @@
+import { conversationQueries } from '@stallion-ai/sdk';
 import { useQueries } from '@tanstack/react-query';
 import { useMemo } from 'react';
-import { useApiBase } from '../contexts/ApiBaseContext';
 
 interface Agent {
   slug: string;
@@ -27,21 +27,11 @@ export function useSessionManagementViewModel(
   agents: Agent[],
   enabled: boolean = true,
 ) {
-  const { apiBase } = useApiBase();
   // Fetch conversations for all agents using useQueries
   const queries = useQueries({
     queries: agents.map((agent) => ({
-      queryKey: ['conversations', agent.slug],
-      queryFn: async () => {
-        const response = await fetch(
-          `${apiBase}/agents/${agent.slug}/conversations`,
-        );
-        const result = await response.json();
-        if (!result.success) throw new Error(result.error);
-        return result.data;
-      },
+      ...conversationQueries.list(agent.slug),
       enabled: enabled && !!agent.slug,
-      staleTime: 0,
     })),
   });
 

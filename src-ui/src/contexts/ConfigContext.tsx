@@ -1,7 +1,6 @@
 import {
-  useApiMutation,
   useConfigQuery,
-  useInvalidateQuery,
+  useUpdateConfigMutation,
 } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 import type { AppConfig } from '../types';
@@ -32,25 +31,9 @@ export function useConfig(): ConfigData | null {
 }
 
 export function useConfigActions() {
-  const invalidate = useInvalidateQuery();
-
-  const updateMutation = useApiMutation(
-    async (config: Partial<ConfigData>) => {
-      const apiBase = CONFIG_DEFAULTS.apiBase;
-      const response = await fetch(`${apiBase}/config/app`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(config),
-      });
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error);
-      return result.data;
-    },
-    {
-      onSuccess: () => invalidate(['config']),
-      onError: (error) => log.api('Failed to update config:', error),
-    },
-  );
+  const updateMutation = useUpdateConfigMutation({
+    onError: (error) => log.api('Failed to update config:', error),
+  });
 
   return {
     updateConfig: (config: Partial<ConfigData>) =>

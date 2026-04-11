@@ -1,41 +1,52 @@
 /**
- * SDK Types — re-exported from @stallion-ai/shared + SDK-specific types.
- * Shared types live in packages/shared. SDK-only types (React, UI) live here.
+ * SDK Types — re-exported from explicit contracts/shared modules + SDK-specific types.
+ * Contract shapes live in packages/contracts, shared runtime helpers in packages/shared.
  */
 
 import type { ReactElement } from 'react';
 
-// Re-export all shared types
 export type {
   AgentGuardrails,
-  AgentInvokeResponse,
   AgentMetadata,
   AgentQuickPrompt,
   AgentSpec,
   AgentTools,
   AgentUIConfig,
-  ConversationStats,
-  LayoutPrompt,
-  LayoutTab,
-  PluginManifest,
   SlashCommand,
   SlashCommandParam,
-  StandaloneLayoutConfig,
-  StandaloneLayoutMetadata,
+} from '@stallion-ai/contracts/agent';
+export type {
+  AuthStatus,
+  RenewResult,
+  UserDetailVM,
+  UserIdentity,
+} from '@stallion-ai/contracts/auth';
+export type { KnowledgeDocumentMeta, KnowledgeNamespaceConfig } from '@stallion-ai/contracts/knowledge';
+export type {
+  LayoutPrompt,
+  LayoutTab,
+  LayoutDefinition,
+  LayoutDefinitionMetadata,
+} from '@stallion-ai/contracts/layout';
+export type { PluginManifest } from '@stallion-ai/contracts/plugin';
+export type {
+  AgentInvokeResponse,
+  ConversationStats,
+  MemoryEvent,
+  SessionMetadata,
   ToolCallResponse,
-  ToolDef,
-  ToolMetadata,
-  ToolPermissions,
-} from '@stallion-ai/shared';
+  WorkflowMetadata,
+} from '@stallion-ai/contracts/runtime';
+export type { ToolDef, ToolMetadata, ToolPermissions } from '@stallion-ai/contracts/tool';
 
 // ── SDK-specific types (React/UI concerns) ─────────────────────────
 
 export interface LayoutComponentProps {
   agent?: AgentSummary;
-  layout?: import('@stallion-ai/shared').StandaloneLayoutConfig;
-  activeTab?: import('@stallion-ai/shared').LayoutTab;
+  layout?: import('@stallion-ai/contracts/layout').LayoutDefinition;
+  activeTab?: import('@stallion-ai/contracts/layout').LayoutTab;
   onLaunchPrompt?: (
-    prompt: import('@stallion-ai/shared').AgentQuickPrompt,
+    prompt: import('@stallion-ai/contracts/agent').AgentQuickPrompt,
   ) => void;
   onLaunchWorkflow?: (workflowId: string) => void;
   onShowChat?: () => void;
@@ -52,9 +63,9 @@ export interface AgentSummary {
   model?: string;
   region?: string;
   source?: 'local' | 'acp';
-  guardrails?: import('@stallion-ai/shared').AgentGuardrails;
-  tools?: import('@stallion-ai/shared').AgentTools;
-  ui?: import('@stallion-ai/shared').AgentUIConfig;
+  guardrails?: import('@stallion-ai/contracts/agent').AgentGuardrails;
+  tools?: import('@stallion-ai/contracts/agent').AgentTools;
+  ui?: import('@stallion-ai/contracts/agent').AgentUIConfig;
 }
 
 export interface Agent extends AgentSummary {}
@@ -155,15 +166,15 @@ export interface WindowOptions {
 export interface IKnowledgeProvider {
   listDocs(
     namespace?: string,
-  ): Promise<import('@stallion-ai/shared').KnowledgeDocumentMeta[]>;
+  ): Promise<import('@stallion-ai/contracts/knowledge').KnowledgeDocumentMeta[]>;
   search(query: string, namespace?: string, topK?: number): Promise<any[]>;
   save(
     filename: string,
     content: string,
     namespace?: string,
-  ): Promise<import('@stallion-ai/shared').KnowledgeDocumentMeta>;
+  ): Promise<import('@stallion-ai/contracts/knowledge').KnowledgeDocumentMeta>;
   remove(docId: string, namespace?: string): Promise<void>;
   listNamespaces(): Promise<
-    import('@stallion-ai/shared').KnowledgeNamespaceConfig[]
+    import('@stallion-ai/contracts/knowledge').KnowledgeNamespaceConfig[]
   >;
 }

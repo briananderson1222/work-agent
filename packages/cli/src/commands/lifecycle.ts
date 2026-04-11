@@ -7,7 +7,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { resolveGitInfo } from '@stallion-ai/shared';
+import { resolveGitInfo } from '@stallion-ai/shared/git';
 import { CWD, PIDFILE, PROJECT_HOME } from './helpers.js';
 import {
   createAppShortcut,

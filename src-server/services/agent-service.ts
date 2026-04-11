@@ -2,12 +2,13 @@
  * Agent Service - handles agent CRUD and lifecycle operations
  */
 
-import type { AgentExecutionConfig } from '@stallion-ai/shared';
+import type { AgentExecutionConfig } from '@stallion-ai/contracts/agent';
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
 
 type Agent = any;
 
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { AgentSpec } from '../domain/types.js';
+import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import { agentOps } from '../telemetry/metrics.js';
 
 export interface AgentMetadata {
@@ -37,6 +38,7 @@ export interface EnrichedAgent {
 export class AgentService {
   constructor(
     private configLoader: ConfigLoader,
+    private storageAdapter: IStorageAdapter,
     private activeAgents: Map<string, Agent>,
     private agentMetadataMap: Map<string, AgentMetadata>,
     _agentSpecs: Map<string, AgentSpec>,
@@ -132,12 +134,11 @@ export class AgentService {
   async deleteAgent(
     slug: string,
   ): Promise<{ success: boolean; error?: string }> {
-    // Check if any layouts reference this agent
-    const dependentLayouts = await this.configLoader.getLayoutsUsingAgent(slug);
+    const dependentLayouts = this.storageAdapter.findLayoutsUsingAgent(slug);
     if (dependentLayouts.length > 0) {
       return {
         success: false,
-        error: `Cannot delete agent '${slug}' - it is referenced by layouts: ${dependentLayouts.join(', ')}`,
+        error: `Cannot delete agent '${slug}' - it is referenced by project layouts: ${dependentLayouts.map(({ projectSlug, layoutSlug }) => `${projectSlug}/${layoutSlug}`).join(', ')}`,
       };
     }
 

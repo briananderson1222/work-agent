@@ -11,11 +11,11 @@ import type {
   LayoutConfig,
   LayoutMetadata,
   LayoutTemplate,
-  ProjectConfig,
-  ProjectMetadata,
-  ProviderConnectionConfig,
-} from '@stallion-ai/shared';
+} from '@stallion-ai/contracts/layout';
+import type { ProjectConfig, ProjectMetadata } from '@stallion-ai/contracts/project';
+import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 import type {
+  LayoutAgentReference,
   ConversationRecord,
   DocumentRecord,
   IStorageAdapter,
@@ -154,6 +154,49 @@ export class FileStorageAdapter implements IStorageAdapter {
         `Layout '${layoutSlug}' not found in project '${projectSlug}'`,
       );
     rmSync(p, { force: true });
+  }
+
+  findLayoutsUsingAgent(agentSlug: string): LayoutAgentReference[] {
+    const references: LayoutAgentReference[] = [];
+
+    for (const project of this.listProjects()) {
+      for (const layout of this.listLayouts(project.slug)) {
+        const config = this.getLayout(project.slug, layout.slug).config as {
+          tabs?: Array<{
+            prompts?: Array<{ agent?: string }>;
+            actions?: Array<{ agent?: string }>;
+          }>;
+          globalPrompts?: Array<{ agent?: string }>;
+          actions?: Array<{ agent?: string }>;
+          defaultAgent?: string;
+          availableAgents?: string[];
+        };
+
+        const tabs = config.tabs ?? [];
+        const isReferencedInTabs = tabs.some(
+          (tab) =>
+            (tab.prompts ?? []).some((prompt) => prompt.agent === agentSlug) ||
+            (tab.actions ?? []).some((action) => action.agent === agentSlug),
+        );
+        const isReferencedGlobally =
+          (config.globalPrompts ?? []).some(
+            (prompt) => prompt.agent === agentSlug,
+          ) ||
+          (config.actions ?? []).some((action) => action.agent === agentSlug);
+        const isConfiguredAgent =
+          config.defaultAgent === agentSlug ||
+          (config.availableAgents ?? []).includes(agentSlug);
+
+        if (isReferencedInTabs || isReferencedGlobally || isConfiguredAgent) {
+          references.push({
+            projectSlug: project.slug,
+            layoutSlug: layout.slug,
+          });
+        }
+      }
+    }
+
+    return references;
   }
 
   // ── Provider Connections ──────────────────────────────────────────

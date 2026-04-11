@@ -1,4 +1,4 @@
-import type { LayoutTab } from '../types';
+import type { LayoutTab } from '@stallion-ai/contracts/layout';
 import '../plugins/shared/workspace.css';
 
 export interface TabNavigationProps {

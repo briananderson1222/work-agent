@@ -1,7 +1,11 @@
+import {
+  useDeleteFeedbackRatingMutation,
+  useFeedbackRatingsQuery,
+  useSaveFeedbackRatingMutation,
+} from '@stallion-ai/sdk';
 import { useCallback, useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useApiBase } from '../../contexts/ApiBaseContext';
 import type { AgentSummary } from '../../types';
 import { AgentIcon } from '../AgentIcon';
 import { FilePartPreview } from '../FilePartPreview';
@@ -101,42 +105,6 @@ const ThumbDownIcon = ({ filled }: { filled: boolean }) => (
   </svg>
 );
 
-/** Cache ratings per session to avoid re-fetching for every message. */
-let ratingsCache: {
-  apiBase: string;
-  data: Map<string, { rating: RatingValue; reason?: string }>;
-  ts: number;
-} | null = null;
-
-async function loadRatingsCache(
-  apiBase: string,
-): Promise<Map<string, { rating: RatingValue; reason?: string }>> {
-  const now = Date.now();
-  if (
-    ratingsCache &&
-    ratingsCache.apiBase === apiBase &&
-    now - ratingsCache.ts < 30_000
-  ) {
-    return ratingsCache.data;
-  }
-  const res = await fetch(`${apiBase}/api/feedback/ratings`);
-  if (!res.ok) return new Map();
-  const json = await res.json();
-  const map = new Map<string, { rating: RatingValue; reason?: string }>();
-  for (const r of json.data || []) {
-    map.set(`${r.conversationId}:${r.messageIndex}`, {
-      rating: r.rating,
-      reason: r.reason,
-    });
-  }
-  ratingsCache = { apiBase, data: map, ts: now };
-  return map;
-}
-
-function invalidateRatingsCache() {
-  ratingsCache = null;
-}
-
 function MessageRating({
   conversationId,
   messageIndex,
@@ -148,57 +116,61 @@ function MessageRating({
   messagePreview: string;
   agentSlug: string;
 }) {
-  const { apiBase } = useApiBase();
   const [rating, setRating] = useState<RatingValue>(null);
   const [showReasonInput, setShowReasonInput] = useState(false);
   const [reasonText, setReasonText] = useState('');
   const [savedReason, setSavedReason] = useState<string | undefined>(undefined);
+  const { data: ratings = [] } = useFeedbackRatingsQuery({ staleTime: 30_000 });
+  const saveRatingMutation = useSaveFeedbackRatingMutation();
+  const deleteRatingMutation = useDeleteFeedbackRatingMutation();
 
   // Load existing rating on mount
   useEffect(() => {
-    loadRatingsCache(apiBase)
-      .then((map) => {
-        const existing = map.get(`${conversationId}:${messageIndex}`);
-        if (existing) {
-          setRating(existing.rating);
-          if (existing.reason) setSavedReason(existing.reason);
-        }
-      })
-      .catch(() => {});
-  }, [apiBase, conversationId, messageIndex]);
+    const existing = ratings.find(
+      (entry: any) =>
+        entry.conversationId === conversationId &&
+        entry.messageIndex === messageIndex,
+    );
+    if (!existing) {
+      setRating(null);
+      setSavedReason(undefined);
+      return;
+    }
+    setRating(existing.rating);
+    setSavedReason(existing.reason);
+  }, [conversationId, messageIndex, ratings]);
 
   const submitRating = useCallback(
     async (value: RatingValue, reason?: string) => {
       try {
         if (value) {
-          const res = await fetch(`${apiBase}/api/feedback/rate`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              agentSlug,
-              conversationId,
-              messageIndex,
-              messagePreview,
-              rating: value,
-              ...(reason ? { reason } : {}),
-            }),
+          await saveRatingMutation.mutateAsync({
+            agentSlug,
+            conversationId,
+            messageIndex,
+            messagePreview,
+            rating: value,
+            ...(reason ? { reason } : {}),
           });
-          if (!res.ok) throw new Error();
         } else {
-          const res = await fetch(`${apiBase}/api/feedback/rate`, {
-            method: 'DELETE',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ conversationId, messageIndex }),
+          await deleteRatingMutation.mutateAsync({
+            conversationId,
+            messageIndex,
           });
-          if (!res.ok) throw new Error();
         }
-        invalidateRatingsCache();
       } catch {
         // handled by caller
         throw new Error('rate failed');
       }
     },
-    [apiBase, agentSlug, conversationId, messageIndex, messagePreview],
+    [
+      agentSlug,
+      conversationId,
+      deleteRatingMutation,
+      messageIndex,
+      messagePreview,
+      saveRatingMutation,
+    ],
   );
 
   const handleRate = useCallback(

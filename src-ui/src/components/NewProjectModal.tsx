@@ -1,4 +1,9 @@
-import { useQueryClient } from '@tanstack/react-query';
+import {
+  useCreateProjectLayoutMutation,
+  useCreateProjectMutation,
+  useFileSystemBrowseQuery,
+  useTemplatesQuery,
+} from '@stallion-ai/sdk';
 import { useEffect, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
@@ -19,24 +24,34 @@ function slugify(name: string) {
 export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
   const { apiBase } = useApiBase();
   const { setProject } = useNavigation();
-  const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [icon, setIcon] = useState('');
   const [description, setDescription] = useState('');
   const [directory, setDirectory] = useState('');
   const [addCodingLayout, setAddCodingLayout] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
-  const [templates, setTemplates] = useState<
-    Array<{
+  const normalizedDirectory = directory.trim().replace(/\/+$/, '');
+  const [error, setError] = useState<string | null>(null);
+  const createProjectMutation = useCreateProjectMutation();
+  const createProjectLayoutMutation = useCreateProjectLayoutMutation();
+  const { data: templates = [] } = useTemplatesQuery(undefined, {
+    enabled: isOpen,
+  }) as {
+    data?: Array<{
       id: string;
       name: string;
       icon?: string;
       type: string;
       description?: string;
-    }>
-  >([]);
-  const [error, setError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+      config?: Record<string, unknown>;
+    }>;
+  };
+  const { refetch: validateDirectory } = useFileSystemBrowseQuery(
+    normalizedDirectory || undefined,
+    { enabled: false },
+  );
+  const submitting =
+    createProjectMutation.isPending || createProjectLayoutMutation.isPending;
 
   useEffect(() => {
     if (!isOpen) {
@@ -47,16 +62,8 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
       setAddCodingLayout(false);
       setSelectedTemplate('');
       setError(null);
-      setSubmitting(false);
-    } else {
-      fetch(`${apiBase}/api/templates`)
-        .then((r) => r.json())
-        .then((d) => {
-          if (d.success) setTemplates(d.data ?? []);
-        })
-        .catch(() => {});
     }
-  }, [isOpen, apiBase]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -72,44 +79,33 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    setSubmitting(true);
     setError(null);
     try {
-      const dir = directory.trim().replace(/\/+$/, '');
+      const dir = normalizedDirectory;
       if (dir) {
-        const check = await fetch(
-          `${apiBase}/api/fs/browse?path=${encodeURIComponent(dir)}`,
-        );
-        if (!check.ok) throw new Error(`Directory not found: ${dir}`);
+        const result = await validateDirectory();
+        if (result.error) {
+          throw result.error;
+        }
       }
-      const body = {
+      const project = await createProjectMutation.mutateAsync({
         name: name.trim(),
         slug: slugify(name.trim()),
         icon: icon.trim() || undefined,
         description: description.trim() || undefined,
         workingDirectory: dir || undefined,
-      };
-      const res = await fetch(`${apiBase}/api/projects`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
       });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || 'Create failed');
 
-      const projectSlug = json.data.slug;
+      const projectSlug = project.slug;
 
       if (addCodingLayout && dir) {
-        await fetch(`${apiBase}/api/projects/${projectSlug}/layouts`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            type: 'coding',
-            name: 'Code',
-            slug: 'code',
-            icon: '🔧',
-            config: { workingDirectory: dir },
-          }),
+        await createProjectLayoutMutation.mutateAsync({
+          projectSlug,
+          type: 'coding',
+          name: 'Code',
+          slug: 'code',
+          icon: '🔧',
+          config: { workingDirectory: dir },
         });
       }
 
@@ -117,30 +113,24 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
       if (selectedTemplate) {
         const tmpl = templates.find((t) => t.id === selectedTemplate);
         if (tmpl) {
-          await fetch(`${apiBase}/api/projects/${projectSlug}/layouts`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              type: tmpl.type,
-              name: tmpl.name,
-              slug: tmpl.name
-                .toLowerCase()
-                .replace(/[^a-z0-9]+/g, '-')
-                .replace(/^-|-$/g, ''),
-              icon: tmpl.icon,
-              config: (tmpl as any).config ?? {},
-            }),
+          await createProjectLayoutMutation.mutateAsync({
+            projectSlug,
+            type: tmpl.type,
+            name: tmpl.name,
+            slug: tmpl.name
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-|-$/g, ''),
+            icon: tmpl.icon,
+            config: tmpl.config ?? {},
           });
         }
       }
 
-      queryClient.invalidateQueries({ queryKey: ['projects'] });
       setProject(projectSlug);
       onClose();
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setSubmitting(false);
     }
   }
 

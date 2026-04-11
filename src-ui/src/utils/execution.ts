@@ -1,9 +1,9 @@
 import type { ProviderKind } from '@stallion-ai/contracts/provider';
+import type { AgentExecutionConfig } from '@stallion-ai/contracts/agent';
 import type {
-  AgentExecutionConfig,
   ConnectionConfig,
   ConnectionStatus,
-} from '@stallion-ai/shared';
+} from '@stallion-ai/contracts/tool';
 
 export function connectionTypeLabel(type: string): string {
   switch (type) {

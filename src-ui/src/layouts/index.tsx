@@ -5,12 +5,12 @@ import type {
   AgentQuickPrompt,
   AgentSummary,
   LayoutTab,
-  StandaloneLayoutConfig,
+  LayoutDefinition,
 } from '../types';
 
 export interface AgentLayoutProps {
   agent?: AgentSummary;
-  layout?: StandaloneLayoutConfig;
+  layout?: LayoutDefinition;
   activeTab?: LayoutTab;
   onLaunchPrompt?: (prompt: AgentQuickPrompt) => void;
   onLaunchWorkflow?: (workflowId: string) => void;

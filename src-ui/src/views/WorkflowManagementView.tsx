@@ -1,12 +1,16 @@
-import { LoadingState } from '@stallion-ai/sdk';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
-import { Button } from '../components/Button';
+import {
+  LoadingState,
+  useAgentWorkflowsQuery,
+  useCreateWorkflowMutation,
+  useDeleteWorkflowMutation,
+  useUpdateWorkflowMutation,
+  useWorkflowContentQuery,
+} from '@stallion-ai/sdk';
+import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import type { WorkflowFile } from '../types';
 
 export interface WorkflowManagementViewProps {
-  apiBase: string;
   agentSlug: string;
   agentName: string;
   onBack: () => void;
@@ -31,51 +35,59 @@ export default defineWorkflow({
 `;
 
 export function WorkflowManagementView({
-  apiBase,
   agentSlug,
   agentName,
   onBack,
 }: WorkflowManagementViewProps) {
-  const qc = useQueryClient();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [currentWorkflow, setCurrentWorkflow] = useState<WorkflowFile | null>(
+  const [currentWorkflowId, setCurrentWorkflowId] = useState<string | null>(
     null,
   );
   const [editorContent, setEditorContent] = useState('');
   const [newWorkflowName, setNewWorkflowName] = useState('');
-  const [_contentLoading, setContentLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [workflowToDelete, setWorkflowToDelete] = useState<string | null>(null);
 
-  const { data: workflows = [], isLoading } = useQuery<WorkflowFile[]>({
-    queryKey: ['workflows', agentSlug],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/agents/${agentSlug}/workflows/files`);
-      if (!res.ok) throw new Error('Failed to load workflows');
-      const data = await res.json();
-      return data.data || [];
-    },
+  const { data: workflows = [], isLoading } = useAgentWorkflowsQuery(
+    agentSlug,
+  ) as {
+    data?: WorkflowFile[];
+    isLoading: boolean;
+  };
+  const currentWorkflow =
+    workflows.find((workflow) => workflow.id === currentWorkflowId) ?? null;
+  const {
+    data: workflowContent,
+    isLoading: contentLoading,
+    error: workflowContentError,
+  } = useWorkflowContentQuery(agentSlug, currentWorkflowId ?? undefined, {
+    enabled: viewMode === 'edit' && !!currentWorkflowId,
   });
+  const createWorkflowMutation = useCreateWorkflowMutation(agentSlug);
+  const updateWorkflowMutation = useUpdateWorkflowMutation(agentSlug);
+  const deleteWorkflowMutation = useDeleteWorkflowMutation(agentSlug);
+  const isSaving =
+    createWorkflowMutation.isPending ||
+    updateWorkflowMutation.isPending ||
+    deleteWorkflowMutation.isPending;
 
-  const loadWorkflowContent = async (workflowId: string) => {
-    try {
-      setContentLoading(true);
-      setError(null);
-      const response = await fetch(
-        `${apiBase}/agents/${agentSlug}/workflows/${workflowId}`,
-      );
-      if (!response.ok) throw new Error('Failed to load workflow content');
-      const data = await response.json();
-      const workflow = data.data;
-      setCurrentWorkflow(workflow);
-      setEditorContent(workflow.content || '');
-      setViewMode('edit');
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setContentLoading(false);
+  useEffect(() => {
+    if (typeof workflowContent === 'string' && viewMode === 'edit') {
+      setEditorContent(workflowContent);
     }
+  }, [workflowContent, viewMode]);
+
+  useEffect(() => {
+    if (workflowContentError instanceof Error) {
+      setError(workflowContentError.message);
+    }
+  }, [workflowContentError]);
+
+  const loadWorkflowContent = (workflowId: string) => {
+    setError(null);
+    setCurrentWorkflowId(workflowId);
+    setEditorContent('');
+    setViewMode('edit');
   };
 
   const saveWorkflow = async () => {
@@ -85,72 +97,36 @@ export function WorkflowManagementView({
     }
 
     try {
-      setIsSaving(true);
       setError(null);
 
       if (viewMode === 'create') {
-        const response = await fetch(
-          `${apiBase}/agents/${agentSlug}/workflows`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              filename: newWorkflowName,
-              content: editorContent,
-            }),
-          },
-        );
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to create workflow');
-        }
+        await createWorkflowMutation.mutateAsync({
+          filename: newWorkflowName,
+          content: editorContent,
+        });
       } else if (viewMode === 'edit' && currentWorkflow) {
-        const response = await fetch(
-          `${apiBase}/agents/${agentSlug}/workflows/${currentWorkflow.id}`,
-          {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ content: editorContent }),
-          },
-        );
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || 'Failed to update workflow');
-        }
+        await updateWorkflowMutation.mutateAsync({
+          workflowId: currentWorkflow.id,
+          content: editorContent,
+        });
       }
 
-      qc.invalidateQueries({ queryKey: ['workflows', agentSlug] });
       setViewMode('list');
-      setCurrentWorkflow(null);
+      setCurrentWorkflowId(null);
       setEditorContent('');
       setNewWorkflowName('');
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setIsSaving(false);
     }
   };
 
   const deleteWorkflow = async (workflowId: string) => {
     try {
-      setIsSaving(true);
       setError(null);
       setWorkflowToDelete(null);
-      const response = await fetch(
-        `${apiBase}/agents/${agentSlug}/workflows/${workflowId}`,
-        {
-          method: 'DELETE',
-        },
-      );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete workflow');
-      }
-      qc.invalidateQueries({ queryKey: ['workflows', agentSlug] });
+      await deleteWorkflowMutation.mutateAsync(workflowId);
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setIsSaving(false);
     }
   };
 
@@ -162,7 +138,7 @@ export function WorkflowManagementView({
 
   const cancelEdit = () => {
     setViewMode('list');
-    setCurrentWorkflow(null);
+    setCurrentWorkflowId(null);
     setEditorContent('');
     setNewWorkflowName('');
   };
@@ -177,9 +153,13 @@ export function WorkflowManagementView({
     return (
       <div className="management-view">
         <div className="management-view__header">
-          <Button variant="secondary" onClick={onBack}>
+          <button
+            type="button"
+            className="button button--secondary"
+            onClick={onBack}
+          >
             Back
-          </Button>
+          </button>
           <h2>Manage Workflows: {agentName}</h2>
         </div>
         <LoadingState message="Loading workflows..." />
@@ -191,12 +171,13 @@ export function WorkflowManagementView({
     <>
       <div className="management-view">
         <div className="management-view__header">
-          <Button
-            variant="secondary"
+          <button
+            type="button"
+            className="button button--secondary"
             onClick={viewMode === 'list' ? onBack : cancelEdit}
           >
             {viewMode === 'list' ? 'Back' : 'Cancel'}
-          </Button>
+          </button>
           <h2>
             {viewMode === 'list'
               ? `Manage Workflows: ${agentName}`
@@ -205,18 +186,23 @@ export function WorkflowManagementView({
                 : `Edit: ${currentWorkflow?.name}`}
           </h2>
           {viewMode === 'list' && (
-            <Button variant="primary" onClick={startCreate}>
+            <button
+              type="button"
+              className="button button--primary"
+              onClick={startCreate}
+            >
               New Workflow
-            </Button>
+            </button>
           )}
           {(viewMode === 'edit' || viewMode === 'create') && (
-            <Button
-              variant="primary"
+            <button
+              type="button"
+              className="button button--primary"
               onClick={saveWorkflow}
               disabled={isSaving}
             >
               {isSaving ? 'Saving...' : 'Save'}
-            </Button>
+            </button>
           )}
         </div>
 
@@ -228,9 +214,13 @@ export function WorkflowManagementView({
               <div className="empty-state">
                 <h3>No workflows yet</h3>
                 <p>Create your first workflow to get started.</p>
-                <Button variant="primary" onClick={startCreate}>
+                <button
+                  type="button"
+                  className="button button--primary"
+                  onClick={startCreate}
+                >
                   New Workflow
-                </Button>
+                </button>
               </div>
             ) : (
               <div className="workflow-grid">
@@ -246,20 +236,20 @@ export function WorkflowManagementView({
                       <span>Modified: {formatDate(workflow.lastModified)}</span>
                     </div>
                     <div className="workflow-card__actions">
-                      <Button
-                        variant="secondary"
-                        size="sm"
+                      <button
+                        type="button"
+                        className="button button--secondary button--small"
                         onClick={() => loadWorkflowContent(workflow.id)}
                       >
                         Edit
-                      </Button>
-                      <Button
-                        variant="danger"
-                        size="sm"
+                      </button>
+                      <button
+                        type="button"
+                        className="button button--danger button--small"
                         onClick={() => setWorkflowToDelete(workflow.id)}
                       >
                         Delete
-                      </Button>
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -283,14 +273,18 @@ export function WorkflowManagementView({
                 </span>
               </div>
             )}
-            <div className="code-editor">
-              <textarea
-                value={editorContent}
-                onChange={(e) => setEditorContent(e.target.value)}
-                placeholder="Write your workflow code here..."
-                spellCheck={false}
-              />
-            </div>
+            {viewMode === 'edit' && contentLoading ? (
+              <LoadingState message="Loading workflow..." />
+            ) : (
+              <div className="code-editor">
+                <textarea
+                  value={editorContent}
+                  onChange={(e) => setEditorContent(e.target.value)}
+                  placeholder="Write your workflow code here..."
+                  spellCheck={false}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

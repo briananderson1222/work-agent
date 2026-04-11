@@ -3,10 +3,11 @@
  * Handles tool invocation, approval flow, and elicitation
  */
 
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import type { AppConfig } from '@stallion-ai/contracts/config';
 import { createHooks, type Tool } from '@voltagent/core';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import {

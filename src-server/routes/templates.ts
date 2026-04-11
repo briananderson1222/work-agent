@@ -1,4 +1,4 @@
-import type { LayoutTemplate } from '@stallion-ai/shared';
+import type { LayoutTemplate } from '@stallion-ai/contracts/layout';
 import { Hono } from 'hono';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import { templateOps } from '../telemetry/metrics.js';

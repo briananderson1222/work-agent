@@ -7,13 +7,12 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ToolDef } from '../domain/types.js';
+import type { ToolDef } from '@stallion-ai/contracts/tool';
 import type {
   IAgentRegistryProvider,
   IIntegrationRegistryProvider,
-  InstallResult,
-  RegistryItem,
-} from './types.js';
+} from './provider-interfaces.js';
+import type { InstallResult, RegistryItem } from './provider-contracts.js';
 
 interface ManifestPlugin {
   id: string;

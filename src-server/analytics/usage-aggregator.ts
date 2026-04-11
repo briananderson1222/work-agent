@@ -2,93 +2,20 @@ import { createReadStream, existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import {
+  ACHIEVEMENTS,
+  type Achievement,
+  applyMessageToUsageStats,
+  checkAchievement,
+  computeStreakStats,
+  createEmptyUsageStats,
+  getAchievementProgress,
+  mergeRescannedUsageStats,
+  type UsageStats,
+} from './usage-aggregator-state.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger({ name: 'usage-aggregator' });
-
-export interface DailyStats {
-  messages: number;
-  cost: number;
-  inputTokens: number;
-  outputTokens: number;
-  byAgent: Record<string, number>;
-}
-
-export interface UsageStats {
-  lifetime: {
-    totalMessages: number;
-    totalConversations: number;
-    totalInputTokens: number;
-    totalOutputTokens: number;
-    totalCost: number;
-    uniqueAgents: string[];
-    firstMessageDate?: string;
-    lastMessageDate?: string;
-    streak?: number;
-    daysActive?: number;
-  };
-  byModel: Record<
-    string,
-    {
-      messages: number;
-      inputTokens: number;
-      outputTokens: number;
-      cost: number;
-    }
-  >;
-  byAgent: Record<
-    string,
-    {
-      conversations: number;
-      messages: number;
-      cost: number;
-    }
-  >;
-  byDate: Record<string, DailyStats>;
-}
-
-export interface Achievement {
-  id: string;
-  name: string;
-  description: string;
-  unlocked: boolean;
-  unlockedAt?: string;
-  progress?: number;
-  threshold?: number;
-}
-
-const ACHIEVEMENTS = [
-  {
-    id: 'first-message',
-    name: 'First Steps',
-    description: 'Send your first message',
-    threshold: 1,
-  },
-  {
-    id: 'conversationalist',
-    name: 'Conversationalist',
-    description: 'Send 100 messages',
-    threshold: 100,
-  },
-  {
-    id: 'power-user',
-    name: 'Power User',
-    description: 'Send 1,000 messages',
-    threshold: 1000,
-  },
-  {
-    id: 'model-explorer',
-    name: 'Model Explorer',
-    description: 'Use 5 different models',
-    threshold: 5,
-  },
-  {
-    id: 'cost-conscious',
-    name: 'Cost Conscious',
-    description: 'Keep average cost under $0.01/message',
-    threshold: 0.01,
-  },
-];
 
 export class UsageAggregator {
   private projectHomeDir: string;
@@ -117,29 +44,13 @@ export class UsageAggregator {
       delete stats.byModel?.unknown;
       return stats;
     }
-    return this.getEmptyStats();
-  }
-
-  private getEmptyStats(): UsageStats {
-    return {
-      lifetime: {
-        totalMessages: 0,
-        totalConversations: 0,
-        totalInputTokens: 0,
-        totalOutputTokens: 0,
-        totalCost: 0,
-        uniqueAgents: [],
-      },
-      byModel: {},
-      byAgent: {},
-      byDate: {},
-    };
+    return createEmptyUsageStats();
   }
 
   async saveStats(stats: UsageStats): Promise<void> {
     await this.ensureAnalyticsDir();
     // Compute streak + daysActive from byDate
-    this.computeStreakStats(stats);
+    computeStreakStats(stats);
     await writeFile(this.statsPath, JSON.stringify(stats, null, 2), 'utf-8');
   }
 
@@ -149,122 +60,13 @@ export class UsageAggregator {
     }
   }
 
-  private updateDaily(
-    stats: UsageStats,
-    date: string,
-    agentSlug: string,
-    usage?: {
-      inputTokens?: number;
-      outputTokens?: number;
-      estimatedCost?: number;
-    },
-  ) {
-    if (!stats.byDate) stats.byDate = {};
-    if (!stats.byDate[date]) {
-      stats.byDate[date] = {
-        messages: 0,
-        cost: 0,
-        inputTokens: 0,
-        outputTokens: 0,
-        byAgent: {},
-      };
-    }
-    const day = stats.byDate[date];
-    day.messages++;
-    if (usage) {
-      day.inputTokens += usage.inputTokens || 0;
-      day.outputTokens += usage.outputTokens || 0;
-      day.cost += usage.estimatedCost || 0;
-    }
-    day.byAgent[agentSlug] = (day.byAgent[agentSlug] || 0) + 1;
-  }
-
-  private computeStreakStats(stats: UsageStats) {
-    const dates = Object.keys(stats.byDate || {}).sort();
-    stats.lifetime.daysActive = dates.length;
-    if (!dates.length) {
-      stats.lifetime.streak = 0;
-      return;
-    }
-    // Compute current streak from today backwards
-    const today = new Date().toISOString().split('T')[0];
-    let streak = 0;
-    const d = new Date(today);
-    while (true) {
-      const key = d.toISOString().split('T')[0];
-      if (stats.byDate[key]) {
-        streak++;
-        d.setDate(d.getDate() - 1);
-      } else break;
-    }
-    stats.lifetime.streak = streak;
-  }
-
   async incrementalUpdate(
     message: any,
     agentSlug: string,
     _conversationId: string,
   ): Promise<void> {
     const stats = await this.loadStats();
-    const usage = message.metadata?.usage;
-    const modelId = message.metadata?.model;
-
-    // Update lifetime stats
-    stats.lifetime.totalMessages++;
-    if (usage) {
-      stats.lifetime.totalInputTokens += usage.inputTokens || 0;
-      stats.lifetime.totalOutputTokens += usage.outputTokens || 0;
-      stats.lifetime.totalCost += usage.estimatedCost || 0;
-    }
-
-    const timestamp = message.metadata?.timestamp;
-    const date = timestamp
-      ? new Date(timestamp).toISOString().split('T')[0]
-      : new Date().toISOString().split('T')[0];
-    if (
-      !stats.lifetime.firstMessageDate ||
-      date < stats.lifetime.firstMessageDate
-    ) {
-      stats.lifetime.firstMessageDate = date;
-    }
-    if (
-      !stats.lifetime.lastMessageDate ||
-      date > stats.lifetime.lastMessageDate
-    ) {
-      stats.lifetime.lastMessageDate = date;
-    }
-    this.updateDaily(stats, date, agentSlug, usage);
-
-    if (!stats.lifetime.uniqueAgents.includes(agentSlug)) {
-      stats.lifetime.uniqueAgents.push(agentSlug);
-    }
-
-    // Update by-model stats (skip if no model ID)
-    if (modelId) {
-      if (!stats.byModel[modelId]) {
-        stats.byModel[modelId] = {
-          messages: 0,
-          inputTokens: 0,
-          outputTokens: 0,
-          cost: 0,
-        };
-      }
-      stats.byModel[modelId].messages++;
-      if (usage) {
-        stats.byModel[modelId].inputTokens += usage.inputTokens || 0;
-        stats.byModel[modelId].outputTokens += usage.outputTokens || 0;
-        stats.byModel[modelId].cost += usage.estimatedCost || 0;
-      }
-    }
-
-    // Update by-agent stats
-    if (!stats.byAgent[agentSlug]) {
-      stats.byAgent[agentSlug] = { conversations: 0, messages: 0, cost: 0 };
-    }
-    stats.byAgent[agentSlug].messages++;
-    if (usage) {
-      stats.byAgent[agentSlug].cost += usage.estimatedCost || 0;
-    }
+    applyMessageToUsageStats(stats, message, agentSlug);
 
     await this.saveStats(stats);
     await this.updateAchievements(stats);
@@ -281,8 +83,7 @@ export class UsageAggregator {
     }
 
     // Track what we've seen in current files
-    const _seenMessages = new Set<string>();
-    const currentStats = this.getEmptyStats();
+    const currentStats = createEmptyUsageStats();
 
     const agents = await readdir(agentsDir, { withFileTypes: true });
     const sessionCounts = new Map<string, Set<string>>();
@@ -337,65 +138,7 @@ export class UsageAggregator {
           if (!line.trim()) continue;
           try {
             const message = JSON.parse(line);
-            const usage = message.metadata?.usage;
-            const modelId = message.metadata?.model || agentModel;
-            const timestamp = message.metadata?.timestamp;
-
-            currentStats.lifetime.totalMessages++;
-            if (usage) {
-              currentStats.lifetime.totalInputTokens += usage.inputTokens || 0;
-              currentStats.lifetime.totalOutputTokens +=
-                usage.outputTokens || 0;
-              currentStats.lifetime.totalCost += usage.estimatedCost || 0;
-            }
-
-            if (timestamp) {
-              const date = new Date(timestamp).toISOString().split('T')[0];
-              if (
-                !currentStats.lifetime.firstMessageDate ||
-                date < currentStats.lifetime.firstMessageDate
-              ) {
-                currentStats.lifetime.firstMessageDate = date;
-              }
-              if (
-                !currentStats.lifetime.lastMessageDate ||
-                date > currentStats.lifetime.lastMessageDate
-              ) {
-                currentStats.lifetime.lastMessageDate = date;
-              }
-              this.updateDaily(currentStats, date, agentSlug, usage);
-            }
-
-            if (modelId) {
-              if (!currentStats.byModel[modelId]) {
-                currentStats.byModel[modelId] = {
-                  messages: 0,
-                  inputTokens: 0,
-                  outputTokens: 0,
-                  cost: 0,
-                };
-              }
-              currentStats.byModel[modelId].messages++;
-              if (usage) {
-                currentStats.byModel[modelId].inputTokens +=
-                  usage.inputTokens || 0;
-                currentStats.byModel[modelId].outputTokens +=
-                  usage.outputTokens || 0;
-                currentStats.byModel[modelId].cost += usage.estimatedCost || 0;
-              }
-            }
-
-            if (!currentStats.byAgent[agentSlug]) {
-              currentStats.byAgent[agentSlug] = {
-                conversations: 0,
-                messages: 0,
-                cost: 0,
-              };
-            }
-            currentStats.byAgent[agentSlug].messages++;
-            if (usage) {
-              currentStats.byAgent[agentSlug].cost += usage.estimatedCost || 0;
-            }
+            applyMessageToUsageStats(currentStats, message, agentSlug, agentModel);
           } catch (error) {
             logger.error('Failed to parse message', { file, error });
           }
@@ -414,102 +157,7 @@ export class UsageAggregator {
       }
     }
 
-    // Merge: keep the higher values (existing stats may include deleted conversations)
-    stats.lifetime.totalMessages = Math.max(
-      stats.lifetime.totalMessages,
-      currentStats.lifetime.totalMessages,
-    );
-    stats.lifetime.totalConversations = Math.max(
-      stats.lifetime.totalConversations,
-      currentStats.lifetime.totalConversations,
-    );
-    stats.lifetime.totalInputTokens = Math.max(
-      stats.lifetime.totalInputTokens,
-      currentStats.lifetime.totalInputTokens,
-    );
-    stats.lifetime.totalOutputTokens = Math.max(
-      stats.lifetime.totalOutputTokens,
-      currentStats.lifetime.totalOutputTokens,
-    );
-    stats.lifetime.totalCost = Math.max(
-      stats.lifetime.totalCost,
-      currentStats.lifetime.totalCost,
-    );
-
-    // Merge unique agents
-    const allAgents = new Set([
-      ...stats.lifetime.uniqueAgents,
-      ...currentStats.lifetime.uniqueAgents,
-    ]);
-    stats.lifetime.uniqueAgents = Array.from(allAgents);
-
-    // Keep earliest first date and latest last date
-    if (currentStats.lifetime.firstMessageDate) {
-      if (
-        !stats.lifetime.firstMessageDate ||
-        currentStats.lifetime.firstMessageDate < stats.lifetime.firstMessageDate
-      ) {
-        stats.lifetime.firstMessageDate =
-          currentStats.lifetime.firstMessageDate;
-      }
-    }
-    if (currentStats.lifetime.lastMessageDate) {
-      if (
-        !stats.lifetime.lastMessageDate ||
-        currentStats.lifetime.lastMessageDate > stats.lifetime.lastMessageDate
-      ) {
-        stats.lifetime.lastMessageDate = currentStats.lifetime.lastMessageDate;
-      }
-    }
-
-    // Merge by-model stats (keep higher values)
-    for (const [modelId, modelStats] of Object.entries(currentStats.byModel)) {
-      if (!stats.byModel[modelId]) {
-        stats.byModel[modelId] = modelStats;
-      } else {
-        stats.byModel[modelId].messages = Math.max(
-          stats.byModel[modelId].messages,
-          modelStats.messages,
-        );
-        stats.byModel[modelId].inputTokens = Math.max(
-          stats.byModel[modelId].inputTokens,
-          modelStats.inputTokens,
-        );
-        stats.byModel[modelId].outputTokens = Math.max(
-          stats.byModel[modelId].outputTokens,
-          modelStats.outputTokens,
-        );
-        stats.byModel[modelId].cost = Math.max(
-          stats.byModel[modelId].cost,
-          modelStats.cost,
-        );
-      }
-    }
-
-    // Merge by-agent stats (keep higher values)
-    for (const [agentSlug, agentStats] of Object.entries(
-      currentStats.byAgent,
-    )) {
-      if (!stats.byAgent[agentSlug]) {
-        stats.byAgent[agentSlug] = agentStats;
-      } else {
-        stats.byAgent[agentSlug].conversations = Math.max(
-          stats.byAgent[agentSlug].conversations || 0,
-          agentStats.conversations || 0,
-        );
-        stats.byAgent[agentSlug].messages = Math.max(
-          stats.byAgent[agentSlug].messages,
-          agentStats.messages,
-        );
-        stats.byAgent[agentSlug].cost = Math.max(
-          stats.byAgent[agentSlug].cost,
-          agentStats.cost,
-        );
-      }
-    }
-
-    // byDate: rescan is authoritative
-    stats.byDate = currentStats.byDate;
+    mergeRescannedUsageStats(stats, currentStats);
 
     await this.saveStats(stats);
     await this.updateAchievements(stats);
@@ -539,45 +187,17 @@ export class UsageAggregator {
   }
 
   private checkAchievement(
-    def: (typeof ACHIEVEMENTS)[0],
+    def: (typeof ACHIEVEMENTS)[number],
     stats: UsageStats,
   ): boolean {
-    switch (def.id) {
-      case 'first-message':
-      case 'conversationalist':
-      case 'power-user':
-        return stats.lifetime.totalMessages >= def.threshold!;
-      case 'model-explorer':
-        return Object.keys(stats.byModel).length >= def.threshold!;
-      case 'cost-conscious':
-        return (
-          stats.lifetime.totalMessages >= 50 &&
-          stats.lifetime.totalCost / stats.lifetime.totalMessages <=
-            def.threshold!
-        );
-      default:
-        return false;
-    }
+    return checkAchievement(def, stats);
   }
 
   private getProgress(
-    def: (typeof ACHIEVEMENTS)[0],
+    def: (typeof ACHIEVEMENTS)[number],
     stats: UsageStats,
   ): number {
-    switch (def.id) {
-      case 'first-message':
-      case 'conversationalist':
-      case 'power-user':
-        return Math.min(stats.lifetime.totalMessages, def.threshold!);
-      case 'model-explorer':
-        return Math.min(Object.keys(stats.byModel).length, def.threshold!);
-      case 'cost-conscious':
-        return stats.lifetime.totalMessages > 0
-          ? stats.lifetime.totalCost / stats.lifetime.totalMessages
-          : 0;
-      default:
-        return 0;
-    }
+    return getAchievementProgress(def, stats);
   }
 
   private async updateAchievements(_stats: UsageStats): Promise<void> {

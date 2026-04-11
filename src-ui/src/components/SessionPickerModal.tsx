@@ -1,3 +1,4 @@
+import { fetchAgentConversations } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useState } from 'react';
 import { log } from '@/utils/logger';
 import { type AutoSelectItem, AutoSelectModal } from './AutoSelectModal';
@@ -20,7 +21,6 @@ interface SessionPickerModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (conversationId: string, agentSlug: string) => void;
-  apiBase: string;
   agents: Array<{ slug: string; name: string }>;
   activeConversationIds?: string[];
 }
@@ -29,7 +29,6 @@ export function SessionPickerModal({
   isOpen,
   onClose,
   onSelect,
-  apiBase,
   agents,
   activeConversationIds = [],
 }: SessionPickerModalProps) {
@@ -45,18 +44,13 @@ export function SessionPickerModal({
 
       for (const agent of agents) {
         try {
-          const response = await fetch(
-            `${apiBase}/agents/${agent.slug}/conversations`,
-          );
-          if (response.ok) {
-            const data = await response.json();
-            const agentConvos = (data.data || []).map((conv: any) => ({
-              ...conv,
-              agentSlug: agent.slug,
-              agentName: agent.name,
-            }));
-            allConversations.push(...agentConvos);
-          }
+          const agentConversations = await fetchAgentConversations(agent.slug);
+          const agentConvos = agentConversations.map((conv: any) => ({
+            ...conv,
+            agentSlug: agent.slug,
+            agentName: agent.name,
+          }));
+          allConversations.push(...agentConvos);
         } catch (error) {
           log.api(`Failed to load conversations for ${agent.slug}:`, error);
         }
@@ -73,7 +67,7 @@ export function SessionPickerModal({
     } finally {
       setLoading(false);
     }
-  }, [apiBase, agents]);
+  }, [agents]);
 
   useEffect(() => {
     if (isOpen) {

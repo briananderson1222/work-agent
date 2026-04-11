@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import {
   useActiveChatActions,
   useActiveChatState,
-  useCreateChatSession,
 } from '../contexts/ActiveChatsContext';
+import { useCreateChatSession } from '../hooks/useActiveChatSessions';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useChatInput } from '../hooks/useChatInput';

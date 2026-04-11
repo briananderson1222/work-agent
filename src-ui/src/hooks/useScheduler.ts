@@ -10,7 +10,7 @@ import type {
   SchedulerFormField,
   SchedulerProviderStats,
   SchedulerProviderStatus,
-} from '@stallion-ai/shared';
+} from '@stallion-ai/contracts/scheduler';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
@@ -33,7 +33,7 @@ export {
   useSchedulerStatus,
   useToggleJob,
 } from '@stallion-ai/sdk';
-export type { SchedulerEvent } from '@stallion-ai/shared';
+export type { SchedulerEvent } from '@stallion-ai/contracts/scheduler';
 
 /** Aggregated stats shape returned by GET /scheduler/stats */
 export interface SchedulerStatsResponse {

@@ -1,11 +1,12 @@
 import type {
+  ProviderKind,
   ProviderSendTurnInput,
   ProviderSession,
   ProviderSessionStartInput,
   ProviderTurnStartResult,
 } from '@stallion-ai/contracts/provider';
 import type { CanonicalRuntimeEvent } from '@stallion-ai/contracts/runtime-events';
-import type { Prerequisite, ProviderKind } from '@stallion-ai/shared';
+import type { Prerequisite } from '@stallion-ai/contracts/tool';
 
 export type {
   ProviderSendTurnInput,

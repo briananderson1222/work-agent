@@ -1,13 +1,13 @@
-import type { StandaloneLayoutConfig } from './types';
+import type { LayoutDefinition } from '@stallion-ai/contracts/layout';
 
 // Internal layout context (set by LayoutProvider)
-let _currentLayout: StandaloneLayoutConfig | undefined;
+let _currentLayout: LayoutDefinition | undefined;
 
 /**
  * Set current layout context
  * @internal Called by LayoutProvider
  */
-export function _setLayoutContext(layout: StandaloneLayoutConfig | undefined) {
+export function _setLayoutContext(layout: LayoutDefinition | undefined) {
   _currentLayout = layout;
 }
 
@@ -19,7 +19,7 @@ export function _setLayoutContext(layout: StandaloneLayoutConfig | undefined) {
  */
 export function resolveAgentName(
   agentName: string,
-  layout?: StandaloneLayoutConfig,
+  layout?: LayoutDefinition,
 ): string {
   if (agentName.includes(':')) {
     return agentName;

@@ -1,4 +1,4 @@
-import type { KnowledgeNamespaceConfig } from '@stallion-ai/shared';
+import type { KnowledgeNamespaceConfig } from '@stallion-ai/contracts/knowledge';
 import type { Context } from 'hono';
 import { Hono } from 'hono';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';

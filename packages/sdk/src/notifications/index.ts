@@ -1,7 +1,7 @@
 import type {
   Notification,
   ScheduleNotificationOpts,
-} from '@stallion-ai/shared';
+} from '@stallion-ai/contracts/notification';
 
 export class NotificationsAPI {
   constructor(

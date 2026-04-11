@@ -327,14 +327,23 @@ Abort is handled via `AbortController` — the pipeline checks the signal before
 ### `src-server/` — Core Server
 The runtime, HTTP API, streaming pipeline, MCP lifecycle, ACP bridge, analytics, telemetry, and all provider interfaces. Runs on Node.js, built with esbuild to `dist-server/index.js`. Exposes a REST + SSE API on port 3141 (configurable).
 
+Provider ownership inside `src-server/` is now split intentionally:
+- `src-server/providers/provider-interfaces.ts` owns server-only provider interfaces such as `IBrandingProvider`, `IAuthProvider`, `ISchedulerProvider`, and template/registry abstractions.
+- `src-server/providers/provider-contracts.ts` re-exports provider-adjacent contract types that are owned by `@stallion-ai/contracts/*`.
+- `src-server/providers/model-provider-types.ts` owns server-local LLM, embedding, and vector provider runtime interfaces.
+- The old `src-server/providers/types.ts` compatibility barrel was removed. Internal server code should import the focused module directly.
+
 ### `packages/sdk/` — `@stallion-ai/sdk`
 The plugin UI contract. Exports React hooks (`useAgents`, `useConversations`, `useSendMessage`, `useToolApproval`, etc.), query factories, API client functions (`streamMessage`, `invoke`, `callTool`), UI primitives (`Button`, `Spinner`, `Pill`), voice/context registries, and layout provider utilities. Plugins import from here — never from the server directly.
 
 ### `packages/connect/` — `@stallion-ai/connect`
 Multi-host connection management for mobile and remote scenarios. Exports `ConnectionStore`, `ConnectionsProvider`, `useConnectionStatus`, `useHostUrl`, `QRDisplay`, `QRScanner`, and `ConnectionManagerModal`. Handles server discovery, QR-based pairing, and connection persistence via a pluggable `StorageAdapter`.
 
+### `packages/contracts/` — `@stallion-ai/contracts`
+Canonical cross-package API, runtime, and orchestration contracts. Owns stable domain shapes for agents, auth, catalog, config, knowledge, layouts, notifications, plugins, projects, provider kinds, runtime sessions/events, scheduler entities, and tools.
+
 ### `packages/shared/` — `@stallion-ai/shared`
-Build utilities shared between the server and plugin toolchain — primarily `buildPlugin()` and `copyPluginIntegrations()` used by the plugin install flow.
+Compatibility re-exports plus explicit helper subpaths. The package root is now for shared type compatibility, while helper utilities such as `buildPlugin()`, `copyPluginIntegrations()`, `readPluginManifest()`, and `resolveGitInfo()` live on `@stallion-ai/shared/build`, `@stallion-ai/shared/parsers`, and `@stallion-ai/shared/git`.
 
 ### `packages/cli/` — `@stallion-ai/cli`
 The `stallion` CLI binary. Wraps the server startup and provides developer commands.
@@ -353,6 +362,7 @@ Tauri wrapper around the web UI for native desktop distribution.
 - `docs/guides/plugins.md` — building and installing plugins
 - `docs/reference/api.md` — full HTTP API reference
 - `docs/reference/config.md` — app and agent config schemas
+- `docs/reference/contracts.md` — `@stallion-ai/contracts` ownership and module map
 - `docs/reference/connect.md` — `@stallion-ai/connect` API
 - `docs/reference/shared.md` — `@stallion-ai/shared` API
 - `docs/guides/monitoring.md` — OTel, Prometheus, Grafana setup

@@ -1,17 +1,23 @@
-import { useLayoutQuery } from '@stallion-ai/sdk';
-import type { ConnectionConfig } from '@stallion-ai/shared';
-import { useQuery } from '@tanstack/react-query';
+import {
+  useProjectLayoutQuery,
+  useProjectQuery,
+  useRuntimeConnectionsQuery,
+} from '@stallion-ai/sdk';
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 import type { AgentData } from '../contexts/AgentsContext';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { ProjectMetadata } from '../contexts/ProjectsContext';
 import {
   getRecentAgentSlugs,
   trackRecentAgent,
 } from '../hooks/useRecentAgents';
-import { canAgentStartChat } from '../utils/execution';
+import {
+  buildRuntimeChatAgent,
+  canAgentStartChat,
+  isRuntimeConnectionSelectable,
+} from '../utils/execution';
 import { AgentIcon } from './AgentIcon';
 
 interface NewChatModalProps {
@@ -49,7 +55,6 @@ export function NewChatModal({
   onSelect,
   onClose,
 }: NewChatModalProps) {
-  const { apiBase } = useApiBase();
   const [agentSearch, setAgentSearch] = useState('');
   const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
   const [selectedContext, setSelectedContext] = useState<string>(
@@ -60,33 +65,33 @@ export function NewChatModal({
   const contextRef = useRef<HTMLDivElement>(null);
   const agentInputRef = useRef<HTMLInputElement>(null);
 
-  const { selectedLayout, navigate } = useNavigation();
-  const { data: layout } = useLayoutQuery(selectedLayout || '', {
-    enabled: !!selectedLayout,
-  });
-  const { data: runtimeConnections = [] } = useQuery<ConnectionConfig[]>({
-    queryKey: ['connections', 'runtimes'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/connections/runtimes`);
-      const json = await res.json();
-      return json.success ? json.data : [];
+  const { selectedProject: activeLayoutProject, selectedProjectLayout } =
+    useNavigation();
+  const { data: layout } = useProjectLayoutQuery(
+    activeLayoutProject || '',
+    selectedProjectLayout || '',
+    {
+      enabled: !!activeLayoutProject && !!selectedProjectLayout,
     },
-  });
+  );
+  const { data: runtimeConnections = [] } =
+    useRuntimeConnectionsQuery() as {
+      data?: ConnectionConfig[];
+    };
 
   // Fetch project config for agent scoping
   const selectedProjectSlug =
     selectedContext !== GLOBAL_CONTEXT ? selectedContext : null;
-  const { data: selectedProjectConfig } = useQuery<{
-    agents?: string[];
-  }>({
-    queryKey: ['projects', selectedProjectSlug],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/projects/${selectedProjectSlug}`);
-      const json = await res.json();
-      return json.success ? json.data : {};
+  const { data: selectedProjectConfig } = useProjectQuery(
+    selectedProjectSlug ?? '',
+    {
+      enabled: !!selectedProjectSlug,
     },
-    enabled: !!selectedProjectSlug,
-  });
+  ) as {
+    data?: {
+      agents?: string[];
+    };
+  };
   const projectAgentFilter = selectedProjectConfig?.agents;
 
   const isGlobal = selectedContext === GLOBAL_CONTEXT;
@@ -141,6 +146,14 @@ export function NewChatModal({
 
   const { groups, flatList } = useMemo(() => {
     const query = agentSearch.toLowerCase();
+    const runtimeChats = runtimeConnections
+      .filter(
+        (connection) =>
+          connection.type !== 'acp' &&
+          isRuntimeConnectionSelectable(connection),
+      )
+      .map((connection) => buildRuntimeChatAgent(connection) as AgentData);
+    const runtimeChatSlugs = new Set(runtimeChats.map((agent) => agent.slug));
     const chatReadyAgents = (agents || []).filter(
       (agent) =>
         canAgentStartChat(agent, runtimeConnections) &&
@@ -149,28 +162,28 @@ export function NewChatModal({
           projectAgentFilter.length === 0 ||
           projectAgentFilter.includes(agent.slug)),
     );
-    const filtered = chatReadyAgents.filter(
+    const filtered = [...runtimeChats, ...chatReadyAgents].filter(
       (a) =>
         a.name.toLowerCase().includes(query) ||
         a.slug.toLowerCase().includes(query),
     );
 
-    const isRuntimeAgent = (a: AgentData) => a.slug.startsWith('__runtime:');
-
     const isLayoutAgent = (a: AgentData) => {
       if (a.source === 'acp') return false;
-      if (isRuntimeAgent(a)) return false;
       if (wsAgentSlugs.has(a.slug)) return true;
       if (a.slug.includes(':')) return true;
       return false;
     };
 
-    const runtimeAgents = filtered.filter(isRuntimeAgent);
+    const runtimeAgents = filtered.filter((a) => runtimeChatSlugs.has(a.slug));
     const wsAgents = filtered.filter(
-      (a) => !isRuntimeAgent(a) && isLayoutAgent(a),
+      (a) => !runtimeChatSlugs.has(a.slug) && isLayoutAgent(a),
     );
     const globalAgents = filtered.filter(
-      (a) => a.source !== 'acp' && !isRuntimeAgent(a) && !isLayoutAgent(a),
+      (a) =>
+        a.source !== 'acp' &&
+        !runtimeChatSlugs.has(a.slug) &&
+        !isLayoutAgent(a),
     );
     const acpAgents = filtered.filter((a) => a.source === 'acp');
 
@@ -371,23 +384,8 @@ export function NewChatModal({
 
         <div className="new-chat-modal__list">
           {flatList.length === 0 && (
-            <div className="new-chat-modal__empty-state">
-              <div className="new-chat-modal__group-label">
-                No chat-capable agents or runtimes are ready.
-              </div>
-              <p className="new-chat-modal__empty-hint">
-                Configure a runtime connection to get started.{' '}
-                <button
-                  type="button"
-                  className="new-chat-modal__empty-link"
-                  onClick={() => {
-                    onClose();
-                    navigate('/connections/runtimes');
-                  }}
-                >
-                  Go to Connections →
-                </button>
-              </p>
+            <div className="new-chat-modal__group-label">
+              No chat-capable agents or runtimes are ready.
             </div>
           )}
           {groups.map((group, gi) => (

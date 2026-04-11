@@ -17,9 +17,9 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
@@ -40,7 +40,7 @@ jobs:
         run: cd packages/cli && npm run build --if-present
 
       - name: Create Release PR or Publish
-        uses: changesets/action@v1
+        uses: changesets/action@e7c90a2f81fce6a1b1300b60dafe43d2e45d5436 # v1
         with:
           publish: npm run publish-packages
           version: npm run version-packages

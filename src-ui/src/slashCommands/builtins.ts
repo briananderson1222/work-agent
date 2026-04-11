@@ -1,5 +1,6 @@
 import { agentQueries } from '@stallion-ai/sdk';
 import { registerCommand } from './registry';
+import { promptSlug } from './utils';
 
 // MCP command
 registerCommand(
@@ -65,7 +66,6 @@ registerCommand(
     // Global prompts
     const prompts = queryClient.getQueryData<any[]>(['prompts']) || [];
     if (prompts.length > 0) {
-      const { promptSlug } = await import('../hooks/useSlashCommands');
       const promptList = prompts
         .map(
           (p: any) =>

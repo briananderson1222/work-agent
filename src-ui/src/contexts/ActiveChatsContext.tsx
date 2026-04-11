@@ -1,511 +1,34 @@
-import type { ProviderKind } from '@stallion-ai/contracts/provider';
-import { useInvalidateQuery } from '@stallion-ai/sdk';
 import {
   createContext,
   type ReactNode,
   useCallback,
   useContext,
-  useEffect,
   useSyncExternalStore,
 } from 'react';
-import { log } from '@/utils/logger';
 import {
-  sendOrchestrationTurn,
-  startOrchestrationSession,
-  useOrchestration,
-} from '../hooks/useOrchestration';
-import { useStreamingMessage } from '../hooks/useStreamingMessage';
-import type { FileAttachment } from '../types';
-import {
-  conversationsStore,
-  useConversationActions,
-} from './ConversationsContext';
-import { useNavigation } from './NavigationContext';
-
-type ChatUIState = {
-  input: string;
-  attachments: FileAttachment[];
-  queuedMessages: string[];
-  inputHistory: string[];
-  historyIndex?: number; // Current position in input history (-1 = not navigating)
-  savedInput?: string; // Original unsent text before navigating history
-  status?: 'idle' | 'sending' | 'error';
-  isProcessingStep?: boolean;
-  error?: string | null;
-  hasUnread: boolean;
-  abortController?: AbortController;
-  // Draft session metadata (for new chats without backend conversations yet)
-  agentSlug?: string;
-  agentName?: string;
-  title?: string;
-  conversationId?: string; // Backend conversation ID (set after first message)
-  projectSlug?: string;
-  projectName?: string;
-  focusDirectoryId?: string;
-  provider?: ProviderKind;
-  providerOptions?: Record<string, unknown>;
-  orchestrationSessionStarted?: boolean;
-  orchestrationProvider?: ProviderKind;
-  orchestrationModel?: string;
-  orchestrationStatus?: string;
-  // Optimistic messages (shown immediately, replaced when backend responds)
-  messages?: Array<{
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    attachments?: any[];
-    traceId?: string;
-  }>;
-  // Ephemeral messages (user message before backend confirms, system messages)
-  ephemeralMessages?: Array<{
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    attachments?: any[];
-    action?: { label: string; handler: () => void };
-    traceId?: string;
-    id?: string;
-    timestamp?: number;
-    ephemeral?: boolean;
-    insertAfterCount?: number;
-  }>;
-  // Tool calls from this conversation (persisted across refreshes)
-  toolCalls?: Array<{
-    id: string;
-    name: string;
-    args: any;
-    result?: any;
-    state?: string;
-    error?: string;
-  }>;
-  // Streaming message being built in real-time
-  streamingMessage?: {
-    role: 'assistant';
-    content: string;
-    contentParts?: Array<{
-      type: 'text' | 'tool';
-      content?: string;
-      tool?: any;
-    }>;
-  };
-  // Model override for this session
-  model?: string;
-  // Session-specific autoApprove list (tools trusted for this session only)
-  sessionAutoApprove?: string[];
-  // Pending tool approvals (approvalId -> toolName)
-  pendingApprovals?: string[];
-  // Mapping of approvalId -> toastId for dismissing notifications
-  approvalToasts?: Map<string, string>;
-  // Whether user is editing a queued message (pauses queue processing)
-  isEditingQueue?: boolean;
-};
-
-type ActiveChatsMap = Record<string, ChatUIState>; // keyed by conversationId
-
-class ActiveChatsStore {
-  private chats: ActiveChatsMap = {};
-  private listeners = new Set<() => void>();
-  private snapshot = this.chats;
-  private readonly STORAGE_KEY = 'activeChats';
-  private saveTimer: ReturnType<typeof setTimeout> | null = null;
-
-  constructor() {
-    this.loadFromStorage();
-  }
-
-  private loadFromStorage() {
-    try {
-      const stored = sessionStorage.getItem(this.STORAGE_KEY);
-      if (stored) {
-        const minimal: Array<{
-          sessionId: string;
-          conversationId: string;
-          agentSlug: string;
-          model?: string;
-          projectSlug?: string;
-          projectName?: string;
-          provider?: ProviderKind;
-          providerOptions?: Record<string, unknown>;
-          orchestrationSessionStarted?: boolean;
-          orchestrationProvider?: ProviderKind;
-          orchestrationModel?: string;
-          orchestrationStatus?: string;
-          sessionAutoApprove?: string[];
-          ephemeralMessages?: any[];
-          inputHistory?: string[];
-        }> = JSON.parse(stored);
-        // Initialize minimal chat states - everything else will be derived reactively
-        for (const session of minimal) {
-          this.chats[session.sessionId] = {
-            input: '',
-            attachments: [],
-            queuedMessages: [],
-            inputHistory: session.inputHistory || [],
-            hasUnread: false,
-            agentSlug: session.agentSlug,
-            conversationId: session.conversationId,
-            model: session.model,
-            projectSlug: session.projectSlug,
-            projectName: session.projectName,
-            provider: session.provider || 'bedrock',
-            providerOptions: session.providerOptions || {},
-            orchestrationSessionStarted:
-              session.orchestrationSessionStarted || false,
-            orchestrationProvider: session.orchestrationProvider,
-            orchestrationModel: session.orchestrationModel,
-            orchestrationStatus: session.orchestrationStatus,
-            sessionAutoApprove: session.sessionAutoApprove || [],
-            ephemeralMessages: session.ephemeralMessages || [],
-          };
-        }
-        this.snapshot = this.chats;
-      }
-    } catch (e) {
-      log.api('Failed to load active chats from sessionStorage:', e);
-    }
-  }
-
-  private saveToStorage() {
-    try {
-      // Save only minimal data needed for rehydration
-      const minimal = Object.entries(this.chats)
-        .filter(([_, chat]) => chat.conversationId) // Only save sessions with conversations
-        .map(([sessionId, chat]) => ({
-          sessionId,
-          conversationId: chat.conversationId!,
-          agentSlug: chat.agentSlug!,
-          model: chat.model,
-          projectSlug: chat.projectSlug,
-          projectName: chat.projectName,
-          provider: chat.provider || 'bedrock',
-          providerOptions: chat.providerOptions || {},
-          orchestrationSessionStarted:
-            chat.orchestrationSessionStarted || false,
-          orchestrationProvider: chat.orchestrationProvider,
-          orchestrationModel: chat.orchestrationModel,
-          orchestrationStatus: chat.orchestrationStatus,
-          sessionAutoApprove: chat.sessionAutoApprove || [],
-          ephemeralMessages: chat.ephemeralMessages || [],
-          inputHistory: chat.inputHistory || [],
-        }));
-      sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(minimal));
-    } catch (e) {
-      log.api('Failed to save active chats to sessionStorage:', e);
-    }
-  }
-
-  private debouncedSave = () => {
-    if (this.saveTimer) {
-      clearTimeout(this.saveTimer);
-    }
-    this.saveTimer = setTimeout(() => {
-      this.saveToStorage();
-      this.saveTimer = null;
-    }, 300);
-  };
-
-  subscribe = (listener: () => void) => {
-    this.listeners.add(listener);
-    return () => this.listeners.delete(listener);
-  };
-
-  getSnapshot = () => {
-    return this.snapshot;
-  };
-
-  private notify = (persist = false) => {
-    this.snapshot = { ...this.chats };
-    if (persist) {
-      this.debouncedSave();
-    }
-    this.listeners.forEach((listener) => listener());
-  };
-
-  initChat(
-    conversationId: string,
-    metadata?: {
-      agentSlug: string;
-      agentName: string;
-      title: string;
-      conversationId?: string;
-      projectSlug?: string;
-      projectName?: string;
-      provider?: ProviderKind;
-      model?: string;
-      providerOptions?: Record<string, unknown>;
-    },
-  ) {
-    if (!this.chats[conversationId]) {
-      this.chats[conversationId] = {
-        input: '',
-        attachments: [],
-        queuedMessages: [],
-        inputHistory: [],
-        hasUnread: false,
-        provider: 'bedrock',
-        providerOptions: {},
-        orchestrationSessionStarted: false,
-        ...metadata,
-      };
-      this.notify(true);
-    }
-  }
-
-  updateChat(
-    conversationId: string,
-    updates: Partial<ChatUIState>,
-    _sync?: boolean,
-  ) {
-    if (this.chats[conversationId]) {
-      // If updating input and not navigating history, reset historyIndex
-      if ('input' in updates && !('historyIndex' in updates)) {
-        updates = { ...updates, historyIndex: -1 };
-      }
-      this.chats[conversationId] = {
-        ...this.chats[conversationId],
-        ...updates,
-      };
-
-      // Only persist if updating session metadata that must survive refreshes.
-      const shouldPersist =
-        'conversationId' in updates ||
-        'model' in updates ||
-        'provider' in updates ||
-        'providerOptions' in updates ||
-        'orchestrationSessionStarted' in updates ||
-        'sessionAutoApprove' in updates ||
-        'ephemeralMessages' in updates;
-      this.notify(shouldPersist);
-    }
-  }
-
-  removeChat(conversationId: string) {
-    delete this.chats[conversationId];
-    this.notify(true);
-  }
-
-  clearInput(conversationId: string) {
-    if (this.chats[conversationId]) {
-      this.chats[conversationId] = {
-        ...this.chats[conversationId],
-        input: '',
-        attachments: [],
-      };
-      this.notify(false); // Don't persist input clearing
-    }
-  }
-
-  navigateHistoryUp(conversationId: string) {
-    const chat = this.chats[conversationId];
-    if (!chat) {
-      return;
-    }
-
-    const history = chat.inputHistory || [];
-    if (history.length === 0) {
-      return;
-    }
-
-    const currentIndex = chat.historyIndex ?? -1;
-
-    // First time pressing up - save current input
-    if (currentIndex === -1) {
-      const savedInput = chat.input || '';
-      const newIndex = history.length - 1;
-
-      this.chats[conversationId] = {
-        ...chat,
-        input: history[newIndex],
-        historyIndex: newIndex,
-        savedInput,
-      };
-    } else {
-      // Already navigating - go to previous
-      if (currentIndex === 0) {
-        return;
-      }
-      const newIndex = currentIndex - 1;
-
-      this.chats[conversationId] = {
-        ...chat,
-        input: history[newIndex],
-        historyIndex: newIndex,
-      };
-    }
-    this.notify(false); // Don't persist navigation
-  }
-
-  navigateHistoryDown(conversationId: string) {
-    const chat = this.chats[conversationId];
-    if (!chat) {
-      return;
-    }
-
-    const currentIndex = chat.historyIndex ?? -1;
-    if (currentIndex === -1) {
-      return;
-    }
-
-    const history = chat.inputHistory || [];
-    const newIndex = currentIndex + 1;
-
-    // Reached the end - restore saved input or clear
-    if (newIndex >= history.length) {
-      const restoredInput = chat.savedInput || '';
-
-      this.chats[conversationId] = {
-        ...chat,
-        input: restoredInput,
-        historyIndex: -1,
-        savedInput: undefined,
-      };
-    } else {
-      this.chats[conversationId] = {
-        ...chat,
-        input: history[newIndex],
-        historyIndex: newIndex,
-      };
-    }
-    this.notify(false); // Don't persist navigation
-  }
-
-  addEphemeralMessage(
-    conversationId: string,
-    message: {
-      role: 'user' | 'assistant' | 'system';
-      content: string;
-      attachments?: any[];
-    },
-    backendMessageCount?: number,
-  ) {
-    if (this.chats[conversationId]) {
-      const current = this.chats[conversationId].ephemeralMessages || [];
-
-      // Get the latest timestamp from backend messages (from ConversationsContext)
-      const conversationsSnapshot = conversationsStore.getSnapshot();
-      const messagesKey = `messages:${this.chats[conversationId].agentSlug}:${conversationId}`;
-      const backendMessages = conversationsSnapshot.messages[messagesKey] || [];
-
-      const latestTimestamp =
-        backendMessages.length > 0
-          ? Math.max(
-              ...backendMessages.map((m) =>
-                (m as any).timestamp
-                  ? new Date((m as any).timestamp).getTime()
-                  : 0,
-              ),
-            )
-          : Date.now();
-
-      this.chats[conversationId] = {
-        ...this.chats[conversationId],
-        ephemeralMessages: [
-          ...current,
-          {
-            ...message,
-            id: `ephemeral-${Date.now()}-${Math.random()}`,
-            timestamp: latestTimestamp + 1, // Ensure it appears after the latest backend message
-            ephemeral: true,
-            insertAfterCount: backendMessageCount ?? 0, // Store how many backend messages existed
-          },
-        ],
-      };
-      this.notify(true); // Persist ephemeral messages
-    }
-  }
-
-  clearEphemeralMessages(conversationId: string) {
-    if (this.chats[conversationId]) {
-      this.chats[conversationId] = {
-        ...this.chats[conversationId],
-        ephemeralMessages: [],
-      };
-      this.notify(true); // Persist clearing
-    }
-  }
-
-  assignConversationId(sessionId: string, conversationId: string) {
-    // Just update the conversationId field, don't migrate the session
-    if (this.chats[sessionId]) {
-      this.chats[sessionId] = { ...this.chats[sessionId], conversationId };
-      this.notify(true); // Persist conversation assignment
-    }
-  }
-
-  removeQueuedMessage(sessionId: string, index: number) {
-    if (this.chats[sessionId]) {
-      const queued = [...(this.chats[sessionId].queuedMessages || [])];
-      queued.splice(index, 1);
-      this.chats[sessionId] = {
-        ...this.chats[sessionId],
-        queuedMessages: queued,
-      };
-      this.notify(false); // Don't persist queue changes
-    }
-  }
-
-  editQueuedMessage(sessionId: string, index: number, newContent: string) {
-    if (this.chats[sessionId]) {
-      const queued = [...(this.chats[sessionId].queuedMessages || [])];
-      queued[index] = newContent;
-      this.chats[sessionId] = {
-        ...this.chats[sessionId],
-        queuedMessages: queued,
-      };
-      this.notify(false); // Don't persist queue changes
-    }
-  }
-
-  clearQueue(sessionId: string) {
-    if (this.chats[sessionId]) {
-      this.chats[sessionId] = { ...this.chats[sessionId], queuedMessages: [] };
-      this.notify(false); // Don't persist queue clearing
-    }
-  }
-
-  addToInputHistory(sessionId: string, input: string) {
-    if (this.chats[sessionId]) {
-      const history = this.chats[sessionId].inputHistory || [];
-      this.chats[sessionId] = {
-        ...this.chats[sessionId],
-        inputHistory: [...history, input],
-        historyIndex: -1, // Reset to top
-        savedInput: undefined, // Clear saved input
-      };
-      this.notify(true); // Persist input history changes
-    }
-  }
-}
-
-export const activeChatsStore = new ActiveChatsStore();
+  activeChatsStore,
+  type ActiveChatMetadata,
+  type ActiveChatsMap,
+  type ChatUIState,
+} from './active-chats-store';
+import { conversationsStore } from './ConversationsContext';
+import { usePruneActiveChats } from '../hooks/useActiveChatSessions';
 
 type ActiveChatsContextType = {
-  initChat: (
-    conversationId: string,
-    metadata?: {
-      agentSlug: string;
-      agentName: string;
-      title: string;
-      conversationId?: string;
-      projectSlug?: string;
-      projectName?: string;
-    },
-  ) => void;
-  updateChat: (
-    conversationId: string,
-    updates: Partial<ChatUIState>,
-    sync?: boolean,
-  ) => void;
-  removeChat: (conversationId: string) => void;
-  clearInput: (conversationId: string) => void;
+  initChat: (sessionId: string, metadata?: ActiveChatMetadata) => void;
+  updateChat: (sessionId: string, updates: Partial<ChatUIState>) => void;
+  removeChat: (sessionId: string) => void;
+  clearInput: (sessionId: string) => void;
   addEphemeralMessage: (
-    conversationId: string,
+    sessionId: string,
     message: {
       role: 'user' | 'assistant' | 'system';
       content: string;
       attachments?: any[];
     },
   ) => void;
-  clearEphemeralMessages: (conversationId: string) => void;
-  assignConversationId: (tempSessionId: string, conversationId: string) => void;
+  clearEphemeralMessages: (sessionId: string) => void;
+  assignConversationId: (sessionId: string, conversationId: string) => void;
   removeQueuedMessage: (sessionId: string, index: number) => void;
   editQueuedMessage: (
     sessionId: string,
@@ -514,131 +37,74 @@ type ActiveChatsContextType = {
   ) => void;
   clearQueue: (sessionId: string) => void;
   addToInputHistory: (sessionId: string, input: string) => void;
-  navigateHistoryUp: (conversationId: string) => void;
-  navigateHistoryDown: (conversationId: string) => void;
-  getAllChats: () => Record<string, ChatUIState>;
+  navigateHistoryUp: (sessionId: string) => void;
+  navigateHistoryDown: (sessionId: string) => void;
+  getAllChats: () => ActiveChatsMap;
 };
 
 const ActiveChatsContext = createContext<ActiveChatsContextType | undefined>(
   undefined,
 );
 
+activeChatsStore.setBackendMessagesResolver((agentSlug, conversationId) => {
+  const snapshot = conversationsStore.getSnapshot();
+  const messagesKey = `messages:${agentSlug}:${conversationId}`;
+  return snapshot.messages[messagesKey] || [];
+});
+
 export function ActiveChatsProvider({ children }: { children: ReactNode }) {
-  // Connect orchestration SSE for claude/codex runtime events
-  const apiBase =
-    (window as any).__API_BASE__ ||
-    (import.meta as any).env?.VITE_API_BASE ||
-    'http://localhost:3141';
-  useOrchestration(apiBase);
+  usePruneActiveChats();
 
-  // Prune sessions whose conversations no longer exist on the backend
-  useEffect(() => {
-    const chats = activeChatsStore.getSnapshot();
-    const entries = Object.entries(chats).filter(
-      ([, c]) => c.conversationId && c.agentSlug,
-    );
-    if (entries.length === 0) return;
-
-    // Group by agent to minimize API calls
-    const byAgent = new Map<string, Array<[string, (typeof chats)[string]]>>();
-    for (const entry of entries) {
-      const slug = entry[1].agentSlug!;
-      if (!byAgent.has(slug)) byAgent.set(slug, []);
-      byAgent.get(slug)!.push(entry);
-    }
-
-    const apiBase =
-      (window as any).__API_BASE__ ||
-      (import.meta as any).env?.VITE_API_BASE ||
-      'http://localhost:3141';
-    (async () => {
-      for (const [slug, sessions] of byAgent) {
-        try {
-          const r = await fetch(
-            `${apiBase}/agents/${encodeURIComponent(slug)}/conversations`,
-          );
-          if (!r.ok) continue;
-          const { data = [] } = await r.json();
-          const ids = new Set(data.map((c: any) => c.id));
-          for (const [sessionId, chat] of sessions) {
-            if (!ids.has(chat.conversationId)) {
-              activeChatsStore.removeChat(sessionId);
-            }
-          }
-        } catch {
-          /* keep sessions if backend unreachable */
-        }
-      }
-    })();
-  }, []);
   const initChat = useCallback(
-    (
-      conversationId: string,
-      metadata?: {
-        agentSlug: string;
-        agentName: string;
-        title: string;
-        conversationId?: string;
-        projectSlug?: string;
-        projectName?: string;
-      },
-    ) => {
-      activeChatsStore.initChat(conversationId, metadata);
+    (sessionId: string, metadata?: ActiveChatMetadata) => {
+      activeChatsStore.initChat(sessionId, metadata);
     },
     [],
   );
 
   const updateChat = useCallback(
-    (conversationId: string, updates: Partial<ChatUIState>, sync?: boolean) => {
-      activeChatsStore.updateChat(conversationId, updates, sync);
+    (sessionId: string, updates: Partial<ChatUIState>) => {
+      activeChatsStore.updateChat(sessionId, updates);
     },
     [],
   );
 
-  const removeChat = useCallback((conversationId: string) => {
-    activeChatsStore.removeChat(conversationId);
+  const removeChat = useCallback((sessionId: string) => {
+    activeChatsStore.removeChat(sessionId);
   }, []);
 
-  const clearInput = useCallback((conversationId: string) => {
-    activeChatsStore.clearInput(conversationId);
+  const clearInput = useCallback((sessionId: string) => {
+    activeChatsStore.clearInput(sessionId);
   }, []);
 
   const addEphemeralMessage = useCallback(
     (
-      conversationId: string,
+      sessionId: string,
       message: {
         role: 'user' | 'assistant' | 'system';
         content: string;
-        contentType?: 'markdown' | 'html';
         attachments?: any[];
       },
     ) => {
-      activeChatsStore.addEphemeralMessage(conversationId, message);
+      activeChatsStore.addEphemeralMessage(sessionId, message);
     },
     [],
   );
 
-  const clearEphemeralMessages = useCallback((conversationId: string) => {
-    activeChatsStore.clearEphemeralMessages(conversationId);
+  const clearEphemeralMessages = useCallback((sessionId: string) => {
+    activeChatsStore.clearEphemeralMessages(sessionId);
   }, []);
 
   const assignConversationId = useCallback(
-    (tempSessionId: string, conversationId: string) => {
-      activeChatsStore.assignConversationId(tempSessionId, conversationId);
+    (sessionId: string, conversationId: string) => {
+      activeChatsStore.assignConversationId(sessionId, conversationId);
     },
     [],
   );
 
-  const getAllChats = useCallback(() => {
-    return activeChatsStore.getSnapshot();
+  const removeQueuedMessage = useCallback((sessionId: string, index: number) => {
+    activeChatsStore.removeQueuedMessage(sessionId, index);
   }, []);
-
-  const removeQueuedMessage = useCallback(
-    (sessionId: string, index: number) => {
-      activeChatsStore.removeQueuedMessage(sessionId, index);
-    },
-    [],
-  );
 
   const editQueuedMessage = useCallback(
     (sessionId: string, index: number, newContent: string) => {
@@ -655,13 +121,15 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
     activeChatsStore.addToInputHistory(sessionId, input);
   }, []);
 
-  const navigateHistoryUp = useCallback((conversationId: string) => {
-    activeChatsStore.navigateHistoryUp(conversationId);
+  const navigateHistoryUp = useCallback((sessionId: string) => {
+    activeChatsStore.navigateHistoryUp(sessionId);
   }, []);
 
-  const navigateHistoryDown = useCallback((conversationId: string) => {
-    activeChatsStore.navigateHistoryDown(conversationId);
+  const navigateHistoryDown = useCallback((sessionId: string) => {
+    activeChatsStore.navigateHistoryDown(sessionId);
   }, []);
+
+  const getAllChats = useCallback(() => activeChatsStore.getSnapshot(), []);
 
   return (
     <ActiveChatsContext.Provider
@@ -687,7 +155,7 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
   );
 }
 
-export function useActiveChatState(conversationId: string): ChatUIState | null {
+export function useActiveChatState(sessionId: string): ChatUIState | null {
   const context = useContext(ActiveChatsContext);
   if (!context) {
     throw new Error(
@@ -701,7 +169,7 @@ export function useActiveChatState(conversationId: string): ChatUIState | null {
     activeChatsStore.getSnapshot,
   );
 
-  return chats[conversationId] || null;
+  return chats[sessionId] || null;
 }
 
 export function useActiveChatActions() {
@@ -714,7 +182,7 @@ export function useActiveChatActions() {
   return context;
 }
 
-export function useAllActiveChats(): Record<string, ChatUIState> {
+export function useAllActiveChats(): ActiveChatsMap {
   return useSyncExternalStore(
     activeChatsStore.subscribe,
     activeChatsStore.getSnapshot,
@@ -722,525 +190,5 @@ export function useAllActiveChats(): Record<string, ChatUIState> {
   );
 }
 
-export function useSendMessage(
-  apiBase: string,
-  onActiveSessionChange?: (newSessionId: string) => void,
-  onError?: (error: Error) => void,
-  handleSlashCommand?: (
-    sessionId: string,
-    content: string,
-  ) => Promise<boolean | string | 'CLEAR'>,
-) {
-  const { updateChat, clearInput, assignConversationId, addEphemeralMessage } =
-    useActiveChatActions();
-  const { sendMessage: sendToServer } = useConversationActions();
-  const { handleStreamEvent, clearStreamingMessage } = useStreamingMessage(
-    apiBase,
-    onActiveSessionChange,
-  );
-  const invalidate = useInvalidateQuery();
-
-  const sendMessage = useCallback(
-    async (
-      sessionId: string,
-      agentSlug: string,
-      conversationId: string | undefined,
-      content: string,
-      attachments?: FileAttachment[],
-    ) => {
-      const allChats = activeChatsStore.getSnapshot();
-      const currentState = allChats[sessionId];
-
-      // If already sending, queue the message instead of aborting
-      if (currentState?.status === 'sending') {
-        // Queue message if already sending
-        clearInput(sessionId);
-        updateChat(sessionId, {
-          queuedMessages: [...(currentState.queuedMessages || []), content],
-        });
-        return;
-      }
-
-      // Handle slash commands if handler provided
-      if (content.startsWith('/') && handleSlashCommand) {
-        const result = await handleSlashCommand(sessionId, content);
-
-        if (result === true || result === 'CLEAR') {
-          // Command handled, don't send to backend
-          return;
-        } else if (typeof result === 'string' && result !== 'CLEAR') {
-          // Custom command expanded, show notification
-          addEphemeralMessage(sessionId, {
-            role: 'system',
-            content: `Slash command **${content}** was sent as user message`,
-          });
-          // Use the expanded prompt
-          content = result;
-        }
-      }
-
-      // Add user message to messages array - convert attachments to contentParts (AI SDK format)
-      const contentParts: Array<{
-        type: string;
-        content?: string;
-        url?: string;
-        mediaType?: string;
-        name?: string;
-      }> = [];
-      if (content) {
-        contentParts.push({ type: 'text', content });
-      }
-      if (attachments) {
-        for (const att of attachments) {
-          contentParts.push({
-            type: 'file',
-            url: att.data,
-            mediaType: att.type,
-            name: att.name,
-          });
-        }
-      }
-
-      const updatedMessages = [
-        ...(currentState?.messages || []),
-        {
-          role: 'user' as const,
-          content,
-          contentParts: contentParts.length > 0 ? contentParts : undefined,
-        },
-      ];
-
-      // Create abort controller for this request
-      const abortController = new AbortController();
-
-      // Clear input AND attachments
-      clearInput(sessionId);
-      updateChat(sessionId, {
-        status: 'sending',
-        messages: updatedMessages,
-        abortController,
-        attachments: [],
-      });
-
-      // Track the current session ID (will change after migration)
-      const currentSessionId = sessionId;
-
-      try {
-        // Pass title for new conversations
-        const title = !conversationId ? currentState?.title : undefined;
-
-        // Get model override from chat state
-        const model = currentState?.model;
-        const provider = currentState?.provider || 'bedrock';
-
-        if (provider !== 'bedrock') {
-          if (attachments && attachments.length > 0) {
-            throw new Error(
-              'Attachments are not supported yet for Claude or Codex sessions.',
-            );
-          }
-
-          if (!currentState?.orchestrationSessionStarted) {
-            await startOrchestrationSession({
-              apiBase,
-              threadId: sessionId,
-              provider,
-              modelId: model,
-              modelOptions: currentState?.providerOptions,
-            });
-            updateChat(sessionId, { orchestrationSessionStarted: true });
-          }
-
-          await sendOrchestrationTurn({
-            apiBase,
-            threadId: sessionId,
-            text: content,
-            modelId: model,
-            modelOptions: currentState?.providerOptions,
-          });
-          updateChat(sessionId, {
-            status: 'sending',
-            abortController: undefined,
-          });
-          return;
-        }
-
-        // Delegate to ConversationsContext for server communication
-        const result = await sendToServer(
-          apiBase,
-          agentSlug,
-          conversationId,
-          content,
-          title,
-          (data, state) => handleStreamEvent(currentSessionId, data, state),
-          (convId, title) => {
-            // Assign conversationId to the session (don't migrate, just update the field)
-            assignConversationId(sessionId, convId);
-            if (title) {
-              updateChat(sessionId, { title });
-            }
-            // Invalidate conversations cache so session management menu shows the new conversation
-            invalidate(['conversations', agentSlug]);
-            onActiveSessionChange?.(sessionId);
-          },
-          onError,
-          abortController.signal,
-          model,
-          attachments,
-          currentState?.projectSlug,
-        );
-
-        const newConversationId = result?.conversationId;
-        const finishReason = result?.finishReason;
-
-        // Replace messages with backend truth (use sessionId, not conversationId)
-        try {
-          // ConversationsStore.sendMessage already called refreshMessages —
-          // snapshot is populated when sendToServer resolves. No second fetch needed.
-          const messagesKey = `messages:${agentSlug}:${newConversationId}`;
-          const backendMessages =
-            conversationsStore.getSnapshot().messages[messagesKey] || [];
-
-          clearStreamingMessage(sessionId);
-
-          // Determine effective finish reason from stream or last backend message
-          const effectiveFinishReason =
-            finishReason ||
-            (backendMessages[backendMessages.length - 1] as any)?.finishReason;
-
-          const updates: Partial<ChatUIState> = {
-            status: 'idle',
-            abortController: undefined,
-          };
-
-          // Only overwrite local messages if backend returned data.
-          // The server may not have finished persisting yet, so an empty
-          // response should NOT wipe the optimistic messages the user saw.
-          if (backendMessages.length > 0) {
-            updates.messages = backendMessages.map((m) => ({
-              role: m.role,
-              content: m.content,
-              contentParts: m.contentParts,
-            }));
-          }
-
-          // Show contextual ephemeral messages based on finish reason
-          if (effectiveFinishReason === 'tool-calls') {
-            updates.ephemeralMessages = [
-              {
-                role: 'system',
-                content:
-                  '🔄 **Conversation paused** - I reached the maximum number of tool calls in this turn. Click Continue to let me keep working.',
-                action: {
-                  label: 'Continue',
-                  handler: () =>
-                    sendMessage(
-                      sessionId,
-                      agentSlug,
-                      newConversationId,
-                      'continue',
-                    ),
-                },
-              },
-            ];
-          } else if (effectiveFinishReason === 'max_turns') {
-            updates.ephemeralMessages = [
-              {
-                role: 'system',
-                content:
-                  '🔄 **Turn limit reached** - The agent hit its maximum number of turns. Click Continue to keep going.',
-                action: {
-                  label: 'Continue',
-                  handler: () =>
-                    sendMessage(
-                      sessionId,
-                      agentSlug,
-                      newConversationId,
-                      'continue',
-                    ),
-                },
-              },
-            ];
-          } else if (effectiveFinishReason === 'length') {
-            updates.ephemeralMessages = [
-              {
-                role: 'system',
-                content:
-                  '✂️ **Response truncated** - The output token limit was reached. Click Continue to pick up where I left off.',
-                action: {
-                  label: 'Continue',
-                  handler: () =>
-                    sendMessage(
-                      sessionId,
-                      agentSlug,
-                      newConversationId,
-                      'continue',
-                    ),
-                },
-              },
-            ];
-          } else if (
-            effectiveFinishReason &&
-            effectiveFinishReason !== 'stop' &&
-            effectiveFinishReason !== 'end_turn'
-          ) {
-            updates.ephemeralMessages = [
-              {
-                role: 'system',
-                content: `⚠️ **Response ended unexpectedly** — reason: ${effectiveFinishReason}`,
-              },
-            ];
-          }
-
-          updateChat(sessionId, updates);
-
-          // Process next queued message if any (unless user is editing)
-          const updatedState = activeChatsStore.getSnapshot()[sessionId];
-          if (
-            updatedState?.queuedMessages &&
-            updatedState.queuedMessages.length > 0 &&
-            !updatedState.isEditingQueue
-          ) {
-            const [nextMessage, ...remainingQueue] =
-              updatedState.queuedMessages;
-            updateChat(sessionId, { queuedMessages: remainingQueue });
-            // Process next message asynchronously
-            setTimeout(() => {
-              sendMessage(
-                sessionId,
-                agentSlug,
-                updatedState.conversationId,
-                nextMessage,
-              );
-            }, 100);
-          }
-        } catch (replaceError) {
-          log.api('[useSendMessage] Error replacing messages:', replaceError);
-          // At least clear the status
-          clearStreamingMessage(sessionId);
-          updateChat(sessionId, { status: 'idle', abortController: undefined });
-        }
-      } catch (error) {
-        const err = error as Error;
-
-        updateChat(sessionId, {
-          status: 'error',
-          error: err.message,
-          abortController: undefined,
-        });
-        clearStreamingMessage(sessionId);
-      }
-    },
-    [
-      apiBase,
-      updateChat,
-      clearInput,
-      assignConversationId,
-      sendToServer,
-      handleStreamEvent,
-      clearStreamingMessage,
-      onActiveSessionChange,
-      onError,
-      addEphemeralMessage,
-      handleSlashCommand,
-      invalidate,
-    ],
-  );
-
-  return sendMessage;
-}
-
-export function useCancelMessage() {
-  const { updateChat } = useActiveChatActions();
-
-  return useCallback(
-    (sessionId: string) => {
-      const state = activeChatsStore.getSnapshot()[sessionId];
-
-      if (state?.abortController && state?.status === 'sending') {
-        // Mark as user-initiated cancel before aborting
-        (
-          state.abortController as AbortController & {
-            _userInitiated?: boolean;
-          }
-        )._userInitiated = true;
-        state.abortController.abort('User cancelled');
-
-        // Backend will detect the abort and remove incomplete response from memory
-
-        // Update UI state
-        updateChat(sessionId, { status: 'idle', abortController: undefined });
-      } else {
-      }
-    },
-    [updateChat],
-  );
-}
-
-export function useCreateChatSession() {
-  const { initChat } = useActiveChatActions();
-
-  return useCallback(
-    (
-      agentSlug: string,
-      agentName: string,
-      title?: string,
-      projectSlug?: string,
-      projectName?: string,
-      execution?: {
-        provider?: ProviderKind;
-        model?: string;
-        providerOptions?: Record<string, unknown>;
-      },
-    ) => {
-      const sessionId = `${agentSlug}:${Date.now()}`;
-      initChat(sessionId, {
-        agentSlug,
-        agentName,
-        title: title || `${agentName} Chat`,
-        projectSlug,
-        projectName,
-        provider: execution?.provider,
-        model: execution?.model,
-        providerOptions: execution?.providerOptions,
-      });
-      return sessionId;
-    },
-    [initChat],
-  );
-}
-
-export function useOpenConversation(apiBase: string) {
-  const { initChat, updateChat } = useActiveChatActions();
-  const { fetchMessages } = useConversationActions();
-
-  return useCallback(
-    async (
-      conversationId: string,
-      agentSlug: string,
-      agentName: string,
-      projectSlug?: string,
-      projectName?: string,
-      execution?: {
-        provider?: ProviderKind;
-        model?: string;
-        providerOptions?: Record<string, unknown>;
-      },
-    ) => {
-      const sessionId = `${agentSlug}:${Date.now()}`;
-
-      initChat(sessionId, {
-        agentSlug,
-        agentName,
-        title: `${agentName} Chat`,
-        conversationId,
-        projectSlug,
-        projectName,
-        provider: execution?.provider,
-        model: execution?.model,
-        providerOptions: execution?.providerOptions,
-      });
-
-      // Load messages
-      await fetchMessages(apiBase, agentSlug, conversationId);
-      const key = `messages:${agentSlug}:${conversationId}`;
-      const messages = conversationsStore.getSnapshot().messages[key] || [];
-      updateChat(sessionId, { messages });
-
-      return sessionId;
-    },
-    [apiBase, initChat, updateChat, fetchMessages],
-  );
-}
-
-export function useRehydrateSessions(apiBase: string) {
-  const { fetchMessages } = useConversationActions();
-  const { updateChat } = useActiveChatActions();
-
-  return useCallback(async () => {
-    const allChats = activeChatsStore.getSnapshot();
-    const agentSlugs = new Set<string>();
-
-    // Collect unique agent slugs
-    for (const chat of Object.values(allChats)) {
-      if (chat.agentSlug) {
-        agentSlugs.add(chat.agentSlug);
-      }
-    }
-
-    // Note: Conversations are fetched automatically by React Query when useConversations() is called
-    // No need to prefetch here
-
-    // Fetch messages for each conversation and rebuild input history
-    for (const [sessionId, chat] of Object.entries(allChats)) {
-      if (chat.conversationId && chat.agentSlug) {
-        await fetchMessages(apiBase, chat.agentSlug, chat.conversationId);
-
-        // Rebuild input history from conversation messages + sessionStorage slash commands
-        const messagesKey = `messages:${chat.agentSlug}:${chat.conversationId}`;
-        const backendMessages =
-          conversationsStore.getSnapshot().messages[messagesKey] || [];
-
-        // Get user messages from backend (these are the actual sent messages)
-        const userMessages = backendMessages
-          .filter((m) => m.role === 'user')
-          .map((m) => m.content);
-
-        // Get slash commands from sessionStorage (already stored)
-        const storedSlashCommands = (chat.inputHistory || []).filter((input) =>
-          input.startsWith('/'),
-        );
-
-        // Combine: user messages from backend + slash commands from storage
-        // Keep them in order they were added (append slash commands at end)
-        const mergedHistory = [...userMessages, ...storedSlashCommands];
-
-        // Update the session with merged history
-        updateChat(sessionId, { inputHistory: mergedHistory });
-      }
-    }
-  }, [apiBase, fetchMessages, updateChat]);
-}
-
-/**
- * Hook that encapsulates the "create session → open dock → activate → send" pattern.
- * Used by both core tab actions (LayoutView) and SDK's useSendToChat.
- */
-export function useLaunchChat(
-  apiBase: string,
-  handleSlashCommand?: (
-    sessionId: string,
-    content: string,
-  ) => Promise<boolean | string | 'CLEAR'>,
-) {
-  const createChatSession = useCreateChatSession();
-  const { setDockState, setActiveChat } = useNavigation();
-  const sendMessage = useSendMessage(
-    apiBase,
-    undefined,
-    undefined,
-    handleSlashCommand,
-  );
-
-  return useCallback(
-    (
-      agentSlug: string,
-      agentName: string,
-      message: string,
-      options?: { title?: string; projectSlug?: string },
-    ) => {
-      const sessionId = createChatSession(
-        agentSlug,
-        agentName,
-        options?.title,
-        options?.projectSlug,
-      );
-      setDockState(true);
-      setActiveChat(sessionId);
-      return sendMessage(sessionId, agentSlug, undefined, message);
-    },
-    [createChatSession, setDockState, setActiveChat, sendMessage],
-  );
-}
-
+export { activeChatsStore };
 export type { ChatUIState };

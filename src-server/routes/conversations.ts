@@ -2,11 +2,11 @@
  * Conversation Routes - conversation and message management
  */
 
+import type { AppConfig } from '@stallion-ai/contracts/config';
 import { Hono } from 'hono';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { ConversationRecord } from '../domain/storage-adapter.js';
-import type { AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import * as ConversationManager from '../runtime/conversation-manager.js';
 import { conversationOps } from '../telemetry/metrics.js';

@@ -1,23 +1,13 @@
-import type { ConnectionConfig } from '@stallion-ai/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  useGlobalKnowledgeStatusQuery,
+  useModelConnectionsQuery,
+  useSaveConnectionMutation,
+  useTestVectorDbConnectionMutation,
+} from '@stallion-ai/sdk';
 import { useState } from 'react';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import './KnowledgeConnectionView.css';
 import './editor-layout.css';
-
-type ProviderConnection = ConnectionConfig & { kind: 'model' };
-
-interface KnowledgeStatus {
-  vectorDb: { id: string; name: string; type: string; enabled: boolean } | null;
-  embedding: {
-    id: string;
-    name: string;
-    type: string;
-    enabled: boolean;
-  } | null;
-  stats: { totalDocuments: number; totalChunks: number; projectCount: number };
-}
 
 function IconDatabase() {
   return (
@@ -58,31 +48,10 @@ function IconGlobe() {
 }
 
 export function KnowledgeConnectionView() {
-  const { apiBase } = useApiBase();
   const { navigate } = useNavigation();
-  const qc = useQueryClient();
 
-  const { data: providers = [] } = useQuery<ProviderConnection[]>({
-    queryKey: ['connections', 'models'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/connections/models`);
-      const json = await res.json();
-      return json.success ? json.data : [];
-    },
-  });
-
-  const { data: status } = useQuery<KnowledgeStatus | null>({
-    queryKey: ['knowledge-status-global'],
-    queryFn: async () => {
-      try {
-        const res = await fetch(`${apiBase}/api/knowledge/status`);
-        const json = await res.json();
-        return json.success ? json.data : null;
-      } catch {
-        return null;
-      }
-    },
-  });
+  const { data: providers = [] } = useModelConnectionsQuery();
+  const { data: status } = useGlobalKnowledgeStatusQuery();
 
   const vectorDb = providers.find((p) => p.capabilities.includes('vectordb'));
   const embeddingProvider = providers.find(
@@ -98,37 +67,13 @@ export function KnowledgeConnectionView() {
   } | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
 
-  const saveMutation = useMutation({
-    mutationFn: async () => {
-      if (!vectorDb) return;
-      const res = await fetch(`${apiBase}/api/connections/${vectorDb.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...vectorDb,
-          config: { ...vectorDb.config, dataDir: editingDataDir },
-        }),
-      });
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || 'Save failed');
-    },
+  const saveMutation = useSaveConnectionMutation({
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['connections'] });
       setDataDir(null);
     },
   });
 
-  const testMutation = useMutation({
-    mutationFn: async () => {
-      if (!vectorDb) return;
-      const res = await fetch(
-        `${apiBase}/api/providers/${vectorDb.id}/test-vectordb`,
-        { method: 'POST' },
-      );
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || 'Test failed');
-      return json.data as { healthy: boolean };
-    },
+  const testMutation = useTestVectorDbConnectionMutation({
     onSuccess: (data) => {
       setTestResult(data ?? null);
       setTestError(null);
@@ -199,14 +144,26 @@ export function KnowledgeConnectionView() {
               <div className="knowledge-view__actions">
                 <button
                   className="editor-btn editor-btn--primary"
-                  onClick={() => saveMutation.mutate()}
+                  onClick={() => {
+                    if (!vectorDb) return;
+                    saveMutation.mutate({
+                      connection: {
+                        ...vectorDb,
+                        config: { ...vectorDb.config, dataDir: editingDataDir },
+                      },
+                      isNew: false,
+                    });
+                  }}
                   disabled={saveMutation.isPending || !dirty}
                 >
                   {saveMutation.isPending ? 'Saving...' : 'Save'}
                 </button>
                 <button
                   className="editor-btn"
-                  onClick={() => testMutation.mutate()}
+                  onClick={() => {
+                    if (!vectorDb) return;
+                    testMutation.mutate(vectorDb.id);
+                  }}
                   disabled={testMutation.isPending}
                 >
                   {testMutation.isPending ? 'Testing...' : 'Test Connection'}

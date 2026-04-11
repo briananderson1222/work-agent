@@ -1,5 +1,5 @@
 import { type Client } from '@agentclientprotocol/sdk';
-import type { ACPConnectionConfig } from '../domain/types.js';
+import type { ACPConnectionConfig } from '@stallion-ai/contracts/acp';
 import { ACPProcess } from './acp-process.js';
 
 const noopClient: Client = {

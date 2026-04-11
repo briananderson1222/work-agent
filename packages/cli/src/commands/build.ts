@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import { buildPlugin, readPluginManifest } from '@stallion-ai/shared';
+import { buildPlugin } from '@stallion-ai/shared/build';
+import { readPluginManifest } from '@stallion-ai/shared/parsers';
 import { CWD } from './helpers.js';
 
 export async function build(

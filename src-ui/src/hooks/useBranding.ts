@@ -1,39 +1,12 @@
-import { useEffect, useState } from 'react';
-import { useApiBase } from '../contexts/ApiBaseContext';
+import { useBrandingQuery } from '@stallion-ai/sdk';
 
-interface BrandingData {
-  appName: string;
-  logo: { src: string; alt?: string } | null;
-  theme: Record<string, string> | null;
-  welcomeMessage: string | null;
-  loading: boolean;
-}
-
-export function useBranding(): BrandingData {
-  const { apiBase } = useApiBase();
-  const [data, setData] = useState<BrandingData>({
-    appName: 'Stallion',
-    logo: null,
-    theme: null,
-    welcomeMessage: null,
-    loading: true,
-  });
-
-  useEffect(() => {
-    if (!apiBase) return;
-    fetch(`${apiBase}/api/branding`)
-      .then((r) => r.json())
-      .then((b) =>
-        setData({
-          appName: b.name || 'Stallion',
-          logo: b.logo,
-          theme: b.theme,
-          welcomeMessage: b.welcomeMessage,
-          loading: false,
-        }),
-      )
-      .catch(() => setData((d) => ({ ...d, loading: false })));
-  }, [apiBase]);
-
-  return data;
+export function useBranding() {
+  const { data, isLoading } = useBrandingQuery();
+  return {
+    appName: data?.appName ?? 'Stallion',
+    logo: data?.logo ?? null,
+    theme: data?.theme ?? null,
+    welcomeMessage: data?.welcomeMessage ?? null,
+    loading: isLoading,
+  };
 }

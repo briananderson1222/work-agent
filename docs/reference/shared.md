@@ -1,6 +1,16 @@
 # @stallion-ai/shared
 
-Canonical types, config parsing, and API contracts. Single source of truth shared between `src-server`, `packages/sdk`, and `packages/cli`. Do not redefine these types elsewhere — import from here.
+Compatibility type re-exports plus explicit helper subpaths. Canonical API/domain ownership now lives in `@stallion-ai/contracts`; `@stallion-ai/shared` root remains for compatibility type exports, while runtime helpers live on dedicated subpaths used across `src-server`, `packages/sdk`, and `packages/cli`.
+
+New code should import stable cross-package types from the owning `@stallion-ai/contracts/*` module directly. The type sections below describe compatibility re-exports that remain available from `shared` while older call sites converge.
+
+If you need a server-only provider interface such as `IBrandingProvider`, `IAuthProvider`, or `ILLMProvider`, do not add it to `shared`. Those belong in the focused `src-server/providers/*` modules instead.
+
+For runtime helpers, use explicit subpaths:
+- `@stallion-ai/shared/parsers`
+- `@stallion-ai/shared/build`
+- `@stallion-ai/shared/git`
+- `@stallion-ai/shared/mcp`
 
 ---
 
@@ -246,12 +256,12 @@ interface LayoutConfig {
 }
 ```
 
-### `StandaloneLayoutConfig`
+### `LayoutDefinition`
 
 File-based layout definition (not project-scoped). Used by plugins.
 
 ```ts
-interface StandaloneLayoutConfig {
+interface LayoutDefinition {
   name: string;
   slug: string;
   icon?: string;
@@ -318,10 +328,10 @@ interface LayoutMetadata {
 }
 ```
 
-### `StandaloneLayoutMetadata`
+### `LayoutDefinitionMetadata`
 
 ```ts
-interface StandaloneLayoutMetadata {
+interface LayoutDefinitionMetadata {
   slug: string;
   name: string;
   icon?: string;
@@ -453,10 +463,15 @@ interface LayoutTemplate {
 
 ## notification types
 
-Re-exported from `@stallion-ai/shared/notifications`.
+Re-exported from `@stallion-ai/contracts/notification` for compatibility.
 
 ```ts
-type NotificationStatus = 'pending' | 'delivered' | 'dismissed' | 'snoozed';
+type NotificationStatus =
+  | 'pending'
+  | 'delivered'
+  | 'dismissed'
+  | 'expired'
+  | 'actioned';
 type NotificationPriority = 'low' | 'normal' | 'high' | 'urgent';
 
 interface NotificationAction {
@@ -473,13 +488,13 @@ interface Notification {
   body?: string;
   priority: NotificationPriority;
   status: NotificationStatus;
+  scheduledAt?: string | null;
+  deliveredAt?: string | null;
+  ttl?: number;
   actions?: NotificationAction[];
   metadata?: Record<string, unknown>;
-  dedupeTag?: string;
   createdAt: string;
-  deliveredAt?: string;
-  dismissedAt?: string;
-  snoozedUntil?: string;
+  updatedAt: string;
 }
 ```
 
@@ -487,7 +502,7 @@ interface Notification {
 
 ## scheduler types
 
-Re-exported from `@stallion-ai/shared/scheduler`.
+Re-exported from `@stallion-ai/contracts/scheduler` for compatibility.
 
 ```ts
 interface SchedulerJob {
@@ -586,7 +601,7 @@ interface TemplateVariable {
 
 ## api contracts
 
-Shared request/response shapes used by server endpoints and the SDK.
+`@stallion-ai/shared` re-exports these runtime/session shapes for compatibility, but canonical ownership now lives in `@stallion-ai/contracts/runtime`.
 
 ### `ToolCallResponse`
 
@@ -733,7 +748,7 @@ interface Prerequisite {
 Reads and parses `plugin.json` from the given directory. Throws if the file does not exist.
 
 ```ts
-import { readPluginManifest } from '@stallion-ai/shared';
+import { readPluginManifest } from '@stallion-ai/shared/parsers';
 
 const manifest = readPluginManifest('/path/to/my-plugin');
 console.log(manifest.name, manifest.version);
@@ -846,7 +861,11 @@ interface MCPManagerOptions {
 Creates and connects an MCP client from a `ToolDef`. Supports `stdio`, `sse`, and `streamable-http` transports. Discovers available tools on connect.
 
 ```ts
-import { connectMCP } from '@stallion-ai/shared';
+import { connectMCP } from '@stallion-ai/shared/mcp';
+```
+
+```ts
+import { connectMCP } from '@stallion-ai/shared/mcp';
 
 const conn = await connectMCP({
   id: 'my-server',

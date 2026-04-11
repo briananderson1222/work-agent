@@ -1,4 +1,4 @@
-import type { LayoutPrompt } from '../types';
+import type { LayoutPrompt } from '@stallion-ai/contracts/layout';
 
 export interface QuickActionsBarProps {
   globalPrompts?: LayoutPrompt[];

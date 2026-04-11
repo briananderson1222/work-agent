@@ -4,13 +4,13 @@ import {
   useConnectionStatus,
   useConnections,
 } from '@stallion-ai/connect';
-import type { ConnectionConfig } from '@stallion-ai/shared';
-import { useQuery } from '@tanstack/react-query';
+import { useRuntimeConnectionsQuery } from '@stallion-ai/sdk';
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import { useState } from 'react';
 import {
   useCreateChatSession,
   useSendMessage,
-} from '../contexts/ActiveChatsContext';
+} from '../hooks/useActiveChatSessions';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,14 +19,9 @@ import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { NavigationView } from '../types';
 import { canAgentStartChat, resolveAgentExecution } from '../utils/execution';
 import { getInitials } from '../utils/layout';
+import { checkServerHealth } from '../lib/serverHealth';
 import { NotificationHistory } from './NotificationHistory';
 import './chat.css';
-
-function checkServerHealth(url: string): Promise<boolean> {
-  return fetch(`${url}/api/system/status`)
-    .then((r) => r.ok)
-    .catch(() => false);
-}
 
 function getHelpPrompts(
   view?: NavigationView,
@@ -126,14 +121,10 @@ export function Header({
   const agents = useAgents();
   const createChatSession = useCreateChatSession();
   const sendMessage = useSendMessage(apiBase);
-  const { data: runtimeConnections = [] } = useQuery<ConnectionConfig[]>({
-    queryKey: ['connections', 'runtimes'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/connections/runtimes`);
-      const json = await res.json();
-      return json.success ? json.data : [];
-    },
-  });
+  const { data: runtimeConnections = [] } =
+    useRuntimeConnectionsQuery() as {
+      data?: ConnectionConfig[];
+    };
 
   const helpPrompts = getHelpPrompts(currentView);
 
@@ -273,7 +264,7 @@ export function Header({
           className={`app-toolbar__icon-btn ${currentView?.type === 'profile' ? 'is-active' : ''}`}
           onClick={() => {
             if (currentView?.type === 'profile') {
-              onNavigate({ type: 'standalone-layout' });
+              navigate('/');
             } else {
               onNavigate({ type: 'profile' });
             }

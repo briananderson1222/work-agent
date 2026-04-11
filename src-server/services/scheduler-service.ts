@@ -6,12 +6,12 @@
 
 import type {
   AddJobOpts,
-  ISchedulerProvider,
   SchedulerJob,
   SchedulerLogEntry,
   SchedulerProviderStats,
   SchedulerProviderStatus,
-} from '../providers/types.js';
+} from '../providers/provider-contracts.js';
+import type { ISchedulerProvider } from '../providers/provider-interfaces.js';
 import {
   schedulerJobDuration,
   schedulerJobRuns,

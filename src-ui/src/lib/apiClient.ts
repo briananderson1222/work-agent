@@ -2,6 +2,18 @@ type AuthCallback = () => Promise<boolean>;
 
 let authCallback: AuthCallback | null = null;
 
+export interface ApiSuccess<T> {
+  success: true;
+  data: T;
+}
+
+export interface ApiFailure {
+  success: false;
+  error?: string;
+}
+
+export type ApiEnvelope<T> = ApiSuccess<T> | ApiFailure;
+
 export function setAuthCallback(callback: AuthCallback) {
   authCallback = callback;
 }
@@ -35,4 +47,15 @@ export async function apiRequest<T>(
   }
 
   return response.json();
+}
+
+export function unwrapApiData<T>(
+  envelope: ApiEnvelope<T>,
+  fallbackMessage = 'Request failed',
+): T {
+  if (!envelope.success) {
+    throw new Error(envelope.error || fallbackMessage);
+  }
+
+  return envelope.data;
 }

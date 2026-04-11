@@ -3,27 +3,21 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
+import {
+  addAgentTool,
+  fetchToolManagementData,
+  removeAgentTool,
+  type AgentToolConfig,
+  type ToolDef,
+  updateAgentAllowedTools,
+  updateAgentToolAliases,
+} from '../lib/agentToolsApi';
 
 export interface ToolManagementViewProps {
   apiBase: string;
   agentSlug: string;
   agentName: string;
   onBack: () => void;
-}
-
-interface AgentToolConfig {
-  tools: string[];
-  allowed?: string[];
-  aliases?: Record<string, string>;
-}
-
-interface ToolDef {
-  id: string;
-  name: string;
-  description?: string;
-  kind?: string;
-  transport?: string;
-  parameters?: Record<string, unknown>;
 }
 
 export function ToolManagementView({
@@ -48,38 +42,7 @@ export function ToolManagementView({
     error: loadError,
   } = useQuery<{ tools: ToolDef[]; config: AgentToolConfig }>({
     queryKey: ['agent-tools', agentSlug],
-    queryFn: async () => {
-      const [toolsRes, agentRes, agentToolsRes] = await Promise.all([
-        fetch(`${apiBase}/tools`),
-        fetch(`${apiBase}/agents`),
-        fetch(`${apiBase}/agents/${agentSlug}/tools`).catch(() => null),
-      ]);
-      if (!toolsRes.ok) throw new Error('Failed to load tools');
-      if (!agentRes.ok) throw new Error('Failed to load agent');
-      const toolsData = await toolsRes.json();
-      const agentData = await agentRes.json();
-      const agent = (agentData.data || []).find(
-        (a: any) => a.slug === agentSlug || a.id === agentSlug,
-      );
-      if (!agent) throw new Error('Agent not found');
-      let tools = toolsData.data || [];
-      if (agentToolsRes?.ok) {
-        const atd = await agentToolsRes.json();
-        if (atd.success && atd.data) {
-          const m = new Map(atd.data.map((t: any) => [t.id || t.name, t]));
-          tools = tools.map((tool: any) => {
-            const e: any = m.get(tool.id);
-            return e ? { ...tool, parameters: e.parameters } : tool;
-          });
-        }
-      }
-      const config: AgentToolConfig = {
-        tools: agent.tools || [],
-        allowed: agent.allowed,
-        aliases: agent.aliases,
-      };
-      return { tools, config };
-    },
+    queryFn: () => fetchToolManagementData(apiBase, agentSlug),
   });
   const globalTools = data?.tools ?? [];
   const agentConfig = data?.config ?? { tools: [] };
@@ -95,18 +58,10 @@ export function ToolManagementView({
     try {
       setIsSaving(true);
       setError(null);
-      const response = await fetch(`${apiBase}/agents/${agentSlug}/tools`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ toolId }),
-      });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to add tool');
-      }
+      await addAgentTool(apiBase, agentSlug, toolId);
       qc.invalidateQueries({ queryKey: ['agent-tools', agentSlug] });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add tool');
     } finally {
       setIsSaving(false);
     }
@@ -117,19 +72,10 @@ export function ToolManagementView({
       setIsSaving(true);
       setError(null);
       setToolToRemove(null);
-      const response = await fetch(
-        `${apiBase}/agents/${agentSlug}/tools/${toolId}`,
-        {
-          method: 'DELETE',
-        },
-      );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to remove tool');
-      }
+      await removeAgentTool(apiBase, agentSlug, toolId);
       qc.invalidateQueries({ queryKey: ['agent-tools', agentSlug] });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove tool');
     } finally {
       setIsSaving(false);
     }
@@ -143,21 +89,12 @@ export function ToolManagementView({
         .split(',')
         .map((s) => s.trim())
         .filter(Boolean);
-      const response = await fetch(
-        `${apiBase}/agents/${agentSlug}/tools/allowed`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ allowed }),
-        },
-      );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update allow list');
-      }
+      await updateAgentAllowedTools(apiBase, agentSlug, allowed);
       qc.invalidateQueries({ queryKey: ['agent-tools', agentSlug] });
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to update allow list',
+      );
     } finally {
       setIsSaving(false);
     }
@@ -167,22 +104,11 @@ export function ToolManagementView({
     try {
       setIsSaving(true);
       setError(null);
-      const response = await fetch(
-        `${apiBase}/agents/${agentSlug}/tools/aliases`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ aliases: aliasValues }),
-        },
-      );
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to update aliases');
-      }
+      await updateAgentToolAliases(apiBase, agentSlug, aliasValues);
       qc.invalidateQueries({ queryKey: ['agent-tools', agentSlug] });
       setAliasEditMode({});
-    } catch (err: any) {
-      setError(err.message);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update aliases');
     } finally {
       setIsSaving(false);
     }

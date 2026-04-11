@@ -1,3 +1,5 @@
+import { telemetry } from '@stallion-ai/sdk';
+
 const STORAGE_KEY = 'recentAgents';
 const MAX_RECENT = 5;
 
@@ -16,20 +18,5 @@ export function trackRecentAgent(slug: string): void {
     STORAGE_KEY,
     JSON.stringify(recent.slice(0, MAX_RECENT)),
   );
-  // Fire-and-forget analytics event
-  const apiBase = (window as any).__API_BASE__ || 'http://localhost:3141';
-  fetch(`${apiBase}/api/telemetry/events`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      events: [
-        {
-          event: 'agent:selected',
-          plugin: 'core',
-          attributes: { slug },
-          timestamp: Date.now(),
-        },
-      ],
-    }),
-  }).catch(() => {});
+  telemetry.track('agent:selected', { slug });
 }

@@ -54,8 +54,9 @@ function writeServerMessage(
   threadId: string,
   message: unknown,
 ): void {
-  const record = (adapter as any).sessions.get(threadId);
-  (adapter as any).handleStdoutLine(record, JSON.stringify(message));
+  const transport = (adapter as any).transport;
+  const record = transport.requireSession(threadId);
+  transport.handleStdoutLine(record, JSON.stringify(message));
 }
 
 async function nextEvent(
@@ -492,10 +493,8 @@ describe('CodexAdapter', () => {
     await nextEvent(iterator, 'session.started');
     await nextEvent(iterator, 'session.configured');
 
-    (adapter as any).handleStdoutLine(
-      (adapter as any).sessions.get('thread-3'),
-      '{not json',
-    );
+    const transport = (adapter as any).transport;
+    transport.handleStdoutLine(transport.requireSession('thread-3'), '{not json');
 
     expect(await nextEvent(iterator, 'runtime.warning')).toMatchObject({
       method: 'runtime.warning',

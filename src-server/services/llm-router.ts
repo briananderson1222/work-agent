@@ -3,11 +3,11 @@
  * and streams responses for non-Bedrock providers.
  */
 
-import type { ProviderConnectionConfig } from '@stallion-ai/shared';
+import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 import { BedrockLLMProvider } from '../providers/bedrock-llm-provider.js';
+import type { ILLMProvider, LLMMessage } from '../providers/model-provider-types.js';
 import { OllamaLLMProvider } from '../providers/ollama-provider.js';
 import { OpenAICompatLLMProvider } from '../providers/openai-compat-provider.js';
-import type { ILLMProvider, LLMMessage } from '../providers/types.js';
 import { providerOps } from '../telemetry/metrics.js';
 
 export function createLLMProviderFromConfig(

@@ -2,10 +2,9 @@ import type {
   LayoutConfig,
   LayoutMetadata,
   LayoutTemplate,
-  ProjectConfig,
-  ProjectMetadata,
-  ProviderConnectionConfig,
-} from '@stallion-ai/shared';
+} from '@stallion-ai/contracts/layout';
+import type { ProjectConfig, ProjectMetadata } from '@stallion-ai/contracts/project';
+import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 
 export interface ConversationRecord {
   id: string;
@@ -34,6 +33,11 @@ export interface DocumentRecord {
   createdAt: string;
 }
 
+export interface LayoutAgentReference {
+  projectSlug: string;
+  layoutSlug: string;
+}
+
 export interface IStorageAdapter {
   // Projects
   listProjects(): ProjectMetadata[];
@@ -46,6 +50,7 @@ export interface IStorageAdapter {
   getLayout(projectSlug: string, layoutSlug: string): LayoutConfig;
   saveLayout(projectSlug: string, config: LayoutConfig): void;
   deleteLayout(projectSlug: string, layoutSlug: string): void;
+  findLayoutsUsingAgent(agentSlug: string): LayoutAgentReference[];
 
   // Provider connections
   listProviderConnections(): ProviderConnectionConfig[];

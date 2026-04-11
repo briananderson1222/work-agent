@@ -3,9 +3,9 @@
  * Handles conversation CRUD, stats, and message history
  */
 
+import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 
 // Type extensions for conversation manager

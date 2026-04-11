@@ -2,6 +2,7 @@
  * Handler for tool-approval-request events
  */
 
+import { submitToolApproval } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 import { StreamEventHandler } from './BaseHandler';
 import { createResult } from './stateHelpers';
@@ -55,13 +56,9 @@ export class ToolApprovalHandler extends StreamEventHandler {
   }
 
   private autoApprove(approvalId: string): void {
-    if (!this.context.apiBase) return;
-
-    fetch(`${this.context.apiBase}/tool-approval/${approvalId}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ approved: true }),
-    }).catch((err) => log.api('Failed to auto-approve tool:', err));
+    submitToolApproval(approvalId, true).catch((err) =>
+      log.api('Failed to auto-approve tool:', err),
+    );
   }
 
   private showApprovalToast(event: StreamEvent, chatState: any): string {

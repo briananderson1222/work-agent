@@ -23,12 +23,9 @@
 - `PUT /agents/:slug/tools/allowed` - Update allow-list
 - `PUT /agents/:slug/tools/aliases` - Update aliases
 
-#### Layout Management (5)
-- `GET /layouts` - List layouts
-- `GET /layouts/:slug` - Get layout
-- `POST /layouts` - Create layout
-- `PUT /layouts/:slug` - Update layout
-- `DELETE /layouts/:slug` - Delete layout
+#### Layout Management
+- Standalone `/layouts` endpoints were removed.
+- Use project-scoped layout endpoints under `/api/projects/:slug/layouts`.
 
 #### Workflow Management (5)
 - `GET /agents/:slug/workflows/files` - List workflows
@@ -322,7 +319,7 @@
 | Context | Endpoints |
 |---------|-----------|
 | `AgentsContext` | `/api/agents`, `/agents/:slug` (CRUD) |
-| `LayoutsContext` | `/layouts` (CRUD) |
+| `LayoutsContext` | removed during project-layout convergence |
 | `ConversationsContext` | `/agents/:slug/conversations/*`, `/api/agents/:slug/chat` |
 | `StatsContext` | `/agents/:slug/conversations/:id/stats` |
 | `ConfigContext` | `/config/app` |

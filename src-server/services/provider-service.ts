@@ -1,6 +1,7 @@
-import type { AppConfig, ProviderConnectionConfig } from '@stallion-ai/shared';
+import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
+import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
-import type { ILLMProvider } from '../providers/types.js';
+import type { ILLMProvider } from '../providers/model-provider-types.js';
 import { providerOps } from '../telemetry/metrics.js';
 
 export class ProviderService {

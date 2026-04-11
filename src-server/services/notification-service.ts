@@ -8,8 +8,8 @@ import { join } from 'node:path';
 import type {
   Notification,
   ScheduleNotificationOpts,
-} from '@stallion-ai/shared';
-import type { INotificationProvider } from '../providers/types.js';
+} from '@stallion-ai/contracts/notification';
+import type { INotificationProvider } from '../providers/provider-interfaces.js';
 import { notificationOps } from '../telemetry/metrics.js';
 import type { EventBus } from './event-bus.js';
 import { JsonFileStore } from './json-store.js';

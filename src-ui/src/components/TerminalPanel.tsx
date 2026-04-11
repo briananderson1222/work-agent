@@ -1,3 +1,7 @@
+import {
+  executeCodingCommand,
+  fetchTerminalPort,
+} from '@stallion-ai/sdk';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { useEffect, useRef, useState } from 'react';
@@ -66,10 +70,7 @@ export function TerminalPanel({
     const connectWs = async () => {
       let port: number;
       try {
-        const res = await fetch(`${apiBase}/api/system/terminal-port`);
-        const json = await res.json();
-        port = json.port ?? json.data?.port;
-        if (!port) throw new Error('no port');
+        port = await fetchTerminalPort(apiBase);
       } catch {
         if (!disposed) setWsError(true);
         return;
@@ -188,13 +189,7 @@ function CommandExecutor({ workingDir }: { workingDir: string }) {
     setInput('');
     setRunning(true);
     try {
-      const res = await fetch(`${apiBase}/api/coding/exec`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ command: cmd, cwd: workingDir }),
-      });
-      const json = await res.json();
-      const d = json.data ?? {};
+      const d = await executeCodingCommand(cmd, workingDir, apiBase);
       if (d.stdout) setLines((l) => [...l, { text: d.stdout, type: 'out' }]);
       if (d.stderr) setLines((l) => [...l, { text: d.stderr, type: 'err' }]);
     } catch (e: any) {

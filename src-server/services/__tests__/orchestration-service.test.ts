@@ -11,10 +11,8 @@ import type {
   ProviderSessionStartInput,
   ProviderTurnStartResult,
 } from '../../providers/adapter-shape.js';
-import type {
-  IProviderAdapterRegistry,
-  Prerequisite,
-} from '../../providers/types.js';
+import type { Prerequisite } from '@stallion-ai/contracts/tool';
+import type { IProviderAdapterRegistry } from '../../providers/provider-interfaces.js';
 import { EventBus } from '../event-bus.js';
 import { EventStore } from '../event-store.js';
 import { OrchestrationService } from '../orchestration-service.js';

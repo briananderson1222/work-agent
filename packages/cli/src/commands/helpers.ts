@@ -1,13 +1,13 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, join } from 'node:path';
-import { type PluginManifest, readPluginManifest } from '@stallion-ai/shared';
+import type { PluginManifest } from '@stallion-ai/contracts/plugin';
+import { readPluginManifest } from '@stallion-ai/shared/parsers';
 
 export const PROJECT_HOME =
   process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai');
 export const PLUGINS_DIR = join(PROJECT_HOME, 'plugins');
 export const AGENTS_DIR = join(PROJECT_HOME, 'agents');
-export const LAYOUTS_DIR = join(PROJECT_HOME, 'layouts');
 export const CWD = process.cwd();
 export const PIDFILE = join(CWD, '.stallion.pids');
 

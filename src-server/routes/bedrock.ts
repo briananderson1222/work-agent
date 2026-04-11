@@ -2,8 +2,8 @@
  * Bedrock Routes - model catalog, pricing, and validation
  */
 
+import type { AppConfig } from '@stallion-ai/contracts/config';
 import { Hono } from 'hono';
-import type { AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { bedrockOps } from '../telemetry/metrics.js';
 import type { Logger } from '../utils/logger.js';

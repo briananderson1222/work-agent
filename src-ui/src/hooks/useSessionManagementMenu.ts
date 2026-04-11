@@ -1,6 +1,8 @@
-import { useInvalidateQuery } from '@stallion-ai/sdk';
+import {
+  useDeleteConversationMutation,
+  useRenameConversationMutation,
+} from '@stallion-ai/sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import { useToast } from '../contexts/ToastContext';
 import { log } from '../utils/logger';
 
@@ -39,13 +41,12 @@ interface UseSessionManagementMenuOptions {
 
 export function useSessionManagementMenu({
   sessions,
-  agents,
   onTitleUpdate,
   onDelete,
 }: UseSessionManagementMenuOptions) {
-  const { apiBase } = useApiBase();
   const { showToast } = useToast();
-  const invalidate = useInvalidateQuery();
+  const renameConversationMutation = useRenameConversationMutation();
+  const deleteConversationMutation = useDeleteConversationMutation();
 
   const [isOpen, setIsOpen] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -71,30 +72,21 @@ export function useSessionManagementMenu({
       }
 
       try {
-        const response = await fetch(
-          `${apiBase}/agents/${conv.agentSlug}/conversations/${conv.id}`,
-          {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: newTitle.trim() }),
-          },
-        );
-
-        if (response.ok) {
-          invalidate(['conversations', conv.agentSlug]);
-          const activeSession = sessions.find(
-            (s) => s.conversationId === conv.id,
-          );
-          if (activeSession) {
-            onTitleUpdate(activeSession.id, newTitle.trim());
-          }
-          setRenamingId(null);
+        await renameConversationMutation.mutateAsync({
+          agentSlug: conv.agentSlug,
+          conversationId: conv.id,
+          title: newTitle.trim(),
+        });
+        const activeSession = sessions.find((s) => s.conversationId === conv.id);
+        if (activeSession) {
+          onTitleUpdate(activeSession.id, newTitle.trim());
         }
+        setRenamingId(null);
       } catch (error) {
         log.api('Failed to rename conversation:', error);
       }
     },
-    [apiBase, invalidate, sessions, onTitleUpdate, newTitle],
+    [renameConversationMutation, sessions, onTitleUpdate, newTitle],
   );
 
   const handleDelete = useCallback((conv: Conversation) => {
@@ -107,33 +99,19 @@ export function useSessionManagementMenu({
     setDeleteConfirm(null);
 
     try {
-      const response = await fetch(
-        `${apiBase}/agents/${conv.agentSlug}/conversations/${conv.id}`,
-        {
-          method: 'DELETE',
-        },
-      );
-
-      if (response.ok) {
-        invalidate(['conversations', conv.agentSlug]);
-        const activeSession = sessions.find(
-          (s) => s.conversationId === conv.id,
-        );
-        if (activeSession) {
-          onDelete(activeSession.id);
-        }
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        log.api('Delete failed:', errorData);
-        showToast(
-          `Failed to delete conversation: ${errorData.error || 'Unknown error'}`,
-        );
+      await deleteConversationMutation.mutateAsync({
+        agentSlug: conv.agentSlug,
+        conversationId: conv.id,
+      });
+      const activeSession = sessions.find((s) => s.conversationId === conv.id);
+      if (activeSession) {
+        onDelete(activeSession.id);
       }
     } catch (error) {
       log.api('Failed to delete conversation:', error);
       showToast('Failed to delete conversation. Check console for details.');
     }
-  }, [apiBase, deleteConfirm, invalidate, sessions, onDelete, showToast]);
+  }, [deleteConfirm, deleteConversationMutation, sessions, onDelete, showToast]);
 
   const clearAll = useCallback(
     async (conversations: Conversation[]) => {
@@ -141,12 +119,10 @@ export function useSessionManagementMenu({
 
       try {
         for (const conv of conversations) {
-          await fetch(
-            `${apiBase}/agents/${conv.agentSlug}/conversations/${conv.id}`,
-            {
-              method: 'DELETE',
-            },
-          );
+          await deleteConversationMutation.mutateAsync({
+            agentSlug: conv.agentSlug,
+            conversationId: conv.id,
+          });
 
           const activeSession = sessions.find(
             (s) => s.conversationId === conv.id,
@@ -155,10 +131,6 @@ export function useSessionManagementMenu({
             onDelete(activeSession.id);
           }
         }
-
-        agents.forEach((agent) => {
-          invalidate(['conversations', agent.slug]);
-        });
       } catch (error) {
         log.api('Failed to clear all conversations:', error);
         showToast(
@@ -166,7 +138,7 @@ export function useSessionManagementMenu({
         );
       }
     },
-    [apiBase, agents, invalidate, sessions, onDelete, showToast],
+    [deleteConversationMutation, sessions, onDelete, showToast],
   );
 
   const startRename = useCallback((conv: Conversation) => {

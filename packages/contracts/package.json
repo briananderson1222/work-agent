@@ -4,9 +4,23 @@
   "description": "Runtime, provider, and orchestration contracts for Stallion",
   "type": "module",
   "exports": {
+    ".": "./src/index.ts",
+    "./acp": "./src/acp.ts",
+    "./agent": "./src/agent.ts",
+    "./auth": "./src/auth.ts",
+    "./catalog": "./src/catalog.ts",
+    "./config": "./src/config.ts",
+    "./knowledge": "./src/knowledge.ts",
+    "./layout": "./src/layout.ts",
+    "./notification": "./src/notification.ts",
+    "./plugin": "./src/plugin.ts",
+    "./project": "./src/project.ts",
+    "./runtime": "./src/runtime.ts",
     "./runtime-events": "./src/runtime-events.ts",
     "./provider": "./src/provider.ts",
-    "./orchestration": "./src/orchestration.ts"
+    "./orchestration": "./src/orchestration.ts",
+    "./scheduler": "./src/scheduler.ts",
+    "./tool": "./src/tool.ts"
   },
   "publishConfig": {
     "access": "public"

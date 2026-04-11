@@ -9,9 +9,10 @@
  * tool-executor.ts createToolApprovalHooks().
  */
 
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { AgentSpec, AppConfig } from '../domain/types.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import { estimateCost, findModelPricing } from '../utils/pricing.js';

@@ -7,13 +7,13 @@ import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
   AddJobOpts,
-  ISchedulerProvider,
   SchedulerCapability,
   SchedulerJob,
   SchedulerLogEntry,
   SchedulerProviderStats,
   SchedulerProviderStatus,
-} from '../providers/types.js';
+} from '../providers/provider-contracts.js';
+import type { ISchedulerProvider } from '../providers/provider-interfaces.js';
 import {
   schedulerHealthy,
   schedulerJobDuration,

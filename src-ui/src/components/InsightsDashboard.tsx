@@ -1,12 +1,13 @@
 import {
+  useAnalyzeFeedbackMutation,
+  useClearFeedbackAnalysisMutation,
+  useDeleteFeedbackRatingMutation,
   useFeedbackGuidelinesQuery,
   useFeedbackRatingsQuery,
   useFeedbackStatusQuery,
   useInsightsQuery,
 } from '@stallion-ai/sdk';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import './InsightsDashboard.css';
 
 // ── Types ──────────────────────────────────────────────
@@ -172,8 +173,6 @@ function UsageTab() {
 // ── Feedback Tab ───────────────────────────────────────
 
 function FeedbackTab() {
-  const { apiBase } = useApiBase();
-  const queryClient = useQueryClient();
   const [filter, setFilter] = useState<
     'all' | 'thumbs_up' | 'thumbs_down' | 'pending' | 'no_reason'
   >('all');
@@ -188,36 +187,9 @@ function FeedbackTab() {
     data: FeedbackStatus | null;
   };
 
-  const invalidateFeedback = () => {
-    queryClient.invalidateQueries({ queryKey: ['feedback', 'ratings'] });
-    queryClient.invalidateQueries({ queryKey: ['feedback', 'guidelines'] });
-    queryClient.invalidateQueries({ queryKey: ['feedback', 'status'] });
-  };
-
-  const analyzeMutation = useMutation({
-    mutationFn: () =>
-      fetch(`${apiBase}/api/feedback/analyze`, { method: 'POST' }),
-    onSuccess: invalidateFeedback,
-  });
-
-  const clearMutation = useMutation({
-    mutationFn: () =>
-      fetch(`${apiBase}/api/feedback/clear-analysis`, { method: 'POST' }),
-    onSuccess: invalidateFeedback,
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (r: MessageRating) =>
-      fetch(`${apiBase}/api/feedback/rate`, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          conversationId: r.conversationId,
-          messageIndex: r.messageIndex,
-        }),
-      }),
-    onSuccess: invalidateFeedback,
-  });
+  const analyzeMutation = useAnalyzeFeedbackMutation();
+  const clearMutation = useClearFeedbackAnalysisMutation();
+  const deleteMutation = useDeleteFeedbackRatingMutation();
 
   const noReason = ratings.filter((r) => !r.reason).length;
   const liked = ratings.filter((r) => r.rating === 'thumbs_up').length;

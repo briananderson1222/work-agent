@@ -18,6 +18,11 @@
  *   - Service worker registered at /sw.js
  *   - HTTPS (or localhost) — push requires a secure context
  */
+import {
+  fetchVapidPublicKey,
+  subscribePushNotifications,
+  unsubscribePushNotifications,
+} from '@stallion-ai/sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
 type NotificationPermission = 'default' | 'denied' | 'granted';
@@ -88,10 +93,7 @@ export function usePushNotifications({
       }
 
       // Get VAPID public key from server
-      const keyRes = await fetch(`${apiBase}/api/system/vapid-public-key`);
-      if (!keyRes.ok)
-        throw new Error('Server does not support push notifications');
-      const { publicKey } = await keyRes.json();
+      const publicKey = await fetchVapidPublicKey(apiBase);
 
       // Register SW if not yet done
       const reg =
@@ -105,11 +107,7 @@ export function usePushNotifications({
       });
 
       // Send subscription to server
-      await fetch(`${apiBase}/api/system/push-subscribe`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(subscription),
-      });
+      await subscribePushNotifications(subscription.toJSON(), apiBase);
 
       setSubscribed(true);
     } catch (err: any) {
@@ -124,11 +122,7 @@ export function usePushNotifications({
       if (sub) {
         await sub.unsubscribe();
         // Notify server to remove subscription
-        await fetch(`${apiBase}/api/system/push-unsubscribe`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ endpoint: sub.endpoint }),
-        }).catch(() => {
+        await unsubscribePushNotifications(sub.endpoint, apiBase).catch(() => {
           /* best-effort */
         });
       }

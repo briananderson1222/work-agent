@@ -1,6 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useProjectQuery, useProjectsQuery } from '@stallion-ai/sdk';
 import { type ReactNode } from 'react';
-import { useApiBase } from './ApiBaseContext';
 
 export interface ProjectMetadata {
   id: string;
@@ -36,16 +35,7 @@ export function useProjects(): {
   projects: ProjectMetadata[];
   isLoading: boolean;
 } {
-  const { apiBase } = useApiBase();
-  const { data, isLoading } = useQuery({
-    queryKey: ['projects'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/projects`);
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error);
-      return result.data as ProjectMetadata[];
-    },
-  });
+  const { data, isLoading } = useProjectsQuery();
   return { projects: data ?? [], isLoading };
 }
 
@@ -53,16 +43,6 @@ export function useProject(slug: string): {
   project: ProjectConfig | undefined;
   isLoading: boolean;
 } {
-  const { apiBase } = useApiBase();
-  const { data, isLoading } = useQuery({
-    queryKey: ['projects', slug],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/projects/${slug}`);
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error);
-      return result.data as ProjectConfig;
-    },
-    enabled: !!slug,
-  });
+  const { data, isLoading } = useProjectQuery(slug, { enabled: !!slug });
   return { project: data, isLoading };
 }

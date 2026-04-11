@@ -1,15 +1,13 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useReconnectACPConnectionMutation } from '@stallion-ai/sdk';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import { useACPConnections } from '../hooks/useACPConnections';
 import { AgentIcon } from './AgentIcon';
 import { Button } from './Button';
 
 export function ACPStatusBadge() {
   const { data: connections = [] } = useACPConnections();
-  const { apiBase } = useApiBase();
-  const queryClient = useQueryClient();
+  const reconnectConnectionMutation = useReconnectACPConnectionMutation();
   const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
@@ -24,8 +22,8 @@ export function ACPStatusBadge() {
   const enabled = connections.filter((c) => c.enabled);
   if (enabled.length === 0) return null;
 
-  const connected = enabled.filter((c) => c.status === 'connected');
-  const connecting = enabled.some((c) => c.status === 'connecting');
+  const connected = enabled.filter((c) => c.status === 'available');
+  const connecting = enabled.some((c) => c.status === 'probing');
   const allConnected = connected.length === enabled.length;
   const someConnected = connected.length > 0;
   const color = connecting
@@ -82,10 +80,10 @@ export function ACPStatusBadge() {
                 style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
               >
                 {connections.map((conn) => {
-                  const isUp = conn.status === 'connected';
+                  const isUp = conn.status === 'available';
                   const c = isUp
                     ? '#22c55e'
-                    : conn.status === 'connecting'
+                    : conn.status === 'probing'
                       ? '#3b82f6'
                       : '#ef4444';
                   return (
@@ -212,13 +210,9 @@ export function ACPStatusBadge() {
                                 padding: '2px 8px',
                               }}
                               onClick={async () => {
-                                await fetch(
-                                  `${apiBase}/acp/connections/${conn.id}/reconnect`,
-                                  { method: 'POST' },
+                                await reconnectConnectionMutation.mutateAsync(
+                                  conn.id,
                                 );
-                                queryClient.invalidateQueries({
-                                  queryKey: ['acp-connections'],
-                                });
                               }}
                             >
                               ↻ Retry

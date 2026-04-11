@@ -3,9 +3,13 @@ import { describe, expect, test, vi } from 'vitest';
 vi.mock('../telemetry/metrics.js', () => ({
   projectOps: { add: vi.fn() },
 }));
-vi.mock('@stallion-ai/shared', () => ({
-  BUILTIN_KNOWLEDGE_NAMESPACES: [{ id: 'default', label: 'Default' }],
-}));
+vi.mock('@stallion-ai/contracts/knowledge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@stallion-ai/contracts/knowledge')>();
+  return {
+    ...actual,
+    BUILTIN_KNOWLEDGE_NAMESPACES: [{ id: 'default', label: 'Default' }],
+  };
+});
 
 const { ProjectService } = await import('../project-service.js');
 

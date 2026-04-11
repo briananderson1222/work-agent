@@ -14,7 +14,23 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  check:
+  fast-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Run fast CI lane
+        run: npm run ci:fast
+
+  connected-agents:
+    name: Connected Agents Verification
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -27,71 +43,10 @@ jobs:
       - run: npm ci --legacy-peer-deps
 
       - name: Build SDK
-        run: cd packages/sdk && npm run build
+        run: npm run build:sdk
 
       - name: Build Connect
-        run: cd packages/connect && npm run build
+        run: npm run build:connect
 
-      - name: Typecheck
-        run: npx tsc --noEmit --skipLibCheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Build server
-        run: npm run build:server
-
-      - name: Build UI
-        run: npm run build:ui
-
-      - name: Unit tests
-        run: npm test -- --run
-
-  mobile-playwright:
-    name: Mobile Playwright (Android viewport)
-    runs-on: ubuntu-latest
-    continue-on-error: true  # Needs full backend stack — tracked for CI improvement
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
-        with:
-          node-version: 24
-          cache: npm
-
-      - run: npm ci --legacy-peer-deps
-
-      - name: Build SDK
-        run: cd packages/sdk && npm run build
-
-      - name: Build Connect
-        run: cd packages/connect && npm run build
-
-      - name: Build UI
-        run: npm run build:ui
-
-      - name: Install Playwright browsers
-        run: npx playwright install chromium --with-deps
-
-      - name: Start preview server
-        run: npx vite preview --port 5173 --host &
-
-      - name: Wait for server
-        run: npx wait-on http://localhost:5173 --timeout 30000
-
-      - name: Run Android viewport tests
-        run: npx playwright test --project=android --reporter=list,html
-        env:
-          PW_BASE_URL: http://localhost:5173
-
-      - name: Upload Playwright report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: android-playwright-report
-          path: playwright-report/
-          retention-days: 7
-
-  # TODO: Integration tests disabled — plugin install needs devDep handling in CI.
-  # The server builds plugins on install, requiring esbuild in the copied plugin dir.
-  # Re-enable once plugin installer runs `npm install` before `node build.mjs`.
+      - name: Run connected-agents suite
+        run: npm run test:connected-agents

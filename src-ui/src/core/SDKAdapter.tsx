@@ -3,23 +3,26 @@ import {
   _setLayoutContext,
   _setProviderFunctions,
   SDKProvider,
-  useLayoutsQuery,
+  useProjectLayoutQuery,
+  useProjectLayoutsQuery,
 } from '@stallion-ai/sdk';
+import type { LayoutDefinition } from '@stallion-ai/contracts/layout';
 import { type ReactNode, useEffect } from 'react';
 import {
   useActiveChatActions,
+} from '../contexts/ActiveChatsContext';
+import {
   useCreateChatSession,
   useLaunchChat,
   useOpenConversation,
   useSendMessage,
-} from '../contexts/ActiveChatsContext';
+} from '../hooks/useActiveChatSessions';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useConversations } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
-import type { StandaloneLayoutConfig } from '../types';
 import {
   configureProvider,
   getActiveProviderId,
@@ -31,7 +34,7 @@ import {
 interface SDKAdapterProps {
   children: ReactNode;
   authToken?: string;
-  layout?: StandaloneLayoutConfig;
+  layout?: LayoutDefinition;
 }
 
 /**
@@ -63,9 +66,19 @@ export function SDKAdapter({ children, layout }: SDKAdapterProps) {
 
   // Get all the core contexts
   const agents = useAgents();
-  const { data: layouts = [] } = useLayoutsQuery();
-  const conversations = useConversations(layout?.slug || '');
   const navigation = useNavigation();
+  const { selectedProject, selectedProjectLayout } = navigation;
+  const { data: layouts = [] } = useProjectLayoutsQuery(selectedProject || '', {
+    enabled: !!selectedProject,
+  });
+  const { data: activeLayout } = useProjectLayoutQuery(
+    selectedProject || '',
+    selectedProjectLayout || '',
+    {
+      enabled: !!selectedProject && !!selectedProjectLayout,
+    },
+  );
+  const conversations = useConversations(layout?.slug || '');
   const toast = useToast();
   const sendMessage = useSendMessage(apiBase);
   const createChatSession = useCreateChatSession();
@@ -97,6 +110,10 @@ export function SDKAdapter({ children, layout }: SDKAdapterProps) {
       // Add other hooks as needed
     },
   };
+
+  sdkValue.contexts.layouts.useLayout = () => ({
+    data: activeLayout?.config ?? layout,
+  });
 
   return <SDKProvider value={sdkValue as any}>{children as any}</SDKProvider>;
 }

@@ -1,31 +1,17 @@
 import type { ProviderKind } from '@stallion-ai/contracts/provider';
-import type { AgentExecutionConfig } from '@stallion-ai/shared';
-
-export interface AgentQuickPrompt {
-  id: string;
-  label: string;
-  prompt: string;
-}
-
-export interface SlashCommandParam {
-  name: string;
-  description?: string;
-  required?: boolean;
-  default?: string;
-}
-
-export interface SlashCommand {
-  name: string;
-  description?: string;
-  prompt: string;
-  params?: SlashCommandParam[];
-}
-
-export interface AgentUIConfig {
-  component?: string;
-  quickPrompts?: AgentQuickPrompt[];
-  workflowShortcuts?: string[];
-}
+import type {
+  AgentExecutionConfig,
+  AgentUIConfig,
+  SlashCommand,
+} from '@stallion-ai/contracts/agent';
+export type {
+  LayoutAction,
+  LayoutPrompt,
+  LayoutTab,
+  LayoutDefinition,
+  LayoutDefinitionMetadata,
+} from '@stallion-ai/contracts/layout';
+export type { WorkflowMetadata } from '@stallion-ai/contracts/runtime';
 
 export interface AgentCommands {
   [commandName: string]: SlashCommand;
@@ -90,11 +76,6 @@ export interface ChatMessage {
   }>;
 }
 
-export interface WorkflowMetadata {
-  id: string;
-  label: string;
-}
-
 export type ChatSessionSource = 'manual' | 'prompt' | 'workflow';
 
 export type ChatSessionStatus = 'idle' | 'sending' | 'error';
@@ -152,11 +133,10 @@ export interface WorkflowFile {
   content?: string;
 }
 
-export type { TemplateVariable } from '@stallion-ai/shared';
-export type AppConfig = Partial<import('@stallion-ai/shared').AppConfig>;
+export type { TemplateVariable } from '@stallion-ai/contracts/config';
+export type AppConfig = Partial<import('@stallion-ai/contracts/config').AppConfig>;
 
 export type NavigationView =
-  | { type: 'standalone-layout' }
   | { type: 'agents' }
   | { type: 'agent-detail'; slug: string }
   | { type: 'agent-new' }
@@ -195,58 +175,6 @@ export type NavigationView =
   | { type: 'project'; slug: string }
   | { type: 'project-new' }
   | { type: 'project-edit'; slug: string }
-  | { type: 'layout'; projectSlug: string; layoutSlug: string }
-  | { type: 'layouts' }
-  | { type: 'layout-new' }
-  | { type: 'layout-edit'; slug: string };
+  | { type: 'layout'; projectSlug: string; layoutSlug: string };
 
 export type DockMode = 'bottom' | 'right' | 'bottom-inline';
-
-// Workspace/Layout types — kept for backward compat with plugins that import from here
-export interface LayoutPrompt {
-  id: string;
-  label: string;
-  prompt: string;
-  agent?: string;
-}
-
-export interface LayoutAction {
-  type: 'prompt' | 'inline-prompt' | 'external' | 'internal';
-  label: string;
-  icon?: string;
-  agent?: string;
-  data: string;
-}
-
-export interface LayoutTab {
-  id: string;
-  label: string;
-  component: string;
-  icon?: string;
-  description?: string;
-  actions?: LayoutAction[];
-  prompts?: (LayoutAction | LayoutPrompt)[];
-}
-
-export interface StandaloneLayoutConfig {
-  name: string;
-  slug: string;
-  icon?: string;
-  description?: string;
-  plugin?: string;
-  requiredProviders?: string[];
-  availableAgents?: string[];
-  defaultAgent?: string;
-  tabs: LayoutTab[];
-  actions?: LayoutAction[];
-  globalPrompts?: LayoutPrompt[];
-}
-
-export interface StandaloneLayoutMetadata {
-  slug: string;
-  name: string;
-  icon?: string;
-  description?: string;
-  plugin?: string;
-  tabCount: number;
-}

@@ -3,10 +3,10 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 import { ConfigLoader } from '../config-loader.js';
-import type { AgentSpec } from '../types.js';
 
 const createTempDir = () => mkdtempSync(join(tmpdir(), 'stallion-test-'));
 

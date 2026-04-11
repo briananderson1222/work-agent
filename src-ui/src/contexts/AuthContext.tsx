@@ -1,4 +1,8 @@
 import {
+  useAuthStatusQuery,
+  useRenewAuthMutation,
+} from '@stallion-ai/sdk';
+import {
   createContext,
   type ReactNode,
   useCallback,
@@ -6,7 +10,6 @@ import {
   useEffect,
   useState,
 } from 'react';
-import { useApiBase } from './ApiBaseContext';
 
 type AuthStatus = 'valid' | 'expiring' | 'expired' | 'missing' | 'loading';
 
@@ -28,40 +31,59 @@ interface AuthState {
 const AuthContext = createContext<AuthState | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const { apiBase } = useApiBase();
   const [status, setStatus] = useState<AuthStatus>('loading');
   const [expiresAt, setExpiresAt] = useState<Date | null>(null);
   const [provider, setProvider] = useState<string>('');
   const [user, setUser] = useState<{ alias: string } | null>(null);
   const [isRenewing, setIsRenewing] = useState(false);
+  const { data, error, refetch: refreshAuthStatus } = useAuthStatusQuery();
+  const renewAuthMutation = useRenewAuthMutation();
 
   const checkStatus = useCallback(async () => {
     try {
-      const response = await fetch(`${apiBase}/api/auth/status`);
-      const data = await response.json();
-      setStatus(data.status);
-      setProvider(data.provider);
-      setExpiresAt(data.expiresAt ? new Date(data.expiresAt) : null);
-      if (data.user) setUser(data.user);
+      const result = await refreshAuthStatus();
+      const authStatus = result.data;
+      if (!authStatus) {
+        throw result.error ?? new Error('Missing auth status');
+      }
+      setStatus(authStatus.status);
+      setProvider(authStatus.provider);
+      setExpiresAt(authStatus.expiresAt ? new Date(authStatus.expiresAt) : null);
+      setUser(authStatus.user ?? null);
     } catch {
       setStatus('missing');
     }
-  }, [apiBase]);
+  }, [refreshAuthStatus]);
 
   const renew = useCallback(async () => {
     setIsRenewing(true);
     try {
-      await fetch(`${apiBase}/api/auth/renew`, { method: 'POST' });
-      setTimeout(checkStatus, 3000);
+      await renewAuthMutation.mutateAsync();
+      setTimeout(() => {
+        void checkStatus();
+      }, 3000);
     } catch {
       /* ignore */
     } finally {
       setIsRenewing(false);
     }
-  }, [apiBase, checkStatus]);
+  }, [checkStatus, renewAuthMutation]);
 
   useEffect(() => {
-    checkStatus();
+    if (data) {
+      setStatus(data.status);
+      setProvider(data.provider);
+      setExpiresAt(data.expiresAt ? new Date(data.expiresAt) : null);
+      setUser(data.user ?? null);
+      return;
+    }
+    if (error) {
+      setStatus('missing');
+    }
+  }, [data, error]);
+
+  useEffect(() => {
+    void checkStatus();
     const interval = setInterval(checkStatus, 60000);
     return () => clearInterval(interval);
   }, [checkStatus]);

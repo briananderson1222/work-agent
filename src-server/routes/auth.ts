@@ -1,11 +1,11 @@
 import { userInfo } from 'node:os';
 import { Hono } from 'hono';
+import type { UserIdentity } from '@stallion-ai/contracts/auth';
 import {
   getAuthProvider,
   getUserDirectoryProvider,
   getUserIdentityProvider,
 } from '../providers/registry.js';
-import type { UserIdentity } from '../providers/types.js';
 import { authOps } from '../telemetry/metrics.js';
 import { createLogger } from '../utils/logger.js';
 import { errorMessage, param } from './schemas.js';

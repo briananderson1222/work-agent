@@ -11,7 +11,7 @@ import type {
   LLMModel,
   LLMStreamChunk,
   LLMStreamOpts,
-} from './types.js';
+} from './model-provider-types.js';
 
 export class BedrockLLMProvider implements ILLMProvider {
   readonly id = 'bedrock';
@@ -121,7 +121,7 @@ export class BedrockLLMProvider implements ILLMProvider {
   }
 
   async getPrerequisites(): Promise<
-    import('@stallion-ai/shared').Prerequisite[]
+    import('@stallion-ai/contracts/tool').Prerequisite[]
   > {
     const hasCreds = await checkBedrockCredentials();
     return [

@@ -1,94 +1,49 @@
 import {
+  fetchPromptById,
   FullScreenError,
   FullScreenLoader,
   LayoutNavigationProvider,
-  useLayoutQuery,
-  useLayoutsQuery,
+  useProjectLayoutQuery,
 } from '@stallion-ai/sdk';
-import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useState } from 'react';
-import { useLaunchChat } from '../contexts/ActiveChatsContext';
+import { useIsFetching, useQueryClient } from '@tanstack/react-query';
+import { useCallback, useState } from 'react';
+import {
+  useCreateChatSession,
+  useSendMessage,
+} from '../hooks/useActiveChatSessions';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { SDKAdapter } from '../core/SDKAdapter';
-import { useBranding } from '../hooks/useBranding';
 import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
 import { LayoutRenderer } from '../layouts';
-
-function useBackendReady(apiBase: string) {
-  const [ready, setReady] = useState(false);
-  const [checking, setChecking] = useState(true);
-
-  const check = useCallback(async () => {
-    setChecking(true);
-    try {
-      const res = await fetch(`${apiBase}/layouts`, {
-        signal: AbortSignal.timeout(3000),
-      });
-      setReady(res.ok);
-    } catch {
-      setReady(false);
-    } finally {
-      setChecking(false);
-    }
-  }, [apiBase]);
-
-  useEffect(() => {
-    check();
-  }, [check]);
-
-  return { ready, checking, retry: check };
-}
 
 export function LayoutView({
   projectSlug,
   layoutSlug,
 }: {
-  projectSlug?: string;
-  layoutSlug?: string;
-} = {}) {
+  projectSlug: string;
+  layoutSlug: string;
+}) {
   const { apiBase } = useApiBase();
   const {
-    selectedLayout,
     activeTab,
     setDockState,
-    setStandaloneLayout,
     setLayoutTab,
+    setActiveChat,
     navigate,
   } = useNavigation();
 
   const agents = useAgents();
   const {
-    ready: backendReady,
-    checking: backendChecking,
-    retry: retryBackend,
-  } = useBackendReady(apiBase);
-
-  const isProjectMode = !!(projectSlug && layoutSlug);
-
-  // Project/layout path: fetch layout config and map to workspace shape
-  const {
     data: layoutData,
     isLoading: layoutLoading,
-    isError: layoutError,
+    error: layoutQueryError,
     refetch: refetchLayout,
-  } = useQuery({
-    queryKey: ['projects', projectSlug, 'layouts', layoutSlug],
-    queryFn: async () => {
-      const res = await fetch(
-        `${apiBase}/api/projects/${projectSlug}/layouts/${layoutSlug}`,
-      );
-      if (!res.ok) throw new Error('Failed to load layout');
-      const result = await res.json();
-      if (!result.success) throw new Error(result.error);
-      return result.data;
-    },
-    enabled: isProjectMode,
-  });
+  } = useProjectLayoutQuery(projectSlug, layoutSlug);
 
   // Map LayoutConfig → workspace shape
-  const projectLayout = layoutData
+  const layout = layoutData
     ? {
         slug: layoutData.slug,
         name: layoutData.name,
@@ -110,32 +65,15 @@ export function LayoutView({
       }
     : null;
 
-  // React Query auto-fetches, caches, dedupes
-  const {
-    data: standaloneLayoutData,
-    isLoading,
-    isError,
-    refetch,
-  } = useLayoutQuery(selectedLayout || '', {
-    enabled: !isProjectMode && !!selectedLayout && backendReady,
-  });
-
-  const layout = isProjectMode ? projectLayout : standaloneLayoutData;
-  const effectiveLoading = isProjectMode ? layoutLoading : isLoading;
-  const effectiveError = isProjectMode ? layoutError : isError;
-  const effectiveRefetch = isProjectMode ? refetchLayout : refetch;
-
+  const createChatSession = useCreateChatSession();
   const slashCommandHandler = useSlashCommandHandler();
 
   // Set active tab via NavigationContext
   const setActiveTabId = useCallback(
     (tabId: string) => {
-      const slug = selectedLayout || layoutSlug;
-      if (slug) {
-        setLayoutTab(slug, tabId);
-      }
+      setLayoutTab(layoutSlug, tabId);
     },
-    [selectedLayout, layoutSlug, setLayoutTab],
+    [layoutSlug, setLayoutTab],
   );
 
   // Auto-select first tab if none is active
@@ -160,7 +98,12 @@ export function LayoutView({
     [slashCommandHandler],
   );
 
-  const launchChat = useLaunchChat(apiBase, handleSlashCommand);
+  const sendMessage = useSendMessage(
+    apiBase,
+    undefined,
+    undefined,
+    handleSlashCommand,
+  );
 
   const activeTabObject = layout?.tabs?.find((t: any) => t.id === activeTabId);
   const agent = agents.find((a) => a.slug === layout?.defaultAgent);
@@ -177,33 +120,42 @@ export function LayoutView({
       let promptText = prompt.prompt;
       if (prompt.id?.includes(':') && promptText === prompt.label) {
         try {
-          const res = await fetch(
-            `${apiBase}/api/prompts/${encodeURIComponent(prompt.id)}`,
-          );
-          const data = await res.json();
-          if (data.success && data.data?.content) {
-            promptText = data.data.content;
+          const promptData = await fetchPromptById(prompt.id);
+          if (promptData?.content) {
+            promptText = promptData.content;
           }
         } catch {
           /* fall through to label */
         }
       }
 
-      await launchChat(targetAgent.slug, targetAgent.name, promptText, {
-        title: prompt.label,
-        projectSlug: projectSlug ?? undefined,
-      });
+      const sessionId = createChatSession(
+        targetAgent.slug,
+        targetAgent.name,
+        prompt.label,
+        projectSlug,
+      );
+      setDockState(true);
+      setActiveChat(null); // New chat, no conversation yet
+
+      await sendMessage(sessionId, targetAgent.slug, undefined, promptText);
     },
-    [agents, layout?.defaultAgent, apiBase, launchChat, projectSlug],
+    [
+      agents,
+      layout?.defaultAgent,
+      createChatSession,
+      sendMessage,
+      setDockState,
+      setActiveChat,
+      projectSlug,
+    ],
   );
 
   const handleRefresh = useCallback(() => {
     // Clear layout-scoped sessionStorage (context state + tab navigation hashes)
-    const slug = isProjectMode ? layoutSlug : selectedLayout;
+    const slug = layoutSlug;
     const prefixes = [`layout:${slug}`, `layout-${slug}-tab-`];
-    if (isProjectMode && projectSlug) {
-      prefixes.push(`layout:${projectSlug}:${slug}`);
-    }
+    prefixes.push(`layout:${projectSlug}:${slug}`);
 
     const keysToRemove: string[] = [];
     for (let i = 0; i < sessionStorage.length; i++) {
@@ -218,42 +170,13 @@ export function LayoutView({
     queryClient.invalidateQueries();
 
     setRefreshKey((prev) => prev + 1);
-  }, [isProjectMode, projectSlug, layoutSlug, selectedLayout, queryClient]);
-
-  const { data: allLayouts = [] } = useLayoutsQuery();
-
-  if (!selectedLayout && !isProjectMode) {
-    if (allLayouts.length === 0) {
-      return <EmptyLayoutOnboarding />;
-    }
-    setStandaloneLayout(allLayouts[0].slug);
-    return <FullScreenLoader label="layout" />;
-  }
-
-  // Selected layout doesn't exist — redirect to first available or root
-  if (
-    !isProjectMode &&
-    allLayouts.length > 0 &&
-    !allLayouts.some((w: any) => w.slug === selectedLayout)
-  ) {
-    setStandaloneLayout(allLayouts[0].slug);
-    return <FullScreenLoader label="layout" />;
-  }
-
-  // Backend unreachable (skip in project mode — layout query handles its own errors)
-  if (!isProjectMode && !backendChecking && !backendReady) {
-    return (
-      <FullScreenError
-        title="Unable to connect"
-        description={`The server at <code>${apiBase}</code> is not responding`}
-        onRetry={retryBackend}
-        retryLabel="Retry Connection"
-      />
-    );
-  }
+  }, [projectSlug, layoutSlug, queryClient]);
 
   // Project layout failed — layout doesn't exist, redirect to project page
-  if (isProjectMode && effectiveError && !effectiveLoading) {
+  const layoutErrorMessage =
+    layoutQueryError instanceof Error ? layoutQueryError.message : null;
+
+  if (layoutErrorMessage?.toLowerCase().includes('not found') && !layoutLoading) {
     try {
       localStorage.removeItem('lastProjectLayout');
     } catch {}
@@ -261,26 +184,17 @@ export function LayoutView({
     return <FullScreenLoader label="layout" />;
   }
 
-  // Query failed after backend was reachable — if layout doesn't exist, show onboarding
-  if (effectiveError && !effectiveLoading) {
-    if (!isProjectMode) {
-      const layoutExists = allLayouts.some(
-        (w: any) => w.slug === selectedLayout,
-      );
-      if (!layoutExists) {
-        return <EmptyLayoutOnboarding />;
-      }
-    }
+  if (layoutQueryError && !layoutLoading) {
     return (
       <FullScreenError
         title="Failed to load layout"
         description="Something went wrong loading this layout. It might be a temporary issue."
-        onRetry={() => effectiveRefetch()}
+        onRetry={() => refetchLayout()}
       />
     );
   }
 
-  if (effectiveLoading || (!isProjectMode && backendChecking) || !layout) {
+  if (layoutLoading || !layout) {
     return <FullScreenLoader label="layout" />;
   }
 
@@ -305,55 +219,5 @@ export function LayoutView({
         />
       </LayoutNavigationProvider>
     </SDKAdapter>
-  );
-}
-
-function EmptyLayoutOnboarding() {
-  const { navigate } = useNavigation();
-  const { appName, welcomeMessage } = useBranding();
-
-  return (
-    <div className="workspace-onboarding">
-      <div className="workspace-onboarding__inner">
-        <img src="/favicon.png" alt="" className="workspace-onboarding__icon" />
-        <h2 className="workspace-onboarding__title">
-          {welcomeMessage || `Welcome to ${appName}`}
-        </h2>
-        <p className="workspace-onboarding__desc">
-          Projects give you a workspace with layouts, agents, and tools. Get
-          started by creating one or installing a plugin.
-        </p>
-        <div className="workspace-onboarding__actions">
-          <button
-            className="workspace-onboarding__card"
-            onClick={() => navigate('/layouts')}
-          >
-            <span className="workspace-onboarding__card-icon">✨</span>
-            <div>
-              <div className="workspace-onboarding__card-title">
-                Create a Project
-              </div>
-              <div className="workspace-onboarding__card-desc">
-                Set up a project with custom layouts, knowledge base, and agents
-              </div>
-            </div>
-          </button>
-          <button
-            className="workspace-onboarding__card"
-            onClick={() => navigate('/plugins')}
-          >
-            <span className="workspace-onboarding__card-icon">🧩</span>
-            <div>
-              <div className="workspace-onboarding__card-title">
-                Install a Plugin
-              </div>
-              <div className="workspace-onboarding__card-desc">
-                Add a pre-built layout from a git repo or local path
-              </div>
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }

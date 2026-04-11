@@ -1,25 +1,20 @@
-import type { ProviderKind } from '@stallion-ai/contracts/provider';
-import { usePromptsQuery } from '@stallion-ai/sdk';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  fetchAcpCommandOptions,
+  useAcpCommandsQuery,
+  usePromptsQuery,
+} from '@stallion-ai/sdk';
+import { useCallback, useMemo } from 'react';
 import { useAgents } from '../contexts/AgentsContext';
-import { useApiBase } from '../contexts/ApiBaseContext';
-import { useRuntimeCommands } from './useRuntimeCommands';
+import { promptSlug } from '../slashCommands/utils';
 
 export interface SlashCommand {
   cmd: string;
   description: string;
   aliases?: string[];
   isCustom?: boolean;
-  source?: 'builtin' | 'custom' | 'acp' | 'prompt' | 'runtime';
+  source?: 'builtin' | 'custom' | 'acp' | 'prompt';
   handler?: (args: string[]) => void | Promise<void>;
   currentModel?: string;
-}
-
-export function promptSlug(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-|-$/g, '');
 }
 
 function getModelDisplayName(modelId: string): string {
@@ -32,92 +27,60 @@ function getModelDisplayName(modelId: string): string {
   return modelId;
 }
 
-const PLATFORM_COMMANDS: SlashCommand[] = [
-  {
-    cmd: '/help',
-    description: 'List available commands',
-    source: 'builtin' as const,
-  },
-  {
-    cmd: '/clear',
-    aliases: ['/new'],
-    description: 'Clear conversation and start fresh',
-    source: 'builtin' as const,
-  },
-  {
-    cmd: '/stats',
-    description: 'Show conversation statistics',
-    source: 'builtin' as const,
-  },
-  {
-    cmd: '/resume',
-    aliases: ['/chat'],
-    description: 'Open a new or existing conversation',
-    source: 'builtin' as const,
-  },
-  {
-    cmd: '/prompts',
-    description: 'List available prompts and custom commands',
-    source: 'builtin' as const,
-  },
-];
-
-const BEDROCK_RUNTIME_COMMANDS: SlashCommand[] = [
-  {
-    cmd: '/mcp',
-    description: 'List MCP servers for this agent',
-    source: 'runtime' as const,
-  },
-  {
-    cmd: '/tools',
-    description: 'Show available tools and auto-approved list',
-    source: 'runtime' as const,
-  },
-  {
-    cmd: '/model',
-    description: 'Select model override',
-    source: 'runtime' as const,
-  },
-];
-
-export function useSlashCommands(
-  agentSlug: string | null,
-  provider?: ProviderKind,
-) {
-  const { apiBase } = useApiBase();
+export function useSlashCommands(agentSlug: string | null) {
   const agents = useAgents();
-  const [acpCommands, setAcpCommands] = useState<SlashCommand[]>([]);
   const { data: prompts } = usePromptsQuery();
-  const runtimeCommands = useRuntimeCommands(provider);
 
   const currentAgent = agentSlug
     ? agents.find((a) => a.slug === agentSlug)
     : null;
   const isAcp = currentAgent?.source === 'acp';
+  const { data: acpCommandData = [] } = useAcpCommandsQuery(agentSlug, {
+    enabled: isAcp,
+  });
 
-  useEffect(() => {
-    if (!isAcp || !agentSlug) {
-      setAcpCommands([]);
-      return;
-    }
-    fetch(`${apiBase}/acp/commands/${agentSlug}`)
-      .then((r) => r.json())
-      .then(({ data }) => {
-        setAcpCommands(
-          (data || []).map((c: any) => ({
-            cmd: c.name.startsWith('/') ? c.name : `/${c.name}`,
-            description: c.description || c.hint || 'ACP command',
-            isCustom: true,
-            source: 'acp' as const,
-          })),
-        );
-      })
-      .catch(() => setAcpCommands([]));
-  }, [isAcp, agentSlug, apiBase]);
+  const acpCommands = useMemo(
+    () =>
+      acpCommandData.map((command) => ({
+        cmd: command.name.startsWith('/') ? command.name : `/${command.name}`,
+        description: command.description || command.hint || 'ACP command',
+        isCustom: true,
+        source: 'acp' as const,
+      })),
+    [acpCommandData],
+  );
 
   const commands = useMemo(() => {
     const currentModelId = currentAgent?.model || 'default';
     const modelDisplayName = getModelDisplayName(currentModelId);
+
+    const BUILTIN_COMMANDS: SlashCommand[] = [
+      { cmd: '/mcp', description: 'List MCP servers for this agent' },
+      {
+        cmd: '/tools',
+        description: 'Show available tools and auto-approved list',
+      },
+      {
+        cmd: '/model',
+        description: `Select model override (agent default: ${modelDisplayName})`,
+        currentModel: modelDisplayName,
+      },
+      {
+        cmd: '/prompts',
+        description: 'List available prompts and custom commands',
+      },
+      {
+        cmd: '/clear',
+        aliases: ['/new'],
+        description: 'Clear conversation and start fresh',
+      },
+      { cmd: '/stats', description: 'Show conversation statistics' },
+      {
+        cmd: '/resume',
+        aliases: ['/chat'],
+        description: 'Open a new or existing conversation',
+      },
+    ];
 
     const promptCommands: SlashCommand[] = (prompts || [])
       .filter((p: any) => p.global || (agentSlug && p.agent === agentSlug))
@@ -127,9 +90,11 @@ export function useSlashCommands(
         source: 'prompt' as const,
       }));
 
+    if (!agentSlug || !currentAgent)
+      return [...BUILTIN_COMMANDS, ...promptCommands];
     if (isAcp) return acpCommands;
 
-    const customCommands = currentAgent?.commands
+    const customCommands = currentAgent.commands
       ? Object.values(currentAgent.commands).map((cmd: any) => ({
           cmd: `/${cmd.name}`,
           description: cmd.description || 'Custom command',
@@ -138,58 +103,27 @@ export function useSlashCommands(
         }))
       : [];
 
-    const isBedrock = !provider || provider === 'bedrock';
-    const bedrockCmds = BEDROCK_RUNTIME_COMMANDS.map((cmd) =>
-      cmd.cmd === '/model'
-        ? {
-            ...cmd,
-            description: `Select model override (agent default: ${modelDisplayName})`,
-            currentModel: modelDisplayName,
-          }
-        : cmd,
-    );
-    const runtimeCmds = isBedrock ? bedrockCmds : runtimeCommands;
-
-    const platformNames = new Set(PLATFORM_COMMANDS.map((c) => c.cmd));
-    const filteredRuntime = runtimeCmds.filter(
-      (c) => !platformNames.has(c.cmd),
-    );
-
-    return [
-      ...PLATFORM_COMMANDS,
-      ...filteredRuntime,
-      ...customCommands,
-      ...promptCommands,
-    ];
-  }, [
-    agentSlug,
-    acpCommands,
-    currentAgent,
-    isAcp,
-    prompts,
-    runtimeCommands,
-    provider,
-  ]);
+    return [...BUILTIN_COMMANDS, ...customCommands, ...promptCommands];
+  }, [agentSlug, acpCommands, currentAgent, isAcp, prompts]);
 
   // Fetch live autocomplete options from kiro-cli for ACP agents
   const fetchCommandOptions = useCallback(
     async (partial: string): Promise<SlashCommand[]> => {
       if (!isAcp || !agentSlug || !partial) return [];
       try {
-        const r = await fetch(
-          `${apiBase}/acp/commands/${agentSlug}/options?q=${encodeURIComponent(partial)}`,
-        );
-        const { data } = await r.json();
-        return (data || []).map((o: any) => ({
-          cmd: o.name?.startsWith('/') ? o.name : `/${o.name || o.label || o}`,
-          description: o.description || o.hint || '',
+        const options = await fetchAcpCommandOptions(agentSlug, partial);
+        return options.map((option: any) => ({
+          cmd: option.name?.startsWith('/')
+            ? option.name
+            : `/${option.name || option.label || option}`,
+          description: option.description || option.hint || '',
           source: 'acp' as const,
         }));
       } catch {
         return [];
       }
     },
-    [isAcp, agentSlug, apiBase],
+    [isAcp, agentSlug],
   );
 
   return { commands, fetchCommandOptions };

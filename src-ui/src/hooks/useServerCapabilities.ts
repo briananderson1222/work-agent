@@ -12,16 +12,12 @@ import type {
   STTProvider,
   TTSProvider,
 } from '@stallion-ai/sdk';
-import { ListenerManager, voiceRegistry } from '@stallion-ai/sdk';
+import {
+  ListenerManager,
+  useServerCapabilitiesQuery,
+  voiceRegistry,
+} from '@stallion-ai/sdk';
 import { useEffect } from 'react';
-import { useApiBase } from '../contexts/ApiBaseContext';
-
-interface CapabilitiesResponse {
-  voice?: {
-    stt?: ProviderCapability[];
-    tts?: ProviderCapability[];
-  };
-}
 
 /** Shared base for server-backed provider stubs. */
 function makeStubBase(cap: ProviderCapability) {
@@ -64,43 +60,26 @@ function makeServerTTSStub(cap: ProviderCapability): TTSProvider {
 }
 
 export function useServerCapabilities(): void {
-  const { apiBase } = useApiBase();
+  const { data, error } = useServerCapabilitiesQuery();
 
   useEffect(() => {
-    if (!apiBase) return;
-    let cancelled = false;
+    for (const cap of data?.voice?.stt ?? []) {
+      if (cap.clientOnly) continue;
+      if (cap.configured && !voiceRegistry.getSTT(cap.id)) {
+        voiceRegistry.registerSTT(makeServerSTTStub(cap));
+      }
+    }
 
-    fetch(`${apiBase}/api/system/capabilities`)
-      .then((r) => r.json())
-      .then((data: CapabilitiesResponse) => {
-        if (cancelled) return;
+    for (const cap of data?.voice?.tts ?? []) {
+      if (cap.clientOnly) continue;
+      if (cap.configured && !voiceRegistry.getTTS(cap.id)) {
+        voiceRegistry.registerTTS(makeServerTTSStub(cap));
+      }
+    }
+  }, [data]);
 
-        // Register server-backed STT providers
-        for (const cap of data.voice?.stt ?? []) {
-          if (cap.clientOnly) continue; // already registered by provider index
-          if (cap.configured && !voiceRegistry.getSTT(cap.id)) {
-            voiceRegistry.registerSTT(makeServerSTTStub(cap));
-          }
-        }
-
-        // Register server-backed TTS providers
-        for (const cap of data.voice?.tts ?? []) {
-          if (cap.clientOnly) continue;
-          if (cap.configured && !voiceRegistry.getTTS(cap.id)) {
-            voiceRegistry.registerTTS(makeServerTTSStub(cap));
-          }
-        }
-      })
-      .catch((err: unknown) => {
-        // Server may not support /capabilities yet — non-fatal
-        console.warn(
-          '[stallion] Failed to fetch /api/system/capabilities:',
-          err,
-        );
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [apiBase]);
+  useEffect(() => {
+    if (!error) return;
+    console.warn('[stallion] Failed to fetch /api/system/capabilities:', error);
+  }, [error]);
 }

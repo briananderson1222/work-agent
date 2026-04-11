@@ -1,6 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import type { Prompt } from '../providers/types.js';
+import type { Prompt } from '@stallion-ai/contracts/catalog';
 
 function parseFrontmatter(content: string): {
   meta: Record<string, any>;

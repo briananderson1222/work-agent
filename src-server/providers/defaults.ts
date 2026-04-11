@@ -3,22 +3,24 @@
  */
 
 import { userInfo as osUserInfo } from 'node:os';
-import type { ToolDef } from '../domain/types.js';
+import type { ToolDef } from '@stallion-ai/contracts/tool';
 import type {
-  AuthStatus,
   IAgentRegistryProvider,
   IAuthProvider,
   IBrandingProvider,
   IIntegrationRegistryProvider,
-  InstallResult,
   ISettingsProvider,
   IUserDirectoryProvider,
   IUserIdentityProvider,
+} from './provider-interfaces.js';
+import type {
+  AuthStatus,
+  InstallResult,
   RegistryItem,
   RenewResult,
   UserDetailVM,
   UserIdentity,
-} from './types.js';
+} from './provider-contracts.js';
 
 // ── Package Registry Defaults ──────────────────────────
 

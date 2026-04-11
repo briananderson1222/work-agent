@@ -328,13 +328,13 @@ Fetches available Bedrock models.
 
 Fetches model capabilities. Returns `[]` on 401 (credentials not configured).
 
-### `useLayoutQuery(slug: string, config?)`
+### `useProjectLayoutsQuery(projectSlug: string, config?)`
 
-Fetches a single layout.
+Fetches layouts for a project.
 
-### `useLayoutsQuery(config?)`
+### `useProjectLayoutQuery(projectSlug: string, layoutSlug: string, config?)`
 
-Fetches all layouts.
+Fetches a single project layout.
 
 ### `useConversationsQuery(agentSlug: string | undefined, config?)`
 
@@ -372,6 +372,14 @@ Fetches layouts for a project.
 
 Fetches recent conversations for a project. Default limit: 10.
 
+### `useRenameConversationMutation()`
+
+Renames a conversation and invalidates that agent's conversation list on success.
+
+### `useDeleteConversationMutation()`
+
+Deletes a conversation, invalidates that agent's conversation list, and removes its cached message query on success.
+
 ### `useCreateProjectMutation()`
 
 Creates a new project. Invalidates `['projects']` on success.
@@ -391,6 +399,11 @@ Creates a new layout within a project. Invalidates project layouts on success.
 ### `useAddLayoutFromPluginMutation(projectSlug: string)`
 
 Adds a layout from an installed plugin to a project. Invalidates project layouts on success.
+
+### `useAddProjectLayoutFromPluginMutation()`
+
+Adds a layout from an installed plugin to any project by passing `{ projectSlug, plugin }`.
+Invalidates `['projects']` and the target project's layout list on success.
 
 ### `useKnowledgeDocsQuery(projectSlug, namespace?, config?)`
 
@@ -440,6 +453,14 @@ Fetches git log for a working directory. Default count: 5. Disabled when `workin
 
 Fetches all prompts from the prompt registry.
 
+### `usePromptQuery(id, config?)`
+
+Fetches a single prompt by id. Disabled when `id` is null/undefined.
+
+### `useAcpCommandsQuery(agentSlug, config?)`
+
+Fetches ACP slash commands for an ACP-backed agent. Disabled when `agentSlug` is null/undefined.
+
 ### `useModelCapabilitiesQuery(config?)`
 
 Fetches model capabilities. Returns `[]` on 401 (credentials not configured).
@@ -460,6 +481,10 @@ Invokes an agent and caches the result. Cache key: `['invoke', agentSlug, conten
 ```tsx
 const { data, isLoading } = useInvokeAgent('my-agent', 'Summarize this', { schema: MySchema });
 ```
+
+### `conversationQueries.list(agentSlug)`
+
+Shared query-factory entry for agent conversation lists. Use this when a feature needs `useQueries` or other query-factory composition without reintroducing inline transport logic.
 
 ### `useApiQuery<T>(queryKey, queryFn, config?)`
 
@@ -575,10 +600,6 @@ Fetches app configuration imperatively.
 
 Creates a new chat session and returns the session ID.
 
-### `fetchLayouts(): Promise<LayoutConfig[]>`
-
-Fetches all layouts imperatively.
-
 ### `fetchAvailableLayouts(): Promise<any[]>`
 
 Fetches available layout sources (for adding layouts to projects).
@@ -633,6 +654,18 @@ Deletes a single knowledge document.
 
 Bulk-deletes knowledge documents.
 
+#### `fetchPromptById(id: string): Promise<Playbook | null>`
+
+Fetches a single prompt/playbook by id for imperative flows such as launching plugin-scoped prompts from a layout.
+
+#### `fetchAcpCommands(agentSlug: string): Promise<AcpSlashCommandDescriptor[]>`
+
+Fetches ACP slash-command definitions for an ACP-backed agent.
+
+#### `fetchAcpCommandOptions(agentSlug: string, partial: string): Promise<AcpSlashCommandDescriptor[]>`
+
+Fetches live ACP slash-command autocomplete options.
+
 ---
 
 ## Plugin Query Hooks
@@ -650,6 +683,18 @@ Checks for available plugin updates. Cache key: `['plugin-updates']`.
 ### `useRegistryPluginsQuery(config?)`
 
 Fetches plugins available in the registry. Cache key: `['registry-plugins']`.
+
+### `usePluginSettingsQuery(pluginName, config?)`
+
+Fetches plugin settings schema and current values. Disabled when `pluginName` is undefined.
+
+### `usePluginChangelogQuery(pluginName, config?)`
+
+Fetches changelog metadata for a plugin. Disabled when `pluginName` is undefined.
+
+### `usePluginProvidersQuery(pluginName, config?)`
+
+Fetches provider override state for a plugin. Disabled when `pluginName` is undefined.
 
 ### `usePluginInstallMutation()`
 
@@ -677,6 +722,10 @@ Updates an installed plugin. Invalidates plugins cache on success.
 
 Removes an installed plugin. Invalidates plugins and layouts caches on success.
 
+### `usePluginSettingsMutation()`
+
+Saves plugin settings and invalidates that plugin's settings cache on success.
+
 ### `usePluginProviderToggleMutation()`
 
 Toggles plugin provider overrides (enable/disable specific providers).
@@ -694,6 +743,14 @@ Installs or uninstalls a plugin from the registry.
 const { mutate } = usePluginRegistryInstallMutation();
 mutate({ id: 'my-plugin', action: 'install' });
 ```
+
+### `useReloadPluginsMutation()`
+
+Triggers `/api/plugins/reload` and invalidates plugin, layout, agent, and project caches.
+
+### `waitForAgentHealth(slug, options?)`
+
+Imperative helper for polling agent readiness during post-install bootstrap flows.
 
 ---
 
@@ -1100,7 +1157,7 @@ const notifications = await api.list({ status: 'pending' });
 Query factory for imperative fetching (e.g. in slash commands). Returns React Query config objects.
 
 ```ts
-agentQueries.agent(agentSlug)                        // GET /agents/:slug
+agentQueries.agent(agentSlug)                        // GET /api/agents/:slug
 agentQueries.tools(agentSlug)                        // GET /agents/:slug/tools
 agentQueries.stats(agentSlug, conversationId)        // GET /agents/:slug/conversations/:id/stats
 ```
@@ -1176,11 +1233,11 @@ const noopSubscribe: (fn: () => void) => () => void
 
 ## Types
 
-Core types re-exported from `@stallion-ai/shared` plus SDK-specific types.
+Core types re-exported from `@stallion-ai/contracts/*` plus SDK-specific types.
 
-### Shared types (from `@stallion-ai/shared`)
+### Core contract types
 
-`AgentSpec`, `AgentSummary` (SDK), `AgentMetadata`, `AgentUIConfig`, `AgentGuardrails`, `AgentTools`, `AgentQuickPrompt`, `LayoutConfig`, `StandaloneLayoutConfig`, `LayoutTab`, `LayoutAction`, `LayoutPrompt`, `PluginManifest`, `SlashCommand`, `SlashCommandParam`, `ToolDef`, `ToolMetadata`, `ToolPermissions`, `ToolCallResponse`, `ConversationStats`
+`AgentSpec`, `AgentSummary` (SDK), `AgentMetadata`, `AgentUIConfig`, `AgentGuardrails`, `AgentTools`, `AgentQuickPrompt`, `LayoutConfig`, `LayoutDefinition`, `LayoutTab`, `LayoutAction`, `LayoutPrompt`, `PluginManifest`, `SlashCommand`, `SlashCommandParam`, `ToolDef`, `ToolMetadata`, `ToolPermissions`, `ToolCallResponse`, `ConversationStats`
 
 ### SDK-specific types
 

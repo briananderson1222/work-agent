@@ -1,9 +1,7 @@
 import { useCallback } from 'react';
-import {
-  useActiveChatActions,
-  useCancelMessage,
-} from '../contexts/ActiveChatsContext';
+import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import { useCancelMessage } from './useActiveChatSessions';
 import { useKeyboardShortcut } from './useKeyboardShortcut';
 
 interface DerivedSession {

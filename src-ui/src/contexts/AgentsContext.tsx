@@ -1,11 +1,11 @@
 import {
   useAgentsQuery,
-  useApiMutation,
-  useInvalidateQuery,
+  useCreateAgentMutation,
+  useDeleteAgentMutation,
+  useUpdateAgentMutation,
 } from '@stallion-ai/sdk';
-import type { AgentExecutionConfig } from '@stallion-ai/shared';
+import type { AgentExecutionConfig } from '@stallion-ai/contracts/agent';
 import { log } from '@/utils/logger';
-import { useApiBase } from './ApiBaseContext';
 
 export type AgentData = {
   slug: string;
@@ -38,62 +38,26 @@ export function useAgent(slug: string): AgentData | null {
 }
 
 export function useAgentActions() {
-  const { apiBase } = useApiBase();
-  const invalidate = useInvalidateQuery();
+  const createMutation = useCreateAgentMutation({
+    onError: (error) => log.api('Failed to create agent:', error),
+  });
 
-  const createMutation = useApiMutation(
-    async (agent: AgentData) => {
-      const response = await fetch(`${apiBase}/agents`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(agent),
-      });
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error);
-      return result.data;
-    },
-    {
-      onSuccess: () => invalidate(['agents']),
-      onError: (error) => log.api('Failed to create agent:', error),
-    },
-  );
+  const updateMutation = useUpdateAgentMutation({
+    onError: (error) => log.api('Failed to update agent:', error),
+  });
 
-  const updateMutation = useApiMutation(
-    async ({ slug, agent }: { slug: string; agent: Partial<AgentData> }) => {
-      const response = await fetch(`${apiBase}/agents/${slug}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(agent),
-      });
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error);
-      return result.data;
-    },
-    {
-      onSuccess: () => invalidate(['agents']),
-      onError: (error) => log.api('Failed to update agent:', error),
-    },
-  );
-
-  const deleteMutation = useApiMutation(
-    async (slug: string) => {
-      const response = await fetch(`${apiBase}/agents/${slug}`, {
-        method: 'DELETE',
-      });
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error);
-      return result.data;
-    },
-    {
-      onSuccess: () => invalidate(['agents']),
-      onError: (error) => log.api('Failed to delete agent:', error),
-    },
-  );
+  const deleteMutation = useDeleteAgentMutation({
+    onError: (error) => log.api('Failed to delete agent:', error),
+  });
 
   return {
-    createAgent: (agent: AgentData) => createMutation.mutateAsync(agent),
+    createAgent: (agent: AgentData) =>
+      createMutation.mutateAsync(agent as unknown as Record<string, unknown>),
     updateAgent: (slug: string, agent: Partial<AgentData>) =>
-      updateMutation.mutateAsync({ slug, agent }),
+      updateMutation.mutateAsync({
+        slug,
+        agent: agent as Record<string, unknown>,
+      }),
     deleteAgent: (slug: string) => deleteMutation.mutateAsync(slug),
   };
 }

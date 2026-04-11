@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 vi.mock('../../telemetry/metrics.js', () => ({
   knowledgeOps: { add: vi.fn() },
 }));
-vi.mock('@stallion-ai/shared', async (importOriginal) => {
-  const actual = await importOriginal<any>();
+vi.mock('@stallion-ai/contracts/knowledge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@stallion-ai/contracts/knowledge')>();
   return {
     ...actual,
     BUILTIN_KNOWLEDGE_NAMESPACES: [

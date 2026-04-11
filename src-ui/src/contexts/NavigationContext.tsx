@@ -27,7 +27,6 @@ type NavigationState = {
   fontSize: number | null;
 };
 
-const LAST_LAYOUT_KEY = 'lastLayout';
 const LAST_PROJECT_KEY = 'lastProject';
 const LAST_PROJECT_LAYOUT_KEY = 'lastProjectLayout';
 
@@ -35,8 +34,6 @@ class NavigationStore {
   private state: NavigationState;
   private listeners = new Set<() => void>();
   private isNavigating = false;
-  /** Persisted layout — survives navigation to non-layout pages */
-  lastLayout: string | null;
   /** Persisted project+layout — for '/' route resolution */
   lastProject: string | null;
   lastProjectLayout: string | null;
@@ -44,10 +41,6 @@ class NavigationStore {
   dockModeOverride: DockMode | null = null;
 
   constructor() {
-    this.lastLayout =
-      typeof window !== 'undefined'
-        ? localStorage.getItem(LAST_LAYOUT_KEY)
-        : null;
     this.lastProject =
       typeof window !== 'undefined'
         ? localStorage.getItem(LAST_PROJECT_KEY)
@@ -126,17 +119,9 @@ class NavigationStore {
     const agentMatch = pathname.match(/^\/agents?\/([^/]+)/);
     if (agentMatch) selectedAgent = agentMatch[1];
 
-    // Extract standalone layout and tab from path or query
+    // Extract current layout slug and tab from path/query
     let selectedLayout = params.get('layout');
     let activeTab = params.get('tab'); // Fallback to query param for backward compatibility
-
-    const layoutMatch = pathname.match(/^\/layouts?\/([^/]+)(?:\/([^/]+))?/);
-    if (layoutMatch) {
-      selectedLayout = layoutMatch[1];
-      if (layoutMatch[2]) {
-        activeTab = layoutMatch[2]; // Tab from path takes precedence
-      }
-    }
 
     // Extract project and layout from path
     let selectedProject: string | null = null;
@@ -146,7 +131,10 @@ class NavigationStore {
     );
     if (projectMatch) {
       selectedProject = projectMatch[1];
-      if (projectMatch[2]) selectedProjectLayout = projectMatch[2];
+      if (projectMatch[2]) {
+        selectedProjectLayout = projectMatch[2];
+        selectedLayout = projectMatch[2];
+      }
       if (projectMatch[3]) activeTab = projectMatch[3];
     }
 
@@ -243,23 +231,13 @@ class NavigationStore {
     }
   }
 
-  setStandaloneLayout(slug: string | null) {
-    if (slug) {
-      this.lastLayout = slug;
-      try {
-        localStorage.setItem(LAST_LAYOUT_KEY, slug);
-      } catch {}
-      this.navigate(`/layouts/${slug}`);
-    } else {
-      this.navigate('/');
-    }
-  }
-
   setLayoutTab(layoutSlug: string, tabId: string | null) {
     const { selectedProject } = this.state;
-    const base = selectedProject
-      ? `/projects/${selectedProject}/layouts/${layoutSlug}`
-      : `/layouts/${layoutSlug}`;
+    if (!selectedProject) {
+      this.navigate('/');
+      return;
+    }
+    const base = `/projects/${selectedProject}/layouts/${layoutSlug}`;
     this.navigate(tabId ? `${base}/${tabId}` : base);
   }
 
@@ -318,7 +296,6 @@ const NavigationContext = createContext<{
   navigate: (pathname: string, params?: Record<string, string | null>) => void;
   updateParams: (params: Record<string, string | null>) => void;
   setAgent: (slug: string | null) => void;
-  setStandaloneLayout: (slug: string | null) => void;
   setLayoutTab: (layoutSlug: string, tabId: string | null) => void;
   setProject: (slug: string) => void;
   setLayout: (projectSlug: string, layoutSlug: string) => void;
@@ -343,10 +320,6 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
 
   const setAgent = useCallback((slug: string | null) => {
     navigationStore.setAgent(slug);
-  }, []);
-
-  const setStandaloneLayout = useCallback((slug: string | null) => {
-    navigationStore.setStandaloneLayout(slug);
   }, []);
 
   const setLayoutTab = useCallback(
@@ -390,7 +363,6 @@ export function NavigationProvider({ children }: { children: ReactNode }) {
         navigate,
         updateParams,
         setAgent,
-        setStandaloneLayout,
         setLayoutTab,
         setProject,
         setLayout,
@@ -419,7 +391,6 @@ export function useNavigation() {
 
   return {
     ...state,
-    lastLayout: navigationStore.lastLayout,
     lastProject: navigationStore.lastProject,
     lastProjectLayout: navigationStore.lastProjectLayout,
     ...context,

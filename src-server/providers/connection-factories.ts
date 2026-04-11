@@ -1,4 +1,4 @@
-import type { ProviderConnectionConfig } from '@stallion-ai/shared';
+import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 import { BedrockEmbeddingProvider } from './bedrock-embedding-provider.js';
 import { BedrockLLMProvider } from './bedrock-llm-provider.js';
 import { LanceDBProvider } from './lancedb-provider.js';
@@ -14,7 +14,7 @@ import type {
   IEmbeddingProvider,
   ILLMProvider,
   IVectorDbProvider,
-} from './types.js';
+} from './model-provider-types.js';
 
 interface OllamaConfig {
   baseUrl?: string;

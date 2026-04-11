@@ -1,7 +1,7 @@
 import { jsonSchema } from 'ai';
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import { Hono } from 'hono';
 import { DEFAULT_SYSTEM_PROMPT } from '../domain/config-loader.js';
-import type { AgentSpec } from '../domain/types.js';
 import type { ITool, RuntimeContext } from '../runtime/types.js';
 import { chatRequests } from '../telemetry/metrics.js';
 import { isAuthError } from '../utils/auth-errors.js';

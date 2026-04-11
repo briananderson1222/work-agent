@@ -5,8 +5,8 @@
 
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { PluginManifest, PluginOverrides } from '@stallion-ai/shared';
-import { PROVIDER_TYPE_META } from './types.js';
+import type { PluginManifest, PluginOverrides } from '@stallion-ai/contracts/plugin';
+import { PROVIDER_TYPE_META } from './provider-interfaces.js';
 
 export interface ResolvedEntry {
   pluginName: string;

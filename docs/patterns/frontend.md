@@ -24,7 +24,7 @@ The frontend uses a 4-layer architecture for data management. **All new data fet
                             ↑
 ┌─────────────────────────────────────────────────────────────┐
 │  Layer 2: Query Hooks (SDK)                                 │
-│  - useAgentsQuery, useLayoutsQuery                        │
+│  - useAgentsQuery, useProjectLayoutsQuery                  │
 │  - Wraps React Query with consistent config                 │
 │  - Lives in packages/sdk/src/queries.ts                     │
 └─────────────────────────────────────────────────────────────┘
@@ -71,7 +71,10 @@ export const agentQueries = {
     queryKey: ['agent', agentSlug],
     queryFn: async () => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/agents/${agentSlug}`);
+      const response = await fetch(
+        `${apiBase}/api/agents/${encodeURIComponent(agentSlug)}`,
+      );
+      if (response.status === 404) throw new Error('Agent not found');
       if (!response.ok) throw new Error('Failed to fetch agent');
       const result = await response.json();
       if (!result.success) throw new Error(result.error);
@@ -147,14 +150,17 @@ Projects:
 - `useDeleteProjectMutation` — Delete project
 
 Layouts:
-- `useLayoutQuery(slug)` — Single layout
-- `useLayoutsQuery` — All layouts
+- `useProjectLayoutQuery(projectSlug, layoutSlug)` — Single project layout
+- `useProjectLayoutsQuery(projectSlug)` — Project layouts
 - `useCreateLayoutMutation(projectSlug)` — Create layout
 - `useAddLayoutFromPluginMutation(projectSlug)` — Add layout from plugin
 
 Conversations:
 - `useConversationsQuery(agentSlug)` — Conversations for agent
 - `useProjectConversationsQuery(projectSlug)` — Conversations for project
+- `conversationQueries.list(agentSlug)` — Shared conversation query config for `useQueries`/imperative reuse
+- `useRenameConversationMutation` — Rename a conversation
+- `useDeleteConversationMutation` — Delete a conversation
 - `useStatsQuery(agentSlug, conversationId)` — Conversation stats
 
 Knowledge:
@@ -172,12 +178,21 @@ Plugins:
 - `usePluginsQuery` — Installed plugins
 - `usePluginUpdatesQuery` — Available updates
 - `useRegistryPluginsQuery` — Registry catalog
+- `usePluginSettingsQuery(pluginName)` — Plugin settings schema + values
+- `usePluginChangelogQuery(pluginName)` — Plugin changelog metadata
+- `usePluginProvidersQuery(pluginName)` — Provider override state
 - `usePluginInstallMutation` — Install plugin
 - `usePluginPreviewMutation` — Preview before install
 - `usePluginUpdateMutation` — Update plugin
 - `usePluginRemoveMutation` — Remove plugin
+- `usePluginSettingsMutation` — Save plugin settings
 - `usePluginProviderToggleMutation` — Toggle provider
 - `usePluginRegistryInstallMutation` — Install from registry
+- `useReloadPluginsMutation` — Reload plugin providers
+
+ACP:
+- `useAcpCommandsQuery(agentSlug)` — ACP slash-command discovery
+- `fetchAcpCommandOptions(agentSlug, partial)` — ACP slash-command autocomplete
 
 Models & Config:
 - `useModelsQuery` — Available models
@@ -346,7 +361,7 @@ useModels()              // Available models
 ```typescript
 // Pre-built queries
 useAgentsQuery()
-useLayoutsQuery()
+useProjectLayoutsQuery(projectSlug)
 useConversationsQuery(agentSlug)
 useModelsQuery()
 useStatsQuery(agentSlug, conversationId)
@@ -506,38 +521,43 @@ const { url } = useHostUrl();
 
 ## packages/shared
 
-Single source of truth for all types, config parsers, and API contracts shared across the monorepo. Consumed by `src-server`, `packages/sdk`, and `packages/cli`.
+Shared runtime helpers plus compatibility re-exports. Canonical API and domain ownership lives in `packages/contracts`; `shared` remains the place for config parsers and runtime-safe utilities consumed by `src-server`, `packages/sdk`, and `packages/cli`.
 
 ### When to import from shared vs SDK
 
 | Need | Import from |
 |---|---|
-| TypeScript types (AgentSpec, PluginManifest, LayoutConfig, etc.) | `@stallion-ai/shared` |
-| API response shapes (ToolCallResponse, AgentInvokeResponse) | `@stallion-ai/shared` |
-| Config file parsers (readPluginManifest, readAgentSpec, etc.) | `@stallion-ai/shared` |
-| Plugin install helpers (copyPluginIntegrations, buildPlugin) | `@stallion-ai/shared` |
+| Contract-owned types (AgentSpec, PluginManifest, LayoutConfig, AuthStatus, etc.) | `@stallion-ai/contracts/*` |
+| Compatibility re-exports and runtime helpers | `@stallion-ai/shared` |
+| Config file parsers (readPluginManifest, readAgentSpec, etc.) | `@stallion-ai/shared/parsers` |
+| Plugin build helpers | `@stallion-ai/shared/build` |
+| Git helpers | `@stallion-ai/shared/git` |
 | React Query hooks for fetching data | `@stallion-ai/sdk` |
 | Context hooks (useAgents, useLayouts, etc.) | `@stallion-ai/sdk` |
 
-**Rule:** If it's a type or a pure function that works in Node and the browser, it belongs in `shared`. If it requires React or browser APIs, it belongs in `sdk`.
+**Rule:** If it is a stable cross-package contract, it belongs in `contracts`. If it is a runtime helper or compatibility export usable in Node and the browser, it belongs in `shared`. If it requires React or browser APIs, it belongs in `sdk`.
 
 ### Key exports
 
 ```typescript
-// Types
+// Contracts
 import type {
   AgentSpec, AgentMetadata, AgentGuardrails, AgentTools,
-  PluginManifest, PluginComponent, PluginPreview,
-  LayoutConfig, LayoutTab, LayoutMetadata,
-  ToolDef, ToolMetadata,
-  AppConfig, TemplateVariable,
-  ConversationStats, MemoryEvent, SessionMetadata,
-  UserIdentity, UserDetailVM,
-  AuthStatus, RegistryItem, InstallResult,
-  Prerequisite, ConflictInfo,
-  // API contracts
-  ToolCallResponse, AgentInvokeResponse,
-} from '@stallion-ai/shared';
+} from '@stallion-ai/contracts/agent';
+import type { AuthStatus, UserDetailVM, UserIdentity } from '@stallion-ai/contracts/auth';
+import type { InstallResult, RegistryItem } from '@stallion-ai/contracts/catalog';
+import type { AppConfig, TemplateVariable } from '@stallion-ai/contracts/config';
+import type { LayoutConfig, LayoutMetadata, LayoutTab } from '@stallion-ai/contracts/layout';
+import type { ConflictInfo, PluginComponent, PluginManifest, PluginPreview } from '@stallion-ai/contracts/plugin';
+import type {
+  AgentInvokeResponse,
+  AgentSwitchState,
+  ConversationStats,
+  MemoryEvent,
+  SessionMetadata,
+  ToolCallResponse,
+} from '@stallion-ai/contracts/runtime';
+import type { Prerequisite, ToolDef, ToolMetadata } from '@stallion-ai/contracts/tool';
 
 // Config parsers
 import {
@@ -548,13 +568,19 @@ import {
   listIntegrationIds,     // list integration IDs from an integrations/ dir
   resolvePluginIntegrations, // resolve all integrations declared by a plugin
   copyPluginIntegrations, // copy plugin integrations/ to project integrations dir
+} from '@stallion-ai/shared/parsers';
+
+import {
   buildPlugin,            // build a plugin if it has a build script
+} from '@stallion-ai/shared/build';
+
+import {
   resolveGitInfo,         // get git root, branch, hash, remote
-} from '@stallion-ai/shared';
+} from '@stallion-ai/shared/git';
 ```
 
 > **Note:** Permission helpers (`getPermissionTier`, `needsConsent`, `processInstallPermissions`) live in `src-server/services/plugin-permissions.ts` — server-only, not exported from shared.
 
-### Do not redefine shared types
+### Do not redefine contract types
 
-If you need a type that describes an agent, layout, tool, or plugin — check `@stallion-ai/shared` first. Adding duplicate type definitions in `src-server`, `packages/sdk`, or plugins causes drift and breaks the contract between layers.
+If you need a type that describes an agent, layout, tool, plugin, runtime response, scheduler entity, or notification payload, check `@stallion-ai/contracts/*` first. Use `@stallion-ai/shared` for helper functions and compatibility re-exports. Adding duplicate type definitions in `src-server`, `packages/sdk`, or plugins causes drift and breaks the contract between layers.

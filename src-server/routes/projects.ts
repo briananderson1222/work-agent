@@ -7,8 +7,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
   KnowledgeNamespaceConfig,
-  PluginManifest,
-} from '@stallion-ai/shared';
+} from '@stallion-ai/contracts/knowledge';
+import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 import { Hono } from 'hono';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { ProjectService } from '../services/project-service.js';
@@ -56,27 +56,17 @@ function getAvailableLayouts(projectHomeDir: string) {
     const pluginFile = join(pluginsDir, entry.name, 'plugin.json');
     if (!existsSync(pluginFile)) continue;
     try {
-      const plugin = JSON.parse(readFileSync(pluginFile, 'utf-8'));
+      const plugin = JSON.parse(
+        readFileSync(pluginFile, 'utf-8'),
+      ) as PluginManifest;
       if (!plugin.layout) continue;
       const layoutFile = join(
         pluginsDir,
         entry.name,
         plugin.layout.source || 'layout.json',
       );
-      // Also check the layouts dir (where install copies it)
-      const layoutDir = join(
-        projectHomeDir,
-        'layouts',
-        plugin.layout.slug,
-        'layout.json',
-      );
-      const layoutPath = existsSync(layoutFile)
-        ? layoutFile
-        : existsSync(layoutDir)
-          ? layoutDir
-          : null;
-      if (!layoutPath) continue;
-      const layout = JSON.parse(readFileSync(layoutPath, 'utf-8'));
+      if (!existsSync(layoutFile)) continue;
+      const layout = JSON.parse(readFileSync(layoutFile, 'utf-8'));
       results.push({
         source: 'plugin',
         plugin: plugin.name,
@@ -101,31 +91,19 @@ function getAvailableLayouts(projectHomeDir: string) {
 
 /** Read a plugin's layout.json to create a layout reference */
 function readPluginLayout(projectHomeDir: string, pluginName: string) {
-  // Check layouts dir first (where install copies it), then plugin source
   const pluginFile = join(projectHomeDir, 'plugins', pluginName, 'plugin.json');
   if (!existsSync(pluginFile)) return null;
-  const plugin = JSON.parse(readFileSync(pluginFile, 'utf-8'));
+  const plugin = JSON.parse(readFileSync(pluginFile, 'utf-8')) as PluginManifest;
   if (!plugin.layout) return null;
 
-  const layoutDir = join(
-    projectHomeDir,
-    'layouts',
-    plugin.layout.slug,
-    'layout.json',
-  );
   const layoutFile = join(
     projectHomeDir,
     'plugins',
     pluginName,
     plugin.layout.source || 'layout.json',
   );
-  const layoutPath = existsSync(layoutDir)
-    ? layoutDir
-    : existsSync(layoutFile)
-      ? layoutFile
-      : null;
-  if (!layoutPath) return null;
-  return JSON.parse(readFileSync(layoutPath, 'utf-8'));
+  if (!existsSync(layoutFile)) return null;
+  return JSON.parse(readFileSync(layoutFile, 'utf-8'));
 }
 
 function registerPluginNamespaces(

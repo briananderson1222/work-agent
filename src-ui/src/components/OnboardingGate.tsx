@@ -8,12 +8,7 @@ import { ConnectionManagerModal, useConnections } from '@stallion-ai/connect';
 import { FullScreenError, FullScreenLoader } from '@stallion-ai/sdk';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { useSystemStatus } from '../hooks/useSystemStatus';
-
-function checkServerHealth(url: string): Promise<boolean> {
-  return fetch(`${url}/api/system/status`)
-    .then((r) => r.ok)
-    .catch(() => false);
-}
+import { checkServerHealth } from '../lib/serverHealth';
 
 export function OnboardingGate({ children }: { children: ReactNode }) {
   const { data: status, isLoading, isError } = useSystemStatus();

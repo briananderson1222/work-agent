@@ -3,7 +3,7 @@
  * Extracted from stallion-runtime.ts for schema compliance.
  */
 
-import type { AgentSpec } from '@stallion-ai/shared';
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import { Hono } from 'hono';
 import type { AgentMetadata } from '../services/agent-service.js';
 import type { Logger } from '../utils/logger.js';

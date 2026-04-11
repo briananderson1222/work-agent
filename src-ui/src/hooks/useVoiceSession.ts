@@ -1,3 +1,4 @@
+import { createVoiceSession } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 
@@ -199,13 +200,7 @@ export function useVoiceSession(): UseVoiceSessionResult {
     setState('connecting');
 
     try {
-      const res = await fetch(`${apiBase}/api/voice/sessions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: '{}',
-      });
-      if (!res.ok) throw new Error(`Session creation failed: ${res.status}`);
-      const { sessionId: _sessionId } = await res.json();
+      const { sessionId: _sessionId } = await createVoiceSession(apiBase);
 
       const wsUrl = new URL(apiBase);
       const voiceWsPort = parseInt(wsUrl.port || '3141', 10) + 2;

@@ -9,7 +9,7 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { getAllCommands, getCommand } from '../slashCommands/registry';
 import '../slashCommands/builtins';
 import '../slashCommands/tools';
-import { promptSlug } from './useSlashCommands';
+import { promptSlug } from '../slashCommands/utils';
 
 export function useSlashCommandHandler() {
   const { apiBase } = useApiBase();

@@ -12,9 +12,9 @@ import {
   Memory,
   type Tool,
 } from '@voltagent/core';
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import type { AgentSpec } from '../domain/types.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import * as MCPManager from './mcp-manager.js';

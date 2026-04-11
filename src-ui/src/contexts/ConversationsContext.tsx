@@ -1,4 +1,10 @@
-import { useConversationsQuery, useQueryClient } from '@stallion-ai/sdk';
+import {
+  deleteConversation as deleteConversationRequest,
+  fetchConversationMessages,
+  streamConversationTurn,
+  useConversationsQuery,
+  useQueryClient,
+} from '@stallion-ai/sdk';
 import {
   createContext,
   type ReactNode,
@@ -79,40 +85,8 @@ class ConversationsStore {
     this.notify();
   }
 
-  async fetchConversations(apiBase: string, agentSlug: string, force = false) {
-    const key = `conversations:${agentSlug}`;
-    if (!force && this.fetching.has(key)) {
-      return this.fetching.get(key);
-    }
-
-    const promise = (async () => {
-      try {
-        const response = await fetch(
-          `${apiBase}/agents/${agentSlug}/conversations`,
-        );
-        const result = await response.json();
-
-        if (result.success) {
-          // Map backend format (resourceId) to frontend format (agentSlug)
-          this.conversations[agentSlug] = result.data.map((conv: any) => ({
-            ...conv,
-            agentSlug: conv.resourceId || agentSlug,
-          }));
-          this.notify();
-        }
-      } catch (error) {
-        log.api(`Failed to fetch conversations for ${agentSlug}:`, error);
-      } finally {
-        this.fetching.delete(key);
-      }
-    })();
-
-    this.fetching.set(key, promise);
-    return promise;
-  }
-
   async fetchMessages(
-    apiBase: string,
+    _apiBase: string,
     agentSlug: string,
     conversationId: string,
     queryClient?: any,
@@ -125,11 +99,6 @@ class ConversationsStore {
     const promise = (async () => {
       try {
         // Fetch messages
-        const messagesResponse = await fetch(
-          `${apiBase}/agents/${agentSlug}/conversations/${conversationId}/messages`,
-        );
-        const result = await messagesResponse.json();
-
         // Get tool mappings from React Query cache (already fetched by useAgentTools)
         let toolMappings: Record<
           string,
@@ -152,60 +121,12 @@ class ConversationsStore {
           }
         }
 
-        if (result.success) {
-          // Parse backend message format: { role, parts: [{ type, text }] } -> { role, content, contentParts }
-          this.messages[key] = result.data.map((m: any) => {
-            const textContent =
-              m.parts
-                ?.map((p: any) => p.text || p.content)
-                .filter(Boolean)
-                .join('\n') || '';
-
-            // Keep parts in AI SDK format and enrich tool parts
-            const contentParts = m.parts
-              ?.map((p: any) => {
-                if (p.type === 'text') {
-                  return { type: 'text', content: p.text };
-                } else if (p.type === 'reasoning') {
-                  return { type: 'reasoning', content: p.text };
-                } else if (p.type === 'file') {
-                  // Preserve file parts (images) from UIMessage format
-                  // Derive name from mediaType if not stored (e.g., "image/png" -> "Image")
-                  const typeName = p.mediaType?.split('/')[0] || 'File';
-                  return {
-                    type: 'file',
-                    url: p.url,
-                    mediaType: p.mediaType,
-                    name:
-                      p.name ||
-                      `${typeName.charAt(0).toUpperCase() + typeName.slice(1)}`,
-                  };
-                } else if (p.type?.startsWith('tool-')) {
-                  // Enrich tool parts with server and toolName from mappings
-                  const toolName = p.type.replace('tool-', '');
-                  const mapping = toolMappings[toolName] || {};
-
-                  return {
-                    ...p,
-                    server: p.server || mapping.server,
-                    toolName: p.toolName || mapping.toolName || toolName,
-                    originalName: p.originalName || mapping.originalName,
-                  };
-                }
-                return null;
-              })
-              .filter(Boolean);
-
-            return {
-              role: m.role,
-              content: textContent,
-              contentParts: contentParts?.length > 0 ? contentParts : undefined,
-              timestamp: m.metadata?.timestamp || m.timestamp,
-              traceId: m.metadata?.traceId,
-            };
-          });
-          this.notify();
-        }
+        this.messages[key] = await fetchConversationMessages(
+          agentSlug,
+          conversationId,
+          toolMappings,
+        );
+        this.notify();
       } catch (error) {
         log.api(`Failed to fetch messages for ${conversationId}:`, error);
       } finally {
@@ -230,27 +151,18 @@ class ConversationsStore {
   }
 
   async deleteConversation(
-    apiBase: string,
+    _apiBase: string,
     agentSlug: string,
     conversationId: string,
   ) {
     try {
-      const response = await fetch(
-        `${apiBase}/agents/${agentSlug}/conversations/${conversationId}`,
-        {
-          method: 'DELETE',
-        },
-      );
-      const result = await response.json();
-
-      if (result.success) {
-        this.conversations[agentSlug] = (
-          this.conversations[agentSlug] || []
-        ).filter((c) => c.id !== conversationId);
-        delete this.messages[`messages:${agentSlug}:${conversationId}`];
-        delete this.statuses[`${agentSlug}:${conversationId}`];
-        this.notify();
-      }
+      await deleteConversationRequest(agentSlug, conversationId);
+      this.conversations[agentSlug] = (
+        this.conversations[agentSlug] || []
+      ).filter((c) => c.id !== conversationId);
+      delete this.messages[`messages:${agentSlug}:${conversationId}`];
+      delete this.statuses[`${agentSlug}:${conversationId}`];
+      this.notify();
     } catch (error) {
       log.api(`Failed to delete conversation ${conversationId}:`, error);
       throw error;
@@ -277,184 +189,20 @@ class ConversationsStore {
     this.setStatus(agentSlug, conversationId || 'temp', 'streaming');
 
     try {
-      // Build input - either string or UIMessage array with parts
-      // UIMessage format uses FileUIPart for images: { type: 'file', url: dataUri, mediaType: string }
-      let input:
-        | string
-        | Array<{
-            id: string;
-            role: string;
-            parts: Array<{
-              type: string;
-              text?: string;
-              url?: string;
-              mediaType?: string;
-            }>;
-          }>;
-
-      if (attachments && attachments.length > 0) {
-        const parts: Array<{
-          type: string;
-          text?: string;
-          url?: string;
-          mediaType?: string;
-        }> = [];
-
-        // Add text part only if user provided content
-        if (content) {
-          parts.push({ type: 'text', text: content });
-        }
-
-        // Add file parts for each attachment (UIMessage FileUIPart format)
-        for (const att of attachments) {
-          parts.push({
-            type: 'file',
-            url: att.data,
-            mediaType: att.type,
-          });
-        }
-
-        // Wrap in UIMessage format that VoltAgent expects
-        input = [
-          {
-            id: `msg-${Date.now()}`,
-            role: 'user',
-            parts,
-          },
-        ];
-      } else {
-        input = content;
-      }
-
-      const payload = {
-        input,
-        options: {
-          ...(conversationId ? { conversationId } : {}),
-          ...(title ? { title } : {}),
-          ...(model ? { model } : {}),
-        },
-        ...(projectSlug ? { projectSlug } : {}),
-      };
-
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
-
-      // Mark user-initiated cancels with a header (checked before abort)
-      if (
-        signal &&
-        '_userInitiated' in signal &&
-        (signal as AbortSignal & { _userInitiated?: boolean })._userInitiated
-      ) {
-        headers['X-Abort-Reason'] = 'user-cancel';
-      }
-
-      const response = await fetch(`${apiBase}/api/agents/${agentSlug}/chat`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(payload),
-        signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error('No response body');
-
-      // Track if we've been aborted
-      let aborted = false;
-
-      // Set up abort listener to cancel reader immediately
-      const abortHandler = async () => {
-        aborted = true;
-        try {
-          await reader.cancel();
-        } catch (_e) {}
-      };
-      signal?.addEventListener('abort', abortHandler);
-
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let state = {
-        currentTextChunk: '',
-        contentParts: [],
-        pendingApprovals: new Map(),
-        reasoningChunks: [],
-      };
-      let newConversationId = conversationId;
-      let finishReason: string | undefined;
-
-      try {
-        while (true) {
-          // Check abort before reading
-          if (aborted || signal?.aborted) {
-            break;
-          }
-
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || '';
-
-          for (const line of lines) {
-            if (!line.trim() || !line.startsWith('data: ')) continue;
-
-            const dataStr = line.slice(6);
-            if (dataStr === '[DONE]') break;
-
-            const data = JSON.parse(dataStr);
-
-            // Handle conversation-started event
-            if (data.type === 'conversation-started' && data.conversationId) {
-              newConversationId = data.conversationId;
-              onConversationStarted?.(data.conversationId, data.title);
-              continue;
-            }
-
-            // Capture finishReason from finish event
-            if (data.type === 'finish' && data.finishReason) {
-              finishReason = data.finishReason;
-            }
-
-            const result = onStreamEvent(data, state);
-
-            // DEBUG: Log state update timing
-            if (data.type === 'text-delta') {
-            }
-
-            // Always update state to preserve all fields
-            state = {
-              currentTextChunk: result.currentTextChunk,
-              contentParts: result.contentParts,
-              pendingApprovals: result.pendingApprovals,
-              reasoningChunks: result.currentReasoningChunk
-                ? [...result.reasoningChunks, result.currentReasoningChunk]
-                : result.reasoningChunks,
-            };
-          }
-        }
-      } catch (error) {
-        // If aborted, exit gracefully
-        if (
-          aborted ||
-          signal?.aborted ||
-          (error as Error).name === 'AbortError'
-        ) {
-          return {};
-        }
-        throw error;
-      } finally {
-        signal?.removeEventListener('abort', abortHandler);
-        try {
-          reader.releaseLock();
-        } catch (_e) {
-          // Reader might already be released
-        }
-      }
+      const { conversationId: newConversationId, finishReason } =
+        await streamConversationTurn({
+          apiBase,
+          agentSlug,
+          conversationId,
+          content,
+          title,
+          onStreamEvent,
+          onConversationStarted,
+          signal,
+          model,
+          attachments,
+          projectSlug,
+        });
 
       this.setStatus(agentSlug, newConversationId || 'temp', 'idle');
 
@@ -494,7 +242,6 @@ class ConversationsStore {
 export const conversationsStore = new ConversationsStore();
 
 type ConversationsContextType = {
-  fetchConversations: (apiBase: string, agentSlug: string) => Promise<void>;
   fetchMessages: (
     apiBase: string,
     agentSlug: string,
@@ -537,13 +284,6 @@ const ConversationsContext = createContext<
 
 export function ConversationsProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
-
-  const fetchConversations = useCallback(
-    (apiBase: string, agentSlug: string) => {
-      return conversationsStore.fetchConversations(apiBase, agentSlug);
-    },
-    [],
-  );
 
   const fetchMessages = useCallback(
     (apiBase: string, agentSlug: string, conversationId: string) => {
@@ -623,7 +363,6 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
   return (
     <ConversationsContext.Provider
       value={{
-        fetchConversations,
         fetchMessages,
         refreshMessages,
         deleteConversation,
@@ -685,7 +424,6 @@ export function useConversationActions() {
     );
   }
   return {
-    fetchConversations: context.fetchConversations,
     fetchMessages: context.fetchMessages,
     deleteConversation: context.deleteConversation,
     refreshMessages: context.refreshMessages,

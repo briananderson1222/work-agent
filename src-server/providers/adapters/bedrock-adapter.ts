@@ -4,7 +4,7 @@ import type {
   CanonicalRuntimeEvent,
   RequestResolvedEvent,
 } from '@stallion-ai/contracts/runtime-events';
-import type { Prerequisite } from '@stallion-ai/shared';
+import type { Prerequisite } from '@stallion-ai/contracts/tool';
 import type {
   ProviderAdapterShape,
   ProviderSendTurnInput,

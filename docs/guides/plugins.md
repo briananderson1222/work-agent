@@ -299,7 +299,6 @@ import {
   useConfigQuery,
   useProjectsQuery,
   useProjectLayoutsQuery,
-  useLayoutsQuery,
   useConversationsQuery,
   useModelsQuery,
   useStatsQuery,
@@ -561,7 +560,7 @@ GET /api/plugins/check-updates
 3. Dependencies are resolved and installed recursively
 4. Plugin is moved to `~/.stallion-ai/plugins/<name>/`
 5. Agents are copied to `~/.stallion-ai/agents/<plugin>:<slug>/`
-6. Layout config is written to `~/.stallion-ai/layouts/<slug>/layout.json`
+6. Plugin layout source stays with the installed plugin and can be applied into project layouts
 7. Plugin is built (`./stallion build` / esbuild)
 8. Bundled tool configs are copied to `~/.stallion-ai/integrations/`
 9. Providers are loaded into the server

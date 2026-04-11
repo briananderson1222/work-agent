@@ -4,7 +4,7 @@ import type {
   LLMModel,
   LLMStreamChunk,
   LLMStreamOpts,
-} from './types.js';
+} from './model-provider-types.js';
 
 export class OllamaLLMProvider implements ILLMProvider {
   readonly id = 'ollama';

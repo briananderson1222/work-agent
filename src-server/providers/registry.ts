@@ -5,6 +5,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import { resolveHomeDir } from '../utils/paths.js';
 import type { ProviderAdapterShape } from './adapter-shape.js';
 import {
@@ -21,13 +22,14 @@ import type {
   IAuthProvider,
   IBrandingProvider,
   IIntegrationRegistryProvider,
+  INotificationProvider,
   IPluginRegistryProvider,
   IProviderAdapterRegistry,
   ISettingsProvider,
   ISkillRegistryProvider,
   IUserDirectoryProvider,
   IUserIdentityProvider,
-} from './types.js';
+} from './provider-interfaces.js';
 
 // ── Generic Store ──────────────────────────────────────
 
@@ -121,7 +123,7 @@ export function getProviderAdapters(): ProviderAdapterShape[] {
 }
 
 export function getProviderAdapter(
-  provider: import('@stallion-ai/shared').ProviderKind,
+  provider: ProviderKind,
 ): ProviderAdapterShape | undefined {
   return getProviderAdapters().find((adapter) => adapter.provider === provider);
 }
@@ -210,10 +212,10 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
   );
 
   // Scan on-disk integrations (plugin-bundled + manually added)
-  function readDiskIntegrations(): import('@stallion-ai/shared').RegistryItem[] {
+  function readDiskIntegrations(): import('@stallion-ai/contracts/catalog').RegistryItem[] {
     const dir = join(resolveHomeDir(), 'integrations');
     if (!existsSync(dir)) return [];
-    const items: import('@stallion-ai/shared').RegistryItem[] = [];
+    const items: import('@stallion-ai/contracts/catalog').RegistryItem[] = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
       const defPath = join(dir, entry.name, 'integration.json');
@@ -260,7 +262,7 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
       // Merge disk integrations first (they take priority as "installed")
       const diskItems = readDiskIntegrations();
       const seen = new Set<string>();
-      const merged: import('@stallion-ai/shared').RegistryItem[] = [];
+      const merged: import('@stallion-ai/contracts/catalog').RegistryItem[] = [];
       for (const item of diskItems) {
         if (!seen.has(item.id)) {
           seen.add(item.id);
@@ -281,7 +283,7 @@ export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
       );
       const diskItems = readDiskIntegrations();
       const seen = new Set<string>();
-      const merged: import('@stallion-ai/shared').RegistryItem[] = [];
+      const merged: import('@stallion-ai/contracts/catalog').RegistryItem[] = [];
       for (const item of diskItems) {
         if (!seen.has(item.id)) {
           seen.add(item.id);
@@ -382,10 +384,10 @@ export function getPluginRegistryProviders(): {
 // ── Cross-Provider Prerequisites ───────────────────────
 
 export async function getAllPrerequisites(): Promise<
-  Array<import('@stallion-ai/shared').Prerequisite & { source: string }>
+  Array<import('@stallion-ai/contracts/tool').Prerequisite & { source: string }>
 > {
   const results: Array<
-    import('@stallion-ai/shared').Prerequisite & { source: string }
+    import('@stallion-ai/contracts/tool').Prerequisite & { source: string }
   > = [];
 
   // Walk singleton providers
@@ -444,8 +446,6 @@ export function getSettingsProvider(): ISettingsProvider {
 }
 
 // ── Notification ────────────────────────────────────────
-
-import type { INotificationProvider } from './types.js';
 
 export function registerNotificationProvider(
   provider: INotificationProvider,

@@ -1,9 +1,14 @@
-import type { ConnectionConfig } from '@stallion-ai/shared';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
+import {
+  useConnectionQuery,
+  useDeleteConnectionMutation,
+  useRuntimeConnectionsQuery,
+  useSaveConnectionMutation,
+  useTestConnectionMutation,
+} from '@stallion-ai/sdk';
 import { useEffect, useMemo, useState } from 'react';
 import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import type { NavigationView } from '../types';
 import {
   capabilityLabel,
@@ -25,35 +30,13 @@ export function RuntimeConnectionView({
   selectedRuntimeId,
   onNavigate,
 }: RuntimeConnectionViewProps) {
-  const { apiBase } = useApiBase();
-  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [form, setForm] = useState<ConnectionConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: runtimes = [], isLoading } = useQuery<ConnectionConfig[]>({
-    queryKey: ['connections', 'runtimes'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/connections/runtimes`);
-      const json = await res.json();
-      if (!json.success)
-        throw new Error(json.error || 'Failed to load runtimes');
-      return json.data;
-    },
-  });
+  const { data: runtimes = [], isLoading } = useRuntimeConnectionsQuery();
 
-  const { data: runtime } = useQuery<ConnectionConfig | null>({
-    queryKey: ['connections', selectedRuntimeId],
-    queryFn: async () => {
-      if (!selectedRuntimeId) return null;
-      const res = await fetch(
-        `${apiBase}/api/connections/${encodeURIComponent(selectedRuntimeId)}`,
-      );
-      const json = await res.json();
-      if (!json.success)
-        throw new Error(json.error || 'Failed to load runtime');
-      return json.data;
-    },
+  const { data: runtime } = useConnectionQuery(selectedRuntimeId, {
     enabled: !!selectedRuntimeId,
   });
 
@@ -72,26 +55,10 @@ export function RuntimeConnectionView({
     setError(null);
   }, [runtime]);
 
-  const saveMutation = useMutation({
-    mutationFn: async (data: ConnectionConfig) => {
-      const res = await fetch(
-        `${apiBase}/api/connections/${encodeURIComponent(data.id)}`,
-        {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(data),
-        },
-      );
-      const json = await res.json();
-      if (!json.success) {
-        throw new Error(json.error || 'Failed to save runtime connection');
-      }
-      return json.data as ConnectionConfig;
-    },
-    onSuccess: async (saved) => {
+  const saveMutation = useSaveConnectionMutation({
+    onSuccess: (saved) => {
       setForm(saved);
       setError(null);
-      await queryClient.invalidateQueries({ queryKey: ['connections'] });
       onNavigate({ type: 'connections-runtime-edit', id: saved.id });
     },
     onError: (mutationError: Error) => {
@@ -99,42 +66,16 @@ export function RuntimeConnectionView({
     },
   });
 
-  const resetMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(
-        `${apiBase}/api/connections/${encodeURIComponent(id)}`,
-        {
-          method: 'DELETE',
-        },
-      );
-      const json = await res.json();
-      if (!json.success) {
-        throw new Error(json.error || 'Failed to reset runtime connection');
-      }
-    },
-    onSuccess: async () => {
+  const resetMutation = useDeleteConnectionMutation({
+    onSuccess: () => {
       setError(null);
-      await queryClient.invalidateQueries({ queryKey: ['connections'] });
     },
     onError: (mutationError: Error) => {
       setError(mutationError.message);
     },
   });
 
-  const testMutation = useMutation({
-    mutationFn: async (id: string) => {
-      const res = await fetch(
-        `${apiBase}/api/connections/${encodeURIComponent(id)}/test`,
-        { method: 'POST' },
-      );
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || 'Test failed');
-      return json.data as {
-        healthy: boolean;
-        status: ConnectionConfig['status'];
-      };
-    },
-  });
+  const testMutation = useTestConnectionMutation();
 
   const items = useMemo(
     () =>
@@ -392,7 +333,9 @@ export function RuntimeConnectionView({
               <div className="editor-row">
                 <button
                   className="editor-btn"
-                  onClick={() => saveMutation.mutate(form)}
+                  onClick={() =>
+                    saveMutation.mutate({ connection: form, isNew: false })
+                  }
                   disabled={saveMutation.isPending || resetMutation.isPending}
                 >
                   {saveMutation.isPending ? 'Saving…' : 'Save Changes'}

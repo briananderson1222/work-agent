@@ -1,6 +1,5 @@
-import { useQuery } from '@tanstack/react-query';
+import { useMonitoringMetricsQuery } from '@stallion-ai/sdk';
 import { useState } from 'react';
-import { useApiBase } from '../../contexts/ApiBaseContext';
 
 interface AgentMetric {
   agentSlug: string;
@@ -12,18 +11,11 @@ interface AgentMetric {
 type MetricsRange = 'today' | 'week' | 'month' | 'all';
 
 export function MetricsPanel() {
-  const { apiBase } = useApiBase();
   const [range, setRange] = useState<MetricsRange>('week');
 
-  const { data: metrics } = useQuery<AgentMetric[]>({
-    queryKey: ['monitoring-metrics', apiBase, range],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/monitoring/metrics?range=${range}`);
-      const json = await res.json();
-      return json.success ? json.data.metrics : [];
-    },
-    refetchInterval: 30000,
-  });
+  const { data: metrics } = useMonitoringMetricsQuery(range) as {
+    data: AgentMetric[] | undefined;
+  };
 
   if (!metrics?.length) return null;
 
