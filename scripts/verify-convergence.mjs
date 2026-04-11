@@ -526,20 +526,58 @@ const conversationsContext = readFileSync(
   new URL('../src-ui/src/contexts/ConversationsContext.tsx', import.meta.url),
   'utf8',
 );
-if (conversationsContext.includes('fetch(`${apiBase}/agents/${agentSlug}/conversations`)')) {
-  errors.push('ConversationsContext must not fetch conversation lists directly.');
+for (const requiredImport of [
+  './conversation-hooks',
+  './conversations-store',
+  './conversation-types',
+]) {
+  if (!conversationsContext.includes(requiredImport)) {
+    errors.push(`ConversationsContext.tsx must delegate through ${requiredImport}.`);
+  }
 }
-if (conversationsContext.includes('fetch(`${apiBase}/agents/${agentSlug}/conversations/${conversationId}/messages`)')) {
-  errors.push('ConversationsContext must use the shared conversation message helper.');
+for (const retiredInlineConversationSnippet of [
+  'class ConversationsStore',
+  'export function useMessages(',
+  'export function useConversationActions()',
+  'export function useConversationStatus(',
+  'fetchConversationMessages',
+  'deleteConversationRequest',
+  'streamConversationTurn',
+]) {
+  if (conversationsContext.includes(retiredInlineConversationSnippet)) {
+    errors.push(`ConversationsContext.tsx must not inline extracted conversation helper ${retiredInlineConversationSnippet}.`);
+  }
 }
-if (!conversationsContext.includes('fetchConversationMessages')) {
-  errors.push('ConversationsContext must use fetchConversationMessages.');
+
+const conversationsStoreSource = readFileSync(
+  new URL('../src-ui/src/contexts/conversations-store.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export class ConversationsStore',
+  'export const conversationsStore = new ConversationsStore();',
+  'fetchConversationMessages',
+  'deleteConversationRequest',
+  'streamConversationTurn',
+]) {
+  if (!conversationsStoreSource.includes(requiredHelper)) {
+    errors.push(`conversations-store.ts must include ${requiredHelper}.`);
+  }
 }
-if (!conversationsContext.includes('deleteConversationRequest')) {
-  errors.push('ConversationsContext must use the shared deleteConversation helper.');
-}
-if (!conversationsContext.includes('streamConversationTurn')) {
-  errors.push('ConversationsContext must use streamConversationTurn.');
+
+const conversationHooksSource = readFileSync(
+  new URL('../src-ui/src/contexts/conversation-hooks.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHook of [
+  'export function useConversations(',
+  'export function useMessages(',
+  'export function useConversationActions()',
+  'export function useConversationStatus(',
+]) {
+  if (!conversationHooksSource.includes(requiredHook)) {
+    errors.push(`conversation-hooks.ts must include ${requiredHook}.`);
+  }
 }
 
 const sharedIndex = readFileSync(
