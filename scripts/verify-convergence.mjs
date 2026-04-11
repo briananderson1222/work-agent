@@ -688,9 +688,8 @@ const acpConnection = readFileSync(
 for (const requiredHelper of [
   'export type ACPConnectionStatus =',
   'export class ACPConnection',
+  './acp-connection-chat.js',
   './acp-connection-events.js',
-  './acp-chat-preparation.js',
-  './acp-chat-stream.js',
   './acp-connection-lifecycle.js',
   './acp-connection-queries.js',
   './acp-connection-session.js',
@@ -710,9 +709,25 @@ for (const retiredInlineAcpConnectionSnippet of [
   'private buildEventState(): ACPBridgeEventState',
   'private syncEventState(state: ACPBridgeEventState)',
   "this.connection.extMethod('_kiro.dev/commands/options'",
+  'await prepareACPChatTurn({',
+  'return streamACPChatResponse(c, {',
 ]) {
   if (acpConnection.includes(retiredInlineAcpConnectionSnippet)) {
     errors.push(`acp-connection.ts must not inline extracted ACP connection event logic ${retiredInlineAcpConnectionSnippet}.`);
+  }
+}
+
+const acpConnectionChat = readFileSync(
+  new URL('../src-server/services/acp-connection-chat.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export async function handleACPConnectionChat',
+  'prepareACPChatTurn({',
+  'streamACPChatResponse(c, {',
+]) {
+  if (!acpConnectionChat.includes(requiredHelper)) {
+    errors.push(`acp-connection-chat.ts must include ${requiredHelper}.`);
   }
 }
 
@@ -2680,8 +2695,45 @@ const chatDock = readFileSync(
 if (chatDock.includes('/api/conversations/')) {
   errors.push('ChatDock must use a shared conversation lookup helper.');
 }
-if (!chatDock.includes('fetchConversationById')) {
-  errors.push('ChatDock must use fetchConversationById.');
+for (const requiredHelper of [
+  './chat-dock/ChatDockProjectContext',
+  './chat-dock/useChatDockActiveChatSync',
+  './chat-dock/useChatDockViewModel',
+]) {
+  if (!chatDock.includes(requiredHelper)) {
+    errors.push(`ChatDock must delegate extracted UI/state helpers to ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineChatDockSnippet of [
+  'const triedChatRef = useRef<string | null>(null);',
+  'fetchConversationById(activeChat, apiBase)',
+  'function CwdBreadcrumb(',
+]) {
+  if (chatDock.includes(retiredInlineChatDockSnippet)) {
+    errors.push(`ChatDock must not inline extracted helper logic ${retiredInlineChatDockSnippet}.`);
+  }
+}
+
+const chatDockActiveChatSync = readFileSync(
+  new URL('../src-ui/src/components/chat-dock/useChatDockActiveChatSync.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function useChatDockActiveChatSync',
+  'fetchConversationById',
+  'useEffect',
+]) {
+  if (!chatDockActiveChatSync.includes(requiredHelper)) {
+    errors.push(`useChatDockActiveChatSync.ts must include ${requiredHelper}.`);
+  }
+}
+
+const chatDockUtils = readFileSync(
+  new URL('../src-ui/src/components/chat-dock/chat-dock-utils.ts', import.meta.url),
+  'utf8',
+);
+if (!chatDockUtils.includes('export function splitWorkingDirectoryPath')) {
+  errors.push('chat-dock-utils.ts must export splitWorkingDirectoryPath.');
 }
 
 const codingLayout = readFileSync(

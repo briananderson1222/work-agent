@@ -1,7 +1,3 @@
-import {
-  fetchConversationById,
-  useProjectLayoutsQuery,
-} from '@stallion-ai/sdk';
 import { useEffect, useRef, useState } from 'react';
 import {
   activeChatsStore,
@@ -10,10 +6,9 @@ import {
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { CONFIG_DEFAULTS, useConfig } from '../contexts/ConfigContext';
-import { useModelSupportsAttachments } from '../contexts/ModelCapabilitiesContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import { useProject, useProjects } from '../contexts/ProjectsContext';
+import { useProjects } from '../contexts/ProjectsContext';
 import { useActiveProject } from '../hooks/useActiveProject';
 import { useRehydrateSessions } from '../hooks/useActiveChatSessions';
 import { useChatDockActions } from '../hooks/useChatDockActions';
@@ -23,19 +18,17 @@ import { useChatInput } from '../hooks/useChatInput';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { setDockModeOverride } from '../hooks/useDockModePreference';
 import { useDragResize } from '../hooks/useDragResize';
-import { useGitStatus } from '../hooks/useGitStatus';
-import {
-  providerLabel,
-  resolveSessionExecutionSummary,
-} from '../utils/execution';
+import { providerLabel } from '../utils/execution';
 import { ChatDockBody } from './ChatDockBody';
 import { ChatDockHeader } from './ChatDockHeader';
 import { ChatDockTabBar } from './ChatDockTabBar';
 import { ChatSettingsPanel } from './ChatSettingsPanel';
 import { ConversationHistory } from './ConversationHistory';
-import { GitBadge } from './GitBadge';
 import { NewChatModal } from './NewChatModal';
 import { SessionPickerModal } from './SessionPickerModal';
+import { ChatDockProjectContext } from './chat-dock/ChatDockProjectContext';
+import { useChatDockActiveChatSync } from './chat-dock/useChatDockActiveChatSync';
+import { useChatDockViewModel } from './chat-dock/useChatDockViewModel';
 
 interface ChatDockProps {
   onRequestAuth?: () => void;
@@ -102,34 +95,24 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const [projectFilter, _setProjectFilter] = useState<string | null>(null);
   const sessions = useDerivedSessions(apiBase, selectedAgent, projectFilter);
   const rehydrateSessions = useRehydrateSessions(apiBase);
-
-  // Get active session for chat input hook
-  const activeSessionForHook =
-    sessions.find((s) => s.id === activeSessionId) || null;
-  const agentForHook = activeSessionForHook
-    ? agents.find((a) => a.slug === activeSessionForHook.agentSlug)
-    : null;
-  const agentDefaultModelId = agentForHook?.model;
-
-  // Resolve project context from the session's project (not the URL's)
-  const sessionProjectSlug = activeSessionForHook?.projectSlug;
-  const { project: sessionProject } = useProject(sessionProjectSlug ?? '');
-  const sessionWorkingDir = sessionProject?.workingDirectory ?? null;
-  const sessionProjectName =
-    sessionProject?.name ??
-    activeSessionForHook?.projectName ??
-    sessionProjectSlug;
-  const { data: gitStatus } = useGitStatus(sessionWorkingDir);
-  const { data: sessionLayouts = [] } = useProjectLayoutsQuery(
-    sessionProjectSlug ?? '',
-    { enabled: !!sessionProjectSlug },
-  );
-  const sessionCodingLayout = sessionLayouts.find(
-    (l: any) => l.type === 'coding',
-  );
-
-  // For ACP agents with their own model options, use those instead of Bedrock models
-  const effectiveModels = agentForHook?.modelOptions || availableModels;
+  const {
+    activeSession,
+    activeSessionForHook,
+    agentDefaultModelId,
+    effectiveModels,
+    executionSummary,
+    gitStatus,
+    modelSupportsAttachments,
+    sessionCodingLayout,
+    sessionProjectName,
+    sessionWorkingDir,
+    unreadCount,
+  } = useChatDockViewModel({
+    activeSessionId,
+    availableModels,
+    agents,
+    sessions,
+  });
 
   // Chat input hook - encapsulates autocomplete, history, and input handling
   const chatInput = useChatInput({
@@ -155,25 +138,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     rehydrateSessions();
   }, [rehydrateSessions]);
 
-  const activeSession = sessions.find((s) => s.id === activeSessionId) || null;
-  const executionSummary = resolveSessionExecutionSummary(activeSession);
-
-  // Check if current model supports attachments
-  const currentModelId =
-    activeSession?.model ||
-    agents.find((a) => a.slug === activeSession?.agentSlug)?.model;
-  const bedrockModelSupportsAttachments = useModelSupportsAttachments(
-    typeof currentModelId === 'string' ? currentModelId : undefined,
-  );
-  const activeAgent = activeSession
-    ? agents.find((a) => a.slug === activeSession.agentSlug)
-    : null;
-  const modelSupportsAttachments =
-    bedrockModelSupportsAttachments ||
-    (activeAgent?.supportsAttachments ?? false);
-
-  const unreadCount = sessions.filter((s) => s.hasUnread).length;
-
   // Get updateChat from context
   const { updateChat } = useActiveChatActions();
 
@@ -190,43 +154,14 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     });
 
   // Sync activeChat (conversationId) from URL to local state
-  const triedChatRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!activeChat) return;
-    if (triedChatRef.current === activeChat) return;
-    const existing = sessions.find(
-      (s) => s.conversationId === activeChat || s.id === activeChat,
-    );
-    if (existing) {
-      setActiveSessionId(existing.id);
-      return;
-    }
-    // Not in memory — fetch from server and open (once)
-    triedChatRef.current = activeChat;
-    (async () => {
-      try {
-        const conversation = await fetchConversationById(activeChat, apiBase);
-        if (!conversation) {
-          setActiveChat(null);
-          return;
-        }
-        await openConversation(
-          conversation.id,
-          conversation.agentSlug,
-          conversation.projectSlug,
-        );
-      } catch {
-        setActiveChat(null);
-      }
-    })();
-  }, [
+  useChatDockActiveChatSync({
     activeChat,
     apiBase,
-    openConversation,
     sessions,
-    setActiveSessionId,
+    openConversation,
     setActiveChat,
-  ]);
+    setActiveSessionId,
+  });
 
   // Drag to resize
   useDragResize({
@@ -310,58 +245,19 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
               setShowNewChatModal={setShowNewChatModal}
             />
 
-            {/* Project context breadcrumb for project-scoped sessions */}
             {activeSession?.projectSlug &&
-              (() => {
-                const isCurrentProject =
-                  selectedProject === activeSession.projectSlug;
-                const parts = sessionWorkingDir
-                  ? sessionWorkingDir.replace(/\/+$/, '').split('/')
-                  : [];
-                const lastFolder = parts.pop() || '';
-                const parentPath = parts.length ? `${parts.join('/')}/` : '';
-                return (
-                  <div className="chat-dock__project-context">
-                    <span
-                      className={`chat-dock__project-badge${isCurrentProject ? '' : ' chat-dock__project-badge--link'}`}
-                      onClick={
-                        isCurrentProject
-                          ? undefined
-                          : () => setProject(activeSession.projectSlug!)
-                      }
-                    >
-                      {sessionProjectName || activeSession.projectSlug}
-                    </span>
-                    {sessionWorkingDir && (
-                      <span
-                        className={`chat-dock__project-dir${sessionCodingLayout ? ' chat-dock__project-dir--link' : ''}`}
-                        onClick={
-                          sessionCodingLayout
-                            ? () =>
-                                setLayout(
-                                  activeSession.projectSlug!,
-                                  sessionCodingLayout.slug,
-                                )
-                            : undefined
-                        }
-                      >
-                        <span className="chat-dock__project-dir-parent">
-                          {parentPath}
-                        </span>
-                        <span className="chat-dock__project-dir-leaf">
-                          {lastFolder}
-                        </span>
-                      </span>
-                    )}
-                    {!sessionWorkingDir && (
-                      <span className="chat-dock__project-dir chat-dock__project-dir--fallback">
-                        ~ (defaults to home)
-                      </span>
-                    )}
-                    {gitStatus && <GitBadge git={gitStatus} />}
-                  </div>
-                );
-              })()}
+              <ChatDockProjectContext
+                selectedProjectSlug={selectedProject}
+                projectSlug={activeSession.projectSlug}
+                projectName={sessionProjectName}
+                workingDirectory={sessionWorkingDir}
+                codingLayoutSlug={sessionCodingLayout?.slug ?? null}
+                gitStatus={gitStatus}
+                onSelectProject={(projectSlug) => setProject(projectSlug)}
+                onOpenLayout={(projectSlug, layoutSlug) =>
+                  setLayout(projectSlug, layoutSlug)
+                }
+              />}
 
             <div className="chat-dock__content-area">
               {isHistoryOpen && (

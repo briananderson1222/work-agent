@@ -12,11 +12,9 @@ import {
 import type { Context } from 'hono';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import { MonitoringEmitter } from '../monitoring/emitter.js';
-import { getCachedUser } from '../routes/auth.js';
 import { acpOps } from '../telemetry/metrics.js';
 import { ApprovalRegistry } from './approval-registry.js';
-import { prepareACPChatTurn } from './acp-chat-preparation.js';
-import { streamACPChatResponse } from './acp-chat-stream.js';
+import { handleACPConnectionChat } from './acp-connection-chat.js';
 import {
   createACPConnectionClient,
   handleACPConnectionExtensionMethod,
@@ -306,73 +304,40 @@ export class ACPConnection {
     options: any,
     context?: { cwd?: string },
   ): Promise<Response> {
-    this.touchActivity();
-
-    if (this.status === 'disconnected' && !this.shuttingDown) {
-      this.logger.info(`[ACP:${this.prefix}] Auto-restarting culled session`);
-      const started = await this.start();
-      if (!started) {
-        return c.json({ success: false, error: 'ACP failed to restart' }, 503);
-      }
-    }
-
-    if (!this.connection || !this.sessionId) {
-      return c.json({ success: false, error: 'ACP not connected' }, 503);
-    }
-
-    const adapter = this.getOrCreateAdapter(slug);
-    const resolvedAlias = getCachedUser().alias;
-    const {
-      configOptions,
-      conversationId,
-      currentModeId,
-      inputText,
-      isNewConversation,
-      promptContent,
-      userId,
-    } = await prepareACPChatTurn({
-      adapter,
-      baseCwd: this.cwd,
-      connection: this.connection,
-      context,
-      currentModeId: this.currentModeId,
-      logger: this.logger,
-      options,
-      prefix: this.prefix,
-      resolvedAlias,
-      sessionId: this.sessionId,
-      sessionMap: this.sessionMap,
+    return handleACPConnectionChat({
+      c,
       slug,
       input,
-      configOptions: this.configOptions,
-    });
-    this.currentModeId = currentModeId;
-    this.configOptions = configOptions;
-
-    c.header('Content-Type', 'text/event-stream');
-    c.header('Cache-Control', 'no-cache');
-    c.header('Connection', 'keep-alive');
-    c.header('X-Accel-Buffering', 'no');
-
-    return streamACPChatResponse(c, {
-      adapter,
-      connection: this.connection,
-      conversationId,
-      getActiveWriter: () => this.activeWriter,
-      getCurrentModelName: () =>
-        getACPCurrentModelName(this.configOptions, this.detectedModel),
-      getResponseAccumulator: () => this.responseAccumulator,
-      getResponseParts: () => this.responseParts,
-      input,
-      inputText,
-      isNewConversation,
+      options,
+      context,
+      prefix: this.prefix,
+      cwd: this.cwd,
       logger: this.logger,
+      sessionMap: this.sessionMap,
       monitoringEmitter: this.monitoringEmitter,
       monitoringEvents: this.monitoringEvents,
-      options,
       persistEvent: this.persistEvent,
-      promptContent,
-      sessionId: this.sessionId,
+      usageAggregatorRef: this.usageAggregatorRef,
+      getOrCreateAdapter: (targetSlug) => this.getOrCreateAdapter(targetSlug),
+      getCurrentModelName: () =>
+        getACPCurrentModelName(this.configOptions, this.detectedModel),
+      updateToolResult: (toolCallId, result, isError) =>
+        this.updateToolResult(toolCallId, result, isError),
+      getState: () => ({
+        status: this.status,
+        shuttingDown: this.shuttingDown,
+        connection: this.connection,
+        sessionId: this.sessionId,
+        currentModeId: this.currentModeId,
+        configOptions: this.configOptions,
+        activeWriter: this.activeWriter,
+        responseAccumulator: this.responseAccumulator,
+        responseParts: this.responseParts,
+      }),
+      setPreparedState: ({ currentModeId, configOptions }) => {
+        this.currentModeId = currentModeId;
+        this.configOptions = configOptions;
+      },
       setActiveWriter: (writer) => {
         this.activeWriter = writer;
       },
@@ -382,11 +347,8 @@ export class ACPConnection {
       setResponseParts: (parts) => {
         this.responseParts = parts;
       },
-      slug,
-      updateToolResult: (toolCallId, result, isError) =>
-        this.updateToolResult(toolCallId, result, isError),
-      usageAggregatorRef: this.usageAggregatorRef,
-      userId,
+      touchActivity: () => this.touchActivity(),
+      start: () => this.start(),
     });
   }
 
