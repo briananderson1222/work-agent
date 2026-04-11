@@ -19,13 +19,10 @@ import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { setDockModeOverride } from '../hooks/useDockModePreference';
 import { useDragResize } from '../hooks/useDragResize';
 import { providerLabel } from '../utils/execution';
-import { ChatDockBody } from './ChatDockBody';
 import { ChatDockHeader } from './ChatDockHeader';
 import { ChatDockTabBar } from './ChatDockTabBar';
-import { ChatSettingsPanel } from './ChatSettingsPanel';
-import { ConversationHistory } from './ConversationHistory';
-import { NewChatModal } from './NewChatModal';
-import { SessionPickerModal } from './SessionPickerModal';
+import { ChatDockContentArea } from './chat-dock/ChatDockContentArea';
+import { ChatDockModalStack } from './chat-dock/ChatDockModalStack';
 import { ChatDockProjectContext } from './chat-dock/ChatDockProjectContext';
 import { useChatDockActiveChatSync } from './chat-dock/useChatDockActiveChatSync';
 import { useChatDockViewModel } from './chat-dock/useChatDockViewModel';
@@ -258,112 +255,73 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                   setLayout(projectSlug, layoutSlug)
                 }
               />}
-
-            <div className="chat-dock__content-area">
-              {isHistoryOpen && (
-                <>
-                  <div
-                    className="conversation-history__backdrop"
-                    onClick={() => setIsHistoryOpen(false)}
-                  />
-                  <ConversationHistory
-                    sessions={sessions.filter((s) => s.conversationId) as any[]}
-                    activeSessionId={activeSessionId}
-                    agents={agents}
-                    onTitleUpdate={(sessionId, title) =>
-                      updateChat(sessionId, { title })
-                    }
-                    onDelete={removeSession}
-                    onSelect={focusSession}
-                    onOpenConversation={openConversation}
-                    onClose={() => setIsHistoryOpen(false)}
-                  />
-                </>
-              )}
-              <div className="chat-dock__body">
-                {activeSession ? (
-                  <ChatDockBody
-                    activeSession={activeSession}
-                    chatFontSize={chatFontSize}
-                    dockHeight={dockHeight}
-                    showStatsPanel={showStatsPanel}
-                    showReasoning={showReasoning}
-                    showToolDetails={showToolDetails}
-                    modelSupportsAttachments={modelSupportsAttachments}
-                    agentDefaultModelId={agentDefaultModelId}
-                    availableModels={effectiveModels}
-                    chatInput={chatInput}
-                    setShowStatsPanel={setShowStatsPanel}
-                  />
-                ) : (
-                  <div className="empty-state">
-                    <h3>No active session</h3>
-                    <p>Click "+ New" to start a chat</p>
-                  </div>
-                )}
-              </div>
-            </div>
+            <ChatDockContentArea
+              activeSession={activeSession}
+              activeSessionId={activeSessionId}
+              sessions={sessions}
+              agents={agents}
+              chatFontSize={chatFontSize}
+              dockHeight={dockHeight}
+              showStatsPanel={showStatsPanel}
+              showReasoning={showReasoning}
+              showToolDetails={showToolDetails}
+              modelSupportsAttachments={modelSupportsAttachments}
+              agentDefaultModelId={agentDefaultModelId}
+              availableModels={effectiveModels}
+              chatInput={chatInput}
+              isHistoryOpen={isHistoryOpen}
+              onCloseHistory={() => setIsHistoryOpen(false)}
+              onToggleStatsPanel={setShowStatsPanel}
+              onTitleUpdate={(sessionId, title) =>
+                updateChat(sessionId, { title })
+              }
+              onDeleteSession={removeSession}
+              onFocusSession={focusSession}
+              onOpenConversation={openConversation}
+            />
           </>
         )}
       </div>
 
-      {showNewChatModal && (
-        <NewChatModal
-          agents={agents}
-          projects={projects}
-          activeProjectSlug={activeProject}
-          onSelect={(agent, projectSlug, projectName) => {
-            openChatForAgent(agent, projectSlug, projectName);
-            setShowNewChatModal(false);
-          }}
-          onClose={() => setShowNewChatModal(false)}
-        />
-      )}
-
-      {/* Session Picker Modal */}
-      <ChatSettingsPanel
-        isOpen={showChatSettings}
-        onClose={() => setShowChatSettings(() => false)}
+      <ChatDockModalStack
+        agents={agents}
+        projects={projects}
+        activeProjectSlug={activeProject}
+        activeProjectName={activeProjectName}
+        sessions={sessions}
+        showNewChatModal={showNewChatModal}
+        showChatSettings={showChatSettings}
+        showSessionPicker={showSessionPicker}
         chatFontSize={chatFontSize}
-        setChatFontSize={setChatFontSize}
         defaultFontSize={defaultFontSize}
         showReasoning={showReasoning}
-        setShowReasoning={setShowReasoning}
         showToolDetails={showToolDetails}
-        setShowToolDetails={setShowToolDetails}
         dockMode={dockMode}
-        onDockModeChange={(mode) => {
+        pathname={pathname}
+        activeProviderLabel={providerLabel(executionSummary.provider)}
+        activeModel={executionSummary.model || ''}
+        activeSessionStatus={executionSummary.status}
+        onSelectNewChat={(agent, projectSlug, projectName) => {
+          openChatForAgent(agent, projectSlug, projectName);
+          setShowNewChatModal(false);
+        }}
+        onCloseNewChat={() => setShowNewChatModal(false)}
+        onCloseSettings={() => setShowChatSettings(() => false)}
+        onCloseSessionPicker={() => setShowSessionPicker(false)}
+        onSessionPickerSelect={openConversation}
+        onChatFontSizeChange={setChatFontSize}
+        onShowReasoningChange={setShowReasoning}
+        onShowToolDetailsChange={setShowToolDetails}
+        onDockModeChange={(mode, currentPathname) => {
           const layoutKey =
-            pathname.startsWith('/projects/') && pathname.includes('/layouts/')
+            currentPathname.startsWith('/projects/') &&
+            currentPathname.includes('/layouts/')
               ? 'coding'
               : null;
           setDockModeOverride(layoutKey, mode);
           setDockMode(mode);
         }}
-        activeProviderLabel={providerLabel(executionSummary.provider)}
-        activeModel={executionSummary.model || ''}
-        activeSessionStatus={executionSummary.status}
       />
-
-      {showSessionPicker && (
-        <SessionPickerModal
-          isOpen={showSessionPicker}
-          agents={agents}
-          activeConversationIds={
-            sessions.map((s) => s.conversationId).filter(Boolean) as string[]
-          }
-          onSelect={(conversationId, agentSlug) => {
-            openConversation(
-              conversationId,
-              agentSlug,
-              activeProject ?? undefined,
-              activeProjectName ?? undefined,
-            );
-            setShowSessionPicker(false);
-          }}
-          onClose={() => setShowSessionPicker(false)}
-        />
-      )}
     </>
   );
 }

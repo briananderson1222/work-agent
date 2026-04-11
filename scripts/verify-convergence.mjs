@@ -3357,6 +3357,8 @@ if (chatDock.includes('/api/conversations/')) {
   errors.push('ChatDock must use a shared conversation lookup helper.');
 }
 for (const requiredHelper of [
+  './chat-dock/ChatDockContentArea',
+  './chat-dock/ChatDockModalStack',
   './chat-dock/ChatDockProjectContext',
   './chat-dock/useChatDockActiveChatSync',
   './chat-dock/useChatDockViewModel',
@@ -3369,9 +3371,42 @@ for (const retiredInlineChatDockSnippet of [
   'const triedChatRef = useRef<string | null>(null);',
   'fetchConversationById(activeChat, apiBase)',
   'function CwdBreadcrumb(',
+  '<ConversationHistory',
+  '<ChatSettingsPanel',
+  '<SessionPickerModal',
+  '<NewChatModal',
 ]) {
   if (chatDock.includes(retiredInlineChatDockSnippet)) {
     errors.push(`ChatDock must not inline extracted helper logic ${retiredInlineChatDockSnippet}.`);
+  }
+}
+
+const chatDockContentArea = readFileSync(
+  new URL('../src-ui/src/components/chat-dock/ChatDockContentArea.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function ChatDockContentArea',
+  'ConversationHistory',
+  'ChatDockBody',
+]) {
+  if (!chatDockContentArea.includes(requiredHelper)) {
+    errors.push(`ChatDockContentArea.tsx must include ${requiredHelper}.`);
+  }
+}
+
+const chatDockModalStack = readFileSync(
+  new URL('../src-ui/src/components/chat-dock/ChatDockModalStack.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function ChatDockModalStack',
+  'ChatSettingsPanel',
+  'NewChatModal',
+  'SessionPickerModal',
+]) {
+  if (!chatDockModalStack.includes(requiredHelper)) {
+    errors.push(`ChatDockModalStack.tsx must include ${requiredHelper}.`);
   }
 }
 
