@@ -15,7 +15,7 @@ import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
-import { estimateCost, findModelPricing } from '../utils/pricing.js';
+import { findModelPricing } from '../utils/pricing.js';
 import { isAutoApproved } from './tool-executor.js';
 import type {
   IAgentHooks,
@@ -23,6 +23,11 @@ import type {
   TokenUsage,
   ToolCallContext,
 } from './types.js';
+import {
+  buildConversationStatsUpdate,
+  calculateUsageCost,
+  getMessageTextContent,
+} from './usage-stats.js';
 
 // ── Hook factory dependencies ──────────────────────────
 
@@ -95,7 +100,7 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & {
           invocation.agentSlug,
         );
         const modelId = agentSpec.model || deps.appConfig.defaultModel;
-        const cost = await calculateCost(
+        const cost = await calculateUsageCost(
           modelId,
           usage,
           deps.modelCatalog,
@@ -104,25 +109,9 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & {
         );
 
         // Get existing stats
-        const existingStats = (conversation.metadata?.stats as any) || {
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-          contextTokens: 0,
-          turns: 0,
-          toolCalls: 0,
-          estimatedCost: null,
-        };
+        const existingStats = conversation.metadata?.stats as any;
 
         const fixedTokens = deps.agentFixedTokens.get(invocation.agentSlug);
-        const systemPromptTokens = fixedTokens?.systemPromptTokens || 0;
-        const mcpServerTokens = fixedTokens?.mcpServerTokens || 0;
-
-        // Calculate new token totals
-        const newOutputTokens =
-          existingStats.outputTokens + (usage.completionTokens || 0);
-        const newInputTokens =
-          existingStats.inputTokens + (usage.promptTokens || 0);
 
         // Estimate user message tokens from latest message
         const messages = await adapter.getMessages(
@@ -130,72 +119,23 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & {
           invocation.conversationId,
         );
         const userMessages = messages.filter((m: any) => m.role === 'user');
-        const existingUserTokens =
-          existingStats.tokenBreakdown?.userMessageTokens || 0;
-
-        let newUserTokens = 0;
         const latest = userMessages[userMessages.length - 1];
-        if (latest) {
-          const parts = (latest as any).parts || [];
-          const text = parts
-            .filter((p: any) => p.type === 'text')
-            .map((p: any) => p.text || '')
-            .join('');
-          newUserTokens = Math.ceil(text.length / 4);
-        }
-
-        const userMessageTokens = existingUserTokens + newUserTokens;
-        const contextTokens =
-          systemPromptTokens +
-          mcpServerTokens +
-          userMessageTokens +
-          newOutputTokens;
-
-        const updatedStats = {
-          inputTokens: newInputTokens,
-          outputTokens: newOutputTokens,
-          totalTokens: newInputTokens + newOutputTokens,
-          contextTokens,
-          turns: existingStats.turns + 1,
-          toolCalls: existingStats.toolCalls + toolCallCount,
-          estimatedCost:
-            cost !== null && existingStats.estimatedCost !== null
-              ? existingStats.estimatedCost + cost
-              : null,
-          tokenBreakdown: {
-            systemPromptTokens,
-            mcpServerTokens,
-            userMessageTokens,
-            assistantMessageTokens: newOutputTokens,
-          },
-        };
-
-        // Per-model stats
-        const modelStats = {
-          ...(conversation.metadata?.modelStats || {}),
-        } as Record<string, any>;
-        const ms = modelStats[modelId] || {
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-          turns: 0,
-          toolCalls: 0,
-          estimatedCost: null,
-        };
-        modelStats[modelId] = {
-          inputTokens: ms.inputTokens + (usage.promptTokens || 0),
-          outputTokens: ms.outputTokens + (usage.completionTokens || 0),
-          totalTokens:
-            ms.totalTokens +
-            (usage.promptTokens || 0) +
-            (usage.completionTokens || 0),
-          turns: ms.turns + 1,
-          toolCalls: ms.toolCalls + toolCallCount,
-          estimatedCost:
-            cost !== null && ms.estimatedCost !== null
-              ? ms.estimatedCost + cost
-              : null,
-        };
+        const latestUserMessageText = latest
+          ? getMessageTextContent(latest)
+          : '';
+        const { updatedStats, modelStats } = buildConversationStatsUpdate({
+          existingStats,
+          existingModelStats: (conversation.metadata?.modelStats || {}) as Record<
+            string,
+            any
+          >,
+          usage,
+          toolCallCount,
+          modelId,
+          latestUserMessageText,
+          fixedTokens,
+          cost,
+        });
 
         await adapter.updateConversation(invocation.conversationId, {
           metadata: {
@@ -288,40 +228,5 @@ async function enrichLastMessage(
     deps.logger.error('Failed to enrich message with model metadata', {
       error,
     });
-  }
-}
-
-async function calculateCost(
-  modelId: string,
-  usage: TokenUsage,
-  modelCatalog: BedrockModelCatalog | undefined,
-  appConfig: AppConfig,
-  logger: any,
-): Promise<number | null> {
-  const inputTokens = usage.promptTokens || 0;
-  const outputTokens = usage.completionTokens || 0;
-  if (!modelCatalog) {
-    logger.warn('No model catalog available, cost unavailable', { modelId });
-    return null;
-  }
-
-  try {
-    const pricing = await modelCatalog.getModelPricing(appConfig.region);
-    const match = pricing.find(
-      (p: any) =>
-        p.modelId === modelId ||
-        modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
-    );
-    if (match) {
-      return estimateCost(match, inputTokens, outputTokens);
-    }
-    logger.warn('No pricing found for model, cost unavailable', { modelId });
-    return null;
-  } catch (error) {
-    logger.warn('Failed to fetch pricing, cost unavailable', {
-      modelId,
-      error,
-    });
-    return null;
   }
 }

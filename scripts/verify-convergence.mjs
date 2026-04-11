@@ -1242,6 +1242,44 @@ for (const requiredHelper of [
   }
 }
 
+const toolExecutor = readFileSync(
+  new URL('../src-server/runtime/tool-executor.ts', import.meta.url),
+  'utf8',
+);
+if (!toolExecutor.includes("./usage-stats.js")) {
+  errors.push('tool-executor.ts must delegate shared usage math to usage-stats.ts.');
+}
+for (const retiredInlineUsageSnippet of [
+  'export async function calculateCost(',
+  'export function calculateContextWindowPercentage(',
+]) {
+  if (toolExecutor.includes(retiredInlineUsageSnippet)) {
+    errors.push(`tool-executor.ts must not inline shared usage helper ${retiredInlineUsageSnippet}.`);
+  }
+}
+
+const agentHooks = readFileSync(
+  new URL('../src-server/runtime/agent-hooks.ts', import.meta.url),
+  'utf8',
+);
+if (!agentHooks.includes("./usage-stats.js")) {
+  errors.push('agent-hooks.ts must share runtime usage math through usage-stats.ts.');
+}
+if (agentHooks.includes('async function calculateCost(')) {
+  errors.push('agent-hooks.ts must not inline calculateCost once usage-stats.ts exists.');
+}
+
+const conversationManager = readFileSync(
+  new URL('../src-server/runtime/conversation-manager.ts', import.meta.url),
+  'utf8',
+);
+if (!conversationManager.includes("./usage-stats.js")) {
+  errors.push('conversation-manager.ts must share context window math through usage-stats.ts.');
+}
+if (conversationManager.includes('function calculateContextWindowPercentage(')) {
+  errors.push('conversation-manager.ts must not inline calculateContextWindowPercentage once usage-stats.ts exists.');
+}
+
 const runtimeShutdown = readFileSync(
   new URL('../src-server/runtime/runtime-shutdown.ts', import.meta.url),
   'utf8',

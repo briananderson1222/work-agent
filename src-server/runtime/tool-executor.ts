@@ -14,27 +14,21 @@ import {
   contextTokens as otelContextTokens,
   costEstimated as otelCost,
 } from '../telemetry/metrics.js';
-import { estimateCost, findModelPricing } from '../utils/pricing.js';
+import { findModelPricing } from '../utils/pricing.js';
+import {
+  buildConversationStatsUpdate,
+  calculateUsageCost,
+  estimateMessageTextTokens,
+  getMessageTextContent,
+  getUsageInputTokens,
+  getUsageOutputTokens,
+  getUsageTotalTokens,
+  type ConversationStats,
+} from './usage-stats.js';
 
 // Type extensions for tool executor
 interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
   description?: string;
-}
-
-interface ConversationStats {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  contextTokens: number;
-  turns: number;
-  toolCalls: number;
-  estimatedCost: number | null;
-  tokenBreakdown?: {
-    systemPromptTokens?: number;
-    mcpServerTokens?: number;
-    userMessageTokens?: number;
-    assistantMessageTokens?: number;
-  };
 }
 
 interface UIMessagePart {
@@ -244,22 +238,15 @@ export function createToolApprovalHooks(
         if (!usage) return;
 
         // Get existing stats or initialize
-        const existingStats = (conversation.metadata
-          ?.stats as ConversationStats) || {
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-          contextTokens: 0,
-          turns: 0,
-          toolCalls: 0,
-          estimatedCost: null,
-        };
+        const existingStats = conversation.metadata?.stats as
+          | ConversationStats
+          | undefined;
 
         // Get agent spec for model info
         const agentSlug = conversation.resourceId;
         const agentSpec = await configLoader.loadAgent(agentSlug);
         const modelId = agentSpec.model || appConfig.defaultModel;
-        const cost = await calculateCost(
+        const cost = await calculateUsageCost(
           modelId,
           usage,
           modelCatalog,
@@ -269,146 +256,62 @@ export function createToolApprovalHooks(
 
         // Calculate context tokens: accumulated outputs + latest input
         // Context represents what's in memory (grows with conversation)
-        const newOutputTokens =
-          existingStats.outputTokens +
-          (usage.completionTokens || (usage as any).outputTokens || 0);
-        const newInputTokens =
-          existingStats.inputTokens +
-          (usage.promptTokens || (usage as any).inputTokens || 0);
-
-        // Get fixed token counts from cache (calculated once at agent initialization)
         const fixedTokens = agentFixedTokens.get(agentSlug);
-        const systemPromptTokens = fixedTokens?.systemPromptTokens || 0;
-        const mcpServerTokens = fixedTokens?.mcpServerTokens || 0;
-
-        // Get existing breakdown for incremental calculation
-        const existingBreakdown = existingStats.tokenBreakdown || {};
-
-        // Context = system prompt + tools + all user messages + all assistant responses
-        // Optimize: only calculate new user message tokens, not all messages
-        const existingUserMessageTokens =
-          existingBreakdown.userMessageTokens || 0;
-
-        // Get messages for user message token calculation
         const userMessages = messages.filter((m: any) => m.role === 'user');
 
         logger.info('[Token Calculation Debug]', {
           conversationId: context.conversationId,
           totalMessages: messages.length,
           userMessageCount: userMessages.length,
-          existingUserMessageTokens,
-          turn: existingStats.turns + 1,
+          existingUserMessageTokens:
+            existingStats?.tokenBreakdown?.userMessageTokens || 0,
+          turn: (existingStats?.turns || 0) + 1,
         });
 
         // Find the latest user message (should be the last one added)
         const latestUserMessage = userMessages[userMessages.length - 1];
+        const latestUserMessageText = latestUserMessage
+          ? getMessageTextContent(latestUserMessage as UIMessage)
+          : '';
 
-        let newUserMessageTokens = 0;
-        if (latestUserMessage) {
-          // UIMessage uses 'parts' array with text parts
-          const parts = (latestUserMessage as UIMessage).parts || [];
-          const content = parts
-            .filter((p: any) => p.type === 'text')
-            .map((p: any) => p.text || '')
-            .join('');
-          newUserMessageTokens = Math.ceil(content.length / 4);
-
-          logger.info('[New User Message]', {
-            conversationId: context.conversationId,
-            contentLength: content.length,
-            tokens: newUserMessageTokens,
-          });
-        } else {
+        if (!latestUserMessage) {
           logger.warn('[No User Message Found]', {
             conversationId: context.conversationId,
             userMessageCount: userMessages.length,
           });
+        } else {
+          logger.info('[New User Message]', {
+            conversationId: context.conversationId,
+            contentLength: latestUserMessageText.length,
+            tokens: estimateMessageTextTokens(latestUserMessageText),
+          });
         }
-
-        const userMessageTokens =
-          existingUserMessageTokens + newUserMessageTokens;
-        const assistantMessageTokens = newOutputTokens;
+        const { updatedStats, modelStats } = buildConversationStatsUpdate({
+          existingStats,
+          existingModelStats: (conversation.metadata?.modelStats || {}) as Record<
+            string,
+            ConversationStats | undefined
+          >,
+          usage,
+          toolCallCount,
+          modelId,
+          latestUserMessageText,
+          fixedTokens,
+          cost,
+        });
 
         logger.info('[Token Breakdown]', {
           conversationId: context.conversationId,
-          turn: existingStats.turns + 1,
-          newUserMessageTokens,
-          totalUserMessageTokens: userMessageTokens,
-          systemPromptTokens,
-          mcpServerTokens,
-          assistantMessageTokens,
+          turn: (existingStats?.turns || 0) + 1,
+          newUserMessageTokens: estimateMessageTextTokens(latestUserMessageText),
+          totalUserMessageTokens:
+            updatedStats.tokenBreakdown?.userMessageTokens || 0,
+          systemPromptTokens:
+            updatedStats.tokenBreakdown?.systemPromptTokens || 0,
+          mcpServerTokens: updatedStats.tokenBreakdown?.mcpServerTokens || 0,
+          assistantMessageTokens:
+            updatedStats.tokenBreakdown?.assistantMessageTokens || 0,
         });
-
-        const contextTokens =
-          systemPromptTokens +
-          mcpServerTokens +
-          userMessageTokens +
-          assistantMessageTokens;
-
-        // Store breakdown for stats endpoint
-        const tokenBreakdown = {
-          systemPromptTokens,
-          mcpServerTokens,
-          userMessageTokens,
-          assistantMessageTokens,
-        };
-
-        // Update stats
-        const updatedStats = {
-          inputTokens: newInputTokens, // Total consumed across all LLM calls
-          outputTokens: newOutputTokens, // Total generated
-          totalTokens: newInputTokens + newOutputTokens,
-          contextTokens, // Current memory size
-          turns: existingStats.turns + 1,
-          toolCalls: existingStats.toolCalls + toolCallCount,
-          estimatedCost:
-            cost !== null && existingStats.estimatedCost !== null
-              ? existingStats.estimatedCost + cost
-              : null,
-          tokenBreakdown,
-        };
-
-        // Track per-model stats
-        const modelStats = (conversation.metadata?.modelStats || {}) as Record<
-          string,
-          any
-        >;
-        const currentModelStats = modelStats[modelId] || {
-          inputTokens: 0,
-          outputTokens: 0,
-          totalTokens: 0,
-          contextTokens: 0,
-          turns: 0,
-          toolCalls: 0,
-          estimatedCost: null,
-        };
-
-        const newModelOutputTokens =
-          currentModelStats.outputTokens +
-          (usage.completionTokens || (usage as any).outputTokens || 0);
-        const newModelInputTokens =
-          currentModelStats.inputTokens +
-          (usage.promptTokens || (usage as any).inputTokens || 0);
-
-        // Per-model context is harder to track accurately, use accumulated outputs as approximation
-        const modelContextTokens =
-          systemPromptTokens +
-          mcpServerTokens +
-          userMessageTokens +
-          newModelOutputTokens;
-
-        modelStats[modelId] = {
-          inputTokens: newModelInputTokens,
-          outputTokens: newModelOutputTokens,
-          totalTokens: newModelInputTokens + newModelOutputTokens,
-          contextTokens: modelContextTokens,
-          turns: currentModelStats.turns + 1,
-          toolCalls: currentModelStats.toolCalls + toolCallCount,
-          estimatedCost:
-            cost !== null && currentModelStats.estimatedCost !== null
-              ? currentModelStats.estimatedCost + cost
-              : null,
-        };
 
         // Update conversation metadata
         await memory.updateConversation(context.conversationId, {
@@ -420,9 +323,13 @@ export function createToolApprovalHooks(
         });
 
         // Record OTel context and cost metrics
-        otelContextTokens.add(systemPromptTokens + mcpServerTokens, {
-          agent: agentSlug,
-        });
+        otelContextTokens.add(
+          (updatedStats.tokenBreakdown?.systemPromptTokens || 0) +
+            (updatedStats.tokenBreakdown?.mcpServerTokens || 0),
+          {
+            agent: agentSlug,
+          },
+        );
         otelCost.add(cost ?? 0, { agent: agentSlug });
 
         // Enrich the last assistant message with model metadata and usage
@@ -478,11 +385,9 @@ export function createToolApprovalHooks(
                     }
                   : undefined,
                 usage: {
-                  inputTokens:
-                    usage.promptTokens || (usage as any).inputTokens || 0,
-                  outputTokens:
-                    usage.completionTokens || (usage as any).outputTokens || 0,
-                  totalTokens: usage.totalTokens || 0,
+                  inputTokens: getUsageInputTokens(usage),
+                  outputTokens: getUsageOutputTokens(usage),
+                  totalTokens: getUsageTotalTokens(usage),
                   estimatedCost: cost,
                 },
               },
@@ -500,56 +405,7 @@ export function createToolApprovalHooks(
   });
 }
 
-/**
- * Calculate estimated cost based on model and token usage
- * Uses dynamic pricing from AWS Pricing API
- */
-export async function calculateCost(
-  modelId: string,
-  usage: { promptTokens?: number; completionTokens?: number },
-  modelCatalog: BedrockModelCatalog | undefined,
-  appConfig: AppConfig,
-  logger: any,
-): Promise<number | null> {
-  const inputTokens = usage.promptTokens || (usage as any).inputTokens || 0;
-  const outputTokens =
-    usage.completionTokens || (usage as any).outputTokens || 0;
-
-  if (!modelCatalog) {
-    logger.warn('No model catalog available, cost unavailable', { modelId });
-    return null;
-  }
-
-  try {
-    const pricing = await modelCatalog.getModelPricing(appConfig.region);
-    const modelPricing = pricing.find(
-      (p) =>
-        p.modelId === modelId ||
-        modelId.includes(p.modelId.toLowerCase().replace(/\s+/g, '-')),
-    );
-
-    if (modelPricing) {
-      return estimateCost(modelPricing, inputTokens, outputTokens);
-    }
-    logger.warn('No pricing found for model, cost unavailable', { modelId });
-    return null;
-  } catch (error) {
-    logger.warn('Failed to fetch pricing, cost unavailable', {
-      modelId,
-      error,
-    });
-    return null;
-  }
-}
-
-/**
- * Calculate context window usage percentage
- * Note: Context window size is not available via API, using 200k default
- */
-export function calculateContextWindowPercentage(
-  _modelId: string,
-  totalTokens: number,
-): number {
-  const maxTokens = 200000; // Default context window
-  return Math.round((totalTokens / maxTokens) * 100 * 100) / 100;
-}
+export {
+  calculateContextWindowPercentage,
+  calculateUsageCost as calculateCost,
+} from './usage-stats.js';

@@ -7,6 +7,10 @@ import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import {
+  calculateContextWindowPercentage,
+  getMessageTextContent,
+} from './usage-stats.js';
 
 // Type extensions for conversation manager
 interface ConversationMetadata {
@@ -216,12 +220,7 @@ export async function getConversationStats(
     );
     const userMessages = messages?.filter((m: any) => m.role === 'user') || [];
     userMessageTokens = userMessages.reduce((sum: number, m: any) => {
-      const content =
-        typeof m.content === 'string'
-          ? m.content
-          : Array.isArray(m.content)
-            ? m.content.map((p: any) => p.text || '').join('')
-            : '';
+      const content = getMessageTextContent(m);
       return sum + Math.ceil(content.length / 4);
     }, 0);
   }
@@ -243,18 +242,6 @@ export async function getConversationStats(
     assistantMessageTokens,
     contextFilesTokens: 0, // Placeholder for future context files support
   };
-}
-
-/**
- * Calculate context window usage percentage
- * Note: Context window size is not available via API, using 200k default
- */
-function calculateContextWindowPercentage(
-  _modelId: string,
-  totalTokens: number,
-): number {
-  const maxTokens = 200000; // Default context window
-  return Math.round((totalTokens / maxTokens) * 100 * 100) / 100;
 }
 
 /**
