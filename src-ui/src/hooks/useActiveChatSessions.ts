@@ -11,8 +11,15 @@ import { useNavigation } from '../contexts/NavigationContext';
 import { log } from '../utils/logger';
 import { sendOrchestrationTurn, startOrchestrationSession } from './useOrchestration';
 import { useStreamingMessage } from './useStreamingMessage';
-import type { FileAttachment } from '../types';
 import { conversationsStore } from '../contexts/ConversationsContext';
+import {
+  type ActiveChatConversationMessage,
+  buildOutgoingUserMessage,
+  buildPostSendState,
+  buildRehydratedInputHistory,
+  normalizeConversationMessages,
+} from './useActiveChatSessions.helpers';
+import type { FileAttachment } from '../types';
 
 export function usePruneActiveChats() {
   useEffect(() => {
@@ -71,7 +78,7 @@ export function useSendMessage(
   );
   const invalidate = useInvalidateQuery();
 
-  return useCallback(
+  const sendMessage = useCallback(
     async (
       sessionId: string,
       agentSlug: string,
@@ -104,35 +111,11 @@ export function useSendMessage(
         }
       }
 
-      const contentParts: Array<{
-        type: string;
-        content?: string;
-        url?: string;
-        mediaType?: string;
-        name?: string;
-      }> = [];
-      if (content) {
-        contentParts.push({ type: 'text', content });
-      }
-      if (attachments) {
-        for (const attachment of attachments) {
-          contentParts.push({
-            type: 'file',
-            url: attachment.data,
-            mediaType: attachment.type,
-            name: attachment.name,
-          });
-        }
-      }
-
-      const updatedMessages = [
-        ...(currentState?.messages || []),
-        {
-          role: 'user' as const,
-          content,
-          contentParts: contentParts.length > 0 ? contentParts : undefined,
-        },
-      ];
+      const { messages: updatedMessages } = buildOutgoingUserMessage(
+        currentState?.messages,
+        content,
+        attachments,
+      );
 
       const abortController = new AbortController();
 
@@ -219,21 +202,22 @@ export function useSendMessage(
 
           clearStreamingMessage(sessionId);
 
-          const effectiveFinishReason =
-            finishReason ||
-            (backendMessages[backendMessages.length - 1] as any)?.finishReason;
+          const {
+            messages,
+            noticeKind,
+            effectiveFinishReason,
+          } = buildPostSendState(
+            backendMessages as ActiveChatConversationMessage[],
+            finishReason,
+          );
 
           const updates: Partial<ChatUIState> = {
             status: 'idle',
             abortController: undefined,
-            messages: backendMessages.map((message) => ({
-              role: message.role,
-              content: message.content,
-              contentParts: message.contentParts,
-            })),
+            messages,
           };
 
-          if (effectiveFinishReason === 'tool-calls') {
+          if (noticeKind === 'tool-calls') {
             updates.ephemeralMessages = [
               {
                 role: 'system',
@@ -251,7 +235,7 @@ export function useSendMessage(
                 },
               },
             ];
-          } else if (effectiveFinishReason === 'length') {
+          } else if (noticeKind === 'length') {
             updates.ephemeralMessages = [
               {
                 role: 'system',
@@ -269,11 +253,7 @@ export function useSendMessage(
                 },
               },
             ];
-          } else if (
-            effectiveFinishReason &&
-            effectiveFinishReason !== 'stop' &&
-            effectiveFinishReason !== 'end_turn'
-          ) {
+          } else if (noticeKind === 'unexpected') {
             updates.ephemeralMessages = [
               {
                 role: 'system',
@@ -332,6 +312,8 @@ export function useSendMessage(
       updateChat,
     ],
   );
+
+  return sendMessage;
 }
 
 export function useCancelMessage() {
@@ -421,7 +403,11 @@ export function useOpenConversation(apiBase: string) {
       await fetchMessages(apiBase, agentSlug, conversationId);
       const key = `messages:${agentSlug}:${conversationId}`;
       const messages = conversationsStore.getSnapshot().messages[key] || [];
-      updateChat(sessionId, { messages });
+      updateChat(sessionId, {
+        messages: normalizeConversationMessages(
+          messages as ActiveChatConversationMessage[],
+        ),
+      });
 
       return sessionId;
     },
@@ -484,14 +470,11 @@ export function useRehydrateSessions(apiBase: string) {
       const messagesKey = `messages:${chat.agentSlug}:${chat.conversationId}`;
       const backendMessages =
         conversationsStore.getSnapshot().messages[messagesKey] || [];
-      const userMessages = backendMessages
-        .filter((message) => message.role === 'user')
-        .map((message) => message.content);
-      const storedSlashCommands = (chat.inputHistory || []).filter((input) =>
-        input.startsWith('/'),
-      );
       updateChat(sessionId, {
-        inputHistory: [...userMessages, ...storedSlashCommands],
+        inputHistory: buildRehydratedInputHistory(
+          backendMessages as ActiveChatConversationMessage[],
+          chat.inputHistory,
+        ),
       });
     }
   }, [apiBase, fetchMessages, updateChat]);

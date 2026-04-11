@@ -4489,6 +4489,63 @@ for (const requiredHelper of [
   }
 }
 
+const claudeAdapter = readFileSync(
+  new URL('../src-server/providers/adapters/claude-adapter.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelperImport of [
+  './claude-adapter-events.js',
+  './claude-adapter-queues.js',
+]) {
+  if (!claudeAdapter.includes(requiredHelperImport)) {
+    errors.push(`claude-adapter.ts must delegate extracted helper logic to ${requiredHelperImport}.`);
+  }
+}
+for (const retiredInlineClaudeHelper of [
+  'class AsyncEventQueue',
+  'class AsyncUserMessageQueue',
+  'private mapSessionState(',
+  "message.type === 'system' &&",
+  "message.type === 'stream_event'",
+  "message.type === 'tool_progress'",
+  "message.type === 'result'",
+]) {
+  if (claudeAdapter.includes(retiredInlineClaudeHelper)) {
+    errors.push(`claude-adapter.ts must not inline extracted helper ${retiredInlineClaudeHelper}.`);
+  }
+}
+
+const claudeAdapterEvents = readFileSync(
+  new URL('../src-server/providers/adapters/claude-adapter-events.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function mapClaudeSdkMessage',
+  'export function mapClaudeSessionState',
+  "method: 'session.state-changed'",
+  "method: 'content.text-delta'",
+  "method: 'tool.progress'",
+  "method: 'turn.completed'",
+]) {
+  if (!claudeAdapterEvents.includes(requiredHelper)) {
+    errors.push(`claude-adapter-events.ts must include ${requiredHelper}.`);
+  }
+}
+
+const claudeAdapterQueues = readFileSync(
+  new URL('../src-server/providers/adapters/claude-adapter-queues.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export class AsyncEventQueue',
+  'export class AsyncUserMessageQueue',
+  'createDeferred<',
+]) {
+  if (!claudeAdapterQueues.includes(requiredHelper)) {
+    errors.push(`claude-adapter-queues.ts must include ${requiredHelper}.`);
+  }
+}
+
 const stallionControlServer = readFileSync(
   new URL('../src-server/tools/stallion-control-server.ts', import.meta.url),
   'utf8',

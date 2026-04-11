@@ -6,7 +6,6 @@ import {
   type Query,
   query,
   type SDKMessage,
-  type SDKUserMessage,
 } from '@anthropic-ai/claude-agent-sdk';
 import type { CanonicalRuntimeEvent } from '@stallion-ai/contracts/runtime-events';
 import type { Prerequisite } from '@stallion-ai/contracts/tool';
@@ -18,81 +17,14 @@ import type {
   ProviderTurnStartResult,
 } from '../adapter-shape.js';
 import { buildCliRuntimePrerequisites } from '../cli-auth.js';
-
-interface Deferred<T> {
-  promise: Promise<T>;
-  resolve(value: T): void;
-}
-
-function createDeferred<T>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((res) => {
-    resolve = res;
-  });
-  return { promise, resolve };
-}
-
-class AsyncEventQueue implements AsyncIterable<CanonicalRuntimeEvent> {
-  private items: CanonicalRuntimeEvent[] = [];
-  private waiters: Array<Deferred<IteratorResult<CanonicalRuntimeEvent>>> = [];
-
-  push(event: CanonicalRuntimeEvent): void {
-    const waiter = this.waiters.shift();
-    if (waiter) {
-      waiter.resolve({ value: event, done: false });
-      return;
-    }
-    this.items.push(event);
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<CanonicalRuntimeEvent> {
-    return {
-      next: async () => {
-        const queued = this.items.shift();
-        if (queued) return { value: queued, done: false };
-        const waiter = createDeferred<IteratorResult<CanonicalRuntimeEvent>>();
-        this.waiters.push(waiter);
-        return waiter.promise;
-      },
-    };
-  }
-}
-
-class AsyncUserMessageQueue implements AsyncIterable<SDKUserMessage> {
-  private items: SDKUserMessage[] = [];
-  private waiters: Array<Deferred<IteratorResult<SDKUserMessage>>> = [];
-  private closed = false;
-
-  push(message: SDKUserMessage): void {
-    if (this.closed) return;
-    const waiter = this.waiters.shift();
-    if (waiter) {
-      waiter.resolve({ value: message, done: false });
-      return;
-    }
-    this.items.push(message);
-  }
-
-  close(): void {
-    this.closed = true;
-    for (const waiter of this.waiters.splice(0)) {
-      waiter.resolve({ value: undefined as never, done: true });
-    }
-  }
-
-  [Symbol.asyncIterator](): AsyncIterator<SDKUserMessage> {
-    return {
-      next: async () => {
-        const queued = this.items.shift();
-        if (queued) return { value: queued, done: false };
-        if (this.closed) return { value: undefined as never, done: true };
-        const waiter = createDeferred<IteratorResult<SDKUserMessage>>();
-        this.waiters.push(waiter);
-        return waiter.promise;
-      },
-    };
-  }
-}
+import {
+  mapClaudeSdkMessage,
+  type ClaudeMessageState,
+} from './claude-adapter-events.js';
+import {
+  AsyncEventQueue,
+  AsyncUserMessageQueue,
+} from './claude-adapter-queues.js';
 
 type PendingRequest = {
   resolve: (result: PermissionResult) => void;
@@ -423,144 +355,12 @@ export class ClaudeAdapter implements ProviderAdapterShape {
   }
 
   private mapMessage(record: ClaudeSessionRecord, message: SDKMessage): void {
-    const createdAt = new Date().toISOString();
-    if (
-      message.type === 'system' &&
-      message.subtype === 'session_state_changed'
-    ) {
-      const from = this.mapSessionState(record.lastSessionState);
-      const to = this.mapSessionState(message.state);
-      record.lastSessionState = message.state;
-      record.session.status =
-        message.state === 'running'
-          ? 'running'
-          : message.state === 'requires_action'
-            ? 'ready'
-            : 'ready';
-      record.session.updatedAt = createdAt;
-      this.publish({
-        eventId: crypto.randomUUID(),
-        provider: this.provider,
-        threadId: record.session.threadId,
-        createdAt,
-        method: 'session.state-changed',
-        sessionId: record.session.threadId,
-        from,
-        to,
-      });
-      return;
-    }
-
-    if (message.type === 'stream_event') {
-      const streamEvent = message.event as any;
-      const itemId = `${message.session_id}:${message.uuid}`;
-      if (
-        streamEvent?.type === 'content_block_delta' &&
-        streamEvent.delta?.type === 'text_delta' &&
-        typeof streamEvent.delta.text === 'string'
-      ) {
-        this.publish({
-          eventId: crypto.randomUUID(),
-          provider: this.provider,
-          threadId: record.session.threadId,
-          createdAt,
-          turnId: record.activeTurnId,
-          itemId,
-          method: 'content.text-delta',
-          delta: streamEvent.delta.text,
-        });
-      }
-      if (
-        streamEvent?.type === 'content_block_delta' &&
-        (streamEvent.delta?.type === 'thinking_delta' ||
-          streamEvent.delta?.type === 'signature_delta') &&
-        typeof streamEvent.delta.thinking === 'string'
-      ) {
-        this.publish({
-          eventId: crypto.randomUUID(),
-          provider: this.provider,
-          threadId: record.session.threadId,
-          createdAt,
-          turnId: record.activeTurnId,
-          itemId,
-          method: 'content.reasoning-delta',
-          delta: streamEvent.delta.thinking,
-        });
-      }
-      return;
-    }
-
-    if (message.type === 'tool_progress') {
-      this.publish({
-        eventId: crypto.randomUUID(),
-        provider: this.provider,
-        threadId: record.session.threadId,
-        createdAt,
-        turnId: record.activeTurnId,
-        itemId: message.tool_use_id,
-        method: 'tool.progress',
-        toolCallId: message.tool_use_id,
-        message: `Running ${message.tool_name}`,
-        progress: undefined,
-      });
-      return;
-    }
-
-    if (message.type === 'result') {
-      this.publish({
-        eventId: crypto.randomUUID(),
-        provider: this.provider,
-        threadId: record.session.threadId,
-        createdAt,
-        turnId: record.activeTurnId,
-        method: 'token-usage.updated',
-        promptTokens: message.usage.input_tokens,
-        completionTokens: message.usage.output_tokens,
-        totalTokens: message.usage.input_tokens + message.usage.output_tokens,
-      });
-      if (record.activeTurnId) {
-        this.publish({
-          eventId: crypto.randomUUID(),
-          provider: this.provider,
-          threadId: record.session.threadId,
-          createdAt,
-          turnId: record.activeTurnId,
-          method: 'turn.completed',
-          finishReason:
-            message.stop_reason === 'tool_use' ? 'tool-calls' : 'stop',
-          outputText:
-            message.type === 'result' && 'result' in message
-              ? message.result
-              : undefined,
-        });
-      }
-      return;
-    }
-
-    // Skip 'assistant' messages — they echo the full accumulated text from
-    // includePartialMessages and duplicate the stream_event deltas we already handle.
-    if (message.type === 'assistant') {
-      return;
-    }
-
-    if (message.type === 'auth_status' && message.error) {
-      this.publish({
-        eventId: crypto.randomUUID(),
-        provider: this.provider,
-        threadId: record.session.threadId,
-        createdAt,
-        method: 'runtime.warning',
-        severity: 'warning',
-        message: message.error,
-      });
-    }
-  }
-
-  private mapSessionState(
-    state: 'idle' | 'running' | 'requires_action',
-  ): 'idle' | 'running' | 'awaiting-approval' {
-    if (state === 'requires_action') return 'awaiting-approval';
-    return state;
+    mapClaudeSdkMessage({
+      provider: this.provider,
+      record: record as ClaudeMessageState,
+      message,
+      publish: (event) => this.publish(event),
+    });
   }
 
   private publish(event: CanonicalRuntimeEvent): void {
