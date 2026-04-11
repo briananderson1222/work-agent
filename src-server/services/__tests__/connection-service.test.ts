@@ -27,6 +27,21 @@ describe('ConnectionService', () => {
     };
     const claudeAdapter = {
       provider: 'claude' as const,
+      metadata: {
+        displayName: 'Claude Runtime',
+        description:
+          'Claude Agent SDK runtime with approvals and reasoning events.',
+        capabilities: [
+          'agent-runtime',
+          'session-lifecycle',
+          'tool-calls',
+          'interrupt',
+          'approvals',
+          'reasoning-events',
+        ] as const,
+        runtimeId: 'claude-runtime',
+        builtin: true,
+      },
       getPrerequisites: vi.fn().mockResolvedValue([
         {
           id: 'anthropic-api-key',
@@ -39,6 +54,21 @@ describe('ConnectionService', () => {
     };
     const codexAdapter = {
       provider: 'codex' as const,
+      metadata: {
+        displayName: 'Codex Runtime',
+        description: 'Codex app-server runtime over the local Codex CLI.',
+        capabilities: [
+          'agent-runtime',
+          'session-lifecycle',
+          'tool-calls',
+          'interrupt',
+          'approvals',
+          'resume',
+          'external-process',
+        ] as const,
+        runtimeId: 'codex-runtime',
+        builtin: true,
+      },
       getPrerequisites: vi.fn().mockResolvedValue([
         {
           id: 'openai-api-key',
@@ -152,6 +182,21 @@ describe('ConnectionService', () => {
         [
           {
             provider: 'claude' as const,
+            metadata: {
+              displayName: 'Claude Runtime',
+              description:
+                'Claude Agent SDK runtime with approvals and reasoning events.',
+              capabilities: [
+                'agent-runtime',
+                'session-lifecycle',
+                'tool-calls',
+                'interrupt',
+                'approvals',
+                'reasoning-events',
+              ] as const,
+              runtimeId: 'claude-runtime',
+              builtin: true,
+            },
             getPrerequisites: vi.fn().mockResolvedValue([]),
           },
         ] as any,

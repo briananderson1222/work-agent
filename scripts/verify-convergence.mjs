@@ -4610,6 +4610,47 @@ if (!pathAutocomplete.includes('useFileSystemBrowseQuery')) {
   errors.push('PathAutocomplete must use the shared filesystem browse query.');
 }
 
+const navigationContext = readFileSync(
+  new URL('../src-ui/src/contexts/NavigationContext.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredImport of ['./navigation-store']) {
+  if (!navigationContext.includes(requiredImport)) {
+    errors.push(`NavigationContext.tsx must use ${requiredImport}.`);
+  }
+}
+for (const retiredInlineNavigationSnippet of [
+  'class NavigationStore',
+  'const LAST_PROJECT_KEY =',
+  'const LAST_PROJECT_LAYOUT_KEY =',
+  'private parseUrl(): NavigationState',
+  'private handlePopState = () =>',
+  'export const navigationStore = new NavigationStore()',
+]) {
+  if (navigationContext.includes(retiredInlineNavigationSnippet)) {
+    errors.push(
+      `NavigationContext.tsx must not inline extracted navigation store helper ${retiredInlineNavigationSnippet}.`,
+    );
+  }
+}
+
+const navigationStoreFile = readFileSync(
+  new URL('../src-ui/src/contexts/navigation-store.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export type NavigationState',
+  'export class NavigationStore',
+  'export const navigationStore = new NavigationStore()',
+  'LAST_PROJECT_KEY',
+  'private parseUrl(): NavigationState',
+  'setDockModeQuiet(mode: DockMode)',
+]) {
+  if (!navigationStoreFile.includes(requiredHelper)) {
+    errors.push(`navigation-store.ts must include ${requiredHelper}.`);
+  }
+}
+
 const slashCommandsHook = readFileSync(
   new URL('../src-ui/src/hooks/useSlashCommands.ts', import.meta.url),
   'utf8',

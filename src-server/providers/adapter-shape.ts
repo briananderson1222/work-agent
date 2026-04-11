@@ -6,7 +6,10 @@ import type {
   ProviderTurnStartResult,
 } from '@stallion-ai/contracts/provider';
 import type { CanonicalRuntimeEvent } from '@stallion-ai/contracts/runtime-events';
-import type { Prerequisite } from '@stallion-ai/contracts/tool';
+import type {
+  ConnectionCapability,
+  Prerequisite,
+} from '@stallion-ai/contracts/tool';
 
 export type {
   ProviderSendTurnInput,
@@ -16,8 +19,17 @@ export type {
 } from '@stallion-ai/contracts/provider';
 export type { CanonicalRuntimeEvent } from '@stallion-ai/contracts/runtime-events';
 
+export interface ProviderAdapterMetadata {
+  displayName: string;
+  description: string;
+  capabilities: readonly ConnectionCapability[];
+  runtimeId?: string;
+  builtin?: boolean;
+}
+
 export interface ProviderAdapterShape {
   readonly provider: ProviderKind;
+  readonly metadata: ProviderAdapterMetadata;
 
   startSession(input: ProviderSessionStartInput): Promise<ProviderSession>;
   sendTurn(input: ProviderSendTurnInput): Promise<ProviderTurnStartResult>;

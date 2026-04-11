@@ -53,7 +53,6 @@ export function AgentsView({
     listItems,
     locked,
     notFound,
-    search,
     selectedAcpConnection,
     selectedAgent,
     selectedSlug,
