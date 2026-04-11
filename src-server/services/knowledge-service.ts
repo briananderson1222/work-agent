@@ -41,6 +41,7 @@ import {
   listKnowledgeDocuments,
   scanKnowledgeDirectories,
 } from './knowledge-filesystem.js';
+import { searchKnowledgeDocuments } from './knowledge-search.js';
 
 /** @deprecated Use KnowledgeDocumentMeta from contracts. Kept for backward compat. */
 export type DocumentMeta = KnowledgeDocumentMeta;
@@ -189,36 +190,17 @@ export class KnowledgeService {
     topK = 5,
     namespace?: string,
   ) {
-    const vectorDb = this.resolveVectorDb();
-    if (!vectorDb) return [];
-    const embeddingProvider = this.resolveEmbedding();
-    if (!embeddingProvider) return [];
-    const [queryVector] = await embeddingProvider.embed([query]);
-
-    if (namespace) {
-      // Search single namespace
-      const ns = knowledgeVectorNamespace(projectSlug, namespace);
-      if (!(await vectorDb.namespaceExists(ns))) return [];
-      const results = await vectorDb.search(ns, queryVector, topK);
-      knowledgeOps.add(1, { op: 'query' });
-      return results;
-    }
-
-    // Search all rag-behavior namespaces
-    const namespaces = this.listNamespaces(projectSlug).filter(
-      (n) => n.behavior === 'rag',
-    );
-    const allResults: any[] = [];
-    for (const nsCfg of namespaces) {
-      const ns = knowledgeVectorNamespace(projectSlug, nsCfg.id);
-      if (!(await vectorDb.namespaceExists(ns))) continue;
-      const results = await vectorDb.search(ns, queryVector, topK);
-      allResults.push(...results);
-    }
-    // Sort by score descending, take topK
-    allResults.sort((a, b) => b.score - a.score);
+    const allResults = await searchKnowledgeDocuments({
+      projectSlug,
+      query,
+      topK,
+      namespace,
+      vectorDb: this.resolveVectorDb(),
+      embeddingProvider: this.resolveEmbedding(),
+      listNamespaces: (slug) => this.listNamespaces(slug),
+    });
     knowledgeOps.add(1, { op: 'query' });
-    return allResults.slice(0, topK);
+    return allResults;
   }
 
   async listDocuments(

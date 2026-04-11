@@ -34,8 +34,19 @@ import {
   updateACPToolResultState,
 } from './acp-connection-state.js';
 import {
-  getACPConnectionStatusView,
-  getACPConnectionVirtualAgents,
+  type ACPConnectionStatusView,
+  getACPConnectionCommandOptions,
+  getACPConnectionSlashCommands,
+  getACPConnectionStatus,
+  getACPConnectionVirtualAgentViews,
+} from './acp-connection-queries.js';
+import {
+  isACPConnectionConnected,
+  isACPConnectionIdle,
+  isACPConnectionStale,
+  loadACPConnectionSession,
+} from './acp-connection-session.js';
+import {
   getACPCurrentModelName,
   hasACPConnectionAgent,
 } from './acp-connection-view.js';
@@ -206,11 +217,11 @@ export class ACPConnection {
   }
 
   isConnected(): boolean {
-    return (
-      this.status === 'connected' &&
-      this.connection !== null &&
-      this.sessionId !== null
-    );
+    return isACPConnectionConnected({
+      status: this.status,
+      connection: this.connection,
+      sessionId: this.sessionId,
+    });
   }
 
   private touchActivity(): void {
@@ -218,15 +229,18 @@ export class ACPConnection {
   }
 
   isIdle(): boolean {
-    if (this.status !== 'connected') return false;
-    if (this.activeWriter) return false;
-    const elapsed = Date.now() - this.lastActivityAt;
-    return elapsed > 5 * 60_000;
+    return isACPConnectionIdle({
+      status: this.status,
+      activeWriter: this.activeWriter,
+      lastActivityAt: this.lastActivityAt,
+    });
   }
 
   isStale(): boolean {
-    if (this.status !== 'disconnected' && this.status !== 'error') return false;
-    return Date.now() - this.lastActivityAt > 30_000;
+    return isACPConnectionStale({
+      status: this.status,
+      lastActivityAt: this.lastActivityAt,
+    });
   }
 
   async cullSession(): Promise<void> {
@@ -240,22 +254,14 @@ export class ACPConnection {
     this.eventBus?.emit('acp:status', { id: this.config.id, status: 'culled' });
   }
 
-  getStatus(): {
-    status: ACPConnectionStatus;
-    modes: string[];
-    sessionId: string | null;
-    mcpServers: string[];
-    configOptions: any[];
-    currentModel: string | null;
-    interactive?: { args: string[] };
-  } {
-    return getACPConnectionStatusView({
+  getStatus(): ACPConnectionStatusView {
+    return getACPConnectionStatus({
       status: this.status,
       modes: this.modes,
       sessionId: this.sessionId,
       mcpServers: this.mcpServers,
       configOptions: this.configOptions,
-      currentModel: this.getCurrentModelName(),
+      detectedModel: this.detectedModel,
       interactive: this.config.interactive,
     });
   }
@@ -265,38 +271,32 @@ export class ACPConnection {
   }
 
   getVirtualAgents(): any[] {
-    return getACPConnectionVirtualAgents({
+    return getACPConnectionVirtualAgentViews({
       modes: this.modes,
       prefix: this.prefix,
       config: this.config,
       configOptions: this.configOptions,
       promptCapabilities: this.promptCapabilities,
-      currentModelName: this.getCurrentModelName(),
+      detectedModel: this.detectedModel,
     });
   }
 
   getSlashCommands(slug: string): ACPSlashCommand[] {
-    if (!this.hasAgent(slug)) return [];
-    return this.slashCommands;
+    return getACPConnectionSlashCommands({
+      slug,
+      prefix: this.prefix,
+      modes: this.modes,
+      slashCommands: this.slashCommands,
+    });
   }
 
   async getCommandOptions(partialCommand: string): Promise<any[]> {
-    if (!this.connection || !this.sessionId) return [];
-    try {
-      const result = await Promise.race([
-        this.connection.extMethod('_kiro.dev/commands/options', {
-          sessionId: this.sessionId,
-          partialCommand,
-        }),
-        new Promise<any>((_, reject) =>
-          setTimeout(() => reject(new Error('timeout')), 3000),
-        ),
-      ]);
-      return (result as any)?.options || [];
-    } catch (error) {
-      this.logger.debug('Failed to get command options', { error });
-      return [];
-    }
+    return getACPConnectionCommandOptions({
+      connection: this.connection,
+      sessionId: this.sessionId,
+      partialCommand,
+      logger: this.logger,
+    });
   }
 
   async handleChat(
@@ -359,7 +359,8 @@ export class ACPConnection {
       connection: this.connection,
       conversationId,
       getActiveWriter: () => this.activeWriter,
-      getCurrentModelName: () => this.getCurrentModelName(),
+      getCurrentModelName: () =>
+        getACPCurrentModelName(this.configOptions, this.detectedModel),
       getResponseAccumulator: () => this.responseAccumulator,
       getResponseParts: () => this.responseParts,
       input,
@@ -390,23 +391,16 @@ export class ACPConnection {
   }
 
   async loadSession(sessionId: string): Promise<boolean> {
-    if (!this.connection) return false;
-    try {
-      await this.connection.loadSession({
-        sessionId,
-        cwd: this.cwd,
-        mcpServers: [],
-      });
+    const loaded = await loadACPConnectionSession({
+      connection: this.connection,
+      sessionId,
+      cwd: this.cwd,
+      logger: this.logger,
+    });
+    if (loaded) {
       this.sessionId = sessionId;
-      this.logger.info('[ACPBridge] Session loaded', { sessionId });
-      return true;
-    } catch (error: any) {
-      this.logger.warn('[ACPBridge] Failed to load session', {
-        sessionId,
-        error: error.message,
-      });
-      return false;
     }
+    return loaded;
   }
 
   private createClient(): Client {
@@ -510,10 +504,6 @@ export class ACPConnection {
       memoryAdapters: this.memoryAdapters,
       createMemoryAdapter: this.createMemoryAdapter,
     });
-  }
-
-  private getCurrentModelName(): string | null {
-    return getACPCurrentModelName(this.configOptions, this.detectedModel);
   }
 
   private cleanup(): void {

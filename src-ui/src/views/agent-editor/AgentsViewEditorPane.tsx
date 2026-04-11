@@ -9,6 +9,11 @@ import { AgentAddModal } from '../AgentAddModal';
 import { AgentEditorForm, type AgentFormData } from '../AgentEditorForm';
 import type { NavigationView } from '../../types';
 import type { AgentSummary, Tool } from '../../types';
+import {
+  AgentEditorLoadingState,
+  AgentEditorNotFoundState,
+  AgentEditorTemplatePicker,
+} from './AgentEditorStateViews';
 
 interface AgentsViewEditorPaneProps {
   selectedAcpConnection: string | null;
@@ -97,22 +102,12 @@ export function AgentsViewEditorPane({
           />
         </div>
       ) : isLoading ? (
-        <div className="editor__loading">Loading agent...</div>
+        <AgentEditorLoadingState />
       ) : notFound ? (
-        <div className="split-pane__empty">
-          <div className="split-pane__empty-icon">⬡</div>
-          <p className="split-pane__empty-title">Agent not found</p>
-          <p className="split-pane__empty-desc">
-            The agent "{selectedSlug}" doesn't exist or was deleted.
-          </p>
-          <button
-            type="button"
-            className="editor-btn editor-btn--primary"
-            onClick={onDeselect}
-          >
-            Back to agents
-          </button>
-        </div>
+        <AgentEditorNotFoundState
+          selectedSlug={selectedSlug}
+          onDeselect={onDeselect}
+        />
       ) : (
         <div className="agent-inline-editor">
           <DetailHeader
@@ -197,32 +192,11 @@ export function AgentsViewEditorPane({
 
           <div className="agent-inline-editor__body">
             {isCreating && !templatePicked && agentsCount > 0 ? (
-              <div className="agent-editor__template-picker">
-                <h3 className="agent-editor__template-title">
-                  Start with a template
-                </h3>
-                <p className="agent-editor__template-desc">
-                  Pick a starting point or start from scratch
-                </p>
-                <div className="template-grid">
-                  {templates.map((t) => (
-                    <button
-                      key={t.id}
-                      className="template-card"
-                      onClick={() => onPickTemplate(t.form as Partial<AgentFormData>)}
-                    >
-                      <span className="template-card__icon">{t.icon}</span>
-                      <span className="template-card__label">{t.label}</span>
-                      <span className="template-card__desc">
-                        {t.description}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-                <button className="template-blank" onClick={onStartBlank}>
-                  Start Blank →
-                </button>
-              </div>
+              <AgentEditorTemplatePicker
+                templates={templates}
+                onPickTemplate={onPickTemplate}
+                onStartBlank={onStartBlank}
+              />
             ) : (
               <AgentEditorForm
                 form={form}

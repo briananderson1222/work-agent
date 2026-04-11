@@ -692,6 +692,8 @@ for (const requiredHelper of [
   './acp-chat-preparation.js',
   './acp-chat-stream.js',
   './acp-connection-lifecycle.js',
+  './acp-connection-queries.js',
+  './acp-connection-session.js',
   './acp-connection-state.js',
   './acp-connection-view.js',
 ]) {
@@ -707,9 +709,74 @@ for (const retiredInlineAcpConnectionSnippet of [
   'handleACPBridgeSessionUpdate(params, {',
   'private buildEventState(): ACPBridgeEventState',
   'private syncEventState(state: ACPBridgeEventState)',
+  "this.connection.extMethod('_kiro.dev/commands/options'",
 ]) {
   if (acpConnection.includes(retiredInlineAcpConnectionSnippet)) {
     errors.push(`acp-connection.ts must not inline extracted ACP connection event logic ${retiredInlineAcpConnectionSnippet}.`);
+  }
+}
+
+const acpConnectionQueries = readFileSync(
+  new URL('../src-server/services/acp-connection-queries.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function getACPConnectionStatus',
+  'export function getACPConnectionVirtualAgentViews',
+  'export function getACPConnectionSlashCommands',
+  'export async function getACPConnectionCommandOptions',
+]) {
+  if (!acpConnectionQueries.includes(requiredHelper)) {
+    errors.push(`acp-connection-queries.ts must include ${requiredHelper}.`);
+  }
+}
+
+const acpConnectionSession = readFileSync(
+  new URL('../src-server/services/acp-connection-session.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function isACPConnectionConnected',
+  'export function isACPConnectionIdle',
+  'export function isACPConnectionStale',
+  'export async function loadACPConnectionSession',
+]) {
+  if (!acpConnectionSession.includes(requiredHelper)) {
+    errors.push(`acp-connection-session.ts must include ${requiredHelper}.`);
+  }
+}
+
+const knowledgeServiceSearch = readFileSync(
+  new URL('../src-server/services/knowledge-service.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  './knowledge-search.js',
+]) {
+  if (!knowledgeServiceSearch.includes(requiredHelper)) {
+    errors.push(`knowledge-service.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineKnowledgeSnippet of [
+  'const [queryVector] = await embeddingProvider.embed([query]);',
+  'allResults.sort((a, b) => b.score - a.score);',
+]) {
+  if (knowledgeServiceSearch.includes(retiredInlineKnowledgeSnippet)) {
+    errors.push(`knowledge-service.ts must not inline extracted search helper ${retiredInlineKnowledgeSnippet}.`);
+  }
+}
+
+const knowledgeSearch = readFileSync(
+  new URL('../src-server/services/knowledge-search.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export async function searchKnowledgeDocuments',
+  "candidate.behavior === 'rag'",
+  'allResults.sort((left, right) => right.score - left.score);',
+]) {
+  if (!knowledgeSearch.includes(requiredHelper)) {
+    errors.push(`knowledge-search.ts must include ${requiredHelper}.`);
   }
 }
 
