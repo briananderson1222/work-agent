@@ -4328,10 +4328,43 @@ if (agentsView.includes('fetch(')) {
   errors.push('AgentsView must not issue raw fetch() calls.');
 }
 for (const requiredImport of [
-  './agent-editor/agentsViewUtils',
+  './agent-editor/useAgentsViewModel',
 ]) {
   if (!agentsView.includes(requiredImport)) {
     errors.push(`AgentsView must delegate extracted helpers to ${requiredImport}.`);
+  }
+}
+for (const retiredInlineAgentSnippet of [
+  'const EMPTY_FORM: AgentFormData = {',
+  'function formFromAgent(agent: any): AgentFormData {',
+  'function isDirty(form: AgentFormData, saved: AgentFormData): boolean {',
+  'const grouped: Record<string, Tool[]> = {};',
+  'const [form, setForm] = useState<AgentFormData>(() => createEmptyAgentForm());',
+  'const [savedForm, setSavedForm] = useState<AgentFormData>(() =>',
+  'const [isSaving, setIsSaving] = useState(false);',
+  'const [validationErrors, setValidationErrors] = useState<',
+  'async function handleSave() {',
+  'async function handleDelete() {',
+]) {
+  if (agentsView.includes(retiredInlineAgentSnippet)) {
+    errors.push(`AgentsView must not inline extracted agent helper ${retiredInlineAgentSnippet}.`);
+  }
+}
+
+const agentsViewModel = readFileSync(
+  new URL('../src-ui/src/views/agent-editor/useAgentsViewModel.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function useAgentsViewModel',
+  'buildAgentPayload',
+  'buildAgentsViewEmptyContent',
+  'buildAgentsViewItems',
+  'createEmptyAgentForm',
+  'useUnsavedGuard',
+]) {
+  if (!agentsViewModel.includes(requiredHelper)) {
+    errors.push(`useAgentsViewModel.ts must include ${requiredHelper}.`);
   }
 }
 for (const requiredHook of [
@@ -4342,18 +4375,8 @@ for (const requiredHook of [
   'useSkillsQuery',
   'usePromptsQuery',
 ]) {
-  if (!agentsView.includes(requiredHook)) {
-    errors.push(`AgentsView must use shared SDK hook ${requiredHook}.`);
-  }
-}
-for (const retiredInlineAgentSnippet of [
-  'const EMPTY_FORM: AgentFormData = {',
-  'function formFromAgent(agent: any): AgentFormData {',
-  'function isDirty(form: AgentFormData, saved: AgentFormData): boolean {',
-  'const grouped: Record<string, Tool[]> = {};',
-]) {
-  if (agentsView.includes(retiredInlineAgentSnippet)) {
-    errors.push(`AgentsView must not inline extracted agent helper ${retiredInlineAgentSnippet}.`);
+  if (!agentsViewModel.includes(requiredHook)) {
+    errors.push(`useAgentsViewModel.ts must use shared SDK hook ${requiredHook}.`);
   }
 }
 
