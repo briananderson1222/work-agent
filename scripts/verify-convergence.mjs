@@ -4825,8 +4825,10 @@ for (const requiredImport of [
   './MonitoringLogControls',
   './MonitoringErrorBoundary',
   './monitoring/MonitoringHeader',
+  './monitoring/MonitoringLogStream',
   './monitoring/MonitoringSidebar',
   './monitoring/MonitoringActiveFilters',
+  './monitoring/useMonitoringFilters',
   './monitoring/view-utils',
   './monitoring-time-range',
 ]) {
@@ -4843,6 +4845,14 @@ for (const retiredInlineMonitoringSnippet of [
   'className="monitoring-sidebar"',
   'className="active-filters-inline"',
   'class MonitoringErrorBoundary extends Component',
+  '<EventEntry',
+  'const [selectedAgents, setSelectedAgents] = useState<string[]>([]);',
+  'const [selectedConversation, setSelectedConversation] = useState<',
+  'const [selectedToolCallId, setSelectedToolCallId] = useState<string | null>(',
+  'const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);',
+  'const [eventTypeFilter, setEventTypeFilter] = useState<string[]>(',
+  'const syncFiltersFromQuery = (query: string) => {',
+  'const toggleEventType = (group: string) => {',
 ]) {
   if (monitoringView.includes(retiredInlineMonitoringSnippet)) {
     errors.push(
@@ -4852,6 +4862,34 @@ for (const retiredInlineMonitoringSnippet of [
 }
 if (!monitoringView.includes('isLoading,')) {
   errors.push('MonitoringView must read isLoading from useMonitoring.');
+}
+
+const monitoringLogStream = readFileSync(
+  new URL('../src-ui/src/views/monitoring/MonitoringLogStream.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function MonitoringLogStream',
+  'EventEntry',
+  'getEventType',
+]) {
+  if (!monitoringLogStream.includes(requiredHelper)) {
+    errors.push(`MonitoringLogStream.tsx must include ${requiredHelper}.`);
+  }
+}
+
+const monitoringFiltersHook = readFileSync(
+  new URL('../src-ui/src/views/monitoring/useMonitoringFilters.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function useMonitoringFilters',
+  'parseMonitoringSearchQuery',
+  'EVENT_TYPE_GROUPS',
+]) {
+  if (!monitoringFiltersHook.includes(requiredHelper)) {
+    errors.push(`useMonitoringFilters.ts must include ${requiredHelper}.`);
+  }
 }
 
 const projectSidebar = readFileSync(

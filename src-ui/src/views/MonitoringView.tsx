@@ -5,7 +5,6 @@ import {
   useRef,
   useState,
 } from 'react';
-import { EventEntry } from '../components/monitoring/EventEntry';
 import { MetricsPanel } from '../components/monitoring/MetricsPanel';
 import { useModels } from '../contexts/ModelsContext';
 import { useMonitoring } from '../contexts/MonitoringContext';
@@ -14,7 +13,6 @@ import {
   useSearchAutocomplete,
 } from '../hooks/useSearchAutocomplete';
 import {
-  EVENT_TYPE_GROUPS,
   getEventType,
 } from './monitoring-utils';
 import { MonitoringViewBoundary } from './MonitoringErrorBoundary';
@@ -22,10 +20,11 @@ import { MonitoringLogControls } from './MonitoringLogControls';
 import { MonitoringTimeControls } from './MonitoringTimeControls';
 import { MonitoringActiveFilters } from './monitoring/MonitoringActiveFilters';
 import { MonitoringHeader } from './monitoring/MonitoringHeader';
+import { MonitoringLogStream } from './monitoring/MonitoringLogStream';
 import { MonitoringSidebar } from './monitoring/MonitoringSidebar';
+import { useMonitoringFilters } from './monitoring/useMonitoringFilters';
 import {
   filterMonitoringEvents,
-  parseMonitoringSearchQuery,
 } from './monitoring/view-utils';
 import { useMonitoringTimeRange } from './monitoring-time-range';
 import './MonitoringView.css';
@@ -42,7 +41,25 @@ export function MonitoringView() {
   const { showToast } = useToast();
   const models = useModels();
   const [autoFollow, setAutoFollow] = useState(true);
-  const [searchQuery, setSearchQuery] = useState('');
+  const {
+    eventTypeFilter,
+    handleAgentClick,
+    handleConversationClick,
+    handleToolCallClick,
+    handleTraceClick,
+    searchQuery,
+    selectedAgents,
+    selectedConversation,
+    selectedToolCallId,
+    selectedTraceId,
+    setSearchQuery,
+    setSelectedAgents,
+    setSelectedConversation,
+    setSelectedToolCallId,
+    setSelectedTraceId,
+    syncFiltersFromQuery,
+    toggleEventType,
+  } = useMonitoringFilters();
 
   const searchFilters = useMemo(
     () => [
@@ -87,17 +104,6 @@ export function MonitoringView() {
     handleKeyDown,
   } = useSearchAutocomplete(searchQuery, searchFilters);
 
-  const [eventTypeFilter, setEventTypeFilter] = useState<string[]>(
-    Object.values(EVENT_TYPE_GROUPS).flat(),
-  );
-  const [selectedAgents, setSelectedAgents] = useState<string[]>([]);
-  const [selectedConversation, setSelectedConversation] = useState<
-    string | null
-  >(null);
-  const [selectedToolCallId, setSelectedToolCallId] = useState<string | null>(
-    null,
-  );
-  const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const {
     timeMode,
     relativeTime,
@@ -137,7 +143,12 @@ export function MonitoringView() {
     } catch {
       /* ignore malformed params */
     }
-  }, []);
+  }, [
+    setSelectedAgents,
+    setSelectedConversation,
+    setSelectedToolCallId,
+    setSelectedTraceId,
+  ]);
 
   useEffect(() => {
     if (events.length > prevEventCountRef.current) {
@@ -174,48 +185,6 @@ export function MonitoringView() {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleConversationClick = (
-    conversationId: string,
-    agentSlug: string,
-  ) => {
-    if (selectedConversation === conversationId) {
-      setSelectedConversation(null);
-    } else {
-      setSelectedConversation(conversationId);
-      setSelectedAgents([agentSlug]);
-    }
-  };
-
-  const handleToolCallClick = (toolCallId: string) => {
-    if (selectedToolCallId === toolCallId) {
-      setSelectedToolCallId(null);
-    } else {
-      setSelectedToolCallId(toolCallId);
-    }
-  };
-
-  const handleTraceClick = (traceId: string) => {
-    if (selectedTraceId === traceId) {
-      setSelectedTraceId(null);
-    } else {
-      setSelectedTraceId(traceId);
-    }
-  };
-
-  const handleAgentClick = (agentSlug: string, event: React.MouseEvent) => {
-    if (event.shiftKey) {
-      setSelectedAgents((prev) =>
-        prev.includes(agentSlug)
-          ? prev.filter((a) => a !== agentSlug)
-          : [...prev, agentSlug],
-      );
-    } else {
-      setSelectedAgents((prev) =>
-        prev.length === 1 && prev[0] === agentSlug ? [] : [agentSlug],
-      );
-    }
-  };
-
   useEffect(() => {
     if (autoFollow && logEndRef.current) {
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -238,23 +207,6 @@ export function MonitoringView() {
     }
   };
 
-  const syncFiltersFromQuery = (query: string) => {
-    const parsed = parseMonitoringSearchQuery(query);
-    if (parsed.filters.agent) {
-      setSelectedAgents(parsed.filters.agent);
-    }
-    if (parsed.filters.conversation?.[0]) {
-      setSelectedConversation(parsed.filters.conversation[0]);
-    }
-    if (parsed.filters.tool?.[0]) {
-      setSelectedToolCallId(parsed.filters.tool[0]);
-    }
-    if (parsed.filters.trace?.[0]) {
-      setSelectedTraceId(parsed.filters.trace[0]);
-    }
-    setSearchQuery(parsed.text);
-  };
-
   const filteredEvents = useMemo(
     () =>
       filterMonitoringEvents(events, {
@@ -275,23 +227,6 @@ export function MonitoringView() {
       selectedTraceId,
     ],
   );
-
-  const toggleEventType = (group: string) => {
-    const groupTypes = EVENT_TYPE_GROUPS[
-      group as keyof typeof EVENT_TYPE_GROUPS
-    ] as readonly string[];
-    const allSelected = groupTypes.every((type) =>
-      eventTypeFilter.includes(type),
-    );
-
-    if (allSelected) {
-      // Remove all types in this group
-      setEventTypeFilter((prev) => prev.filter((t) => !groupTypes.includes(t)));
-    } else {
-      // Add all types in this group
-      setEventTypeFilter((prev) => [...new Set([...prev, ...groupTypes])]);
-    }
-  };
 
   return (
     <div className="monitoring-view">
@@ -378,47 +313,26 @@ export function MonitoringView() {
             </div>
           </div>
 
-          <div className="log-stream" ref={logStreamRef}>
-            {isLoading && events.length === 0 ? (
-              <div className="log-empty">
-                <p>Loading events...</p>
-              </div>
-            ) : filteredEvents.length === 0 ? (
-              <div className="log-empty">
-                <p>No events yet. Waiting for agent activity...</p>
-              </div>
-            ) : (
-              filteredEvents.map((event, idx) => (
-                <EventEntry
-                  key={idx}
-                  event={event}
-                  isNew={newEventIds.has(
-                    `${event.timestamp}-${getEventType(event)}`,
-                  )}
-                  selectedTraceId={selectedTraceId}
-                  selectedConversation={selectedConversation}
-                  selectedToolCallId={selectedToolCallId}
-                  onTraceClick={handleTraceClick}
-                  onConversationClick={handleConversationClick}
-                  onToolCallClick={handleToolCallClick}
-                  onCopyResult={(text) => {
-                    navigator.clipboard.writeText(text);
-                    showToast('Copied to clipboard');
-                  }}
-                />
-              ))
-            )}
-            <div ref={logEndRef} />
-            {showScrollButton && (
-              <button
-                className="scroll-to-bottom"
-                onClick={scrollToBottom}
-                title="Scroll to bottom"
-              >
-                ↓
-              </button>
-            )}
-          </div>
+          <MonitoringLogStream
+            events={events}
+            filteredEvents={filteredEvents}
+            isLoading={isLoading}
+            newEventIds={newEventIds}
+            selectedTraceId={selectedTraceId}
+            selectedConversation={selectedConversation}
+            selectedToolCallId={selectedToolCallId}
+            showScrollButton={showScrollButton}
+            logEndRef={logEndRef}
+            logStreamRef={logStreamRef}
+            onTraceClick={handleTraceClick}
+            onConversationClick={handleConversationClick}
+            onToolCallClick={handleToolCallClick}
+            onCopyResult={(text) => {
+              navigator.clipboard.writeText(text);
+              showToast('Copied to clipboard');
+            }}
+            onScrollToBottom={scrollToBottom}
+          />
           <MetricsPanel />
         </div>
       </div>
