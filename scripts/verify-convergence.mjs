@@ -2169,6 +2169,45 @@ for (const [relativePath, requiredImport] of [
   }
 }
 
+const builtinScheduler = readFileSync(
+  new URL('../src-server/services/builtin-scheduler.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  "from './builtin-scheduler-storage.js'",
+  'appendSchedulerJobLog',
+  'getStoredJobStats',
+  'readStoredJobs',
+]) {
+  if (!builtinScheduler.includes(requiredHelper)) {
+    errors.push(`src-server/services/builtin-scheduler.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineSchedulerSnippet of [
+  'const DATA_DIR = join(resolveHomeDir(), \'scheduler\');',
+  'const JOBS_FILE = join(DATA_DIR, \'jobs.json\');',
+  'const LOGS_DIR = join(DATA_DIR, \'logs\');',
+]) {
+  if (builtinScheduler.includes(retiredInlineSchedulerSnippet)) {
+    errors.push(`src-server/services/builtin-scheduler.ts must not inline extracted scheduler storage logic ${retiredInlineSchedulerSnippet}.`);
+  }
+}
+
+const builtinSchedulerStorage = readFileSync(
+  new URL('../src-server/services/builtin-scheduler-storage.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export const SCHEDULER_DATA_DIR',
+  'export function readStoredJobs',
+  'export function appendSchedulerJobLog',
+  'export function getStoredJobStats',
+]) {
+  if (!builtinSchedulerStorage.includes(requiredHelper)) {
+    errors.push(`src-server/services/builtin-scheduler-storage.ts must include ${requiredHelper}.`);
+  }
+}
+
 const providerRegistry = readFileSync(
   new URL('../src-server/providers/registry.ts', import.meta.url),
   'utf8',

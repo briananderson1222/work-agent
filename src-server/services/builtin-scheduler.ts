@@ -1,10 +1,4 @@
-/**
- * Built-in lightweight scheduler — no external dependencies.
- * In-process cron matching, JSON file persistence, calls local agent chat API for runs.
- */
-
-import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { writeFileSync } from 'node:fs';
 import type {
   AddJobOpts,
   SchedulerCapability,
@@ -19,32 +13,23 @@ import {
   schedulerJobDuration,
   schedulerJobRuns,
 } from '../telemetry/metrics.js';
-import { resolveHomeDir } from '../utils/paths.js';
 import { cronMatches, nextCronTimes } from './cron.js';
-import { JsonFileStore } from './json-store.js';
+import {
+  appendSchedulerJobLog,
+  type StoredJob,
+  getSchedulerRunOutputPath,
+  getStoredJobStats,
+  getStoredJobView,
+  readSchedulerJobLogs,
+  readSchedulerRunFile,
+  readSchedulerRunOutput,
+  readStoredJobs,
+  writeStoredJobs,
+} from './builtin-scheduler-storage.js';
 import type { NotificationService } from './notification-service.js';
 import { SSEBroadcaster } from './sse-broadcaster.js';
 
 export { nextCronTimes } from './cron.js';
-
-const DATA_DIR = join(resolveHomeDir(), 'scheduler');
-const JOBS_FILE = join(DATA_DIR, 'jobs.json');
-const LOGS_DIR = join(DATA_DIR, 'logs');
-
-interface StoredJob {
-  name: string;
-  cron?: string;
-  prompt: string;
-  agent?: string;
-  enabled: boolean;
-  openArtifact?: string;
-  notifyStart?: boolean;
-  retryCount?: number;
-  retryDelaySecs?: number;
-  createdAt: string;
-}
-
-const jobStore = new JsonFileStore<StoredJob[]>(JOBS_FILE, []);
 
 // ── Provider ──
 
@@ -116,7 +101,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
   private tick() {
     this.lastTickAt = Date.now();
     const now = new Date();
-    for (const job of jobStore.read()) {
+    for (const job of readStoredJobs()) {
       if (!job.enabled || !job.cron) continue;
       if (!cronMatches(job.cron, now)) continue;
       if (this.running.has(job.name)) {
@@ -154,11 +139,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
     this.running.add(job.name);
     this.broadcast({ event: 'job.started', job: job.name, id });
 
-    const outFile = join(LOGS_DIR, `${id}.log`);
-    const logStore = new JsonFileStore<SchedulerLogEntry[]>(
-      join(LOGS_DIR, `${job.name}.json`),
-      [],
-    );
+    const outFile = getSchedulerRunOutputPath(id);
 
     try {
       if (!this.chatFn)
@@ -184,7 +165,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
 
       schedulerJobRuns.add(1, { job: job.name, status: 'success' });
       schedulerJobDuration.record(durationSecs * 1000, { job: job.name });
-      logStore.append({
+      appendSchedulerJobLog(job.name, {
         id,
         job: job.name,
         startedAt,
@@ -214,7 +195,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
 
       const willRetry = (job.retryCount ?? 0) > 0 && attempt < maxAttempts;
 
-      logStore.append({
+      appendSchedulerJobLog(job.name, {
         id,
         job: job.name,
         startedAt,
@@ -293,26 +274,16 @@ export class BuiltinScheduler implements ISchedulerProvider {
   // ── ISchedulerProvider ──
 
   async listJobs(): Promise<SchedulerJob[]> {
-    return jobStore.read().map((j) => {
-      const logs = new JsonFileStore<SchedulerLogEntry[]>(
-        join(LOGS_DIR, `${j.name}.json`),
-        [],
-      ).read();
-      const lastLog = logs[logs.length - 1];
-      const nextTimes = j.cron && j.enabled ? nextCronTimes(j.cron, 1) : [];
-      return {
-        ...j,
-        provider: this.id,
-        lastRun: lastLog?.startedAt,
-        nextRun: nextTimes[0]?.toISOString(),
-      };
-    });
+    return readStoredJobs().map((job) => ({
+      ...getStoredJobView(job),
+      provider: this.id,
+    }));
   }
 
   async addJob(opts: AddJobOpts): Promise<string> {
     if (!opts.name?.trim()) throw new Error('Job name is required');
     if (!opts.prompt?.trim()) throw new Error('Job prompt is required');
-    const jobs = jobStore.read();
+    const jobs = readStoredJobs();
     if (jobs.some((j) => j.name === opts.name))
       throw new Error(`Job '${opts.name}' already exists`);
     jobs.push({
@@ -327,7 +298,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
       enabled: true,
       createdAt: new Date().toISOString(),
     });
-    jobStore.write(jobs);
+    writeStoredJobs(jobs);
     return `Job '${opts.name}' created`;
   }
 
@@ -335,7 +306,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
     target: string,
     opts: Record<string, string | boolean>,
   ): Promise<string> {
-    const jobs = jobStore.read();
+    const jobs = readStoredJobs();
     const job = jobs.find((j) => j.name === target);
     if (!job) throw new Error(`Job '${target}' not found`);
     const PROTECTED = new Set(['name', 'createdAt']);
@@ -343,19 +314,19 @@ export class BuiltinScheduler implements ISchedulerProvider {
       if (PROTECTED.has(k)) continue;
       (job as any)[k] = v;
     }
-    jobStore.write(jobs);
+    writeStoredJobs(jobs);
     return `Job '${target}' updated`;
   }
 
   async removeJob(target: string): Promise<void> {
-    const jobs = jobStore.read();
+    const jobs = readStoredJobs();
     if (!jobs.some((j) => j.name === target))
       throw new Error(`Job '${target}' not found`);
-    jobStore.write(jobs.filter((j) => j.name !== target));
+    writeStoredJobs(jobs.filter((j) => j.name !== target));
   }
 
   async runJob(target: string): Promise<string> {
-    const job = jobStore.read().find((j) => j.name === target);
+    const job = readStoredJobs().find((j) => j.name === target);
     if (!job) throw new Error(`Job '${target}' not found`);
     await this.executeJob(job, true);
     return `Job '${target}' completed`;
@@ -369,56 +340,29 @@ export class BuiltinScheduler implements ISchedulerProvider {
   }
 
   async getJobLogs(target: string, count = 20): Promise<SchedulerLogEntry[]> {
-    return new JsonFileStore<SchedulerLogEntry[]>(
-      join(LOGS_DIR, `${target}.json`),
-      [],
-    )
-      .read()
-      .slice(-count);
+    return readSchedulerJobLogs(target, count);
   }
 
   async getRunOutput(target: string): Promise<string> {
-    const logs = new JsonFileStore<SchedulerLogEntry[]>(
-      join(LOGS_DIR, `${target}.json`),
-      [],
-    ).read();
+    const logs = readSchedulerJobLogs(target);
     const last = logs[logs.length - 1];
     if (!last?.output) return '';
-    return readFileSync(last.output, 'utf-8');
+    return readSchedulerRunOutput(last.output);
   }
 
   async readRunFile(path: string): Promise<string> {
-    const real = realpathSync(path);
-    const logsReal = realpathSync(LOGS_DIR);
-    if (!real.startsWith(logsReal)) throw new Error('Invalid path');
-    return readFileSync(real, 'utf-8');
+    return readSchedulerRunFile(path);
   }
 
   async getStats(): Promise<SchedulerProviderStats> {
-    return {
-      jobs: jobStore.read().map((j) => {
-        const logs = new JsonFileStore<SchedulerLogEntry[]>(
-          join(LOGS_DIR, `${j.name}.json`),
-          [],
-        ).read();
-        const successes = logs.filter((l) => l.success).length;
-        const total = logs.length;
-        return {
-          name: j.name,
-          total,
-          successes,
-          failures: total - successes,
-          success_rate: total ? Math.round((successes / total) * 100) : 0,
-        };
-      }),
-    };
+    return getStoredJobStats();
   }
 
   async getStatus(): Promise<SchedulerProviderStatus> {
     const tickAge = this.lastTickAt ? Date.now() - this.lastTickAt : null;
     return {
       running: this.timer !== null,
-      jobCount: jobStore.read().length,
+      jobCount: readStoredJobs().length,
       lastTickAt: this.lastTickAt
         ? new Date(this.lastTickAt).toISOString()
         : null,
