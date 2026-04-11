@@ -739,6 +739,7 @@ for (const requiredHelper of [
   'export type ACPConnectionStatus =',
   'export class ACPConnection',
   './acp-connection-chat.js',
+  './acp-connection-event-state.js',
   './acp-connection-events.js',
   './acp-connection-lifecycle.js',
   './acp-connection-queries.js',
@@ -761,6 +762,10 @@ for (const retiredInlineAcpConnectionSnippet of [
   "this.connection.extMethod('_kiro.dev/commands/options'",
   'await prepareACPChatTurn({',
   'return streamACPChatResponse(c, {',
+  'const next = flushACPTextPart(',
+  'updateACPToolResultState(',
+  'private getEventFields(): ACPConnectionEventFields {',
+  'private applyEventFields(fields: ACPConnectionEventFields): void {',
 ]) {
   if (acpConnection.includes(retiredInlineAcpConnectionSnippet)) {
     errors.push(`acp-connection.ts must not inline extracted ACP connection event logic ${retiredInlineAcpConnectionSnippet}.`);
@@ -1016,6 +1021,24 @@ for (const requiredHelper of [
 ]) {
   if (!acpConnectionState.includes(requiredHelper)) {
     errors.push(`acp-connection-state.ts must include ${requiredHelper}.`);
+  }
+}
+
+const acpConnectionEventState = readFileSync(
+  new URL('../src-server/services/acp-connection-event-state.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export interface ACPConnectionEventState',
+  'export function getACPConnectionEventStateFields',
+  'export function applyACPConnectionEventStateFields',
+  'export function flushACPConnectionTextPart',
+  'export function updateACPConnectionToolResult',
+  './acp-connection-state.js',
+  './acp-connection-events.js',
+]) {
+  if (!acpConnectionEventState.includes(requiredHelper)) {
+    errors.push(`acp-connection-event-state.ts must include ${requiredHelper}.`);
   }
 }
 
