@@ -3834,6 +3834,53 @@ if (connectionsHubView.includes('fetch(')) {
 if (!connectionsHubView.includes('useConnectionsQuery')) {
   errors.push('ConnectionsHub must use shared SDK connection and integration hooks.');
 }
+for (const requiredImport of [
+  './connections-hub/ConnectionsHubSection',
+  './connections-hub/utils',
+]) {
+  if (!connectionsHubView.includes(requiredImport)) {
+    errors.push(`ConnectionsHub must delegate extracted UI/state helpers to ${requiredImport}.`);
+  }
+}
+for (const retiredInlineConnectionsHubSnippet of [
+  'function IconCloud(',
+  'function IconServer(',
+  'function IconLink(',
+  'function IconDatabase(',
+  'function IconTool(',
+  'function statusClass(',
+  'function describeConnection(',
+  'connections-hub__section-header',
+]) {
+  if (connectionsHubView.includes(retiredInlineConnectionsHubSnippet)) {
+    errors.push(`ConnectionsHub must not inline extracted helper logic ${retiredInlineConnectionsHubSnippet}.`);
+  }
+}
+
+const connectionsHubUtils = readFileSync(
+  new URL('../src-ui/src/views/connections-hub/utils.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function getProviderIcon',
+  'export function getConnectionStatusClass',
+  'export function describeConnection',
+  'export function getConnectionTypeText',
+  'export function IconDatabase',
+  'export function IconTool',
+]) {
+  if (!connectionsHubUtils.includes(requiredHelper)) {
+    errors.push(`connections-hub/utils.tsx must include ${requiredHelper}.`);
+  }
+}
+
+const connectionsHubSection = readFileSync(
+  new URL('../src-ui/src/views/connections-hub/ConnectionsHubSection.tsx', import.meta.url),
+  'utf8',
+);
+if (!connectionsHubSection.includes('export function ConnectionsHubSection')) {
+  errors.push('ConnectionsHubSection.tsx must export ConnectionsHubSection.');
+}
 
 const systemStatusHook = readFileSync(
   new URL('../src-ui/src/hooks/useSystemStatus.ts', import.meta.url),
