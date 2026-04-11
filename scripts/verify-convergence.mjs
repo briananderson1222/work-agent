@@ -3663,9 +3663,8 @@ if (headerView.includes('/api/connections/runtimes')) {
   errors.push('Header must use shared SDK runtime connection queries.');
 }
 for (const requiredImport of [
-  './header/HelpMenu',
-  './header/OverflowMenu',
-  './header/utils',
+  './header/HeaderActions',
+  './header/useHeaderViewModel',
 ]) {
   if (!headerView.includes(requiredImport)) {
     errors.push(`Header.tsx must delegate extracted header logic to ${requiredImport}.`);
@@ -3676,6 +3675,9 @@ for (const retiredInlineHeaderSnippet of [
   "(currentView as any).projectSlug",
   "{showHelp && (",
   "{showOverflow && (",
+  'const createChatSession = useCreateChatSession()',
+  'const { activeConnection } = useConnections()',
+  'checkServerHealth',
 ]) {
   if (headerView.includes(retiredInlineHeaderSnippet)) {
     errors.push(
@@ -3693,6 +3695,40 @@ for (const requiredHelper of [
 ]) {
   if (!headerUtils.includes(requiredHelper)) {
     errors.push(`header/utils.ts must include ${requiredHelper}.`);
+  }
+}
+
+const headerActions = readFileSync(
+  new URL('../src-ui/src/components/header/HeaderActions.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function HeaderActions',
+  '@stallion-ai/connect',
+  '../NotificationHistory',
+  './HelpMenu',
+  './OverflowMenu',
+]) {
+  if (!headerActions.includes(requiredHelper)) {
+    errors.push(`HeaderActions.tsx must include ${requiredHelper}.`);
+  }
+}
+
+const headerViewModel = readFileSync(
+  new URL('../src-ui/src/components/header/useHeaderViewModel.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function useHeaderViewModel',
+  'useRuntimeConnectionsQuery',
+  'useCreateChatSession',
+  'useSendMessage',
+  'useNavigation',
+  'getHelpPrompts',
+  'getHeaderBreadcrumb',
+]) {
+  if (!headerViewModel.includes(requiredHelper)) {
+    errors.push(`useHeaderViewModel.ts must include ${requiredHelper}.`);
   }
 }
 
@@ -3995,10 +4031,6 @@ if (offlineBanner.includes('/api/system/status')) {
 }
 if (!offlineBanner.includes("../lib/serverHealth")) {
   errors.push('OfflineBanner must use the shared server health helper.');
-}
-
-if (!headerView.includes("../lib/serverHealth")) {
-  errors.push('Header must use the shared server health helper.');
 }
 
 const projectSettingsView = readFileSync(
