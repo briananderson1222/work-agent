@@ -4993,7 +4993,8 @@ const projectSidebar = readFileSync(
   'utf8',
 );
 for (const requiredImport of [
-  './project-sidebar/nav-items',
+  './project-sidebar/ProjectSidebarHeader',
+  './project-sidebar/ProjectSidebarNav',
   './project-sidebar/ProjectSidebarRow',
   './project-sidebar/useProjectSidebarState',
   './project-sidebar/utils',
@@ -5007,6 +5008,8 @@ for (const retiredInlineProjectSidebarSnippet of [
   'function useIsMobile()',
   'function ProjectRow(',
   "const STORAGE_KEY = 'stallion-sidebar-collapsed';",
+  'className="sidebar__header"',
+  'className="sidebar__nav"',
 ]) {
   if (projectSidebar.includes(retiredInlineProjectSidebarSnippet)) {
     errors.push(
@@ -5027,6 +5030,35 @@ for (const requiredHelper of [
 ]) {
   if (!projectSidebarRow.includes(requiredHelper)) {
     errors.push(`ProjectSidebarRow.tsx must include ${requiredHelper}.`);
+  }
+}
+
+const projectSidebarHeader = readFileSync(
+  new URL('../src-ui/src/components/project-sidebar/ProjectSidebarHeader.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function ProjectSidebarHeader',
+  'sidebar__header',
+  'sidebar__toggle',
+]) {
+  if (!projectSidebarHeader.includes(requiredHelper)) {
+    errors.push(`ProjectSidebarHeader.tsx must include ${requiredHelper}.`);
+  }
+}
+
+const projectSidebarNav = readFileSync(
+  new URL('../src-ui/src/components/project-sidebar/ProjectSidebarNav.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function ProjectSidebarNav',
+  './nav-items',
+  'sidebar__nav',
+  'sidebar__nav-btn',
+]) {
+  if (!projectSidebarNav.includes(requiredHelper)) {
+    errors.push(`ProjectSidebarNav.tsx must include ${requiredHelper}.`);
   }
 }
 
