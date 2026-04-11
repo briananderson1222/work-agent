@@ -5190,13 +5190,47 @@ const messageBubble = readFileSync(
 if (messageBubble.includes('fetch(')) {
   errors.push('MessageBubble must not issue raw fetch() calls.');
 }
+for (const requiredImport of [
+  './message-bubble/MessageContent',
+  './message-bubble/MessageRating',
+  './message-bubble/utils',
+]) {
+  if (!messageBubble.includes(requiredImport)) {
+    errors.push(`MessageBubble must delegate extracted message bubble logic to ${requiredImport}.`);
+  }
+}
+for (const retiredInlineMessageBubbleSnippet of [
+  'function MessageRating(',
+  'function getModelDisplayName(',
+  'useFeedbackRatingsQuery',
+  'useSaveFeedbackRatingMutation',
+  'useDeleteFeedbackRatingMutation',
+  'remarkPlugins={[remarkGfm]}',
+]) {
+  if (messageBubble.includes(retiredInlineMessageBubbleSnippet)) {
+    errors.push(
+      `MessageBubble must not inline extracted message bubble logic ${retiredInlineMessageBubbleSnippet}.`,
+    );
+  }
+}
+const messageBubbleUtils = readFileSync(
+  new URL('../src-ui/src/components/chat/message-bubble/utils.ts', import.meta.url),
+  'utf8',
+);
+if (!messageBubbleUtils.includes('export function getModelDisplayName')) {
+  errors.push('message-bubble/utils.ts must export getModelDisplayName.');
+}
+const messageBubbleRating = readFileSync(
+  new URL('../src-ui/src/components/chat/message-bubble/MessageRating.tsx', import.meta.url),
+  'utf8',
+);
 for (const requiredHook of [
   'useFeedbackRatingsQuery',
   'useSaveFeedbackRatingMutation',
   'useDeleteFeedbackRatingMutation',
 ]) {
-  if (!messageBubble.includes(requiredHook)) {
-    errors.push(`MessageBubble must use ${requiredHook}.`);
+  if (!messageBubbleRating.includes(requiredHook)) {
+    errors.push(`MessageRating.tsx must use ${requiredHook}.`);
   }
 }
 
