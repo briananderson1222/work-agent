@@ -4406,15 +4406,56 @@ const activeChatSessions = readFileSync(
   'utf8',
 );
 for (const requiredHelper of [
+  "export {",
+  './useActiveChatSessionLifecycle',
+  './useActiveChatSessionMessaging',
+]) {
+  if (!activeChatSessions.includes(requiredHelper)) {
+    errors.push(`useActiveChatSessions.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredActiveChatSessionSnippet of [
   'export function usePruneActiveChats',
   'export function useSendMessage',
   'export function useCancelMessage',
   'export function useCreateChatSession',
   'export function useOpenConversation',
+  'export function useLaunchChat',
   'export function useRehydrateSessions',
 ]) {
-  if (!activeChatSessions.includes(requiredHelper)) {
-    errors.push(`useActiveChatSessions.ts must include ${requiredHelper}.`);
+  if (activeChatSessions.includes(retiredActiveChatSessionSnippet)) {
+    errors.push(`useActiveChatSessions.ts must stay a thin barrel and not inline ${retiredActiveChatSessionSnippet}.`);
+  }
+}
+
+const activeChatSessionLifecycle = readFileSync(
+  new URL('../src-ui/src/hooks/useActiveChatSessionLifecycle.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function usePruneActiveChats',
+  'export function useCreateChatSession',
+  'export function useOpenConversation',
+  'export function useLaunchChat',
+  'export function useRehydrateSessions',
+]) {
+  if (!activeChatSessionLifecycle.includes(requiredHelper)) {
+    errors.push(`useActiveChatSessionLifecycle.ts must include ${requiredHelper}.`);
+  }
+}
+
+const activeChatSessionMessaging = readFileSync(
+  new URL('../src-ui/src/hooks/useActiveChatSessionMessaging.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function useSendMessage',
+  'export function useCancelMessage',
+  './useOrchestration',
+  './useStreamingMessage',
+]) {
+  if (!activeChatSessionMessaging.includes(requiredHelper)) {
+    errors.push(`useActiveChatSessionMessaging.ts must include ${requiredHelper}.`);
   }
 }
 
