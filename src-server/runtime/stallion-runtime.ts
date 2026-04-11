@@ -4,20 +4,18 @@
  */
 
 import { EventEmitter } from 'node:events';
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import type { AppConfig } from '@stallion-ai/contracts/config';
 import {
   Agent,
   type MCPConfiguration,
   type Tool,
   VoltAgent,
 } from '@voltagent/core';
-import type { AgentSpec } from '@stallion-ai/contracts/agent';
-import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { HonoServerConfig } from '@voltagent/server-hono';
 import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { UsageAggregator } from '../analytics/usage-aggregator.js';
-import {
-  ConfigLoader,
-} from '../domain/config-loader.js';
+import { ConfigLoader } from '../domain/config-loader.js';
 import type { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import { getOrchestrationDatabasePath } from '../domain/migrations/003-orchestration-events.js';
 import type { MonitoringEmitter } from '../monitoring/emitter.js';
@@ -48,35 +46,36 @@ import { createLogger } from '../utils/logger.js';
 import { resolveHomeDir } from '../utils/paths.js';
 import type { VoiceSessionService } from '../voice/voice-session.js';
 import { createAgentHooks } from './agent-hooks.js';
+import * as MCPManager from './mcp-manager.js';
 import { buildRuntimeAgentInstance } from './runtime-agent-builder.js';
 import {
   reloadRuntimeAgents,
   reloadRuntimeSkillsAndAgents,
   switchRuntimeAgent,
 } from './runtime-agent-lifecycle.js';
+import { buildRuntimeContext as createRuntimeContext } from './runtime-context-builder.js';
+import { SC_READ_ONLY_TOOLS } from './runtime-control-tools.js';
+import { RuntimeEventLog } from './runtime-event-log.js';
+import {
+  runRuntimeHealthChecks,
+  startRuntimeHealthChecks,
+} from './runtime-health.js';
+import { initializeRuntime } from './runtime-initialize.js';
+import { createRuntimeInitializationDeps } from './runtime-initialize-deps.js';
 import {
   createRuntimeFrameworkModel,
   resolveRuntimeEmbeddingProvider,
   resolveRuntimeVectorDbProvider,
 } from './runtime-provider-resolution.js';
-import { createRuntimeServiceBundle } from './runtime-service-bootstrap.js';
-import * as MCPManager from './mcp-manager.js';
-import { buildRuntimeContext as createRuntimeContext } from './runtime-context-builder.js';
-import {
-  runRuntimeHealthChecks,
-  startRuntimeHealthChecks,
-} from './runtime-health.js';
-import { SC_READ_ONLY_TOOLS } from './runtime-control-tools.js';
-import { initializeRuntime } from './runtime-initialize.js';
-import { createRuntimeInitializationDeps } from './runtime-initialize-deps.js';
 import { configureRuntimeRoutes } from './runtime-routes.js';
+import { createRuntimeServiceBundle } from './runtime-service-bootstrap.js';
 import { shutdownRuntimeServices } from './runtime-shutdown.js';
+import { checkOllamaAvailability } from './runtime-startup.js';
 import { replaceRuntimeTemplateVariables } from './runtime-template-variables.js';
 import { bootstrapRuntimeVoiceAgent } from './runtime-voice-agent.js';
 import { StrandsFramework } from './strands-adapter.js';
 import type { RuntimeContext } from './types.js';
 import { VoltAgentFramework } from './voltagent-adapter.js';
-import { RuntimeEventLog } from './runtime-event-log.js';
 
 export interface StallionRuntimeOptions {
   projectHomeDir?: string;
@@ -262,7 +261,8 @@ export class StallionRuntime {
       voltAgent: this.voltAgent,
       logger: this.logger,
       eventBus: this.eventBus,
-      createVoltAgentInstance: async (slug) => this.createVoltAgentInstance(slug),
+      createVoltAgentInstance: async (slug) =>
+        this.createVoltAgentInstance(slug),
       loadAppConfig: async () => this.configLoader.loadAppConfig(),
       applyLogLevel: (appConfig) => {
         if (appConfig.logLevel) {
@@ -276,7 +276,8 @@ export class StallionRuntime {
     await bootstrapRuntimeVoiceAgent({
       agentSpecs: this.agentSpecs.values(),
       configLoader: this.configLoader,
-      createVoltAgentInstance: async (slug) => this.createVoltAgentInstance(slug),
+      createVoltAgentInstance: async (slug) =>
+        this.createVoltAgentInstance(slug),
       agentTools: this.agentTools,
       logger: this.logger,
     });
@@ -292,7 +293,8 @@ export class StallionRuntime {
       storageAdapter: this.storageAdapter,
       activeAgents: this.activeAgents,
       logger: this.logger,
-      createVoltAgentInstance: async (slug) => this.createVoltAgentInstance(slug),
+      createVoltAgentInstance: async (slug) =>
+        this.createVoltAgentInstance(slug),
     });
   }
 
@@ -408,6 +410,7 @@ export class StallionRuntime {
       eventLogPath: this.eventLogPath,
       queryEventsFromDisk: (start: number, end: number, userId: string) =>
         this.eventLog.queryEvents(start, end, userId),
+      checkOllamaAvailability,
       buildRuntimeContext: () => this.buildRuntimeContext(),
       reloadAgents: async () => this.reloadAgents(),
       reloadSkillsAndAgents: async () => this.reloadSkillsAndAgents(),
@@ -539,7 +542,8 @@ export class StallionRuntime {
       activeAgents: this.activeAgents,
       voltAgent: this.voltAgent,
       logger: this.logger,
-      createVoltAgentInstance: async (slug) => this.createVoltAgentInstance(slug),
+      createVoltAgentInstance: async (slug) =>
+        this.createVoltAgentInstance(slug),
     });
   }
 

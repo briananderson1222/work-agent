@@ -1,17 +1,18 @@
-import type { Agent } from '@voltagent/core';
-import type { HonoServerConfig } from '@voltagent/server-hono';
 import { ACPStatus } from '@stallion-ai/contracts/acp';
 import type { AppConfig } from '@stallion-ai/contracts/config';
+import type { Agent } from '@voltagent/core';
+import type { HonoServerConfig } from '@voltagent/server-hono';
+import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
+import type { ConfigLoader } from '../domain/config-loader.js';
+import type { FileStorageAdapter } from '../domain/file-storage-adapter.js';
+import type { MonitoringEmitter } from '../monitoring/emitter.js';
 import { createOtlpReceiverRoutes } from '../monitoring/otlp-receiver.js';
-import { getNotificationProviders } from '../providers/registry.js';
+import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { createACPRoutes } from '../routes/acp.js';
 import { createAgentToolRoutes } from '../routes/agent-tools.js';
 import { createAgentRoutes } from '../routes/agents.js';
 import { createAnalyticsRoutes } from '../routes/analytics.js';
-import {
-  createAuthRoutes,
-  createUserRoutes,
-} from '../routes/auth.js';
+import { createAuthRoutes, createUserRoutes } from '../routes/auth.js';
 import { createBedrockRoutes } from '../routes/bedrock.js';
 import { createBrandingRoutes } from '../routes/branding.js';
 import { createChatRoutes } from '../routes/chat.js';
@@ -50,7 +51,6 @@ import { createTemplateRoutes } from '../routes/templates.js';
 import { createToolRoutes } from '../routes/tools.js';
 import { createUICommandRoutes } from '../routes/ui-commands.js';
 import { createVoiceRoutes } from '../routes/voice.js';
-import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ACPManager } from '../services/acp-bridge.js';
 import type { AgentService } from '../services/agent-service.js';
 import type { ConnectionService } from '../services/connection-service.js';
@@ -60,24 +60,24 @@ import type { FileTreeService } from '../services/file-tree-service.js';
 import type { KnowledgeService } from '../services/knowledge-service.js';
 import type { LayoutService } from '../services/layout-service.js';
 import type { MCPService } from '../services/mcp-service.js';
-import { NotificationService } from '../services/notification-service.js';
+import type { NotificationService } from '../services/notification-service.js';
 import type { OrchestrationService } from '../services/orchestration-service.js';
 import type { ProjectService } from '../services/project-service.js';
 import { PromptService } from '../services/prompt-service.js';
 import type { ProviderService } from '../services/provider-service.js';
-import { SchedulerService } from '../services/scheduler-service.js';
+import type { SchedulerService } from '../services/scheduler-service.js';
 import type { SkillService } from '../services/skill-service.js';
-import type { MonitoringEmitter } from '../monitoring/emitter.js';
-import type { ConfigLoader } from '../domain/config-loader.js';
-import type { FileStorageAdapter } from '../domain/file-storage-adapter.js';
-import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
-import { configureRuntimeHttp } from './runtime-http.js';
-import type { RuntimeContext } from './types.js';
 import type { Logger } from '../utils/logger.js';
+import { configureRuntimeHttp } from './runtime-http.js';
+import {
+  configureRuntimeSupportServices,
+  createRuntimeSystemRouteDeps,
+} from './runtime-route-support.js';
+import type { RuntimeContext } from './types.js';
 
 type HonoApp = Parameters<NonNullable<HonoServerConfig['configureApp']>>[0];
 
-interface ConfigureRuntimeRoutesContext {
+export interface ConfigureRuntimeRoutesContext {
   app: HonoApp;
   logger: Logger;
   eventBus: EventBus;
@@ -122,6 +122,7 @@ interface ConfigureRuntimeRoutesContext {
     end: number,
     userId: string,
   ) => Promise<any[]>;
+  checkOllamaAvailability: () => Promise<boolean>;
   buildRuntimeContext: () => RuntimeContext;
   reloadAgents: () => Promise<void>;
   reloadSkillsAndAgents: () => Promise<void>;
@@ -148,25 +149,7 @@ export function configureRuntimeRoutes(
   context.app.route('/api/models', modelsRoute);
   context.app.route(
     '/api/system',
-    createSystemRoutes(
-      {
-        getACPStatus: () => {
-          const status = context.acpBridge.getStatus();
-          return {
-            connected: status.connections.some(
-              (connection: any) => connection.status === ACPStatus.AVAILABLE,
-            ),
-            connections: status.connections,
-          };
-        },
-        getAppConfig: () => context.appConfig,
-        eventBus: context.eventBus,
-        appConfig: context.appConfig,
-        port: context.port,
-        skillService: context.skillService,
-      },
-      context.logger,
-    ),
+    createSystemRoutes(createRuntimeSystemRouteDeps(context), context.logger),
   );
   context.app.route(
     '/api/analytics',
@@ -383,33 +366,12 @@ export function configureRuntimeRoutes(
     ),
   );
 
-  const schedulerService = new SchedulerService(context.logger);
-  schedulerService.setChatFn(async (agentSlug, prompt) => {
-    const resolvedSlug =
-      agentSlug === 'default'
-        ? context.activeAgents.keys().next().value || agentSlug
-        : agentSlug;
-    const agent = context.activeAgents.get(resolvedSlug);
-    if (!agent) {
-      throw new Error(`Agent '${resolvedSlug}' not found`);
-    }
-    const result = await agent.generateText(prompt);
-    return result.text;
-  });
+  const { schedulerService, notificationService } =
+    configureRuntimeSupportServices(context);
   context.app.route(
     '/scheduler',
     createSchedulerRoutes(schedulerService, context.logger),
   );
-
-  const notificationService = new NotificationService(
-    context.eventBus,
-    context.configLoader.getProjectHomeDir(),
-    60_000,
-  );
-  for (const { provider } of getNotificationProviders()) {
-    notificationService.addProvider(provider);
-  }
-  notificationService.start();
   schedulerService.setNotificationService(notificationService);
   context.app.route(
     '/notifications',
@@ -419,7 +381,10 @@ export function configureRuntimeRoutes(
     '/api/feedback',
     createFeedbackRoutes(context.feedbackService),
   );
-  context.app.route('/api/insights', createInsightsRoutes(context.eventLogPath));
+  context.app.route(
+    '/api/insights',
+    createInsightsRoutes(context.eventLogPath),
+  );
   context.app.route('/api/voice', createVoiceRoutes(context.voiceService));
 
   const promptRoutes = createPromptRoutes(new PromptService(), context.logger);

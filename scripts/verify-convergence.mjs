@@ -1768,13 +1768,40 @@ const runtimeRoutes = readFileSync(
 for (const requiredHelper of [
   'export function configureRuntimeRoutes',
   "./runtime-http.js",
+  "./runtime-route-support.js",
+  'createRuntimeSystemRouteDeps(context)',
+  'configureRuntimeSupportServices(context)',
   'createPluginRoutes(',
   'createConversationRoutes(',
-  'new SchedulerService(',
-  'new NotificationService(',
 ]) {
   if (!runtimeRoutes.includes(requiredHelper)) {
     errors.push(`runtime-routes.ts must define or include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineRuntimeRoutesSnippet of [
+  'const schedulerService = new SchedulerService(',
+  'const notificationService = new NotificationService(',
+  'context.providerService.listProviderConnections().map(',
+]) {
+  if (runtimeRoutes.includes(retiredInlineRuntimeRoutesSnippet)) {
+    errors.push(`runtime-routes.ts must not inline extracted runtime support logic ${retiredInlineRuntimeRoutesSnippet}.`);
+  }
+}
+
+const runtimeRouteSupport = readFileSync(
+  new URL('../src-server/runtime/runtime-route-support.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function createRuntimeSystemRouteDeps',
+  'export function configureRuntimeSupportServices',
+  'new SchedulerService(',
+  'new NotificationService(',
+  'getNotificationProviders()',
+  'checkOllamaAvailability: context.checkOllamaAvailability',
+]) {
+  if (!runtimeRouteSupport.includes(requiredHelper)) {
+    errors.push(`runtime-route-support.ts must define or include ${requiredHelper}.`);
   }
 }
 
