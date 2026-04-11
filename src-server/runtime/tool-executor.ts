@@ -5,16 +5,16 @@
 
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import type { AppConfig } from '@stallion-ai/contracts/config';
-import { createHooks, type Tool } from '@voltagent/core';
+import { createHooks } from '@voltagent/core';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
-import type { ApprovalRegistry } from '../services/approval-registry.js';
 import {
   contextTokens as otelContextTokens,
   costEstimated as otelCost,
 } from '../telemetry/metrics.js';
 import { findModelPricing } from '../utils/pricing.js';
+import { isAutoApproved } from './tool-approval.js';
 import {
   buildConversationStatsUpdate,
   type ConversationStats,
@@ -26,11 +26,6 @@ import {
   getUsageTotalTokens,
 } from './usage-stats.js';
 
-// Type extensions for tool executor
-interface ToolWithDescription extends Omit<Tool<any>, 'description'> {
-  description?: string;
-}
-
 interface UIMessagePart {
   type: string;
   text?: string;
@@ -39,114 +34,6 @@ interface UIMessagePart {
 interface UIMessage {
   role: string;
   parts?: UIMessagePart[];
-}
-
-/**
- * Check if tool name matches any auto-approve pattern
- * Supports wildcards: "tool_*" matches "tool_read", "tool_write", etc.
- */
-export function isAutoApproved(toolName: string, patterns: string[]): boolean {
-  return patterns.some((pattern) => {
-    if (pattern === '*') return true;
-    const regexPattern = pattern
-      .replace(/[.+?^${}()|[\]\\]/g, '\\$&')
-      .replace(/\*/g, '.*');
-    return new RegExp(`^${regexPattern}$`).test(toolName);
-  });
-}
-
-/**
- * Wrap a tool to add elicitation-based approval for non-auto-approved tools
- */
-export function wrapToolWithElicitation(
-  tool: Tool<any>,
-  spec: AgentSpec,
-  _toolNameMapping: Map<
-    string,
-    {
-      original: string;
-      normalized: string;
-      server: string | null;
-      tool: string;
-    }
-  >,
-  _approvalRegistry: ApprovalRegistry,
-  logger: any,
-): Tool<any> {
-  if (!spec?.tools) return tool;
-
-  const autoApprove = spec.tools.autoApprove || [];
-  const isAutoApprovedTool = autoApprove.some((pattern) => {
-    if (pattern === '*') return true;
-    if (pattern.endsWith('*')) {
-      return tool.name.startsWith(pattern.slice(0, -1));
-    }
-    return tool.name === pattern;
-  });
-
-  if (isAutoApprovedTool) {
-    logger.debug('[Wrapper] Tool auto-approved, skipping wrapper', {
-      toolName: tool.name,
-    });
-    return tool;
-  }
-
-  logger.debug('[Wrapper] Wrapping tool with elicitation', {
-    toolName: tool.name,
-  });
-
-  // Wrap the execute function
-  const originalExecute = tool.execute;
-  if (!originalExecute) return tool;
-
-  return {
-    ...tool,
-    execute: async (args: any, options: any) => {
-      // Get elicitation from options (VoltAgent passes OperationContext properties directly)
-      const elicitation = options?.elicitation;
-
-      logger.debug('[Wrapper] Tool execute called, requesting approval', {
-        toolName: tool.name,
-        hasElicitation: !!elicitation,
-      });
-
-      // Request approval via elicitation
-      if (elicitation) {
-        logger.debug('[Wrapper] Calling elicitation for approval', {
-          toolName: tool.name,
-        });
-
-        const approved = await elicitation({
-          type: 'tool-approval',
-          toolName: tool.name,
-          toolDescription: (tool as ToolWithDescription).description || '',
-          toolArgs: args,
-        });
-
-        logger.info('[Wrapper] Tool approval decision', {
-          toolName: tool.name,
-          approved,
-          reason: approved ? 'user_approved' : 'user_denied',
-        });
-
-        if (!approved) {
-          // Return a clear message to the LLM instead of throwing an error
-          return {
-            success: false,
-            error: 'USER_DENIED',
-            message: `I requested permission to use this tool, but the user explicitly denied the request. I should ask what I should do differently.`,
-          };
-        }
-      } else {
-        logger.info('[Wrapper] Tool auto-approved (no elicitation available)', {
-          toolName: tool.name,
-        });
-      }
-
-      // Execute the original tool
-      return originalExecute(args, options);
-    },
-  };
 }
 
 /**
@@ -412,3 +299,4 @@ export {
   calculateContextWindowPercentage,
   calculateUsageCost as calculateCost,
 } from './usage-stats.js';
+export { isAutoApproved, wrapToolWithElicitation } from './tool-approval.js';

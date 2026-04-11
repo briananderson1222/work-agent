@@ -1576,15 +1576,35 @@ const toolExecutor = readFileSync(
   new URL('../src-server/runtime/tool-executor.ts', import.meta.url),
   'utf8',
 );
+if (!toolExecutor.includes("./tool-approval.js")) {
+  errors.push('tool-executor.ts must delegate approval matching and elicitation wrapping to tool-approval.ts.');
+}
 if (!toolExecutor.includes("./usage-stats.js")) {
   errors.push('tool-executor.ts must delegate shared usage math to usage-stats.ts.');
 }
 for (const retiredInlineUsageSnippet of [
   'export async function calculateCost(',
   'export function calculateContextWindowPercentage(',
+  'export function isAutoApproved(',
+  'export function wrapToolWithElicitation(',
 ]) {
   if (toolExecutor.includes(retiredInlineUsageSnippet)) {
     errors.push(`tool-executor.ts must not inline shared usage helper ${retiredInlineUsageSnippet}.`);
+  }
+}
+
+const toolApproval = readFileSync(
+  new URL('../src-server/runtime/tool-approval.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function isAutoApproved',
+  'export function wrapToolWithElicitation',
+  "error: 'USER_DENIED'",
+  "type: 'tool-approval'",
+]) {
+  if (!toolApproval.includes(requiredHelper)) {
+    errors.push(`tool-approval.ts must include ${requiredHelper}.`);
   }
 }
 
