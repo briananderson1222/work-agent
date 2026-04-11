@@ -1960,6 +1960,58 @@ for (const requiredHelper of [
   }
 }
 
+const routeSchemas = readFileSync(
+  new URL('../src-server/routes/schemas.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  "export * from './schema-definitions.js';",
+  "export * from './schema-validation.js';",
+]) {
+  if (!routeSchemas.includes(requiredHelper)) {
+    errors.push(`src-server/routes/schemas.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineSchemaSnippet of [
+  'export const acpConnectionSchema = z.object({',
+  'export function validate<T>(schema: z.ZodSchema<T>)',
+  'export function getBody(c: Context): any',
+]) {
+  if (routeSchemas.includes(retiredInlineSchemaSnippet)) {
+    errors.push(`src-server/routes/schemas.ts must not inline extracted schema logic ${retiredInlineSchemaSnippet}.`);
+  }
+}
+
+const routeSchemaDefinitions = readFileSync(
+  new URL('../src-server/routes/schema-definitions.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export const acpConnectionSchema',
+  'export const pluginInstallSchema',
+  'export const skillCreateSchema',
+  "import { validateCron } from '../services/cron.js';",
+]) {
+  if (!routeSchemaDefinitions.includes(requiredHelper)) {
+    errors.push(`src-server/routes/schema-definitions.ts must include ${requiredHelper}.`);
+  }
+}
+
+const routeSchemaValidation = readFileSync(
+  new URL('../src-server/routes/schema-validation.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function validate<T>(schema: z.ZodSchema<T>)',
+  'export function getBody(c: Context): any',
+  'export function param(c: Context, name: string): string',
+  'export function errorMessage(error: unknown): string',
+]) {
+  if (!routeSchemaValidation.includes(requiredHelper)) {
+    errors.push(`src-server/routes/schema-validation.ts must include ${requiredHelper}.`);
+  }
+}
+
 const sdkTypesIndex = readFileSync(
   new URL('../packages/sdk/src/types/index.ts', import.meta.url),
   'utf8',
