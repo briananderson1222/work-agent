@@ -66,5 +66,13 @@ describe('builtin-scheduler-storage', () => {
     expect(() => storage.readSchedulerRunFile(outsidePath)).toThrow(
       'Invalid path',
     );
+
+    const siblingLogsPath = join(tempDir, 'scheduler', 'logs-archive');
+    mkdirSync(siblingLogsPath, { recursive: true });
+    const siblingOutputPath = join(siblingLogsPath, 'nightly-2.log');
+    writeFileSync(siblingOutputPath, 'still nope');
+    expect(() => storage.readSchedulerRunFile(siblingOutputPath)).toThrow(
+      'Invalid path',
+    );
   });
 });

@@ -1,5 +1,5 @@
 import { readFileSync, realpathSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import type {
   SchedulerLogEntry,
   SchedulerProviderStats,
@@ -68,7 +68,12 @@ export function readSchedulerRunOutput(path: string): string {
 export function readSchedulerRunFile(path: string): string {
   const real = realpathSync(path);
   const logsReal = realpathSync(SCHEDULER_LOGS_DIR);
-  if (!real.startsWith(logsReal)) {
+  const relativePath = relative(logsReal, real);
+  if (
+    relativePath === '' ||
+    relativePath.startsWith(`..${sep}`) ||
+    relativePath === '..'
+  ) {
     throw new Error('Invalid path');
   }
   return readFileSync(real, 'utf-8');
