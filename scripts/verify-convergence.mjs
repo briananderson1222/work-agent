@@ -3603,7 +3603,7 @@ for (const requiredImport of [
   './plugin-management/PluginDetailPanel',
   './plugin-management/PluginEmptyState',
   './plugin-management/PluginModalStack',
-  './plugin-management/view-utils',
+  './plugin-management/usePluginManagementViewModel',
 ]) {
   if (!pluginManagementView.includes(requiredImport)) {
     errors.push(`PluginManagementView must delegate extracted UI to ${requiredImport}.`);
@@ -3623,6 +3623,16 @@ for (const retiredInlinePluginSnippet of [
   }
 }
 for (const requiredHook of [
+  'usePluginManagementViewModel',
+  'PluginDetailPanel',
+  'PluginEmptyState',
+  'PluginModalStack',
+]) {
+  if (!pluginManagementView.includes(requiredHook)) {
+    errors.push(`PluginManagementView must use shared SDK helper ${requiredHook}.`);
+  }
+}
+for (const retiredInlinePluginLogic of [
   'usePluginSettingsQuery',
   'usePluginChangelogQuery',
   'usePluginProvidersQuery',
@@ -3631,9 +3641,37 @@ for (const requiredHook of [
   'useCreateProjectMutation',
   'useAddProjectLayoutFromPluginMutation',
   'waitForAgentHealth',
+  'async function install(',
+  'function updatePlugin(',
+  'function remove(',
 ]) {
-  if (!pluginManagementView.includes(requiredHook)) {
-    errors.push(`PluginManagementView must use shared SDK helper ${requiredHook}.`);
+  if (pluginManagementView.includes(retiredInlinePluginLogic)) {
+    errors.push(
+      `PluginManagementView must not inline extracted plugin-management logic ${retiredInlinePluginLogic}.`,
+    );
+  }
+}
+
+const pluginManagementViewModel = readFileSync(
+  new URL('../src-ui/src/views/plugin-management/usePluginManagementViewModel.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function usePluginManagementViewModel',
+  'usePluginSettingsQuery',
+  'usePluginChangelogQuery',
+  'usePluginProvidersQuery',
+  'usePluginSettingsMutation',
+  'useReloadPluginsMutation',
+  'useCreateProjectMutation',
+  'useAddProjectLayoutFromPluginMutation',
+  'waitForAgentHealth',
+  'toggleSetValue',
+]) {
+  if (!pluginManagementViewModel.includes(requiredHelper)) {
+    errors.push(
+      `plugin-management/usePluginManagementViewModel.ts must include ${requiredHelper}.`,
+    );
   }
 }
 
@@ -3645,6 +3683,7 @@ for (const requiredHelper of [
   'export function filterPlugins',
   'export function buildPluginListItems',
   'export function slugifyProjectName',
+  'export function toggleSetValue',
 ]) {
   if (!pluginManagementUtils.includes(requiredHelper)) {
     errors.push(`plugin-management/view-utils.ts must include ${requiredHelper}.`);

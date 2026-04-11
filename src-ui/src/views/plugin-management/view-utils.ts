@@ -27,3 +27,16 @@ export function slugifyProjectName(name: string) {
       .replace(/^-|-$/g, '') || 'default'
   );
 }
+
+export function toggleSetValue(
+  current: ReadonlySet<string>,
+  value: string,
+): Set<string> {
+  const next = new Set(current);
+  if (next.has(value)) {
+    next.delete(value);
+  } else {
+    next.add(value);
+  }
+  return next;
+}

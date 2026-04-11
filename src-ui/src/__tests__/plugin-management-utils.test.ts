@@ -3,6 +3,7 @@ import {
   buildPluginListItems,
   filterPlugins,
   slugifyProjectName,
+  toggleSetValue,
 } from '../views/plugin-management/view-utils';
 
 describe('plugin management utils', () => {
@@ -50,5 +51,16 @@ describe('plugin management utils', () => {
       'alpha-tools-layout',
     );
     expect(slugifyProjectName('***')).toBe('default');
+  });
+
+  it('toggles set values immutably', () => {
+    const original = new Set(['alpha']);
+
+    const added = toggleSetValue(original, 'beta');
+    const removed = toggleSetValue(added, 'alpha');
+
+    expect([...original]).toEqual(['alpha']);
+    expect([...added].sort()).toEqual(['alpha', 'beta']);
+    expect([...removed]).toEqual(['beta']);
   });
 });
