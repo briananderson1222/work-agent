@@ -5234,6 +5234,34 @@ for (const requiredHook of [
   }
 }
 
+const connectionManagerModalContent = readFileSync(
+  new URL('../packages/connect/src/react/ConnectionManagerModalContent.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredImport of [
+  './connection-manager-modal/ConnectionListPanel',
+  './connection-manager-modal/ManualAddPanel',
+]) {
+  if (!connectionManagerModalContent.includes(requiredImport)) {
+    errors.push(
+      `ConnectionManagerModalContent.tsx must delegate extracted modal sections to ${requiredImport}.`,
+    );
+  }
+}
+for (const retiredInlineConnectionManagerSnippet of [
+  'const inputStyle:',
+  'const primaryBtnStyle:',
+  'const secondaryBtnStyle:',
+  'const iconBtnStyle:',
+  '{connections.map((conn) =>',
+]) {
+  if (connectionManagerModalContent.includes(retiredInlineConnectionManagerSnippet)) {
+    errors.push(
+      `ConnectionManagerModalContent.tsx must not inline extracted modal logic ${retiredInlineConnectionManagerSnippet}.`,
+    );
+  }
+}
+
 const chatRoute = readFileSync(
   new URL('../src-server/routes/chat.ts', import.meta.url),
   'utf8',

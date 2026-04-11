@@ -1,6 +1,7 @@
-import React, { useCallback, useState } from 'react';
+import { useCallback, useState } from 'react';
 import type { SavedConnection } from '../core/types';
-import { ConnectionStatusDot } from './ConnectionStatusDot';
+import { ConnectionListPanel } from './connection-manager-modal/ConnectionListPanel';
+import { ManualAddPanel } from './connection-manager-modal/ManualAddPanel';
 import { useConnections } from './ConnectionsContext';
 import { QRScanner } from './QRScanner';
 import { ConnectionManagerDiscoverPanel } from './ConnectionManagerDiscoverPanel';
@@ -143,233 +144,42 @@ export function ConnectionManagerModalContent({
         </div>
 
         {panel === 'list' && (
-          <>
-            <div
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 8,
-                marginBottom: 16,
-              }}
-            >
-              {connections.length === 0 && (
-                <p
-                  style={{
-                    margin: 0,
-                    fontSize: 13,
-                    color: 'var(--text-secondary, #999)',
-                    textAlign: 'center',
-                    padding: '16px 0',
-                  }}
-                >
-                  No connections saved yet.
-                </p>
-              )}
-              {connections.map((conn) =>
-                editingId === conn.id ? (
-                  <div
-                    key={conn.id}
-                    style={{
-                      background: 'var(--bg-primary, #0a0a0a)',
-                      border: '1px solid var(--accent-primary, #3b82f6)',
-                      borderRadius: 8,
-                      padding: 12,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 8,
-                    }}
-                  >
-                    <input
-                      type="text"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      placeholder="Name"
-                      style={inputStyle}
-                    />
-                    <input
-                      type="text"
-                      value={editUrl}
-                      onChange={(e) => setEditUrl(e.target.value)}
-                      placeholder="http://192.168.1.x:3141"
-                      style={inputStyle}
-                    />
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <button
-                        type="button"
-                        onClick={saveEdit}
-                        style={primaryBtnStyle}
-                      >
-                        Save
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(null)}
-                        style={secondaryBtnStyle}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div
-                    key={conn.id}
-                    style={{
-                      background:
-                        conn.id === activeConnection?.id
-                          ? 'var(--bg-hover, #252525)'
-                          : 'var(--bg-primary, #0a0a0a)',
-                      border: `1px solid ${conn.id === activeConnection?.id ? 'var(--accent-primary, #3b82f6)' : 'var(--border-primary, #333)'}`,
-                      borderRadius: 8,
-                      padding: '10px 14px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 10,
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => {
-                      setActiveConnection(conn.id);
-                      checkOne(conn);
-                    }}
-                  >
-                    <ConnectionStatusDot
-                      status={statusForConn(conn)}
-                      size={8}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: 14,
-                          fontWeight: 600,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {conn.name || conn.url}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 11,
-                          color: 'var(--text-secondary, #999)',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
-                        {conn.url}
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          checkOne(conn);
-                        }}
-                        title="Check connection"
-                        style={iconBtnStyle}
-                      >
-                        ↻
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          startEdit(conn);
-                        }}
-                        title="Edit"
-                        style={iconBtnStyle}
-                      >
-                        ✎
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeConnection(conn.id);
-                        }}
-                        title="Remove"
-                        style={{
-                          ...iconBtnStyle,
-                          color: 'var(--error-text, #ef4444)',
-                        }}
-                      >
-                        ×
-                      </button>
-                    </div>
-                  </div>
-                ),
-              )}
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => setPanel('add')}
-                style={{ ...secondaryBtnStyle, flex: 1 }}
-              >
-                + Add Manually
-              </button>
-              <button
-                type="button"
-                onClick={() => setPanel('scan')}
-                style={{ ...secondaryBtnStyle, flex: 1 }}
-              >
-                Scan QR
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setPanel('discover');
-                  scan();
-                }}
-                style={{ ...secondaryBtnStyle, flex: 1 }}
-              >
-                Discover
-              </button>
-            </div>
-          </>
+          <ConnectionListPanel
+            connections={connections}
+            activeConnectionId={activeConnection?.id}
+            editingId={editingId}
+            editName={editName}
+            editUrl={editUrl}
+            getStatus={statusForConn}
+            onSelect={(connection) => {
+              setActiveConnection(connection.id);
+              checkOne(connection);
+            }}
+            onCheck={checkOne}
+            onStartEdit={startEdit}
+            onRemove={removeConnection}
+            onEditNameChange={setEditName}
+            onEditUrlChange={setEditUrl}
+            onSaveEdit={saveEdit}
+            onCancelEdit={() => setEditingId(null)}
+            onAddManual={() => setPanel('add')}
+            onScanQr={() => setPanel('scan')}
+            onDiscover={() => {
+              setPanel('discover');
+              scan();
+            }}
+          />
         )}
 
         {panel === 'add' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <input
-              type="text"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Name (optional)"
-              style={inputStyle}
-              autoFocus
-            />
-            <input
-              type="text"
-              value={newUrl}
-              onChange={(e) => setNewUrl(e.target.value)}
-              placeholder="http://192.168.1.x:3141"
-              style={inputStyle}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAdd();
-                if (e.key === 'Escape') setPanel('list');
-              }}
-            />
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                onClick={handleAdd}
-                disabled={!newUrl.trim()}
-                style={primaryBtnStyle}
-              >
-                Add
-              </button>
-              <button
-                type="button"
-                onClick={() => setPanel('list')}
-                style={secondaryBtnStyle}
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
+          <ManualAddPanel
+            name={newName}
+            url={newUrl}
+            onNameChange={setNewName}
+            onUrlChange={setNewUrl}
+            onAdd={handleAdd}
+            onCancel={() => setPanel('list')}
+          />
         )}
 
         {panel === 'scan' && (
@@ -395,47 +205,3 @@ export function ConnectionManagerModalContent({
     </div>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  padding: '10px 12px',
-  fontSize: 13,
-  background: 'var(--bg-primary, #0a0a0a)',
-  border: '1px solid var(--border-primary, #333)',
-  borderRadius: 8,
-  color: 'var(--text-primary, #e5e5e5)',
-  outline: 'none',
-  width: '100%',
-  boxSizing: 'border-box',
-};
-
-const primaryBtnStyle: React.CSSProperties = {
-  padding: '10px 20px',
-  fontSize: 13,
-  fontWeight: 500,
-  borderRadius: 8,
-  border: 'none',
-  cursor: 'pointer',
-  background: 'var(--accent-primary, #3b82f6)',
-  color: 'white',
-};
-
-const secondaryBtnStyle: React.CSSProperties = {
-  padding: '10px 20px',
-  fontSize: 13,
-  fontWeight: 500,
-  borderRadius: 8,
-  border: '1px solid var(--border-primary, #333)',
-  cursor: 'pointer',
-  background: 'transparent',
-  color: 'var(--text-primary, #e5e5e5)',
-};
-
-const iconBtnStyle: React.CSSProperties = {
-  background: 'none',
-  border: 'none',
-  color: 'var(--text-secondary, #999)',
-  cursor: 'pointer',
-  fontSize: 14,
-  padding: '2px 4px',
-  lineHeight: 1,
-};

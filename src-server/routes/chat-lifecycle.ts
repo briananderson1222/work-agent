@@ -8,9 +8,7 @@ import {
   tokensOutput,
 } from '../telemetry/metrics.js';
 import { estimateCost, findModelPricing } from '../utils/pricing.js';
-import {
-  persistTemporaryAgentMessages,
-} from './chat-persistence.js';
+import { persistTemporaryAgentMessages } from './chat-persistence.js';
 import {
   type ChatMessage,
   extractChatUserText,
@@ -66,7 +64,10 @@ export async function ensureChatAgentStatsInitialized({
   const conversations = await adapter.getConversations(slug);
   let totalMessages = 0;
   for (const conversation of conversations) {
-    const messages = await adapter.getMessages(conversation.userId, conversation.id);
+    const messages = await adapter.getMessages(
+      conversation.userId,
+      conversation.id,
+    );
     totalMessages += messages.length;
   }
 
@@ -146,7 +147,12 @@ export async function finalizeChatRequest({
   ctx.agentStatus.set(slug, 'idle');
 
   const isFileBackedAgent = ctx.agentSpecs.has(slug);
-  if (!isFileBackedAgent && memoryAdapter && conversationId && accumulatedText) {
+  if (
+    !isFileBackedAgent &&
+    memoryAdapter &&
+    conversationId &&
+    accumulatedText
+  ) {
     try {
       await persistTemporaryAgentMessages({
         memoryAdapter,
@@ -223,13 +229,21 @@ export async function finalizeChatRequest({
   if (usage && ctx.modelCatalog) {
     try {
       const modelId =
-        modelOverride || ctx.agentSpecs.get(slug)?.model || ctx.appConfig.invokeModel;
-      const pricing = await findModelPricing(
-        ctx.modelCatalog,
-        modelId,
-        ctx.appConfig.region,
-      );
-      estimatedCost = estimateCost(pricing, inputTokenCount, outputTokenCount);
+        modelOverride ||
+        ctx.agentSpecs.get(slug)?.model ||
+        ctx.appConfig.invokeModel;
+      if (modelId) {
+        const pricing = await findModelPricing(
+          ctx.modelCatalog,
+          modelId,
+          ctx.appConfig.region || 'us-east-1',
+        );
+        estimatedCost = estimateCost(
+          pricing,
+          inputTokenCount,
+          outputTokenCount,
+        );
+      }
     } catch {
       estimatedCost = 0;
     }

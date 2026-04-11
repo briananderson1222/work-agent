@@ -17,13 +17,13 @@ import {
 import { findModelPricing } from '../utils/pricing.js';
 import {
   buildConversationStatsUpdate,
+  type ConversationStats,
   calculateUsageCost,
   estimateMessageTextTokens,
   getMessageTextContent,
   getUsageInputTokens,
   getUsageOutputTokens,
   getUsageTotalTokens,
-  type ConversationStats,
 } from './usage-stats.js';
 
 // Type extensions for tool executor
@@ -288,10 +288,8 @@ export function createToolApprovalHooks(
         }
         const { updatedStats, modelStats } = buildConversationStatsUpdate({
           existingStats,
-          existingModelStats: (conversation.metadata?.modelStats || {}) as Record<
-            string,
-            ConversationStats | undefined
-          >,
+          existingModelStats: (conversation.metadata?.modelStats ||
+            {}) as Record<string, ConversationStats | undefined>,
           usage,
           toolCallCount,
           modelId,
@@ -303,7 +301,9 @@ export function createToolApprovalHooks(
         logger.info('[Token Breakdown]', {
           conversationId: context.conversationId,
           turn: (existingStats?.turns || 0) + 1,
-          newUserMessageTokens: estimateMessageTextTokens(latestUserMessageText),
+          newUserMessageTokens: estimateMessageTextTokens(
+            latestUserMessageText,
+          ),
           totalUserMessageTokens:
             updatedStats.tokenBreakdown?.userMessageTokens || 0,
           systemPromptTokens:
@@ -347,13 +347,16 @@ export function createToolApprovalHooks(
           const lastMessage = messages[messages.length - 1];
 
           if (lastMessage && lastMessage.role === 'assistant') {
+            if (!modelId) {
+              return;
+            }
             // Get model capabilities
             const models = await modelCatalog?.listModels();
             const modelInfo = models?.find((m) => m.modelId === modelId);
             const pricingInfo = await findModelPricing(
               modelCatalog,
               modelId,
-              appConfig.region,
+              appConfig.region || 'us-east-1',
             );
 
             // Remove and re-add with metadata

@@ -125,10 +125,8 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & {
           : '';
         const { updatedStats, modelStats } = buildConversationStatsUpdate({
           existingStats,
-          existingModelStats: (conversation.metadata?.modelStats || {}) as Record<
-            string,
-            any
-          >,
+          existingModelStats: (conversation.metadata?.modelStats ||
+            {}) as Record<string, any>,
           usage,
           toolCallCount,
           modelId,
@@ -179,13 +177,14 @@ async function enrichLastMessage(
     );
     const last = messages[messages.length - 1];
     if (!last || last.role !== 'assistant') return;
+    if (!modelId) return;
 
     const models = await deps.modelCatalog?.listModels();
     const modelInfo = models?.find((m: any) => m.modelId === modelId);
     const pricingInfo = await findModelPricing(
       deps.modelCatalog,
       modelId,
-      deps.appConfig.region,
+      deps.appConfig.region || 'us-east-1',
     );
 
     await adapter.removeLastMessage(
