@@ -470,6 +470,40 @@ for (const requiredHelper of [
   }
 }
 
+const feedbackService = readFileSync(
+  new URL('../src-server/services/feedback-service.ts', import.meta.url),
+  'utf8',
+);
+if (!feedbackService.includes("./feedback-analysis.js")) {
+  errors.push('feedback-service.ts must delegate analysis helpers to feedback-analysis.ts.');
+}
+for (const retiredInlineFeedbackSnippet of [
+  'function escapeXml(',
+  'function escapeAttr(',
+  'function extractJson(',
+  'const ratingsXml = pending',
+  'const liked = analyzed',
+  'const prompt = `You are aggregating user feedback to identify patterns.',
+]) {
+  if (feedbackService.includes(retiredInlineFeedbackSnippet)) {
+    errors.push(`feedback-service.ts must not inline extracted feedback helper ${retiredInlineFeedbackSnippet}.`);
+  }
+}
+
+const feedbackAnalysis = readFileSync(
+  new URL('../src-server/services/feedback-analysis.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function extractJson',
+  'export async function runMiniFeedbackAnalysis',
+  'export async function runFullFeedbackAnalysis',
+]) {
+  if (!feedbackAnalysis.includes(requiredHelper)) {
+    errors.push(`feedback-analysis.ts must include ${requiredHelper}.`);
+  }
+}
+
 const monitoringContext = readFileSync(
   new URL('../src-ui/src/contexts/MonitoringContext.tsx', import.meta.url),
   'utf8',
