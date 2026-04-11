@@ -916,6 +916,7 @@ for (const requiredHelper of [
   'export type ACPConnectionStatus =',
   'export class ACPConnection',
   './acp-connection-chat.js',
+  './acp-connection-event-controller.js',
   './acp-connection-event-state.js',
   './acp-connection-events.js',
   './acp-connection-lifecycle.js',
@@ -943,9 +944,32 @@ for (const retiredInlineAcpConnectionSnippet of [
   'updateACPToolResultState(',
   'private getEventFields(): ACPConnectionEventFields {',
   'private applyEventFields(fields: ACPConnectionEventFields): void {',
+  'handleACPConnectionSessionUpdate(params, {',
+  'handleACPConnectionExtensionNotification(method, params, {',
+  'handleACPConnectionExtensionMethod(method, params, {',
+  'getACPConnectionEventStateFields({',
+  'applyACPConnectionEventStateFields(',
 ]) {
   if (acpConnection.includes(retiredInlineAcpConnectionSnippet)) {
     errors.push(`acp-connection.ts must not inline extracted ACP connection event logic ${retiredInlineAcpConnectionSnippet}.`);
+  }
+}
+
+const acpConnectionEventController = readFileSync(
+  new URL('../src-server/services/acp-connection-event-controller.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export interface ACPConnectionEventController',
+  'export function createACPConnectionEventController',
+  'export async function runACPConnectionSessionUpdate',
+  'export function runACPConnectionExtensionNotification',
+  'export function runACPConnectionExtensionMethod',
+  './acp-connection-event-state.js',
+  './acp-connection-events.js',
+]) {
+  if (!acpConnectionEventController.includes(requiredHelper)) {
+    errors.push(`acp-connection-event-controller.ts must include ${requiredHelper}.`);
   }
 }
 

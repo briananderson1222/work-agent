@@ -15,21 +15,17 @@ import { MonitoringEmitter } from '../monitoring/emitter.js';
 import { acpOps } from '../telemetry/metrics.js';
 import { ApprovalRegistry } from './approval-registry.js';
 import { handleACPConnectionChat } from './acp-connection-chat.js';
-import {
-  createACPConnectionClient,
-  handleACPConnectionExtensionMethod,
-  handleACPConnectionExtensionNotification,
-  handleACPConnectionSessionUpdate,
-} from './acp-connection-events.js';
-import {
-  applyACPConnectionEventStateFields,
-  flushACPConnectionTextPart,
-  getACPConnectionEventStateFields,
-  updateACPConnectionToolResult,
-} from './acp-connection-event-state.js';
+import { createACPConnectionClient } from './acp-connection-events.js';
 import {
   initializeACPConnectionProcess,
 } from './acp-connection-lifecycle.js';
+import {
+  createACPConnectionEventController,
+  runACPConnectionExtensionMethod,
+  runACPConnectionExtensionNotification,
+  runACPConnectionSessionUpdate,
+  type ACPConnectionEventController,
+} from './acp-connection-event-controller.js';
 import {
   cleanupACPConnectionState,
   getOrCreateACPAdapter,
@@ -56,6 +52,7 @@ import type {
   ACPSlashCommand,
   ManagedTerminal,
 } from './acp-bridge-types.js';
+import type { ACPConnectionEventState } from './acp-connection-event-state.js';
 
 export type ACPConnectionStatus =
   | 'disconnected'
@@ -90,6 +87,7 @@ export class ACPConnection {
   private responseAccumulator = '';
   private responseParts: Array<{ type: string; [key: string]: any }> = [];
   private sessionMap = new Map<string, string>();
+  private readonly eventController: ACPConnectionEventController;
 
   get prefix(): string {
     return this.config.id;
@@ -112,6 +110,10 @@ export class ACPConnection {
     private monitoringEmitter?: MonitoringEmitter,
   ) {
     if (this.config.cwd) this.cwd = this.config.cwd;
+    this.eventController = createACPConnectionEventController({
+      getState: () => this.getEventState(),
+      setState: (state) => this.setEventState(state),
+    });
   }
 
   async start(): Promise<boolean> {
@@ -325,7 +327,7 @@ export class ACPConnection {
       getCurrentModelName: () =>
         getACPCurrentModelName(this.configOptions, this.detectedModel),
       updateToolResult: (toolCallId, result, isError) =>
-        this.updateToolResult(toolCallId, result, isError),
+        this.eventController.updateToolResult(toolCallId, result, isError),
       getState: () => ({
         status: this.status,
         shuttingDown: this.shuttingDown,
@@ -383,87 +385,13 @@ export class ACPConnection {
     });
   }
 
-  private flushTextPart(): void {
-    const next = flushACPConnectionTextPart(
-      getACPConnectionEventStateFields({
-        activeWriter: this.activeWriter,
-        responseAccumulator: this.responseAccumulator,
-        responseParts: this.responseParts,
-        currentModeId: this.currentModeId,
-        configOptions: this.configOptions,
-        slashCommands: this.slashCommands,
-        mcpServers: this.mcpServers,
-      }),
-    );
-    this.activeWriter = next.activeWriter;
-    this.responseAccumulator = next.responseAccumulator;
-    this.responseParts = next.responseParts;
-    this.currentModeId = next.currentModeId;
-    this.configOptions = next.configOptions;
-    this.slashCommands = next.slashCommands;
-    this.mcpServers = next.mcpServers;
-  }
-
-  private updateToolResult(
-    toolCallId: string,
-    result: string | undefined,
-    isError = false,
-  ): void {
-    this.responseParts = updateACPConnectionToolResult(
-      getACPConnectionEventStateFields({
-        activeWriter: this.activeWriter,
-        responseAccumulator: this.responseAccumulator,
-        responseParts: this.responseParts,
-        currentModeId: this.currentModeId,
-        configOptions: this.configOptions,
-        slashCommands: this.slashCommands,
-        mcpServers: this.mcpServers,
-      }),
-      toolCallId,
-      result,
-      isError,
-    ).responseParts;
-  }
-
   private async handleSessionUpdate(
     params: SessionNotification,
   ): Promise<void> {
     this.touchActivity();
-    await handleACPConnectionSessionUpdate(params, {
+    await runACPConnectionSessionUpdate(params, {
       logger: this.logger,
-      fields: getACPConnectionEventStateFields({
-        activeWriter: this.activeWriter,
-        responseAccumulator: this.responseAccumulator,
-        responseParts: this.responseParts,
-        currentModeId: this.currentModeId,
-        configOptions: this.configOptions,
-        slashCommands: this.slashCommands,
-        mcpServers: this.mcpServers,
-      }),
-      applyFields: (fields) => {
-        const next = applyACPConnectionEventStateFields(
-          getACPConnectionEventStateFields({
-            activeWriter: this.activeWriter,
-            responseAccumulator: this.responseAccumulator,
-            responseParts: this.responseParts,
-            currentModeId: this.currentModeId,
-            configOptions: this.configOptions,
-            slashCommands: this.slashCommands,
-            mcpServers: this.mcpServers,
-          }),
-          fields,
-        );
-        this.activeWriter = next.activeWriter;
-        this.responseAccumulator = next.responseAccumulator;
-        this.responseParts = next.responseParts;
-        this.currentModeId = next.currentModeId;
-        this.configOptions = next.configOptions;
-        this.slashCommands = next.slashCommands;
-        this.mcpServers = next.mcpServers;
-      },
-      flushTextPart: () => this.flushTextPart(),
-      updateToolResult: (toolCallId, result, isError) =>
-        this.updateToolResult(toolCallId, result, isError),
+      controller: this.eventController,
     });
   }
 
@@ -471,38 +399,9 @@ export class ACPConnection {
     method: string,
     params: Record<string, unknown>,
   ): void {
-    handleACPConnectionExtensionNotification(method, params, {
+    runACPConnectionExtensionNotification(method, params, {
       logger: this.logger,
-      fields: getACPConnectionEventStateFields({
-        activeWriter: this.activeWriter,
-        responseAccumulator: this.responseAccumulator,
-        responseParts: this.responseParts,
-        currentModeId: this.currentModeId,
-        configOptions: this.configOptions,
-        slashCommands: this.slashCommands,
-        mcpServers: this.mcpServers,
-      }),
-      applyFields: (fields) => {
-        const next = applyACPConnectionEventStateFields(
-          getACPConnectionEventStateFields({
-            activeWriter: this.activeWriter,
-            responseAccumulator: this.responseAccumulator,
-            responseParts: this.responseParts,
-            currentModeId: this.currentModeId,
-            configOptions: this.configOptions,
-            slashCommands: this.slashCommands,
-            mcpServers: this.mcpServers,
-          }),
-          fields,
-        );
-        this.activeWriter = next.activeWriter;
-        this.responseAccumulator = next.responseAccumulator;
-        this.responseParts = next.responseParts;
-        this.currentModeId = next.currentModeId;
-        this.configOptions = next.configOptions;
-        this.slashCommands = next.slashCommands;
-        this.mcpServers = next.mcpServers;
-      },
+      controller: this.eventController,
     });
   }
 
@@ -510,39 +409,32 @@ export class ACPConnection {
     method: string,
     params: Record<string, unknown>,
   ): Record<string, unknown> {
-    return handleACPConnectionExtensionMethod(method, params, {
+    return runACPConnectionExtensionMethod(method, params, {
       logger: this.logger,
-      fields: getACPConnectionEventStateFields({
-        activeWriter: this.activeWriter,
-        responseAccumulator: this.responseAccumulator,
-        responseParts: this.responseParts,
-        currentModeId: this.currentModeId,
-        configOptions: this.configOptions,
-        slashCommands: this.slashCommands,
-        mcpServers: this.mcpServers,
-      }),
-      applyFields: (fields) => {
-        const next = applyACPConnectionEventStateFields(
-          getACPConnectionEventStateFields({
-            activeWriter: this.activeWriter,
-            responseAccumulator: this.responseAccumulator,
-            responseParts: this.responseParts,
-            currentModeId: this.currentModeId,
-            configOptions: this.configOptions,
-            slashCommands: this.slashCommands,
-            mcpServers: this.mcpServers,
-          }),
-          fields,
-        );
-        this.activeWriter = next.activeWriter;
-        this.responseAccumulator = next.responseAccumulator;
-        this.responseParts = next.responseParts;
-        this.currentModeId = next.currentModeId;
-        this.configOptions = next.configOptions;
-        this.slashCommands = next.slashCommands;
-        this.mcpServers = next.mcpServers;
-      },
+      controller: this.eventController,
     });
+  }
+
+  private getEventState(): ACPConnectionEventState {
+    return {
+      activeWriter: this.activeWriter,
+      responseAccumulator: this.responseAccumulator,
+      responseParts: this.responseParts,
+      currentModeId: this.currentModeId,
+      configOptions: this.configOptions,
+      slashCommands: this.slashCommands,
+      mcpServers: this.mcpServers,
+    };
+  }
+
+  private setEventState(state: ACPConnectionEventState): void {
+    this.activeWriter = state.activeWriter;
+    this.responseAccumulator = state.responseAccumulator;
+    this.responseParts = state.responseParts;
+    this.currentModeId = state.currentModeId;
+    this.configOptions = state.configOptions;
+    this.slashCommands = state.slashCommands;
+    this.mcpServers = state.mcpServers;
   }
 
   private getOrCreateAdapter(slug: string): FileMemoryAdapter | null {
