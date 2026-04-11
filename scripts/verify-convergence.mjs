@@ -4739,6 +4739,77 @@ if (!monitoringView.includes('isLoading,')) {
   errors.push('MonitoringView must read isLoading from useMonitoring.');
 }
 
+const projectSidebar = readFileSync(
+  new URL('../src-ui/src/components/ProjectSidebar.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredImport of [
+  './project-sidebar/nav-items',
+  './project-sidebar/ProjectSidebarRow',
+  './project-sidebar/useProjectSidebarState',
+  './project-sidebar/utils',
+]) {
+  if (!projectSidebar.includes(requiredImport)) {
+    errors.push(`ProjectSidebar.tsx must use ${requiredImport}.`);
+  }
+}
+for (const retiredInlineProjectSidebarSnippet of [
+  'const NAV_ITEMS:',
+  'function useIsMobile()',
+  'function ProjectRow(',
+  "const STORAGE_KEY = 'stallion-sidebar-collapsed';",
+]) {
+  if (projectSidebar.includes(retiredInlineProjectSidebarSnippet)) {
+    errors.push(
+      `ProjectSidebar.tsx must not inline extracted sidebar helper ${retiredInlineProjectSidebarSnippet}.`,
+    );
+  }
+}
+
+const projectSidebarRow = readFileSync(
+  new URL('../src-ui/src/components/project-sidebar/ProjectSidebarRow.tsx', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function ProjectSidebarRow',
+  '@stallion-ai/sdk',
+  '../../contexts/NavigationContext',
+  '../LayoutIcon',
+]) {
+  if (!projectSidebarRow.includes(requiredHelper)) {
+    errors.push(`ProjectSidebarRow.tsx must include ${requiredHelper}.`);
+  }
+}
+
+const projectSidebarState = readFileSync(
+  new URL('../src-ui/src/components/project-sidebar/useProjectSidebarState.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function useIsMobile',
+  'export function useProjectSidebarState',
+  './utils',
+  "window.addEventListener('toggle-sidebar'",
+]) {
+  if (!projectSidebarState.includes(requiredHelper)) {
+    errors.push(`useProjectSidebarState.ts must include ${requiredHelper}.`);
+  }
+}
+
+const projectSidebarUtils = readFileSync(
+  new URL('../src-ui/src/components/project-sidebar/utils.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  "export const PROJECT_SIDEBAR_STORAGE_KEY = 'stallion-sidebar-collapsed';",
+  'export function readInitialSidebarCollapsed',
+  'export function buildSidebarClassName',
+]) {
+  if (!projectSidebarUtils.includes(requiredHelper)) {
+    errors.push(`project-sidebar/utils.ts must include ${requiredHelper}.`);
+  }
+}
+
 const scheduleView = readFileSync(
   new URL('../src-ui/src/views/ScheduleView.tsx', import.meta.url),
   'utf8',
