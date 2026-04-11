@@ -1999,6 +1999,7 @@ for (const requiredImport of [
   '@stallion-ai/contracts/config',
   '@stallion-ai/contracts/tool',
   './config-loader-agents.js',
+  './config-loader-storage.js',
 ]) {
   if (!domainConfigLoader.includes(requiredImport)) {
     errors.push(`src-server/domain/config-loader.ts must import from ${requiredImport}.`);
@@ -2012,6 +2013,9 @@ for (const retiredInlineConfigLoaderSnippet of [
   'const workflowsDir = join(this.projectHomeDir, \'agents\', slug, \'workflows\')',
   'return agents.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));',
   'const agentDir = join(this.projectHomeDir, \'agents\', slug);',
+  'const integrationsDir = join(this.projectHomeDir, \'integrations\');',
+  'const dir = join(this.projectHomeDir, \'skills\');',
+  "const path = join(this.projectHomeDir, 'config', 'acp.json');",
 ]) {
   if (domainConfigLoader.includes(retiredInlineConfigLoaderSnippet)) {
     errors.push(
@@ -2035,6 +2039,23 @@ for (const requiredHelper of [
 ]) {
   if (!domainConfigLoaderAgents.includes(requiredHelper)) {
     errors.push(`src-server/domain/config-loader-agents.ts must include ${requiredHelper}.`);
+  }
+}
+
+const domainConfigLoaderStorage = readFileSync(
+  new URL('../src-server/domain/config-loader-storage.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export async function loadIntegrationConfig',
+  'export async function saveIntegrationConfig',
+  'export async function listIntegrationMetadata',
+  'export async function listSkillConfigs',
+  'export async function loadACPConfigFile',
+  'export async function saveACPConfigFile',
+]) {
+  if (!domainConfigLoaderStorage.includes(requiredHelper)) {
+    errors.push(`src-server/domain/config-loader-storage.ts must include ${requiredHelper}.`);
   }
 }
 

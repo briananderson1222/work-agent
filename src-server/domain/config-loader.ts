@@ -5,9 +5,7 @@
 import { existsSync } from 'node:fs';
 import {
   mkdir,
-  readdir,
   readFile,
-  rm,
   writeFile,
 } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
@@ -33,6 +31,20 @@ import {
   updateAgentConfig,
   updateAgentWorkflow,
 } from './config-loader-agents.js';
+import {
+  deleteIntegrationConfig,
+  deleteSkillConfig,
+  listIntegrationMetadata,
+  listSkillConfigs,
+  loadACPConfigFile,
+  loadIntegrationConfig,
+  loadSkillConfig,
+  saveACPConfigFile,
+  saveIntegrationConfig,
+  saveSkillConfig,
+  skillConfigExists,
+  type SkillConfigRecord,
+} from './config-loader-storage.js';
 import { validator } from './validator.js';
 
 const logger = createLogger({ name: 'config-loader' });
@@ -56,14 +68,7 @@ export interface ConfigLoaderOptions {
   watchFiles?: boolean;
 }
 
-export interface SkillConfig {
-  name: string;
-  description?: string;
-  source: 'local' | 'registry' | 'plugin';
-  installedAt: string;
-  version?: string;
-  path: string;
-}
+export interface SkillConfig extends SkillConfigRecord {}
 
 export class ConfigLoader {
   private projectHomeDir: string;
@@ -261,20 +266,7 @@ export class ConfigLoader {
    * Load tool definition
    */
   async loadIntegration(id: string): Promise<ToolDef> {
-    const path = join(
-      this.projectHomeDir,
-      'integrations',
-      id,
-      'integration.json',
-    );
-
-    if (!existsSync(path)) {
-      throw new Error(`Tool '${id}' not found at ${path}`);
-    }
-
-    const content = await readFile(path, 'utf-8');
-    const data = JSON.parse(content);
-    return data;
+    return loadIntegrationConfig(this.projectHomeDir, id);
   }
 
   /**
@@ -282,60 +274,18 @@ export class ConfigLoader {
    */
   async saveIntegration(id: string, def: ToolDef): Promise<void> {
     validator.validateToolDef(def);
-
-    const integrationDir = join(this.projectHomeDir, 'integrations', id);
-    await mkdir(integrationDir, { recursive: true });
-
-    const path = join(integrationDir, 'integration.json');
-    await writeFile(path, JSON.stringify(def, null, 2), 'utf-8');
+    await saveIntegrationConfig(this.projectHomeDir, id, def);
   }
 
   async deleteIntegration(id: string): Promise<void> {
-    const integrationDir = join(this.projectHomeDir, 'integrations', id);
-    if (existsSync(integrationDir)) {
-      await rm(integrationDir, { recursive: true, force: true });
-    }
+    await deleteIntegrationConfig(this.projectHomeDir, id);
   }
 
   /**
    * List all tools in catalog
    */
   async listIntegrations(): Promise<ToolMetadata[]> {
-    const integrationsDir = join(this.projectHomeDir, 'integrations');
-
-    if (!existsSync(integrationsDir)) {
-      return [];
-    }
-
-    const entries = await readdir(integrationsDir, { withFileTypes: true });
-    const tools: ToolMetadata[] = [];
-
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-
-      const integrationPath = join(
-        integrationsDir,
-        entry.name,
-        'integration.json',
-      );
-      if (!existsSync(integrationPath)) continue;
-
-      try {
-        const def = await this.loadIntegration(entry.name);
-        tools.push({
-          id: def.id,
-          kind: def.kind,
-          displayName: def.displayName,
-          description: def.description,
-          transport: def.transport,
-          source: def.command || def.endpoint,
-        });
-      } catch (error) {
-        logger.error('Failed to load tool', { tool: entry.name, error });
-      }
-    }
-
-    return tools;
+    return listIntegrationMetadata(this.projectHomeDir, logger);
   }
 
   /**
@@ -432,77 +382,49 @@ export class ConfigLoader {
    * List installed skills by scanning skill.json files
    */
   async listSkills(): Promise<SkillConfig[]> {
-    const dir = join(this.projectHomeDir, 'skills');
-    if (!existsSync(dir)) return [];
-    const entries = await readdir(dir, { withFileTypes: true });
-    const results: SkillConfig[] = [];
-    for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-      const cfgPath = join(dir, entry.name, 'skill.json');
-      if (!existsSync(cfgPath)) continue;
-      try {
-        results.push(JSON.parse(await readFile(cfgPath, 'utf-8')));
-      } catch {
-        logger.warn('Failed to read skill config', { path: cfgPath });
-      }
-    }
-    return results;
+    return listSkillConfigs(this.projectHomeDir, logger);
   }
 
   /**
    * Load a single skill config
    */
   async loadSkill(name: string): Promise<SkillConfig> {
-    const path = join(this.projectHomeDir, 'skills', name, 'skill.json');
-    if (!existsSync(path)) throw new Error(`Skill '${name}' not found`);
-    return JSON.parse(await readFile(path, 'utf-8'));
+    return loadSkillConfig(this.projectHomeDir, name);
   }
 
   /**
    * Save a skill config
    */
   async saveSkill(name: string, config: SkillConfig): Promise<void> {
-    const dir = join(this.projectHomeDir, 'skills', name);
-    await mkdir(dir, { recursive: true });
-    await writeFile(
-      join(dir, 'skill.json'),
-      JSON.stringify(config, null, 2),
-      'utf-8',
-    );
+    await saveSkillConfig(this.projectHomeDir, name, config);
   }
 
   /**
    * Delete a skill directory
    */
   async deleteSkill(name: string): Promise<void> {
-    const dir = join(this.projectHomeDir, 'skills', name);
-    if (!existsSync(dir)) throw new Error(`Skill '${name}' not found`);
-    await rm(dir, { recursive: true, force: true });
+    await deleteSkillConfig(this.projectHomeDir, name);
   }
 
   /**
    * Check if a skill exists
    */
   async skillExists(name: string): Promise<boolean> {
-    return existsSync(join(this.projectHomeDir, 'skills', name, 'skill.json'));
+    return skillConfigExists(this.projectHomeDir, name);
   }
 
   /**
    * Load ACP configuration (connections to external agents)
    */
   async loadACPConfig(): Promise<ACPConfig> {
-    const path = join(this.projectHomeDir, 'config', 'acp.json');
-    if (!existsSync(path)) return { connections: [] };
-    return JSON.parse(await readFile(path, 'utf-8'));
+    return loadACPConfigFile(this.projectHomeDir);
   }
 
   /**
    * Save ACP configuration
    */
   async saveACPConfig(config: ACPConfig): Promise<void> {
-    const path = join(this.projectHomeDir, 'config', 'acp.json');
-    await mkdir(join(this.projectHomeDir, 'config'), { recursive: true });
-    await writeFile(path, JSON.stringify(config, null, 2), 'utf-8');
+    await saveACPConfigFile(this.projectHomeDir, config);
   }
 
   /**
