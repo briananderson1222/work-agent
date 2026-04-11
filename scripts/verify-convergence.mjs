@@ -5632,14 +5632,8 @@ if (!chatRoute.includes('./chat-alternate-provider.js')) {
 if (!chatRoute.includes('./chat-model-override.js')) {
   errors.push('chat.ts must delegate model-override agent resolution to chat-model-override.ts.');
 }
-if (!chatRoute.includes('./chat-context.js')) {
-  errors.push('chat.ts must delegate feedback/context injection to chat-context.ts.');
-}
-if (!chatRoute.includes('./chat-persistence.js')) {
-  errors.push('chat.ts must delegate conversation/message persistence to chat-persistence.ts.');
-}
-if (!chatRoute.includes('./chat-lifecycle.js')) {
-  errors.push('chat.ts must delegate chat monitoring/stats finalization to chat-lifecycle.ts.');
+if (!chatRoute.includes('./chat-primary-stream.js')) {
+  errors.push('chat.ts must delegate primary agent streaming to chat-primary-stream.ts.');
 }
 for (const retiredInlineChatSnippet of [
   'await ctx.providerService.resolveProvider({',
@@ -5659,6 +5653,7 @@ for (const retiredInlineChatSnippet of [
   'ctx.monitoringEmitter.emitAgentComplete({',
   'ctx.metricsLog.push({',
   'chatRequests.add(1, { agent: slug, plugin });',
+  'return stream(c, async (streamWriter) => {',
 ]) {
   if (chatRoute.includes(retiredInlineChatSnippet)) {
     errors.push(`chat.ts must not inline extracted chat request preparation logic ${retiredInlineChatSnippet}.`);
@@ -5724,6 +5719,23 @@ for (const requiredHelper of [
 ]) {
   if (!chatContext.includes(requiredHelper)) {
     errors.push(`chat-context.ts must include ${requiredHelper}.`);
+  }
+}
+
+const chatPrimaryStream = readFileSync(
+  new URL('../src-server/routes/chat-primary-stream.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function logDebugChatImages',
+  'export function streamPrimaryAgentChat',
+  './chat-context.js',
+  './chat-persistence.js',
+  './chat-lifecycle.js',
+  "return stream(c, async (streamWriter) => {",
+]) {
+  if (!chatPrimaryStream.includes(requiredHelper)) {
+    errors.push(`chat-primary-stream.ts must include ${requiredHelper}.`);
   }
 }
 
