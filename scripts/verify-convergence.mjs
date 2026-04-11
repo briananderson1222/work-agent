@@ -1805,6 +1805,52 @@ for (const requiredHelper of [
   }
 }
 
+const mcpManager = readFileSync(
+  new URL('../src-server/runtime/mcp-manager.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  './mcp-tool-names.js',
+  'normalizeLoadedMCPTools(',
+  'matchMCPToolPattern(',
+  'resolveOriginalToolName(',
+  'resolveNormalizedToolName(',
+]) {
+  if (!mcpManager.includes(requiredHelper)) {
+    errors.push(`mcp-manager.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineMcpManagerSnippet of [
+  'const normalized = normalizeToolName(tool.name);',
+  'const parsed = parseToolName(tool.name);',
+  "if (pattern.endsWith('_*')) {",
+  "if (pattern.endsWith('/*')) {",
+  'const mapping = toolNameMapping.get(normalizedName);',
+  'return toolNameReverseMapping.get(originalName) || originalName;',
+]) {
+  if (mcpManager.includes(retiredInlineMcpManagerSnippet)) {
+    errors.push(`mcp-manager.ts must not inline extracted MCP name helper logic ${retiredInlineMcpManagerSnippet}.`);
+  }
+}
+
+const mcpToolNames = readFileSync(
+  new URL('../src-server/runtime/mcp-tool-names.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export interface MCPToolNameMappingEntry',
+  'export function normalizeLoadedMCPTools',
+  'export function matchesToolPattern',
+  'export function getOriginalToolName',
+  'export function getNormalizedToolName',
+  'normalizeToolName(',
+  'parseToolName(',
+]) {
+  if (!mcpToolNames.includes(requiredHelper)) {
+    errors.push(`mcp-tool-names.ts must define or include ${requiredHelper}.`);
+  }
+}
+
 const runtimeHealth = readFileSync(
   new URL('../src-server/runtime/runtime-health.ts', import.meta.url),
   'utf8',

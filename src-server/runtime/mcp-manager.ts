@@ -3,15 +3,18 @@
  * Handles MCP server lifecycle, tool loading, and tool name normalization
  */
 
-import { MCPConfiguration, type Tool } from '@voltagent/core';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import type { ToolDef } from '@stallion-ai/contracts/tool';
+import { MCPConfiguration, type Tool } from '@voltagent/core';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import { mcpLifecycle } from '../telemetry/metrics.js';
 import {
-  normalizeToolName,
-  parseToolName,
-} from '../utils/tool-name-normalizer.js';
+  getNormalizedToolName as resolveNormalizedToolName,
+  getOriginalToolName as resolveOriginalToolName,
+  matchesToolPattern as matchMCPToolPattern,
+  normalizeLoadedMCPTools,
+  type MCPToolNameMappingEntry,
+} from './mcp-tool-names.js';
 
 /**
  * Reference counting for MCP connections - tracks which agents use each toolId
@@ -110,12 +113,7 @@ export async function createMCPTools(
   >,
   toolNameMapping: Map<
     string,
-    {
-      original: string;
-      normalized: string;
-      server: string | null;
-      tool: string;
-    }
+    MCPToolNameMappingEntry
   >,
   toolNameReverseMapping: Map<string, string>,
   logger: any,
@@ -195,34 +193,13 @@ export async function createMCPTools(
   const tools = await mcpConfig.getTools();
 
   // Normalize tool names for Nova compatibility and store mapping with parsed data
-  const normalizedTools = tools.map((tool) => {
-    const normalized = normalizeToolName(tool.name);
-
-    // Store mapping with parsed data if name changed
-    if (normalized !== tool.name) {
-      const parsed = parseToolName(tool.name);
-      toolNameMapping.set(normalized, {
-        original: tool.name,
-        normalized: normalized,
-        server: parsed.server,
-        tool: parsed.tool,
-      });
-      toolNameReverseMapping.set(tool.name, normalized);
-
-      logger.debug('Tool name normalized', {
-        agent: agentSlug,
-        original: tool.name,
-        normalized: normalized,
-        server: parsed.server,
-        tool: parsed.tool,
-      });
-    }
-
-    return {
-      ...tool,
-      name: normalized,
-    };
-  });
+  const normalizedTools = normalizeLoadedMCPTools(
+    agentSlug,
+    tools,
+    toolNameMapping,
+    toolNameReverseMapping,
+    logger,
+  );
 
   // Mark as connected after successful getTools
   mcpConnectionStatus.set(mcpKey, { connected: true });
@@ -254,46 +231,10 @@ export function matchesToolPattern(
   patterns: string[],
   toolNameMapping: Map<
     string,
-    {
-      original: string;
-      normalized: string;
-      server: string | null;
-      tool: string;
-    }
+    MCPToolNameMappingEntry
   >,
 ): boolean {
-  // Get original name if this is a normalized name
-  const mapping = toolNameMapping.get(toolName);
-  const originalName = mapping?.original || toolName;
-
-  for (const pattern of patterns) {
-    // Exact match (check both normalized and original)
-    if (pattern === toolName || pattern === originalName) return true;
-
-    // Wildcard pattern (e.g., "my-server_*" or "myServer_*")
-    if (pattern.endsWith('_*')) {
-      const prefix = pattern.slice(0, -2);
-      if (
-        toolName.startsWith(`${prefix}_`) ||
-        originalName.startsWith(`${prefix}_`)
-      )
-        return true;
-    }
-
-    // Legacy slash pattern support (e.g., "my-server/*")
-    if (pattern.endsWith('/*')) {
-      const prefix = pattern.slice(0, -2);
-      if (
-        toolName.startsWith(`${prefix}_`) ||
-        toolName.startsWith(`${prefix}/`) ||
-        originalName.startsWith(`${prefix}_`) ||
-        originalName.startsWith(`${prefix}/`)
-      )
-        return true;
-    }
-  }
-
-  return false;
+  return matchMCPToolPattern(toolName, patterns, toolNameMapping);
 }
 
 /**
@@ -311,12 +252,7 @@ export async function loadAgentTools(
   >,
   toolNameMapping: Map<
     string,
-    {
-      original: string;
-      normalized: string;
-      server: string | null;
-      tool: string;
-    }
+    MCPToolNameMappingEntry
   >,
   toolNameReverseMapping: Map<string, string>,
   logger: any,
@@ -408,16 +344,10 @@ export function getOriginalToolName(
   normalizedName: string,
   toolNameMapping: Map<
     string,
-    {
-      original: string;
-      normalized: string;
-      server: string | null;
-      tool: string;
-    }
+    MCPToolNameMappingEntry
   >,
 ): string {
-  const mapping = toolNameMapping.get(normalizedName);
-  return mapping?.original || normalizedName;
+  return resolveOriginalToolName(normalizedName, toolNameMapping);
 }
 
 /**
@@ -427,5 +357,5 @@ export function getNormalizedToolName(
   originalName: string,
   toolNameReverseMapping: Map<string, string>,
 ): string {
-  return toolNameReverseMapping.get(originalName) || originalName;
+  return resolveNormalizedToolName(originalName, toolNameReverseMapping);
 }
