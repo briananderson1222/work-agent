@@ -260,6 +260,72 @@ if (existsSync(promptsViewPath)) {
   errors.push('Legacy PromptsView must be removed after playbook convergence.');
 }
 
+const cliInstallCommand = readFileSync(
+  new URL('../packages/cli/src/commands/install.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredImport of [
+  './install-preview.js',
+  './install-source.js',
+  './install-registry.js',
+]) {
+  if (!cliInstallCommand.includes(requiredImport)) {
+    errors.push(`packages/cli/src/commands/install.ts must delegate through ${requiredImport}.`);
+  }
+}
+for (const retiredInlineInstallSnippet of [
+  'function findInstalledLayoutProvider(',
+  'console.log(`🔍 Previewing plugin from ${source}...`);',
+  'const configPath = join(PROJECT_HOME, \'config.json\');',
+  'execSync(`curl -sf "${url}"`',
+]) {
+  if (cliInstallCommand.includes(retiredInlineInstallSnippet)) {
+    errors.push(`packages/cli/src/commands/install.ts must not inline extracted install helper ${retiredInlineInstallSnippet}.`);
+  }
+}
+
+const cliInstallPreview = readFileSync(
+  new URL('../packages/cli/src/commands/install-preview.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function previewPlugin',
+  'function findInstalledLayoutProvider',
+  'function getPluginConflicts',
+]) {
+  if (!cliInstallPreview.includes(requiredHelper)) {
+    errors.push(`install-preview.ts must include ${requiredHelper}.`);
+  }
+}
+
+const cliInstallSource = readFileSync(
+  new URL('../packages/cli/src/commands/install-source.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function preparePluginSource',
+  'export function installPluginPackageDependencies',
+  'export function canonicalizePluginDirectory',
+]) {
+  if (!cliInstallSource.includes(requiredHelper)) {
+    errors.push(`install-source.ts must include ${requiredHelper}.`);
+  }
+}
+
+const cliInstallRegistry = readFileSync(
+  new URL('../packages/cli/src/commands/install-registry.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function showOrSaveRegistry',
+  'function readConfiguredRegistryUrl',
+  'function saveRegistryUrl',
+]) {
+  if (!cliInstallRegistry.includes(requiredHelper)) {
+    errors.push(`install-registry.ts must include ${requiredHelper}.`);
+  }
+}
+
 const registryView = readFileSync(
   new URL('../src-ui/src/views/RegistryView.tsx', import.meta.url),
   'utf8',
