@@ -752,6 +752,7 @@ const knowledgeServiceSearch = readFileSync(
 );
 for (const requiredHelper of [
   './knowledge-search.js',
+  './knowledge-documents.js',
 ]) {
   if (!knowledgeServiceSearch.includes(requiredHelper)) {
     errors.push(`knowledge-service.ts must include ${requiredHelper}.`);
@@ -1592,6 +1593,9 @@ if (!knowledgeService.includes('./knowledge-namespaces.js')) {
 if (!knowledgeService.includes('./knowledge-filesystem.js')) {
   errors.push('knowledge-service.ts must delegate filesystem/listing helpers to knowledge-filesystem.ts.');
 }
+if (!knowledgeService.includes('./knowledge-documents.js')) {
+  errors.push('knowledge-service.ts must delegate document CRUD helpers to knowledge-documents.ts.');
+}
 for (const retiredInlineKnowledgeSnippet of [
   "const relevant = results.filter((r) => r.score >= threshold);",
   "const sections: string[] = [];",
@@ -1603,6 +1607,9 @@ for (const retiredInlineKnowledgeSnippet of [
   'const filtered = this.applyPatterns(',
   'private applyPatterns(',
   'private collectFiles(',
+  'const ns = knowledgeVectorNamespace(projectSlug, namespace);',
+  'const fileContent = readKnowledgeFile(storageDir, filePath);',
+  'const oldChunkIds = Array.from(',
 ]) {
   if (knowledgeService.includes(retiredInlineKnowledgeSnippet)) {
     errors.push(
@@ -1641,6 +1648,24 @@ for (const requiredHelper of [
 ]) {
   if (!knowledgeNamespaces.includes(requiredHelper)) {
     errors.push(`knowledge-namespaces.ts must include ${requiredHelper}.`);
+  }
+}
+
+const knowledgeDocuments = readFileSync(
+  new URL('../src-server/services/knowledge-documents.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export async function uploadKnowledgeDocument',
+  'export async function deleteKnowledgeDocument',
+  'export async function getKnowledgeDocumentContent',
+  'export async function updateKnowledgeDocument',
+  'knowledgeVectorNamespace(',
+  'writeKnowledgeFile(',
+  'readKnowledgeFile(',
+]) {
+  if (!knowledgeDocuments.includes(requiredHelper)) {
+    errors.push(`knowledge-documents.ts must include ${requiredHelper}.`);
   }
 }
 

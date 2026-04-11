@@ -13,12 +13,12 @@ import {
   getRecentAgentSlugs,
   trackRecentAgent,
 } from '../hooks/useRecentAgents';
-import {
-  buildRuntimeChatAgent,
-  canAgentStartChat,
-  isRuntimeConnectionSelectable,
-} from '../utils/execution';
 import { AgentIcon } from './AgentIcon';
+import {
+  buildNewChatModalViewModel,
+  GLOBAL_CONTEXT,
+  getRecentAgentSlugsForContext,
+} from './new-chat-modal-utils';
 
 interface NewChatModalProps {
   agents: AgentData[];
@@ -33,21 +33,6 @@ interface NewChatModalProps {
 }
 
 /** "Global" sentinel for the context picker */
-const GLOBAL_CONTEXT = '__global__';
-
-interface ContextOption {
-  value: string; // project slug or GLOBAL_CONTEXT
-  label: string;
-  icon?: string;
-  workingDirectory?: string;
-}
-
-interface AgentGroup {
-  label: string;
-  icon?: string;
-  agents: AgentData[];
-}
-
 export function NewChatModal({
   agents,
   projects,
@@ -94,35 +79,49 @@ export function NewChatModal({
   };
   const projectAgentFilter = selectedProjectConfig?.agents;
 
-  const isGlobal = selectedContext === GLOBAL_CONTEXT;
-  const selectedProject = projects.find((p) => p.slug === selectedContext);
+  const activeChatsSnapshot = activeChatsStore.getSnapshot();
 
-  // Build context options: Global + all projects
-  const contextOptions = useMemo<ContextOption[]>(() => {
-    const opts: ContextOption[] = [
-      { value: GLOBAL_CONTEXT, label: 'Global', icon: '🌐' },
-    ];
-    for (const p of projects) {
-      opts.push({
-        value: p.slug,
-        label: p.name,
-        icon: p.icon || '📁',
-        workingDirectory: p.workingDirectory,
-      });
-    }
-    return opts;
-  }, [projects]);
-
-  const filteredContextOptions = useMemo(() => {
-    if (!contextSearch) return contextOptions;
-    const q = contextSearch.toLowerCase();
-    return contextOptions.filter((o) => o.label.toLowerCase().includes(q));
-  }, [contextOptions, contextSearch]);
-
-  const currentContextOption = contextOptions.find(
-    (o) => o.value === selectedContext,
+  const viewModel = useMemo(
+    () =>
+      buildNewChatModalViewModel({
+        agents,
+        projects,
+        runtimeConnections,
+        selectedContext,
+        contextSearch,
+        agentSearch,
+        selectedProjectAgentFilter: projectAgentFilter,
+        layoutAvailableAgents: layout?.availableAgents || [],
+        layoutName: layout?.name,
+        layoutIcon: layout?.icon,
+        recentSlugs: getRecentAgentSlugsForContext(
+          activeChatsSnapshot,
+          selectedContext,
+          getRecentAgentSlugs(),
+        ),
+      }),
+    [
+      activeChatsSnapshot,
+      agentSearch,
+      agents,
+      contextSearch,
+      layout?.availableAgents,
+      layout?.icon,
+      layout?.name,
+      projectAgentFilter,
+      projects,
+      runtimeConnections,
+      selectedContext,
+    ],
   );
-
+  const {
+    isGlobal,
+    selectedProject,
+    currentContextOption,
+    filteredContextOptions,
+    groups,
+    flatList,
+  } = viewModel;
   // Close context dropdown on outside click
   useEffect(() => {
     if (!contextOpen) return;
@@ -138,124 +137,6 @@ export function NewChatModal({
   useEffect(() => {
     if (!contextOpen) agentInputRef.current?.focus();
   }, [contextOpen]);
-
-  const wsAgentSlugs = useMemo(
-    () => new Set(layout?.availableAgents || []),
-    [layout],
-  );
-
-  const { groups, flatList } = useMemo(() => {
-    const query = agentSearch.toLowerCase();
-    const runtimeChats = runtimeConnections
-      .filter(
-        (connection) =>
-          connection.type !== 'acp' &&
-          isRuntimeConnectionSelectable(connection),
-      )
-      .map((connection) => buildRuntimeChatAgent(connection) as AgentData);
-    const runtimeChatSlugs = new Set(runtimeChats.map((agent) => agent.slug));
-    const chatReadyAgents = (agents || []).filter(
-      (agent) =>
-        canAgentStartChat(agent, runtimeConnections) &&
-        // Filter by project agent assignment (empty = all)
-        (!projectAgentFilter ||
-          projectAgentFilter.length === 0 ||
-          projectAgentFilter.includes(agent.slug)),
-    );
-    const filtered = [...runtimeChats, ...chatReadyAgents].filter(
-      (a) =>
-        a.name.toLowerCase().includes(query) ||
-        a.slug.toLowerCase().includes(query),
-    );
-
-    const isLayoutAgent = (a: AgentData) => {
-      if (a.source === 'acp') return false;
-      if (wsAgentSlugs.has(a.slug)) return true;
-      if (a.slug.includes(':')) return true;
-      return false;
-    };
-
-    const runtimeAgents = filtered.filter((a) => runtimeChatSlugs.has(a.slug));
-    const wsAgents = filtered.filter(
-      (a) => !runtimeChatSlugs.has(a.slug) && isLayoutAgent(a),
-    );
-    const globalAgents = filtered.filter(
-      (a) =>
-        a.source !== 'acp' &&
-        !runtimeChatSlugs.has(a.slug) &&
-        !isLayoutAgent(a),
-    );
-    const acpAgents = filtered.filter((a) => a.source === 'acp');
-
-    // Group ACP agents by connectionName
-    const acpGroups = new Map<string, AgentData[]>();
-    for (const a of acpAgents) {
-      const conn = (a as any).connectionName || 'ACP';
-      if (!acpGroups.has(conn)) acpGroups.set(conn, []);
-      acpGroups.get(conn)!.push(a);
-    }
-
-    // Recent: from active chats + localStorage, scoped to selected context
-    const recentSlugs = getRecentForContext(selectedContext);
-    const recentAgents = agentSearch
-      ? []
-      : (recentSlugs
-          .map((s) => filtered.find((a) => a.slug === s))
-          .filter(Boolean) as AgentData[]);
-    const recentSet = new Set(recentSlugs);
-
-    const groups: AgentGroup[] = [];
-
-    if (recentAgents.length > 0)
-      groups.push({ label: 'Recent', icon: '🕐', agents: recentAgents });
-
-    if (runtimeAgents.length > 0)
-      groups.push({ label: 'Runtime Chat', icon: '⚡', agents: runtimeAgents });
-
-    const showLayoutAgents =
-      isGlobal || (selectedProject?.layoutCount ?? 0) > 0;
-
-    const wsName = layout?.name;
-    if (showLayoutAgents && wsAgents.length > 0)
-      groups.push({
-        label: wsName || 'Layout',
-        icon: layout?.icon,
-        agents: wsAgents.filter((a) => !recentSet.has(a.slug) || !!agentSearch),
-      });
-
-    for (const [conn, connAgents] of acpGroups) {
-      const visible = connAgents.filter(
-        (a) => !recentSet.has(a.slug) || !!agentSearch,
-      );
-      if (visible.length > 0)
-        groups.push({ label: conn, icon: '🔌', agents: visible });
-    }
-
-    if (globalAgents.length > 0)
-      groups.push({
-        label: 'Global',
-        icon: '🌐',
-        agents: globalAgents.filter(
-          (a) => !recentSet.has(a.slug) || !!agentSearch,
-        ),
-      });
-
-    const flatList = groups
-      .filter((g) => g.agents.length > 0)
-      .flatMap((g) => g.agents);
-    return { groups: groups.filter((g) => g.agents.length > 0), flatList };
-  }, [
-    agents,
-    agentSearch,
-    wsAgentSlugs,
-    layout?.icon,
-    layout?.name,
-    runtimeConnections,
-    selectedContext,
-    isGlobal,
-    selectedProject?.layoutCount,
-    projectAgentFilter,
-  ]);
 
   const handleSelect = (agent: AgentData) => {
     trackRecentAgent(agent.slug);
@@ -431,37 +312,6 @@ function CwdBreadcrumb({ path }: { path: string }) {
       <span className="new-chat-modal__dir-leaf">{leaf}</span>
     </>
   );
-}
-
-/** Get recent agent slugs, optionally scoped to a project context */
-function getRecentForContext(context: string): string[] {
-  // From active chats
-  const chats = activeChatsStore.getSnapshot();
-  const slugs: string[] = [];
-  const isGlobal = context === GLOBAL_CONTEXT;
-
-  const entries = Object.values(chats)
-    .filter((c: any) => {
-      if (!c.agentSlug || !c.messages?.length) return false;
-      if (isGlobal) return !c.projectSlug;
-      return c.projectSlug === context;
-    })
-    .sort((a: any, b: any) => (b.lastActivity || 0) - (a.lastActivity || 0));
-
-  for (const chat of entries) {
-    if (!slugs.includes((chat as any).agentSlug))
-      slugs.push((chat as any).agentSlug);
-    if (slugs.length >= 3) break;
-  }
-
-  // Supplement from localStorage
-  const stored = getRecentAgentSlugs();
-  for (const s of stored) {
-    if (!slugs.includes(s)) slugs.push(s);
-    if (slugs.length >= 5) break;
-  }
-
-  return slugs;
 }
 
 function AgentRow({

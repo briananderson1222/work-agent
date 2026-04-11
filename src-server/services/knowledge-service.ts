@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 import {
   KnowledgeDocumentMeta,
   KnowledgeNamespaceConfig,
@@ -12,16 +11,7 @@ import type {
 } from '../providers/model-provider-types.js';
 import { knowledgeOps } from '../telemetry/metrics.js';
 import {
-  chunkKnowledgeText,
   DEFAULT_KNOWLEDGE_NAMESPACE,
-  deleteKnowledgeFile,
-  knowledgeVectorNamespace,
-  loadKnowledgeMeta,
-  parseKnowledgeFrontmatter,
-  readKnowledgeFile,
-  saveKnowledgeMeta,
-  serializeKnowledgeFrontmatter,
-  writeKnowledgeFile,
 } from './knowledge-storage.js';
 import {
   buildKnowledgeInjectContext,
@@ -41,6 +31,12 @@ import {
   listKnowledgeDocuments,
   scanKnowledgeDirectories,
 } from './knowledge-filesystem.js';
+import {
+  deleteKnowledgeDocument,
+  getKnowledgeDocumentContent,
+  updateKnowledgeDocument,
+  uploadKnowledgeDocument,
+} from './knowledge-documents.js';
 import { searchKnowledgeDocuments } from './knowledge-search.js';
 
 /** @deprecated Use KnowledgeDocumentMeta from contracts. Kept for backward compat. */
@@ -117,69 +113,24 @@ export class KnowledgeService {
     namespace: string = DEFAULT_NS,
     extraMeta?: Record<string, any>,
   ): Promise<KnowledgeDocumentMeta> {
-    const vectorDb = this.resolveVectorDb();
-    if (!vectorDb) throw new Error('No vector DB provider configured');
-    const ns = knowledgeVectorNamespace(projectSlug, namespace);
-    if (!(await vectorDb.namespaceExists(ns))) {
-      await vectorDb.createNamespace(ns);
-    }
-
-    const nsCfg = this.getNamespaceConfig(projectSlug, namespace);
-    const storageDir = this.resolveStorageDir(projectSlug, namespace);
-    // Default writeFiles=true for new namespaces (unless explicitly false)
-    const shouldWriteFiles = nsCfg?.writeFiles !== false;
-
-    // Parse frontmatter — chunk body only
-    const { metadata: fmMeta, body } = parseKnowledgeFrontmatter(content);
-
-    // File-first: write to disk BEFORE indexing
-    const filePath = filename;
-    if (shouldWriteFiles) {
-      writeKnowledgeFile(storageDir, filePath, content);
-    }
-
-    // Chunk the body (not frontmatter)
-    const chunks = chunkKnowledgeText(body);
-    const docId = crypto.randomUUID();
-
-    const embeddingProvider = this.resolveEmbedding();
-    let vectors: number[][];
-    if (embeddingProvider && chunks.length > 0) {
-      vectors = await embeddingProvider.embed(chunks);
-    } else {
-      vectors = chunks.map(() => []);
-    }
-
-    const docs = chunks.map((text, i) => ({
-      id: `${docId}:${i}`,
-      vector: vectors[i],
-      text,
-      metadata: { docId, filename, namespace, chunkIndex: i },
-    }));
-
-    await vectorDb.addDocuments(ns, docs);
-
-    const mergedMeta = { ...fmMeta, ...extraMeta };
-    const meta: KnowledgeDocumentMeta = {
-      id: docId,
-      filename,
-      namespace,
-      path: filePath,
-      source,
-      chunkCount: chunks.length,
-      createdAt: new Date().toISOString(),
-      ...(shouldWriteFiles && {
-        storagePath: join(storageDir, 'files', filePath),
-      }),
-      ...(Object.keys(mergedMeta).length > 0 && { metadata: mergedMeta }),
-    };
-    const existing = loadKnowledgeMeta(
-      storageDir,
-      this.dataDir,
+    const meta = await uploadKnowledgeDocument(
+      {
+        vectorDb: this.resolveVectorDb(),
+        embeddingProvider: this.resolveEmbedding(),
+        dataDir: this.dataDir,
+        resolveStorageDir: (slug, targetNamespace) =>
+          this.resolveStorageDir(slug, targetNamespace),
+        getNamespaceConfig: (slug, targetNamespace) =>
+          this.getNamespaceConfig(slug, targetNamespace),
+        findDocNamespace: (slug, docId) => this.findDocNamespace(slug, docId),
+      },
       projectSlug,
+      filename,
+      content,
+      source,
       namespace,
+      extraMeta,
     );
-    saveKnowledgeMeta(storageDir, [...existing, meta]);
     knowledgeOps.add(1, { op: 'index' });
     return meta;
   }
@@ -224,40 +175,21 @@ export class KnowledgeService {
     docId: string,
     namespace?: string,
   ): Promise<void> {
-    const vectorDb = this.resolveVectorDb();
-    if (!vectorDb) throw new Error('No vector DB provider configured');
-
-    const targetNs = namespace ?? this.findDocNamespace(projectSlug, docId);
-    if (!targetNs) throw new Error(`Document '${docId}' not found`);
-
-    const ns = knowledgeVectorNamespace(projectSlug, targetNs);
-    const storageDir = this.resolveStorageDir(projectSlug, targetNs);
-    const meta = loadKnowledgeMeta(
-      storageDir,
-      this.dataDir,
+    await deleteKnowledgeDocument(
+      {
+        vectorDb: this.resolveVectorDb(),
+        embeddingProvider: this.resolveEmbedding(),
+        dataDir: this.dataDir,
+        resolveStorageDir: (slug, targetNamespace) =>
+          this.resolveStorageDir(slug, targetNamespace),
+        getNamespaceConfig: (slug, targetNamespace) =>
+          this.getNamespaceConfig(slug, targetNamespace),
+        findDocNamespace: (slug, targetDocId) =>
+          this.findDocNamespace(slug, targetDocId),
+      },
       projectSlug,
-      targetNs,
-    );
-    const doc = meta.find((d) => d.id === docId);
-    if (!doc)
-      throw new Error(
-        `Document '${docId}' not found in namespace '${targetNs}'`,
-      );
-
-    // File-first: delete from disk
-    const filePath = doc.path || doc.filename;
-    deleteKnowledgeFile(storageDir, filePath);
-
-    // Then remove from vector index
-    const chunkIds = Array.from(
-      { length: doc.chunkCount },
-      (_, i) => `${docId}:${i}`,
-    );
-    await vectorDb.deleteDocuments(ns, chunkIds);
-
-    saveKnowledgeMeta(
-      storageDir,
-      meta.filter((d) => d.id !== docId),
+      docId,
+      namespace,
     );
     knowledgeOps.add(1, { op: 'delete' });
   }
@@ -269,39 +201,22 @@ export class KnowledgeService {
     docId: string,
     namespace?: string,
   ): Promise<string> {
-    const targetNs = namespace ?? this.findDocNamespace(projectSlug, docId);
-    if (!targetNs) throw new Error(`Document '${docId}' not found`);
-
-    const storageDir = this.resolveStorageDir(projectSlug, targetNs);
-    const meta = loadKnowledgeMeta(
-      storageDir,
-      this.dataDir,
+    return getKnowledgeDocumentContent(
+      {
+        vectorDb: this.resolveVectorDb(),
+        embeddingProvider: this.resolveEmbedding(),
+        dataDir: this.dataDir,
+        resolveStorageDir: (slug, targetNamespace) =>
+          this.resolveStorageDir(slug, targetNamespace),
+        getNamespaceConfig: (slug, targetNamespace) =>
+          this.getNamespaceConfig(slug, targetNamespace),
+        findDocNamespace: (slug, targetDocId) =>
+          this.findDocNamespace(slug, targetDocId),
+      },
       projectSlug,
-      targetNs,
+      docId,
+      namespace,
     );
-    const doc = meta.find((d) => d.id === docId);
-    if (!doc) throw new Error(`Document '${docId}' not found`);
-
-    // File-first: try reading from disk
-    const filePath = doc.path || doc.filename;
-    const fileContent = readKnowledgeFile(storageDir, filePath);
-    if (fileContent !== null) return fileContent;
-
-    // Fallback: reconstruct from vector chunks (backward compat)
-    const vectorDb = this.resolveVectorDb();
-    if (!vectorDb) throw new Error('No vector DB provider configured');
-
-    const ns = knowledgeVectorNamespace(projectSlug, targetNs);
-    if (!(await vectorDb.namespaceExists(ns)))
-      throw new Error('Vector namespace not found');
-
-    const results = await vectorDb.getByMetadata(ns, 'docId', docId);
-    const chunks = new Map<number, string>();
-    for (const r of results) {
-      chunks.set(r.metadata.chunkIndex as number, r.text);
-    }
-    const sorted = Array.from(chunks.entries()).sort((a, b) => a[0] - b[0]);
-    return sorted.map(([, text]) => text).join('\n\n');
   }
 
   // ── Update document in-place ──
@@ -312,90 +227,23 @@ export class KnowledgeService {
     updates: { content?: string; metadata?: Record<string, any> },
     namespace?: string,
   ): Promise<KnowledgeDocumentMeta> {
-    const vectorDb = this.resolveVectorDb();
-    if (!vectorDb) throw new Error('No vector DB provider configured');
-
-    const targetNs = namespace ?? this.findDocNamespace(projectSlug, docId);
-    if (!targetNs) throw new Error(`Document '${docId}' not found`);
-
-    const storageDir = this.resolveStorageDir(projectSlug, targetNs);
-    const allMeta = loadKnowledgeMeta(
-      storageDir,
-      this.dataDir,
-      projectSlug,
-      targetNs,
-    );
-    const docIdx = allMeta.findIndex((d) => d.id === docId);
-    if (docIdx < 0) throw new Error(`Document '${docId}' not found`);
-    const doc = allMeta[docIdx];
-
-    const filePath = doc.path || doc.filename;
-    let content = updates.content;
-    let newMetadata = { ...doc.metadata, ...updates.metadata };
-
-    if (content === undefined) {
-      // Read existing content to re-index
-      const existing = readKnowledgeFile(storageDir, filePath);
-      if (existing) {
-        const { metadata: fmMeta, body } = parseKnowledgeFrontmatter(existing);
-        newMetadata = { ...fmMeta, ...doc.metadata, ...updates.metadata };
-        content = body;
-      }
-    } else {
-      const { metadata: fmMeta, body } = parseKnowledgeFrontmatter(content);
-      newMetadata = { ...fmMeta, ...updates.metadata };
-      content = body;
-    }
-
-    // Write updated file to disk
-    const nsCfg = this.getNamespaceConfig(projectSlug, targetNs);
-    if (nsCfg?.writeFiles !== false) {
-      const fileContent = serializeKnowledgeFrontmatter(
-        newMetadata,
-        content ?? '',
-      );
-      writeKnowledgeFile(storageDir, filePath, fileContent);
-    }
-
-    // Re-index: delete old chunks, embed new
-    const ns = knowledgeVectorNamespace(projectSlug, targetNs);
-    const oldChunkIds = Array.from(
-      { length: doc.chunkCount },
-      (_, i) => `${docId}:${i}`,
-    );
-    await vectorDb.deleteDocuments(ns, oldChunkIds);
-
-    const chunks = chunkKnowledgeText(content ?? '');
-    const embeddingProvider = this.resolveEmbedding();
-    let vectors: number[][];
-    if (embeddingProvider && chunks.length > 0) {
-      vectors = await embeddingProvider.embed(chunks);
-    } else {
-      vectors = chunks.map(() => []);
-    }
-
-    const newDocs = chunks.map((text, i) => ({
-      id: `${docId}:${i}`,
-      vector: vectors[i],
-      text,
-      metadata: {
-        docId,
-        filename: doc.filename,
-        namespace: targetNs,
-        chunkIndex: i,
+    const updatedMeta = await updateKnowledgeDocument(
+      {
+        vectorDb: this.resolveVectorDb(),
+        embeddingProvider: this.resolveEmbedding(),
+        dataDir: this.dataDir,
+        resolveStorageDir: (slug, targetNamespace) =>
+          this.resolveStorageDir(slug, targetNamespace),
+        getNamespaceConfig: (slug, targetNamespace) =>
+          this.getNamespaceConfig(slug, targetNamespace),
+        findDocNamespace: (slug, targetDocId) =>
+          this.findDocNamespace(slug, targetDocId),
       },
-    }));
-    if (newDocs.length > 0) await vectorDb.addDocuments(ns, newDocs);
-
-    // Update metadata — preserve ID
-    const updatedMeta: KnowledgeDocumentMeta = {
-      ...doc,
-      chunkCount: chunks.length,
-      updatedAt: new Date().toISOString(),
-      ...(Object.keys(newMetadata).length > 0 && { metadata: newMetadata }),
-    };
-    allMeta[docIdx] = updatedMeta;
-    saveKnowledgeMeta(storageDir, allMeta);
+      projectSlug,
+      docId,
+      updates,
+      namespace,
+    );
     knowledgeOps.add(1, { op: 'update' });
     return updatedMeta;
   }
