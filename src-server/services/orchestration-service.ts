@@ -18,6 +18,12 @@ import {
 } from '../telemetry/metrics.js';
 import type { EventBus } from './event-bus.js';
 import type { EventStore, OrchestrationCommandReceipt } from './event-store.js';
+import {
+  projectOrchestrationEventToReadModel,
+  recoverOrchestrationSessions,
+  resolveOrchestrationAdapterForThread,
+  trackOrchestrationSession,
+} from './orchestration-session-state.js';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -177,9 +183,12 @@ export class OrchestrationService {
           return session;
         }
         case 'sendTurn': {
-          const adapter = await this.resolveAdapterForThread(
-            command.input.threadId,
-          );
+          const adapter = await resolveOrchestrationAdapterForThread({
+            threadId: command.input.threadId,
+            threadProviders: this.threadProviders,
+            requireAdapter: (provider) => this.requireAdapter(provider),
+            adapters: this.options.adapterRegistry.list(),
+          });
           const startedAt = performance.now();
           const result = await adapter.sendTurn(command.input);
           adapterTurnDuration.record(performance.now() - startedAt, {
@@ -189,13 +198,23 @@ export class OrchestrationService {
           return result;
         }
         case 'interruptTurn': {
-          const adapter = await this.resolveAdapterForThread(command.threadId);
+          const adapter = await resolveOrchestrationAdapterForThread({
+            threadId: command.threadId,
+            threadProviders: this.threadProviders,
+            requireAdapter: (provider) => this.requireAdapter(provider),
+            adapters: this.options.adapterRegistry.list(),
+          });
           await adapter.interruptTurn(command.threadId, command.turnId);
           this.persistReceipt(receipt);
           return;
         }
         case 'respondToRequest': {
-          const adapter = await this.resolveAdapterForThread(command.threadId);
+          const adapter = await resolveOrchestrationAdapterForThread({
+            threadId: command.threadId,
+            threadProviders: this.threadProviders,
+            requireAdapter: (provider) => this.requireAdapter(provider),
+            adapters: this.options.adapterRegistry.list(),
+          });
           await adapter.respondToRequest(
             command.threadId,
             command.requestId,
@@ -205,7 +224,12 @@ export class OrchestrationService {
           return;
         }
         case 'stopSession': {
-          const adapter = await this.resolveAdapterForThread(command.threadId);
+          const adapter = await resolveOrchestrationAdapterForThread({
+            threadId: command.threadId,
+            threadProviders: this.threadProviders,
+            requireAdapter: (provider) => this.requireAdapter(provider),
+            adapters: this.options.adapterRegistry.list(),
+          });
           await adapter.stopSession(command.threadId);
           this.threadProviders.delete(command.threadId);
           this.sessionReadModel.delete(command.threadId);
@@ -234,7 +258,12 @@ export class OrchestrationService {
     try {
       for await (const event of adapter.streamEvents()) {
         this.threadProviders.set(event.threadId, event.provider);
-        this.projectEventToReadModel(event);
+        projectOrchestrationEventToReadModel({
+          event,
+          threadProviders: this.threadProviders,
+          sessionReadModel: this.sessionReadModel,
+          eventStore: this.options.eventStore,
+        });
         this.options.eventStore?.appendEvent(event);
         this.events.push(event);
         this.options.eventBus.emit('orchestration:event', { event });
@@ -291,24 +320,6 @@ export class OrchestrationService {
     return adapter;
   }
 
-  private async resolveAdapterForThread(
-    threadId: string,
-  ): Promise<ProviderAdapterShape> {
-    const knownProvider = this.threadProviders.get(threadId);
-    if (knownProvider) {
-      return this.requireAdapter(knownProvider);
-    }
-
-    for (const adapter of this.options.adapterRegistry.list()) {
-      if (await adapter.hasSession(threadId)) {
-        this.threadProviders.set(threadId, adapter.provider);
-        return adapter;
-      }
-    }
-
-    throw new Error(`No provider session found for thread: ${threadId}`);
-  }
-
   private commandProvider(command: OrchestrationCommand): ProviderKind | null {
     if (command.type === 'startSession') {
       return command.input.provider;
@@ -329,113 +340,20 @@ export class OrchestrationService {
   }
 
   private trackSession(session: ProviderSession): void {
-    this.threadProviders.set(session.threadId, session.provider);
-    this.sessionReadModel.set(session.threadId, session);
-  }
-
-  private projectEventToReadModel(event: CanonicalRuntimeEvent): void {
-    const existing = this.sessionReadModel.get(event.threadId);
-    const baseSession: ProviderSession = existing ?? {
-      provider: event.provider,
-      threadId: event.threadId,
-      status: 'ready',
-      createdAt: event.createdAt,
-      updatedAt: event.createdAt,
-    };
-
-    let nextSession: ProviderSession | null = baseSession;
-
-    switch (event.method) {
-      case 'session.started':
-        nextSession = {
-          ...baseSession,
-          provider: event.provider,
-          status: 'connecting',
-          createdAt: baseSession.createdAt ?? event.createdAt,
-          updatedAt: event.createdAt,
-        };
-        break;
-      case 'session.configured':
-        nextSession = {
-          ...baseSession,
-          status: baseSession.status === 'closed' ? 'closed' : 'ready',
-          model: event.model ?? baseSession.model,
-          updatedAt: event.createdAt,
-        };
-        break;
-      case 'session.state-changed':
-        nextSession = {
-          ...baseSession,
-          status: this.mapSessionState(event.to),
-          updatedAt: event.createdAt,
-        };
-        break;
-      case 'session.exited':
-        nextSession = {
-          ...baseSession,
-          status: 'closed',
-          updatedAt: event.createdAt,
-        };
-        break;
-      default:
-        nextSession = existing
-          ? { ...existing, updatedAt: event.createdAt }
-          : null;
-        break;
-    }
-
-    if (!nextSession) return;
-    this.trackSession(nextSession);
-    if (nextSession.status === 'closed') {
-      this.options.eventStore?.markSessionClosed(
-        nextSession.threadId,
-        nextSession.provider,
-      );
-      return;
-    }
-    this.options.eventStore?.upsertSession(nextSession);
-  }
-
-  private mapSessionState(state: string): ProviderSession['status'] {
-    if (state === 'running') return 'running';
-    if (state === 'errored') return 'error';
-    if (state === 'exited') return 'closed';
-    return 'ready';
+    trackOrchestrationSession({
+      threadProviders: this.threadProviders,
+      sessionReadModel: this.sessionReadModel,
+      session,
+    });
   }
 
   private async recoverSessions(): Promise<void> {
-    const persistedSessions = this.options.eventStore?.readSessions() ?? [];
-    for (const session of persistedSessions) {
-      if (session.status === 'closed') continue;
-      const adapter = this.options.adapterRegistry.get(session.provider);
-      if (!adapter) continue;
-      try {
-        await this.assertAdapterReady(adapter);
-        const recovered = await adapter.startSession({
-          threadId: session.threadId,
-          provider: session.provider,
-          modelId: session.model,
-          resumeCursor: session.resumeCursor,
-        });
-        this.trackSession({
-          ...recovered,
-          createdAt: session.createdAt,
-        });
-        this.options.eventStore?.upsertSession({
-          ...recovered,
-          createdAt: session.createdAt,
-        });
-      } catch (error) {
-        this.options.logger.warn('Failed to recover provider session', {
-          provider: session.provider,
-          threadId: session.threadId,
-          error: error instanceof Error ? error.message : String(error),
-        });
-        this.options.eventStore?.markSessionClosed(
-          session.threadId,
-          session.provider,
-        );
-      }
-    }
+    await recoverOrchestrationSessions({
+      adapterRegistry: this.options.adapterRegistry,
+      eventStore: this.options.eventStore,
+      assertAdapterReady: (adapter) => this.assertAdapterReady(adapter),
+      trackSession: (session) => this.trackSession(session),
+      logger: this.options.logger,
+    });
   }
 }

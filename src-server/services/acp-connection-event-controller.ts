@@ -53,6 +53,42 @@ export function createACPConnectionEventController(options: {
   };
 }
 
+function runWithControllerFields<T>(
+  controller: ACPConnectionEventController,
+  run: (options: {
+    fields: ACPConnectionEventFields;
+    applyFields: (fields: ACPConnectionEventFields) => void;
+  }) => T,
+): T {
+  let fields = controller.getFields();
+  const result = run({
+    fields,
+    applyFields: (nextFields) => {
+      fields = nextFields;
+    },
+  });
+  controller.applyFields(fields);
+  return result;
+}
+
+async function runWithControllerFieldsAsync<T>(
+  controller: ACPConnectionEventController,
+  run: (options: {
+    fields: ACPConnectionEventFields;
+    applyFields: (fields: ACPConnectionEventFields) => void;
+  }) => Promise<T>,
+): Promise<T> {
+  let fields = controller.getFields();
+  const result = await run({
+    fields,
+    applyFields: (nextFields) => {
+      fields = nextFields;
+    },
+  });
+  controller.applyFields(fields);
+  return result;
+}
+
 export async function runACPConnectionSessionUpdate(
   params: SessionNotification,
   options: {
@@ -60,14 +96,12 @@ export async function runACPConnectionSessionUpdate(
     controller: ACPConnectionEventController;
   },
 ): Promise<void> {
-  await handleACPConnectionSessionUpdate(params, {
-    logger: options.logger,
-    fields: options.controller.getFields(),
-    applyFields: (fields) => options.controller.applyFields(fields),
-    flushTextPart: () => options.controller.flushTextPart(),
-    updateToolResult: (toolCallId, result, isError) =>
-      options.controller.updateToolResult(toolCallId, result, isError),
-  });
+  await runWithControllerFieldsAsync(options.controller, (controllerState) =>
+    handleACPConnectionSessionUpdate(params, {
+      logger: options.logger,
+      ...controllerState,
+    }),
+  );
 }
 
 export function runACPConnectionExtensionNotification(
@@ -78,11 +112,12 @@ export function runACPConnectionExtensionNotification(
     controller: ACPConnectionEventController;
   },
 ): void {
-  handleACPConnectionExtensionNotification(method, params, {
-    logger: options.logger,
-    fields: options.controller.getFields(),
-    applyFields: (fields) => options.controller.applyFields(fields),
-  });
+  runWithControllerFields(options.controller, (controllerState) =>
+    handleACPConnectionExtensionNotification(method, params, {
+      logger: options.logger,
+      ...controllerState,
+    }),
+  );
 }
 
 export function runACPConnectionExtensionMethod(
@@ -93,9 +128,10 @@ export function runACPConnectionExtensionMethod(
     controller: ACPConnectionEventController;
   },
 ): Record<string, unknown> {
-  return handleACPConnectionExtensionMethod(method, params, {
-    logger: options.logger,
-    fields: options.controller.getFields(),
-    applyFields: (fields) => options.controller.applyFields(fields),
-  });
+  return runWithControllerFields(options.controller, (controllerState) =>
+    handleACPConnectionExtensionMethod(method, params, {
+      logger: options.logger,
+      ...controllerState,
+    }),
+  );
 }

@@ -128,4 +128,91 @@ describe('acp-connection-event-controller', () => {
 
     expect(getState().currentModeId).toBe('plan');
   });
+
+  test('runACPConnectionSessionUpdate preserves flushed text before tool calls', async () => {
+    const { controller, getState } = createController(
+      createState({
+        responseAccumulator: 'hello',
+        activeWriter: vi.fn().mockResolvedValue(undefined),
+      }),
+    );
+
+    await runACPConnectionSessionUpdate(
+      {
+        update: {
+          sessionUpdate: 'tool_call',
+          toolCallId: 'tool-1',
+          title: 'search',
+          rawInput: '{"query":"hello"}',
+        },
+      } as any,
+      {
+        logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        controller,
+      },
+    );
+
+    expect(getState().responseAccumulator).toBe('');
+    expect(getState().responseParts).toEqual([
+      { type: 'text', text: 'hello' },
+      {
+        type: 'tool-invocation',
+        toolCallId: 'tool-1',
+        toolName: 'search',
+        args: '{"query":"hello"}',
+        state: 'call',
+      },
+    ]);
+  });
+
+  test('runACPConnectionSessionUpdate preserves tool result updates', async () => {
+    const { controller, getState } = createController(
+      createState({
+        activeWriter: vi.fn().mockResolvedValue(undefined),
+        responseParts: [
+          {
+            type: 'tool-invocation',
+            toolCallId: 'tool-1',
+            toolName: 'search',
+            args: '{"query":"hello"}',
+            state: 'call',
+          },
+        ],
+      }),
+    );
+
+    await runACPConnectionSessionUpdate(
+      {
+        update: {
+          sessionUpdate: 'tool_call_update',
+          toolCallId: 'tool-1',
+          status: 'completed',
+          content: [
+            {
+              type: 'content',
+              content: {
+                type: 'text',
+                text: 'done',
+              },
+            },
+          ],
+        },
+      } as any,
+      {
+        logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        controller,
+      },
+    );
+
+    expect(getState().responseParts).toEqual([
+      {
+        type: 'tool-invocation',
+        toolCallId: 'tool-1',
+        toolName: 'search',
+        args: '{"query":"hello"}',
+        state: 'result',
+        result: 'done',
+      },
+    ]);
+  });
 });

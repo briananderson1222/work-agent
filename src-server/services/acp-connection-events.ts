@@ -9,7 +9,11 @@ import {
   handleACPBridgeExtensionNotification,
   handleACPBridgeSessionUpdate,
 } from './acp-bridge-events.js';
-import { syncACPEventState } from './acp-connection-state.js';
+import {
+  flushACPTextPart,
+  syncACPEventState,
+  updateACPToolResultState,
+} from './acp-connection-state.js';
 import type {
   ACPSlashCommand,
   ManagedTerminal,
@@ -58,20 +62,28 @@ export async function handleACPConnectionSessionUpdate(
     logger: any;
     fields: ACPConnectionEventFields;
     applyFields: (fields: ACPConnectionEventFields) => void;
-    flushTextPart: () => void;
-    updateToolResult: (
-      toolCallId: string,
-      result: string | undefined,
-      isError?: boolean,
-    ) => void;
   },
 ): Promise<void> {
   const state = buildACPConnectionEventState(options.fields);
   await handleACPBridgeSessionUpdate(params, {
     logger: options.logger,
     state,
-    flushTextPart: options.flushTextPart,
-    updateToolResult: options.updateToolResult,
+    flushTextPart: () => {
+      const next = flushACPTextPart(
+        state.responseAccumulator,
+        state.responseParts,
+      );
+      state.responseAccumulator = next.responseAccumulator;
+      state.responseParts = next.responseParts;
+    },
+    updateToolResult: (toolCallId, result, isError = false) => {
+      state.responseParts = updateACPToolResultState(
+        state.responseParts,
+        toolCallId,
+        result,
+        isError,
+      );
+    },
   });
   const nextFields = { ...options.fields };
   applyACPConnectionEventState(nextFields, state);

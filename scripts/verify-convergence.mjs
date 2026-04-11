@@ -646,6 +646,46 @@ if (!orchestrationServiceTest.includes('../../providers/provider-interfaces.js')
   );
 }
 
+const orchestrationService = readFileSync(
+  new URL('../src-server/services/orchestration-service.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  './orchestration-session-state.js',
+  'resolveOrchestrationAdapterForThread({',
+  'projectOrchestrationEventToReadModel({',
+  'recoverOrchestrationSessions({',
+  'trackOrchestrationSession({',
+]) {
+  if (!orchestrationService.includes(requiredHelper)) {
+    errors.push(`orchestration-service.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineOrchestrationSnippet of [
+  'private async resolveAdapterForThread(',
+  'private projectEventToReadModel(',
+  'private mapSessionState(',
+]) {
+  if (orchestrationService.includes(retiredInlineOrchestrationSnippet)) {
+    errors.push(`orchestration-service.ts must not inline extracted session-state logic ${retiredInlineOrchestrationSnippet}.`);
+  }
+}
+
+const orchestrationSessionState = readFileSync(
+  new URL('../src-server/services/orchestration-session-state.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function trackOrchestrationSession',
+  'export async function resolveOrchestrationAdapterForThread',
+  'export function projectOrchestrationEventToReadModel',
+  'export async function recoverOrchestrationSessions',
+]) {
+  if (!orchestrationSessionState.includes(requiredHelper)) {
+    errors.push(`orchestration-session-state.ts must include ${requiredHelper}.`);
+  }
+}
+
 const themingGuide = readFileSync(
   new URL('../docs/guides/theming.md', import.meta.url),
   'utf8',
