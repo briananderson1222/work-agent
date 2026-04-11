@@ -334,18 +334,8 @@ export async function loadAgentTools(
   // Load each MCP server from catalog
   for (const entry of spec.tools.mcpServers) {
     try {
-      const toolId = typeof entry === 'string' ? entry : entry.id;
-      const toolDef =
-        typeof entry === 'string'
-          ? await configLoader.loadIntegration(entry)
-          : (entry as ToolDef);
-
-      // Build resolved env: toolDef.env as base, agent-level tools.env as overrides
-      const agentEnvOverrides = spec.tools?.env;
-      let resolvedEnv: Record<string, string> | undefined;
-      if (toolDef.env || agentEnvOverrides) {
-        resolvedEnv = { ...toolDef.env, ...agentEnvOverrides };
-      }
+      const toolId = entry;
+      const toolDef = await configLoader.loadIntegration(entry);
 
       if (toolDef.kind === 'mcp') {
         const mcpTools = await createMCPTools(
@@ -358,7 +348,7 @@ export async function loadAgentTools(
           toolNameMapping,
           toolNameReverseMapping,
           logger,
-          resolvedEnv,
+          toolDef.env,
         );
         tools.push(...mcpTools);
       } else if (toolDef.kind === 'builtin') {
@@ -368,10 +358,9 @@ export async function loadAgentTools(
         }
       }
     } catch (error) {
-      const failedId = typeof entry === 'string' ? entry : entry.id;
       logger.error('Failed to load tool', {
         agent: agentSlug,
-        toolId: failedId,
+        toolId: entry,
         error,
       });
     }

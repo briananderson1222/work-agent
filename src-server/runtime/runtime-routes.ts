@@ -254,6 +254,16 @@ export function configureRuntimeRoutes(
         mcpServers: ['stallion-control'],
         autoApprove: context.defaultAutoApprovedTools,
       },
+      getRuntimeConnections: async () =>
+        (await context.connectionService.listRuntimeConnections()).map(
+          (connection) => ({
+            id: connection.id,
+            type: connection.type,
+            name: connection.name,
+            enabled: connection.enabled,
+            status: connection.status,
+          }),
+        ),
       getVirtualAgents: () => context.acpBridge.getVirtualAgents(),
       isACPConnected: () => context.acpBridge.isConnected(),
       reloadAgents: context.reloadAgents,

@@ -7,6 +7,7 @@ import {
   type ChatUIState,
 } from '../contexts/active-chats-store';
 import { useActiveChatActions } from '../contexts/ActiveChatsContext';
+import { useNavigation } from '../contexts/NavigationContext';
 import { log } from '../utils/logger';
 import { sendOrchestrationTurn, startOrchestrationSession } from './useOrchestration';
 import { useStreamingMessage } from './useStreamingMessage';
@@ -425,6 +426,46 @@ export function useOpenConversation(apiBase: string) {
       return sessionId;
     },
     [apiBase, fetchMessages, initChat, updateChat],
+  );
+}
+
+export function useLaunchChat(apiBase: string) {
+  const createChatSession = useCreateChatSession();
+  const sendMessage = useSendMessage(apiBase);
+  const navigation = useNavigation();
+
+  return useCallback(
+    async (
+      agentSlug: string,
+      agentName: string,
+      initialMessage?: string,
+      projectSlug?: string,
+      projectName?: string,
+      execution?: {
+        provider?: ProviderKind;
+        model?: string;
+        providerOptions?: Record<string, unknown>;
+      },
+    ) => {
+      const sessionId = createChatSession(
+        agentSlug,
+        agentName,
+        undefined,
+        projectSlug,
+        projectName,
+        execution,
+      );
+
+      navigation.setActiveChat(sessionId);
+      navigation.setDockState(true);
+
+      if (initialMessage?.trim()) {
+        await sendMessage(sessionId, agentSlug, undefined, initialMessage);
+      }
+
+      return sessionId;
+    },
+    [createChatSession, navigation, sendMessage],
   );
 }
 

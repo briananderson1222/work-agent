@@ -116,23 +116,21 @@ export class MCPService {
 
     if (
       !tools.mcpServers.some(
-        (e) => (typeof e === 'string' ? e : e.id) === toolId,
+        (e) => e === toolId,
       )
     ) {
       tools.mcpServers.push(toolId);
     }
 
     await this.configLoader.updateAgent(slug, { tools });
-    return tools.mcpServers.map((e) => (typeof e === 'string' ? e : e.id));
+    return tools.mcpServers;
   }
 
   async removeToolFromAgent(slug: string, toolId: string): Promise<void> {
     const agent = await this.configLoader.loadAgent(slug);
     const tools = agent.tools || { mcpServers: [] };
 
-    tools.mcpServers = tools.mcpServers.filter(
-      (e) => (typeof e === 'string' ? e : e.id) !== toolId,
-    );
+    tools.mcpServers = tools.mcpServers.filter((e) => e !== toolId);
 
     await this.configLoader.updateAgent(slug, { tools });
   }

@@ -1,8 +1,9 @@
-import type { ConnectionConfig } from '@stallion-ai/shared';
-import { useQuery } from '@tanstack/react-query';
+import {
+  useRuntimeConnectionsQuery,
+} from '@stallion-ai/sdk';
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import { useEffect, useRef, useState } from 'react';
 import { type AgentData, useAgents } from '../contexts/AgentsContext';
-import { useApiBase } from '../contexts/ApiBaseContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
 import type { ChatSession } from '../types';
@@ -37,20 +38,13 @@ export function ChatDockTabBar({
   setShowNewChatModal,
 }: ChatDockTabBarProps) {
   const agents = useAgents();
-  const { apiBase } = useApiBase();
   const availableModels = useModels();
   const closeTabShortcut = useShortcutDisplay('dock.closeTab');
   const newChatShortcut = useShortcutDisplay('dock.newChat');
   const openConversationShortcut = useShortcutDisplay('dock.openConversation');
 
-  const { data: runtimeConnections = [] } = useQuery<ConnectionConfig[]>({
-    queryKey: ['connections', 'runtimes'],
-    queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/connections/runtimes`);
-      const json = await res.json();
-      return json.success ? json.data : [];
-    },
-  });
+  const { data: runtimeConnections = [] } =
+    useRuntimeConnectionsQuery() as { data?: ConnectionConfig[] };
 
   const tabListRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState({
