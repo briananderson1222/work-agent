@@ -91,7 +91,7 @@ const allowedSharedImportFiles = new Map([
   ['src-server/routes/plugin-bundles.ts', ['@stallion-ai/shared/build']],
   ['src-server/routes/plugin-install-routes.ts', ['@stallion-ai/shared/parsers']],
   ['src-server/routes/plugin-lifecycle-routes.ts', ['@stallion-ai/shared/parsers']],
-  ['src-server/routes/system.ts', ['@stallion-ai/shared/git']],
+  ['src-server/routes/system-update-routes.ts', ['@stallion-ai/shared/git']],
 ]);
 
 for (const relativePath of [
@@ -2476,6 +2476,69 @@ for (const requiredHelper of [
 ]) {
   if (!invokeGlobalRoute.includes(requiredHelper)) {
     errors.push(`src-server/routes/invoke-global.ts must include ${requiredHelper}.`);
+  }
+}
+
+const systemRoute = readFileSync(
+  new URL('../src-server/routes/system.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  './system-route-types.js',
+  './system-status-routes.js',
+  './system-update-routes.js',
+  'createSystemStatusRoutes(deps)',
+  'createSystemUpdateRoutes(deps, logger)',
+]) {
+  if (!systemRoute.includes(requiredHelper)) {
+    errors.push(`src-server/routes/system.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineSystemSnippet of [
+  'function normalizeConfiguredProviders(',
+  'function buildCapabilityStates(',
+  'function buildSystemRecommendation(',
+  "app.get('/status', async (c) => {",
+  "app.post('/verify-bedrock', async (c) => {",
+  "app.get('/core-update', async (c) => {",
+]) {
+  if (systemRoute.includes(retiredInlineSystemSnippet)) {
+    errors.push(`src-server/routes/system.ts must not inline extracted system route logic ${retiredInlineSystemSnippet}.`);
+  }
+}
+
+const systemStatusRoutes = readFileSync(
+  new URL('../src-server/routes/system-status-routes.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function createSystemStatusRoutes',
+  'function normalizeConfiguredProviders(',
+  'function buildCapabilityStates(',
+  'function buildSystemRecommendation(',
+  "app.get('/status', async (c) => {",
+  "app.get('/capabilities', (c) => {",
+  "app.get('/discover', (c) => {",
+]) {
+  if (!systemStatusRoutes.includes(requiredHelper)) {
+    errors.push(`src-server/routes/system-status-routes.ts must include ${requiredHelper}.`);
+  }
+}
+
+const systemUpdateRoutes = readFileSync(
+  new URL('../src-server/routes/system-update-routes.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function createSystemUpdateRoutes',
+  "app.post('/verify-bedrock', async (c) => {",
+  "app.get('/core-update', async (c) => {",
+  "app.post('/core-update', async (c) => {",
+  'resolveGitInfo(',
+  "spawn('node', ['dist-server/index.js']",
+]) {
+  if (!systemUpdateRoutes.includes(requiredHelper)) {
+    errors.push(`src-server/routes/system-update-routes.ts must include ${requiredHelper}.`);
   }
 }
 
