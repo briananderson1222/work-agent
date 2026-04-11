@@ -2773,6 +2773,36 @@ for (const requiredImport of [
     errors.push(`CodingLayout must delegate extracted UI sections to ${requiredImport}.`);
   }
 }
+
+const cliInstall = readFileSync(
+  new URL('../packages/cli/src/commands/install.ts', import.meta.url),
+  'utf8',
+);
+if (!cliInstall.includes("./install-layout.js")) {
+  errors.push('packages/cli/src/commands/install.ts must delegate layout application to install-layout.ts.');
+}
+for (const retiredInlineInstallSnippet of [
+  'const projectsDir = join(PROJECT_HOME, \'projects\');',
+  'console.log(`  ✓ Layout applied to project: ${targetProject}`);',
+]) {
+  if (cliInstall.includes(retiredInlineInstallSnippet)) {
+    errors.push(`packages/cli/src/commands/install.ts must not inline extracted layout install logic ${retiredInlineInstallSnippet}.`);
+  }
+}
+
+const cliInstallLayout = readFileSync(
+  new URL('../packages/cli/src/commands/install-layout.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function applyInstalledPluginLayout',
+  "const projectsDir = join(projectHome, 'projects');",
+  'console.log(`  ✓ Layout applied to project: ${targetProject}`);',
+]) {
+  if (!cliInstallLayout.includes(requiredHelper)) {
+    errors.push(`packages/cli/src/commands/install-layout.ts must include ${requiredHelper}.`);
+  }
+}
 for (const retiredInlineCodingSnippet of [
   'function FileTreeNode(',
   'function FileTreePanel(',
