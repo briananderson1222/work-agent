@@ -2416,6 +2416,69 @@ for (const requiredHelper of [
   }
 }
 
+const invokeRoute = readFileSync(
+  new URL('../src-server/routes/invoke.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  './invoke-agent.js',
+  './invoke-global.js',
+  'invokeAgent(',
+  'invokeAgentTool(',
+  'invokeGlobalPrompt(',
+]) {
+  if (!invokeRoute.includes(requiredHelper)) {
+    errors.push(`src-server/routes/invoke.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineInvokeSnippet of [
+  'interface ToolResult {',
+  'function unwrapMCPResult(',
+  'const invokeModelId = model || ctx.appConfig.invokeModel;',
+  "const tempConversationId = `invoke-${Date.now()}`;",
+  "const filteredTools = toolIds.length > 0",
+  'const toolResult = await (',
+  ').execute(toolArgs);',
+]) {
+  if (invokeRoute.includes(retiredInlineInvokeSnippet)) {
+    errors.push(`src-server/routes/invoke.ts must not inline extracted invoke route logic ${retiredInlineInvokeSnippet}.`);
+  }
+}
+
+const invokeAgentRoute = readFileSync(
+  new URL('../src-server/routes/invoke-agent.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function unwrapMCPResult',
+  'export async function invokeAgent',
+  'export async function invokeAgentTool',
+  'export function invokeErrorResponse',
+  'ctx.activeAgents.get(',
+  'ctx.getNormalizedToolName(',
+  'Response.json(',
+]) {
+  if (!invokeAgentRoute.includes(requiredHelper)) {
+    errors.push(`src-server/routes/invoke-agent.ts must include ${requiredHelper}.`);
+  }
+}
+
+const invokeGlobalRoute = readFileSync(
+  new URL('../src-server/routes/invoke-global.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export async function invokeGlobalPrompt',
+  'ctx.globalToolRegistry.get(id)',
+  'ctx.framework.createTempAgent',
+  'jsonSchema(schema)',
+  'DEFAULT_SYSTEM_PROMPT',
+]) {
+  if (!invokeGlobalRoute.includes(requiredHelper)) {
+    errors.push(`src-server/routes/invoke-global.ts must include ${requiredHelper}.`);
+  }
+}
+
 const sdkTypesIndex = readFileSync(
   new URL('../packages/sdk/src/types/index.ts', import.meta.url),
   'utf8',
