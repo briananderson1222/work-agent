@@ -1,260 +1,18 @@
 import type { KnowledgeNamespaceConfig } from '@stallion-ai/contracts/knowledge';
-import type { Context } from 'hono';
 import { Hono } from 'hono';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { KnowledgeService } from '../services/knowledge-service.js';
 import type { ProviderService } from '../services/provider-service.js';
-import { knowledgeOps } from '../telemetry/metrics.js';
+import { createCrossProjectKnowledgeRoutes as createCrossProjectKnowledgeRouteHandlers } from './knowledge-cross-project.js';
+import { createKnowledgeDocumentRoutes } from './knowledge-document-routes.js';
 import {
   errorMessage,
   getBody,
-  knowledgeBulkDeleteSchema,
   knowledgeNamespaceCreateSchema,
   knowledgeNamespaceUpdateSchema,
-  knowledgeSearchSchema,
-  knowledgeUpdateSchema,
-  knowledgeUploadSchema,
   param,
   validate,
 } from './schemas.js';
-
-// ── Shared route handlers (used by both default and namespaced routes) ──
-
-function knowledgeHandlers(
-  knowledgeService: KnowledgeService,
-  getSlug: (c: Context) => string,
-  getNs: (c: Context) => string | undefined,
-) {
-  const app = new Hono();
-
-  app.get('/', async (c) => {
-    try {
-      // Parse filter query params
-      const url = new URL(c.req.url);
-      const tags = url.searchParams.get('tags');
-      const after = url.searchParams.get('after');
-      const before = url.searchParams.get('before');
-      const pathPrefix = url.searchParams.get('pathPrefix');
-      const status = url.searchParams.get('status');
-
-      // Collect metadata.* params
-      const metadataFilter: Record<string, string> = {};
-      for (const [key, val] of url.searchParams.entries()) {
-        if (key.startsWith('metadata.')) {
-          metadataFilter[key.slice(9)] = val;
-        }
-      }
-
-      const hasFilter =
-        tags ||
-        after ||
-        before ||
-        pathPrefix ||
-        status ||
-        Object.keys(metadataFilter).length > 0;
-      const filter = hasFilter
-        ? {
-            ...(tags && { tags: tags.split(',') }),
-            ...(after && { after }),
-            ...(before && { before }),
-            ...(pathPrefix && { pathPrefix }),
-            ...(status && { status }),
-            ...(Object.keys(metadataFilter).length > 0 && {
-              metadata: metadataFilter,
-            }),
-          }
-        : undefined;
-
-      const data = await knowledgeService.listDocuments(
-        getSlug(c),
-        getNs(c),
-        filter,
-      );
-      return c.json({ success: true, data });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.get('/status', async (c) => {
-    try {
-      const slug = getSlug(c);
-      const ns = getNs(c);
-      const docs = await knowledgeService.listDocuments(slug, ns);
-      const totalChunks = docs.reduce((sum, d) => sum + d.chunkCount, 0);
-      const lastIndexed =
-        docs.length > 0
-          ? docs.reduce(
-              (latest, d) => (d.createdAt > latest ? d.createdAt : latest),
-              docs[0].createdAt,
-            )
-          : null;
-      return c.json({
-        success: true,
-        data: {
-          provider: 'Built-in Vector Store',
-          documentCount: docs.length,
-          totalChunks,
-          lastIndexed,
-          namespace: ns ?? 'all',
-        },
-      });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.post('/upload', validate(knowledgeUploadSchema), async (c) => {
-    try {
-      const { filename, content, metadata } = getBody(c);
-      const data = await knowledgeService.uploadDocument(
-        getSlug(c),
-        filename,
-        content,
-        'upload',
-        getNs(c),
-        metadata,
-      );
-      knowledgeOps.add(1, { op: 'upload' });
-      return c.json({ success: true, data }, 201);
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.post('/scan', async (c) => {
-    try {
-      const { extensions, includePatterns, excludePatterns } = (await c.req
-        .json()
-        .catch(() => ({}))) as {
-        extensions?: string[];
-        includePatterns?: string[];
-        excludePatterns?: string[];
-      };
-      const data = await knowledgeService.scanDirectories(
-        getSlug(c),
-        extensions,
-        includePatterns,
-        excludePatterns,
-        getNs(c) ?? 'code',
-      );
-      knowledgeOps.add(1, { op: 'scan' });
-      return c.json({ success: true, data });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.post('/search', validate(knowledgeSearchSchema), async (c) => {
-    try {
-      const { query, topK } = getBody(c);
-      const data = await knowledgeService.searchDocuments(
-        getSlug(c),
-        query,
-        topK,
-        getNs(c),
-      );
-      knowledgeOps.add(1, { op: 'search' });
-      return c.json({ success: true, data });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.post('/bulk-delete', validate(knowledgeBulkDeleteSchema), async (c) => {
-    try {
-      const { ids } = getBody(c);
-      const slug = getSlug(c);
-      const ns = getNs(c);
-      let deleted = 0;
-      for (const id of ids) {
-        try {
-          await knowledgeService.deleteDocument(slug, id, ns);
-          deleted++;
-        } catch {
-          /* skip missing */
-        }
-      }
-      knowledgeOps.add(1, { op: 'bulk_delete' });
-      return c.json({ success: true, data: { deleted } });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.get('/:docId/content', async (c) => {
-    try {
-      const content = await knowledgeService.getDocumentContent(
-        getSlug(c),
-        param(c, 'docId'),
-        getNs(c),
-      );
-      return c.json({ success: true, data: { content } });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.get('/tree', (c) => {
-    try {
-      const ns = getNs(c);
-      if (!ns)
-        return c.json(
-          { success: false, error: 'Namespace required for tree' },
-          400,
-        );
-      const data = knowledgeService.getDirectoryTree(getSlug(c), ns);
-      return c.json({ success: true, data });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.put('/:docId', validate(knowledgeUpdateSchema), async (c) => {
-    try {
-      const { content, metadata } = getBody(c);
-      const data = await knowledgeService.updateDocument(
-        getSlug(c),
-        param(c, 'docId'),
-        { content, metadata },
-        getNs(c),
-      );
-      return c.json({ success: true, data });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.delete('/:docId', async (c) => {
-    try {
-      await knowledgeService.deleteDocument(
-        getSlug(c),
-        param(c, 'docId'),
-        getNs(c),
-      );
-      knowledgeOps.add(1, { op: 'delete' });
-      return c.json({ success: true });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.delete('/', async (c) => {
-    try {
-      const slug = getSlug(c);
-      const ns = getNs(c);
-      const docs = await knowledgeService.listDocuments(slug, ns);
-      for (const doc of docs) {
-        await knowledgeService.deleteDocument(slug, doc.id, ns);
-      }
-      return c.json({ success: true, data: { deleted: docs.length } });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  return app;
-}
 
 // ── Per-project knowledge routes (mounted at /api/projects/:slug/knowledge) ──
 
@@ -316,7 +74,7 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
   // Namespaced document routes: /ns/:namespace/*
   app.route(
     '/ns/:namespace',
-    knowledgeHandlers(
+    createKnowledgeDocumentRoutes(
       knowledgeService,
       (c) => c.get('slug') ?? c.req.param('slug'),
       (c) => c.req.param('namespace'),
@@ -326,7 +84,7 @@ export function createKnowledgeRoutes(knowledgeService: KnowledgeService) {
   // Default (backward-compat) document routes — no namespace = 'default'
   app.route(
     '/',
-    knowledgeHandlers(
+    createKnowledgeDocumentRoutes(
       knowledgeService,
       (c) => c.get('slug') ?? c.req.param('slug'),
       () => undefined,
@@ -343,80 +101,9 @@ export function createCrossProjectKnowledgeRoutes(
   storageAdapter: IStorageAdapter,
   providerService: ProviderService,
 ) {
-  const app = new Hono();
-
-  app.get('/status', async (c) => {
-    try {
-      const connections = providerService.listProviderConnections();
-      const vectorDbConn =
-        connections.find(
-          (c) => c.enabled && c.capabilities.includes('vectordb'),
-        ) ?? null;
-      const embeddingConn =
-        connections.find(
-          (c) => c.enabled && c.capabilities.includes('embedding'),
-        ) ?? null;
-
-      const projects = storageAdapter.listProjects();
-      let totalDocuments = 0;
-      let totalChunks = 0;
-      for (const project of projects) {
-        const docs = await knowledgeService.listDocuments(project.slug);
-        totalDocuments += docs.length;
-        totalChunks += docs.reduce((sum, d) => sum + d.chunkCount, 0);
-      }
-
-      return c.json({
-        success: true,
-        data: {
-          vectorDb: vectorDbConn
-            ? {
-                id: vectorDbConn.id,
-                name: vectorDbConn.name,
-                type: vectorDbConn.type,
-                enabled: vectorDbConn.enabled,
-              }
-            : null,
-          embedding: embeddingConn
-            ? {
-                id: embeddingConn.id,
-                name: embeddingConn.name,
-                type: embeddingConn.type,
-                enabled: embeddingConn.enabled,
-              }
-            : null,
-          stats: { totalDocuments, totalChunks, projectCount: projects.length },
-        },
-      });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  app.post('/search', validate(knowledgeSearchSchema), async (c) => {
-    try {
-      const { query, topK = 5, namespace } = getBody(c);
-
-      const projects = storageAdapter.listProjects();
-      const allResults: Array<{ projectSlug: string; results: any[] }> = [];
-
-      for (const project of projects) {
-        const results = await knowledgeService.searchDocuments(
-          project.slug,
-          query,
-          topK,
-          namespace,
-        );
-        if (results.length > 0) {
-          allResults.push({ projectSlug: project.slug, results });
-        }
-      }
-
-      return c.json({ success: true, data: allResults });
-    } catch (e: unknown) {
-      return c.json({ success: false, error: errorMessage(e) }, 500);
-    }
-  });
-
-  return app;
+  return createCrossProjectKnowledgeRouteHandlers(
+    knowledgeService,
+    storageAdapter,
+    providerService,
+  );
 }

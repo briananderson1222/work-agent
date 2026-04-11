@@ -2362,6 +2362,60 @@ for (const requiredHelper of [
   }
 }
 
+const knowledgeRoute = readFileSync(
+  new URL('../src-server/routes/knowledge.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  './knowledge-document-routes.js',
+  './knowledge-cross-project.js',
+  'createKnowledgeDocumentRoutes(',
+  'createCrossProjectKnowledgeRouteHandlers(',
+]) {
+  if (!knowledgeRoute.includes(requiredHelper)) {
+    errors.push(`src-server/routes/knowledge.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineKnowledgeSnippet of [
+  'function knowledgeHandlers(',
+  "app.get('/status', async (c) => {",
+  "app.post('/search', validate(knowledgeSearchSchema), async (c) => {",
+]) {
+  if (knowledgeRoute.includes(retiredInlineKnowledgeSnippet)) {
+    errors.push(`src-server/routes/knowledge.ts must not inline extracted knowledge route logic ${retiredInlineKnowledgeSnippet}.`);
+  }
+}
+
+const knowledgeDocumentRoutes = readFileSync(
+  new URL('../src-server/routes/knowledge-document-routes.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function createKnowledgeDocumentRoutes',
+  'knowledgeBulkDeleteSchema',
+  'knowledgeUploadSchema',
+  'knowledgeOps.add(1, { op: \'search\' })',
+]) {
+  if (!knowledgeDocumentRoutes.includes(requiredHelper)) {
+    errors.push(`src-server/routes/knowledge-document-routes.ts must include ${requiredHelper}.`);
+  }
+}
+
+const knowledgeCrossProjectRoutes = readFileSync(
+  new URL('../src-server/routes/knowledge-cross-project.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function createCrossProjectKnowledgeRoutes',
+  'providerService.listProviderConnections()',
+  'knowledgeService.searchDocuments(',
+  'storageAdapter.listProjects()',
+]) {
+  if (!knowledgeCrossProjectRoutes.includes(requiredHelper)) {
+    errors.push(`src-server/routes/knowledge-cross-project.ts must include ${requiredHelper}.`);
+  }
+}
+
 const sdkTypesIndex = readFileSync(
   new URL('../packages/sdk/src/types/index.ts', import.meta.url),
   'utf8',
