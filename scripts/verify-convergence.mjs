@@ -2063,6 +2063,66 @@ for (const requiredHelper of [
   }
 }
 
+const cliDevTemplate = readFileSync(
+  new URL('../packages/cli/src/dev/template.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  './template-scripts.js',
+  './template-styles.js',
+  'export interface DevTemplateOptions',
+  'export function generateDevHTML',
+  'buildThemeBootstrapScript()',
+  'buildDevSharedRuntimeScript(sdkMockJs)',
+  'buildDevAppScript({ pluginName, tabsJson, registryJson })',
+  'buildReloadScript()',
+]) {
+  if (!cliDevTemplate.includes(requiredHelper)) {
+    errors.push(`packages/cli/src/dev/template.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineCliTemplateSnippet of [
+  '.dev-banner{',
+  'window.__stallion_ai_shared = {',
+  'function InfoPage(){',
+  'function LayoutView(props){',
+  "var es=new EventSource('/api/reload')",
+]) {
+  if (cliDevTemplate.includes(retiredInlineCliTemplateSnippet)) {
+    errors.push(
+      `packages/cli/src/dev/template.ts must not inline extracted template helper ${retiredInlineCliTemplateSnippet}.`,
+    );
+  }
+}
+
+const cliDevTemplateStyles = readFileSync(
+  new URL('../packages/cli/src/dev/template-styles.ts', import.meta.url),
+  'utf8',
+);
+if (!cliDevTemplateStyles.includes('export const DEV_TEMPLATE_STYLES')) {
+  errors.push(
+    'packages/cli/src/dev/template-styles.ts must export DEV_TEMPLATE_STYLES.',
+  );
+}
+
+const cliDevTemplateScripts = readFileSync(
+  new URL('../packages/cli/src/dev/template-scripts.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function buildThemeBootstrapScript',
+  'export function buildDevSharedRuntimeScript',
+  'export interface DevAppScriptOptions',
+  'export function buildDevAppScript',
+  'export function buildReloadScript',
+]) {
+  if (!cliDevTemplateScripts.includes(requiredHelper)) {
+    errors.push(
+      `packages/cli/src/dev/template-scripts.ts must include ${requiredHelper}.`,
+    );
+  }
+}
+
 for (const deletedPath of [
   '../packages/shared/src/notifications.ts',
   '../packages/shared/src/scheduler.ts',

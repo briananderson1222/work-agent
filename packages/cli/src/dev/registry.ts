@@ -240,7 +240,6 @@ export function regenerateDevHTML({
     pluginName: pluginName!,
     tabsJson,
     registryJson,
-    layoutSlug,
     sdkMockJs: serializeSDKMock({ layoutSlug }),
   });
 
