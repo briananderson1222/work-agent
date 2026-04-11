@@ -2228,13 +2228,83 @@ const routeSchemaDefinitions = readFileSync(
   'utf8',
 );
 for (const requiredHelper of [
+  "export * from './schema-definitions/runtime.js';",
+  "export * from './schema-definitions/scheduler.js';",
+  "export * from './schema-definitions/content.js';",
+  "export * from './schema-definitions/system.js';",
+]) {
+  if (!routeSchemaDefinitions.includes(requiredHelper)) {
+    errors.push(`src-server/routes/schema-definitions.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineSchemaDefinition of [
   'export const acpConnectionSchema',
   'export const pluginInstallSchema',
   'export const skillCreateSchema',
   "import { validateCron } from '../services/cron.js';",
 ]) {
-  if (!routeSchemaDefinitions.includes(requiredHelper)) {
-    errors.push(`src-server/routes/schema-definitions.ts must include ${requiredHelper}.`);
+  if (routeSchemaDefinitions.includes(retiredInlineSchemaDefinition)) {
+    errors.push(`src-server/routes/schema-definitions.ts must not inline extracted schema logic ${retiredInlineSchemaDefinition}.`);
+  }
+}
+
+const routeRuntimeSchemas = readFileSync(
+  new URL('../src-server/routes/schema-definitions/runtime.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export const acpConnectionSchema',
+  'export const invokeSchema',
+  'export const chatSchema',
+  'export const providerSchema',
+]) {
+  if (!routeRuntimeSchemas.includes(requiredHelper)) {
+    errors.push(`src-server/routes/schema-definitions/runtime.ts must include ${requiredHelper}.`);
+  }
+}
+
+const routeSchedulerSchemas = readFileSync(
+  new URL('../src-server/routes/schema-definitions/scheduler.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  "import { validateCron } from '../../services/cron.js';",
+  'export const addJobSchema',
+  'export const editJobSchema',
+  'export const schedulerOpenSchema',
+]) {
+  if (!routeSchedulerSchemas.includes(requiredHelper)) {
+    errors.push(`src-server/routes/schema-definitions/scheduler.ts must include ${requiredHelper}.`);
+  }
+}
+
+const routeContentSchemas = readFileSync(
+  new URL('../src-server/routes/schema-definitions/content.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export const promptCreateSchema',
+  'export const projectCreateSchema',
+  'export const agentCreateSchema',
+  'export const templateCreateSchema',
+]) {
+  if (!routeContentSchemas.includes(requiredHelper)) {
+    errors.push(`src-server/routes/schema-definitions/content.ts must include ${requiredHelper}.`);
+  }
+}
+
+const routeSystemSchemas = readFileSync(
+  new URL('../src-server/routes/schema-definitions/system.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export const notificationCreateSchema',
+  'export const pluginInstallSchema',
+  'export const feedbackDeleteSchema',
+  'export const skillCreateSchema',
+]) {
+  if (!routeSystemSchemas.includes(requiredHelper)) {
+    errors.push(`src-server/routes/schema-definitions/system.ts must include ${requiredHelper}.`);
   }
 }
 
