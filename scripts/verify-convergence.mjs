@@ -3627,6 +3627,39 @@ const headerView = readFileSync(
 if (headerView.includes('/api/connections/runtimes')) {
   errors.push('Header must use shared SDK runtime connection queries.');
 }
+for (const requiredImport of [
+  './header/HelpMenu',
+  './header/OverflowMenu',
+  './header/utils',
+]) {
+  if (!headerView.includes(requiredImport)) {
+    errors.push(`Header.tsx must delegate extracted header logic to ${requiredImport}.`);
+  }
+}
+for (const retiredInlineHeaderSnippet of [
+  'function getHelpPrompts(',
+  "(currentView as any).projectSlug",
+  "{showHelp && (",
+  "{showOverflow && (",
+]) {
+  if (headerView.includes(retiredInlineHeaderSnippet)) {
+    errors.push(
+      `Header.tsx must not inline extracted header logic ${retiredInlineHeaderSnippet}.`,
+    );
+  }
+}
+const headerUtils = readFileSync(
+  new URL('../src-ui/src/components/header/utils.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function getHelpPrompts',
+  'export function getHeaderBreadcrumb',
+]) {
+  if (!headerUtils.includes(requiredHelper)) {
+    errors.push(`header/utils.ts must include ${requiredHelper}.`);
+  }
+}
 
 const runtimeConnectionView = readFileSync(
   new URL('../src-ui/src/views/RuntimeConnectionView.tsx', import.meta.url),
