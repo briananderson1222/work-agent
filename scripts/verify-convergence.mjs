@@ -4229,6 +4229,9 @@ if (!chatRoute.includes('./chat-context.js')) {
 if (!chatRoute.includes('./chat-persistence.js')) {
   errors.push('chat.ts must delegate conversation/message persistence to chat-persistence.ts.');
 }
+if (!chatRoute.includes('./chat-lifecycle.js')) {
+  errors.push('chat.ts must delegate chat monitoring/stats finalization to chat-lifecycle.ts.');
+}
 for (const retiredInlineChatSnippet of [
   'await ctx.providerService.resolveProvider({',
   'await ctx.knowledgeService.getInjectContext(',
@@ -4243,6 +4246,10 @@ for (const retiredInlineChatSnippet of [
   'operationContext.conversationId = `${operationContext.userId}:',
   'const traceId = `${operationContext.conversationId}:',
   'await conversationStorage.createConversation({',
+  'ctx.monitoringEmitter.emitAgentStart({',
+  'ctx.monitoringEmitter.emitAgentComplete({',
+  'ctx.metricsLog.push({',
+  'chatRequests.add(1, { agent: slug, plugin });',
 ]) {
   if (chatRoute.includes(retiredInlineChatSnippet)) {
     errors.push(`chat.ts must not inline extracted chat request preparation logic ${retiredInlineChatSnippet}.`);
@@ -4325,6 +4332,22 @@ for (const requiredHelper of [
 ]) {
   if (!chatPersistence.includes(requiredHelper)) {
     errors.push(`chat-persistence.ts must include ${requiredHelper}.`);
+  }
+}
+
+const chatLifecycle = readFileSync(
+  new URL('../src-server/routes/chat-lifecycle.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function emitChatAgentStart',
+  'export async function ensureChatAgentStatsInitialized',
+  'export async function finalizeChatRequest',
+  'ctx.monitoringEmitter.emitAgentComplete',
+  'chatRequests.add(1, { agent: slug, plugin });',
+]) {
+  if (!chatLifecycle.includes(requiredHelper)) {
+    errors.push(`chat-lifecycle.ts must include ${requiredHelper}.`);
   }
 }
 

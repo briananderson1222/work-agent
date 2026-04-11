@@ -44,7 +44,7 @@ import * as MCPManager from './mcp-manager.js';
 
 type RuntimeFramework = VoltAgentFramework | StrandsFramework;
 
-interface InitializeRuntimeDeps {
+export interface InitializeRuntimeDeps {
   port: number;
   logger: Logger;
   eventBus: EventBus;

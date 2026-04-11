@@ -9,22 +9,18 @@ import { stream } from 'hono/streaming';
 import * as StreamOrchestrator from '../runtime/stream-orchestrator.js';
 import { InjectableStream } from '../runtime/streaming/InjectableStream.js';
 import type { RuntimeContext } from '../runtime/types.js';
-import {
-  chatDuration,
-  chatErrors,
-  chatRequests,
-  costEstimated,
-  tokensInput,
-  tokensOutput,
-  tracer,
-} from '../telemetry/metrics.js';
-import { estimateCost, findModelPricing } from '../utils/pricing.js';
+import { chatErrors, tracer } from '../telemetry/metrics.js';
 import { getCachedUser } from './auth.js';
 import { streamAlternateProviderChat } from './chat-alternate-provider.js';
 import {
   applyCombinedContextToInput,
   injectConversationFeedbackContext,
 } from './chat-context.js';
+import {
+  emitChatAgentStart,
+  ensureChatAgentStatsInitialized,
+  finalizeChatRequest,
+} from './chat-lifecycle.js';
 import { resolveChatAgentModelOverride } from './chat-model-override.js';
 import {
   type ChatMessage,
@@ -34,7 +30,6 @@ import {
   createChatConversationId,
   createChatTraceId,
   ensureChatConversation,
-  persistTemporaryAgentMessages,
 } from './chat-persistence.js';
 import {
   chatSchema,
@@ -168,7 +163,6 @@ export function createChatRoutes(ctx: RuntimeContext) {
         let accumulatedText = '';
         let reasoningText = '';
         let _toolCallCount = 0;
-        let currentStep = 0;
         let requestTraceId = '';
         let isNewConversation = false;
         // biome-ignore lint: agent framework types inferred from Map
@@ -272,39 +266,15 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
           ctx.agentStatus.set(slug, 'running');
 
-          if (ctx.monitoringEmitter) {
-            ctx.monitoringEmitter.emitAgentStart({
-              slug,
-              conversationId: operationContext.conversationId || '',
-              userId: operationContext.userId || '',
-              traceId,
-              input:
-                typeof input === 'string'
-                  ? input
-                  : input?.text || '[complex input]',
-            });
-          }
-
-          // Initialize stats if needed
-          if (!ctx.agentStats.has(slug)) {
-            const adapter = ctx.memoryAdapters.get(slug);
-            if (adapter) {
-              const conversations = await adapter.getConversations(slug);
-              let totalMessages = 0;
-              for (const conv of conversations) {
-                const messages = await adapter.getMessages(
-                  conv.userId,
-                  conv.id,
-                );
-                totalMessages += messages.length;
-              }
-              ctx.agentStats.set(slug, {
-                conversationCount: conversations.length,
-                messageCount: totalMessages,
-                lastUpdated: Date.now(),
-              });
-            }
-          }
+          emitChatAgentStart({
+            ctx,
+            slug,
+            conversationId: operationContext.conversationId || '',
+            userId: operationContext.userId || '',
+            traceId,
+            input: input as string | ChatMessage[],
+          });
+          await ensureChatAgentStatsInitialized({ ctx, slug });
 
           const suppressAbortError = (err: unknown) =>
             abortController.signal.aborted ? undefined : Promise.reject(err);
@@ -343,7 +313,6 @@ export function createChatRoutes(ctx: RuntimeContext) {
           accumulatedText = '';
           reasoningText = '';
           _toolCallCount = 0;
-          currentStep = 0;
           requestTraceId = traceId;
 
           const debugStreaming = process.env.DEBUG_STREAMING === 'true';
@@ -422,146 +391,28 @@ export function createChatRoutes(ctx: RuntimeContext) {
           await StreamOrchestrator.writeSSEError(streamWriter, error);
           await StreamOrchestrator.writeSSEDone(streamWriter);
         } finally {
-          ctx.logger.info('Agent stream completed', {
-            conversationId: operationContext.conversationId,
-            reason: completionReason,
-          });
-
-          ctx.agentStatus.set(slug, 'idle');
-
-          const isFileBackedAgent = ctx.agentSpecs.has(slug);
-          if (
-            !isFileBackedAgent &&
-            memoryAdapter &&
-            conversationId &&
-            accumulatedText
-          ) {
-            try {
-              await persistTemporaryAgentMessages({
-                memoryAdapter,
-                conversationId,
-                input: input as string | ChatMessage[],
-                accumulatedText,
-                model: modelOverride || ctx.agentSpecs.get(slug)?.model,
-                userId: operationContext.userId,
-              });
-            } catch (e) {
-              ctx.logger.error('Failed to persist messages for temp agent', {
-                error: e,
-              });
-            }
-          }
-
-          const finalOutput = accumulatedText.replace(reasoningText, '').trim();
-          if (finalOutput) {
-            artifacts.push({ type: 'text', content: finalOutput });
-          }
-
-          let usage:
-            | {
-                promptTokens?: number;
-                completionTokens?: number;
-                inputTokens?: number;
-                outputTokens?: number;
-                totalTokens?: number;
-              }
-            | undefined;
-          try {
-            usage = await result.usage;
-          } catch (_e) {
-            // Usage might not be available
-          }
-
-          if (ctx.monitoringEmitter) {
-            ctx.monitoringEmitter.emitAgentComplete({
-              slug,
-              conversationId: operationContext.conversationId || '',
-              userId: operationContext.userId || '',
-              traceId: requestTraceId,
-              reason: completionReason,
-              steps: currentStep,
-              maxSteps: ctx.agentSpecs.get(slug)?.guardrails?.maxSteps,
-              inputChars:
-                typeof input === 'string'
-                  ? input.length
-                  : input?.text?.length || 0,
-              outputChars: finalOutput.length,
-              usage: usage
-                ? {
-                    inputTokens: usage.promptTokens || usage.inputTokens || 0,
-                    outputTokens:
-                      usage.completionTokens || usage.outputTokens || 0,
-                  }
-                : undefined,
-              artifacts,
-            });
-          }
-
-          const stats = ctx.agentStats.get(slug);
-          if (stats) {
-            stats.messageCount += 2;
-            stats.lastUpdated = Date.now();
-            if (isNewConversation) {
-              stats.conversationCount += 1;
-            }
-          }
-
-          const inputTokens = usage?.promptTokens || usage?.inputTokens || 0;
-          const outputTokens =
-            usage?.completionTokens || usage?.outputTokens || 0;
-          let estimatedCost = 0;
-          if (usage && ctx.modelCatalog) {
-            try {
-              const modelId =
-                modelOverride ||
-                ctx.agentSpecs.get(slug)?.model ||
-                ctx.appConfig.invokeModel;
-              const p = await findModelPricing(
-                ctx.modelCatalog,
-                modelId,
-                ctx.appConfig.region,
-              );
-              estimatedCost = estimateCost(p, inputTokens, outputTokens);
-            } catch (_e) {
-              /* pricing lookup is best-effort */
-            }
-          }
-
-          ctx.metricsLog.push({
-            timestamp: Date.now(),
-            agentSlug: slug,
-            event: 'completion',
-            conversationId: operationContext.conversationId,
-            messageCount: 2,
-            cost: estimatedCost,
-          });
-
-          chatRequests.add(1, { agent: slug, plugin });
-          chatDuration.record(Date.now() - chatStartMs, {
-            agent: slug,
+          await finalizeChatRequest({
+            ctx,
+            slug,
             plugin,
+            input: input as string | ChatMessage[],
+            operationContext: {
+              userId: operationContext.userId,
+              conversationId: operationContext.conversationId,
+              traceId: requestTraceId,
+            },
+            completionReason,
+            accumulatedText,
+            reasoningText,
+            artifacts,
+            result,
+            modelOverride,
+            memoryAdapter,
+            conversationId,
+            isNewConversation,
+            chatStartMs,
+            chatSpan,
           });
-          if (usage) {
-            tokensInput.add(inputTokens, { agent: slug, plugin });
-            tokensOutput.add(outputTokens, { agent: slug, plugin });
-          }
-          if (estimatedCost > 0) {
-            costEstimated.add(estimatedCost, { agent: slug, plugin });
-          }
-
-          chatSpan.setAttribute(
-            'stallion.conversation_id',
-            operationContext.conversationId || '',
-          );
-          chatSpan.setAttribute(
-            'stallion.tokens.input',
-            usage?.promptTokens || usage?.inputTokens || 0,
-          );
-          chatSpan.setAttribute(
-            'stallion.tokens.output',
-            usage?.completionTokens || usage?.outputTokens || 0,
-          );
-          chatSpan.end();
         }
       });
     } catch (error: unknown) {

@@ -68,6 +68,7 @@ import {
 } from './runtime-health.js';
 import { SC_READ_ONLY_TOOLS } from './runtime-control-tools.js';
 import { initializeRuntime } from './runtime-initialize.js';
+import { createRuntimeInitializationDeps } from './runtime-initialize-deps.js';
 import { configureRuntimeRoutes } from './runtime-routes.js';
 import { shutdownRuntimeServices } from './runtime-shutdown.js';
 import { replaceRuntimeTemplateVariables } from './runtime-template-variables.js';
@@ -299,56 +300,61 @@ export class StallionRuntime {
    * Initialize the runtime
    */
   async initialize(): Promise<void> {
-    const initialized = await initializeRuntime({
-      port: this.port,
-      logger: this.logger,
-      eventBus: this.eventBus,
-      timers: this.timers,
-      configLoader: this.configLoader,
-      storageAdapter: this.storageAdapter,
-      skillService: this.skillService,
-      feedbackService: this.feedbackService,
-      voiceService: this.voiceService,
-      acpBridge: this.acpBridge,
-      orchestrationEventStore: this.orchestrationEventStore,
-      usageAggregator: this.usageAggregator,
-      activeAgents: this.activeAgents,
-      agentMetadataMap: this.agentMetadataMap,
-      memoryAdapters: this.memoryAdapters,
-      agentTools: this.agentTools,
-      agentSpecs: this.agentSpecs,
-      mcpConfigs: this.mcpConfigs,
-      mcpConnectionStatus: this.mcpConnectionStatus,
-      integrationMetadata: this.integrationMetadata,
-      toolNameMapping: this.toolNameMapping,
-      toolNameReverseMapping: this.toolNameReverseMapping,
-      eventLog: this.eventLog,
-      bedrockAdapter: this.bedrockAdapter,
-      claudeAdapter: this.claudeAdapter,
-      codexAdapter: this.codexAdapter,
-      createVoltAgentInstance: async (slug) => this.createVoltAgentInstance(slug),
-      configureRoutes: (app: any) => this.configureRoutes(app),
-      reloadAgents: async () => this.reloadAgents(),
-      replaceTemplateVariables: (text, agentName) =>
-        this.replaceTemplateVariables(text, agentName),
-      checkBedrockCredentials: async () => {
-        const { checkBedrockCredentials } = await import(
-          '../providers/bedrock.js'
-        );
-        return checkBedrockCredentials();
-      },
-      createDefaultSkillRegistryProvider: async () => {
-        const { GitHubSkillRegistryProvider } = await import(
-          '../providers/github-skill-registry.js'
-        );
-        return new GitHubSkillRegistryProvider();
-      },
-      runStartupMigrations: async (projectHomeDir) => {
-        const { runStartupMigrations } = await import('../domain/migration.js');
-        await runStartupMigrations(projectHomeDir);
-      },
-      startHealthChecks: () => this.startHealthChecks(),
-    });
+    const initialized = await initializeRuntime(
+      createRuntimeInitializationDeps({
+        port: this.port,
+        logger: this.logger,
+        eventBus: this.eventBus,
+        timers: this.timers,
+        configLoader: this.configLoader,
+        storageAdapter: this.storageAdapter,
+        skillService: this.skillService,
+        feedbackService: this.feedbackService,
+        voiceService: this.voiceService,
+        acpBridge: this.acpBridge,
+        orchestrationEventStore: this.orchestrationEventStore,
+        usageAggregator: this.usageAggregator,
+        activeAgents: this.activeAgents,
+        agentMetadataMap: this.agentMetadataMap,
+        memoryAdapters: this.memoryAdapters,
+        agentTools: this.agentTools,
+        agentSpecs: this.agentSpecs,
+        mcpConfigs: this.mcpConfigs,
+        mcpConnectionStatus: this.mcpConnectionStatus,
+        integrationMetadata: this.integrationMetadata,
+        toolNameMapping: this.toolNameMapping,
+        toolNameReverseMapping: this.toolNameReverseMapping,
+        eventLog: this.eventLog,
+        bedrockAdapter: this.bedrockAdapter,
+        claudeAdapter: this.claudeAdapter,
+        codexAdapter: this.codexAdapter,
+        createVoltAgentInstance: async (slug) =>
+          this.createVoltAgentInstance(slug),
+        configureRoutes: (app: any) => this.configureRoutes(app),
+        reloadAgents: async () => this.reloadAgents(),
+        replaceTemplateVariables: (text, agentName) =>
+          this.replaceTemplateVariables(text, agentName),
+        checkBedrockCredentials: async () => {
+          const { checkBedrockCredentials } = await import(
+            '../providers/bedrock.js'
+          );
+          return checkBedrockCredentials();
+        },
+        createDefaultSkillRegistryProvider: async () => {
+          const { GitHubSkillRegistryProvider } = await import(
+            '../providers/github-skill-registry.js'
+          );
+          return new GitHubSkillRegistryProvider();
+        },
+        runStartupMigrations: async (projectHomeDir) => {
+          const { runStartupMigrations } = await import(
+            '../domain/migration.js'
+          );
+          await runStartupMigrations(projectHomeDir);
+        },
+        startHealthChecks: () => this.startHealthChecks(),
+      }),
+    );
 
     this.appConfig = initialized.appConfig;
     this.framework = initialized.framework;
