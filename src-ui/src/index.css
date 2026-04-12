@@ -5493,6 +5493,61 @@ button:hover {
   font-family: inherit;
 }
 
+.new-chat-modal__draft-context {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.new-chat-modal__draft-context-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.new-chat-modal__draft-context-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.new-chat-modal__draft-context-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.new-chat-modal__draft-chip {
+  border: 1px solid var(--border-primary);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border-radius: 999px;
+  padding: 6px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.new-chat-modal__draft-chip--selected {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.new-chat-modal__draft-chip-label {
+  font-weight: 600;
+}
+
+.new-chat-modal__draft-chip-detail {
+  opacity: 0.8;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Agent list */
 .new-chat-modal__list {
   overflow-y: auto;

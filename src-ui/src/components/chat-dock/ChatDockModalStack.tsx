@@ -27,6 +27,7 @@ interface ChatDockModalStackProps {
     agent: AgentData,
     projectSlug?: string,
     projectName?: string,
+    initialMessage?: string,
   ) => void;
   onCloseNewChat: () => void;
   onCloseSettings: () => void;

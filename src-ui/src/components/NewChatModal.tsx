@@ -21,6 +21,10 @@ import {
 } from '../utils/execution';
 import { AgentIcon } from './AgentIcon';
 import {
+  buildCodingChatInitialMessage,
+  type CodingChatContextDraft,
+} from './coding-layout/chatContextDraft';
+import {
   buildNewChatModalViewModel,
   GLOBAL_CONTEXT,
   getRecentAgentSlugsForContext,
@@ -34,8 +38,10 @@ interface NewChatModalProps {
     agent: AgentData,
     projectSlug?: string,
     projectName?: string,
+    initialMessage?: string,
   ) => void;
   onClose: () => void;
+  draftContext?: CodingChatContextDraft | null;
 }
 
 /** "Global" sentinel for the context picker */
@@ -45,6 +51,7 @@ export function NewChatModal({
   activeProjectSlug,
   onSelect,
   onClose,
+  draftContext = null,
 }: NewChatModalProps) {
   const [agentSearch, setAgentSearch] = useState('');
   const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
@@ -53,6 +60,9 @@ export function NewChatModal({
   );
   const [contextSearch, setContextSearch] = useState('');
   const [contextOpen, setContextOpen] = useState(false);
+  const [selectedDraftContextIds, setSelectedDraftContextIds] = useState<
+    string[]
+  >(() => draftContext?.items.map((item) => item.id) || []);
   const contextRef = useRef<HTMLDivElement>(null);
   const agentInputRef = useRef<HTMLInputElement>(null);
 
@@ -197,12 +207,28 @@ export function NewChatModal({
     if (!contextOpen) agentInputRef.current?.focus();
   }, [contextOpen]);
 
+  useEffect(() => {
+    setSelectedDraftContextIds(
+      draftContext?.items.map((item) => item.id) || [],
+    );
+  }, [draftContext]);
+
   const handleSelect = (agent: AgentData) => {
     trackRecentAgent(agent.slug);
+    const draftItems =
+      draftContext?.items.filter((item) =>
+        selectedDraftContextIds.includes(item.id),
+      ) || [];
+    const initialMessage = buildCodingChatInitialMessage(draftItems);
     if (isGlobal) {
-      onSelect(agent);
+      onSelect(agent, undefined, undefined, initialMessage || undefined);
     } else if (selectedProject) {
-      onSelect(agent, selectedProject.slug, selectedProject.name);
+      onSelect(
+        agent,
+        selectedProject.slug,
+        selectedProject.name,
+        initialMessage || undefined,
+      );
     }
   };
 
@@ -320,6 +346,43 @@ export function NewChatModal({
             autoFocus
             className="new-chat-modal__search"
           />
+
+          {draftContext && draftContext.items.length > 0 && (
+            <div className="new-chat-modal__draft-context">
+              <div className="new-chat-modal__draft-context-title">
+                {draftContext.title}
+              </div>
+              <div className="new-chat-modal__draft-context-desc">
+                {draftContext.description}
+              </div>
+              <div className="new-chat-modal__draft-context-items">
+                {draftContext.items.map((item) => {
+                  const selected = selectedDraftContextIds.includes(item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      className={`new-chat-modal__draft-chip${selected ? ' new-chat-modal__draft-chip--selected' : ''}`}
+                      onClick={() =>
+                        setSelectedDraftContextIds((current) =>
+                          current.includes(item.id)
+                            ? current.filter((value) => value !== item.id)
+                            : [...current, item.id],
+                        )
+                      }
+                    >
+                      <span className="new-chat-modal__draft-chip-label">
+                        {item.label}
+                      </span>
+                      <span className="new-chat-modal__draft-chip-detail">
+                        {item.detail}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="new-chat-modal__list">

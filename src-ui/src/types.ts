@@ -120,6 +120,8 @@ export interface ChatSession {
   providerId?: string;
   currentModeId?: string | null;
   planArtifact?: PlanArtifact | null;
+  pendingApprovals?: string[];
+  isProcessingStep?: boolean;
 }
 
 export interface Tool {

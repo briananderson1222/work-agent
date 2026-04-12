@@ -402,12 +402,116 @@
   overflow: hidden;
 }
 
-.workflow-plan-panel {
+.coding-layout__side-panel {
   display: flex;
   min-width: 0;
   flex-direction: column;
   border-left: 1px solid var(--border-primary);
   background: var(--color-bg-secondary);
+}
+
+.coding-layout__context-handoff {
+  border-bottom: 1px solid var(--border-primary);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.coding-layout__context-handoff-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.coding-layout__context-handoff-eyebrow {
+  margin: 0 0 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.coding-layout__context-handoff-title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 15px;
+  line-height: 1.3;
+}
+
+.coding-layout__context-handoff-action {
+  align-self: flex-start;
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-primary);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.coding-layout__context-handoff-action:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.coding-layout__context-handoff-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.coding-layout__context-handoff-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-primary);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: var(--color-bg-primary);
+}
+
+.coding-layout__context-handoff-chip strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.coding-layout__context-handoff-empty {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.workflow-plan-panel {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  background: var(--color-bg-secondary);
+}
+
+.workflow-plan-panel__runtime-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 16px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-primary);
+  background: var(--color-bg-primary);
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.workflow-plan-panel__runtime-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--color-accent-primary);
+  flex-shrink: 0;
 }
 
 .workflow-plan-panel__header {
@@ -607,7 +711,7 @@
     grid-template-rows: minmax(0, 1fr) auto;
   }
 
-  .workflow-plan-panel {
+  .coding-layout__side-panel {
     max-height: 40vh;
     border-left: none;
     border-top: 1px solid var(--border-primary);

@@ -1,7 +1,10 @@
 import { expect, test } from '@playwright/test';
 import {
+  emitMockOrchestrationEvent,
+  installMockOrchestrationEventSource,
   seedActiveChats,
   seedOrchestrationRoutes,
+  waitForMockOrchestrationEventSource,
 } from './helpers/orchestration';
 
 test.describe('Coding Layout Plan Panel', () => {
@@ -33,7 +36,41 @@ test.describe('Coding Layout Plan Panel', () => {
         },
       },
     ]);
+    await installMockOrchestrationEventSource(page);
     await seedOrchestrationRoutes(page);
+    await page.route('**/api/fs/browse**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: [
+            {
+              name: 'src',
+              path: '/tmp/test/src',
+              type: 'directory',
+              children: [
+                {
+                  name: 'app.ts',
+                  path: '/tmp/test/src/app.ts',
+                  type: 'file',
+                },
+              ],
+            },
+          ],
+        }),
+      }),
+    );
+    await page.route('**/api/coding/diff**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: '@@ -1 +1 @@\n-console.log("old")\n+console.log("new")\n',
+        }),
+      }),
+    );
     await page.goto('/projects/dev/layouts/code?chat=conv-1');
   });
 
@@ -57,5 +94,52 @@ test.describe('Coding Layout Plan Panel', () => {
     await expect(
       planPanel.getByText('Verify coding layout visibility'),
     ).toBeVisible();
+  });
+
+  test('surfaces runtime approval state and explicit context handoff', async ({
+    page,
+  }) => {
+    const planPanel = page.locator('.workflow-plan-panel');
+
+    await waitForMockOrchestrationEventSource(page);
+    await emitMockOrchestrationEvent(page, 'orchestration:event', {
+      event: {
+        provider: 'codex',
+        threadId: 'session-1',
+        createdAt: '2026-04-05T12:00:05.000Z',
+        method: 'request.opened',
+        requestId: 'req-1',
+        requestType: 'permission',
+        title: 'Approve permissions',
+        description: 'Needs network access',
+        payload: {
+          toolName: 'shell_exec',
+        },
+      },
+    });
+
+    await expect(planPanel.getByText('Approval required (1)')).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'New Chat with Context' }),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'New Chat with Context' }).click();
+    const modal = page.locator('.new-chat-modal');
+    await expect(modal.getByText('Coding context handoff')).toBeVisible();
+    await expect(
+      modal.getByRole('button', { name: /Working dir .*\/tmp\/test/ }),
+    ).toBeVisible();
+    await expect(
+      modal.getByRole('button', { name: /Surface .*Git diff view/ }),
+    ).toBeVisible();
+
+    await page
+      .getByRole('button', { name: /Codex Runtime .*Codex app-server runtime/ })
+      .click();
+
+    const composer = page.getByPlaceholder(/Type a message/);
+    await expect(composer).toHaveValue(/Coding context for this chat:/);
+    await expect(composer).toHaveValue(/Working directory: \/tmp\/test/);
+    await expect(composer).toHaveValue(/Current surface: Git diff view/);
   });
 });

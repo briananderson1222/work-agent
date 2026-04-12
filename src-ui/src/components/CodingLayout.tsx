@@ -1,19 +1,26 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useActiveChatActions } from '../contexts/ActiveChatsContext';
+import { useAgents } from '../contexts/AgentsContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import { useProjects } from '../contexts/ProjectsContext';
 import {
   type ACPConnectionInfo,
   useACPConnections,
 } from '../hooks/useACPConnections';
+import { useCreateChatSession } from '../hooks/useActiveChatSessionLifecycle';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { useDockModePreference } from '../hooks/useDockModePreference';
+import { resolveAgentExecution } from '../utils/execution';
 import './CodingLayout.css';
 import { CodingTerminalPanel } from './coding-layout/CodingTerminalPanel';
+import { buildCodingChatContextDraft } from './coding-layout/chatContextDraft';
 import { DiffPanel } from './coding-layout/DiffPanel';
 import { FileContentViewer } from './coding-layout/FileContentViewer';
 import { FileTreePanel } from './coding-layout/FileTreePanel';
 import { NewTerminalModal } from './coding-layout/NewTerminalModal';
 import { selectWorkflowPlanSession } from './coding-layout/planSession';
 import type { TerminalTab } from './coding-layout/types';
+import { NewChatModal } from './NewChatModal';
 import {
   deriveWorkflowPlanArtifact,
   toWorkflowPlanArtifact,
@@ -38,7 +45,12 @@ export function CodingLayout({
 }) {
   const workingDir = (config.workingDirectory as string | undefined) ?? '';
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const { activeChat } = useNavigation();
+  const [showContextChatModal, setShowContextChatModal] = useState(false);
+  const { activeChat, setActiveChat, setDockState } = useNavigation();
+  const { updateChat } = useActiveChatActions();
+  const createChatSession = useCreateChatSession();
+  const agents = useAgents();
+  const { projects } = useProjects();
   const projectSessions = useDerivedSessions('', null, _projectSlug);
 
   const planSession = useMemo(() => {
@@ -49,6 +61,14 @@ export function CodingLayout({
     () =>
       toWorkflowPlanArtifact(planSession?.planArtifact) ??
       deriveWorkflowPlanArtifact(planSession?.messages || []),
+    [planSession],
+  );
+  const runtimeState = useMemo(
+    () => ({
+      status: planSession?.orchestrationStatus ?? planSession?.status ?? null,
+      pendingApprovals: planSession?.pendingApprovals?.length ?? 0,
+      isProcessingStep: planSession?.isProcessingStep ?? false,
+    }),
     [planSession],
   );
 
@@ -216,6 +236,43 @@ export function CodingLayout({
   // ACP agents for terminal new-tab modal
   const { data: acpConnections } = useACPConnections();
   const [showNewTerminal, setShowNewTerminal] = useState(false);
+  const activeTerminalTab = useMemo(
+    () => tabs.find((tab) => tab.id === activeTabId) ?? null,
+    [tabs, activeTabId],
+  );
+  const codingChatContextDraft = useMemo(
+    () =>
+      buildCodingChatContextDraft({
+        workingDir,
+        selectedFile,
+        activeTabLabel: activeTerminalTab?.label ?? null,
+        isDiffView: !selectedFile,
+      }),
+    [activeTerminalTab?.label, selectedFile, workingDir],
+  );
+
+  const handleContextChatSelect = (
+    agent: (typeof agents)[number],
+    projectSlug?: string,
+    projectName?: string,
+    initialMessage?: string,
+  ) => {
+    const execution = resolveAgentExecution(agent);
+    const sessionId = createChatSession(
+      agent.slug,
+      agent.name,
+      undefined,
+      projectSlug,
+      projectName,
+      execution,
+    );
+    if (initialMessage?.trim()) {
+      updateChat(sessionId, { input: initialMessage });
+    }
+    setActiveChat(sessionId);
+    setDockState(true);
+    setShowContextChatModal(false);
+  };
 
   // Ctrl+J toggle
   useEffect(() => {
@@ -282,10 +339,50 @@ export function CodingLayout({
             <DiffPanel workingDir={workingDir} />
           )}
         </div>
-        <WorkflowPlanPanel
-          artifact={planArtifact}
-          sessionTitle={planSession?.title ?? null}
-        />
+        <div className="coding-layout__side-panel">
+          <div className="coding-layout__context-handoff">
+            <div className="coding-layout__context-handoff-header">
+              <div>
+                <p className="coding-layout__context-handoff-eyebrow">
+                  Chat handoff
+                </p>
+                <h2 className="coding-layout__context-handoff-title">
+                  Carry coding context into chat
+                </h2>
+              </div>
+              <button
+                type="button"
+                className="coding-layout__context-handoff-action"
+                disabled={codingChatContextDraft.items.length === 0}
+                onClick={() => setShowContextChatModal(true)}
+              >
+                New Chat with Context
+              </button>
+            </div>
+            <div className="coding-layout__context-handoff-items">
+              {codingChatContextDraft.items.map((item) => (
+                <span
+                  key={item.id}
+                  className="coding-layout__context-handoff-chip"
+                >
+                  <span>{item.label}</span>
+                  <strong>{item.detail}</strong>
+                </span>
+              ))}
+              {codingChatContextDraft.items.length === 0 && (
+                <p className="coding-layout__context-handoff-empty">
+                  Select a file or terminal surface to prepare explicit chat
+                  context.
+                </p>
+              )}
+            </div>
+          </div>
+          <WorkflowPlanPanel
+            artifact={planArtifact}
+            sessionTitle={planSession?.title ?? null}
+            runtimeState={runtimeState}
+          />
+        </div>
       </div>
 
       {/* Terminal */}
@@ -318,6 +415,16 @@ export function CodingLayout({
             setShowNewTerminal(false);
           }}
           onClose={() => setShowNewTerminal(false)}
+        />
+      )}
+      {showContextChatModal && (
+        <NewChatModal
+          agents={agents}
+          projects={projects}
+          activeProjectSlug={_projectSlug}
+          draftContext={codingChatContextDraft}
+          onSelect={handleContextChatSelect}
+          onClose={() => setShowContextChatModal(false)}
         />
       )}
     </div>

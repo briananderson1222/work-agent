@@ -145,6 +145,8 @@ export function useDerivedSessions(
         focusDirectoryId: chatState.focusDirectoryId,
         currentModeId: chatState.currentModeId,
         planArtifact: latestPlanArtifact,
+        pendingApprovals: chatState.pendingApprovals,
+        isProcessingStep: chatState.isProcessingStep,
       });
     }
 

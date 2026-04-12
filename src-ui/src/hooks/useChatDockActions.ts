@@ -67,7 +67,12 @@ export function useChatDockActions({
   );
 
   const openChatForAgent = useCallback(
-    (agent: AgentData, projectSlug?: string, projectName?: string) => {
+    (
+      agent: AgentData,
+      projectSlug?: string,
+      projectName?: string,
+      initialMessage?: string,
+    ) => {
       const execution = resolveAgentExecution(agent);
       const sessionId = createChatSession(
         agent.slug,
@@ -78,9 +83,11 @@ export function useChatDockActions({
         execution,
       );
       setActiveSessionId(sessionId);
-      // New chat has no conversationId yet — URL gets no ?chat= param
-      setActiveChat(null);
+      setActiveChat(sessionId);
       setDockState(true, isDockMaximized);
+      if (initialMessage?.trim()) {
+        updateChat(sessionId, { input: initialMessage });
+      }
     },
     [
       createChatSession,
@@ -88,6 +95,7 @@ export function useChatDockActions({
       setActiveChat,
       setDockState,
       isDockMaximized,
+      updateChat,
     ],
   );
 

@@ -134,9 +134,15 @@ function StepStatusBadge({ status }: { status: WorkflowPlanStepStatus }) {
 export function WorkflowPlanPanel({
   artifact,
   sessionTitle,
+  runtimeState,
 }: {
   artifact: WorkflowPlanArtifact | null;
   sessionTitle?: string | null;
+  runtimeState?: {
+    status?: string | null;
+    pendingApprovals?: number;
+    isProcessingStep?: boolean;
+  };
 }) {
   const [activeView, setActiveView] = useState<'steps' | 'markdown'>('steps');
   const [copied, setCopied] = useState(false);
@@ -166,6 +172,31 @@ export function WorkflowPlanPanel({
       pending: steps.filter((step) => step.status === 'pending').length,
     };
   }, [artifact]);
+
+  const runtimeLabel = useMemo(() => {
+    if ((runtimeState?.pendingApprovals || 0) > 0) {
+      return `Approval required (${runtimeState?.pendingApprovals})`;
+    }
+    if (runtimeState?.isProcessingStep) {
+      return 'Tool activity running';
+    }
+    if (runtimeState?.status === 'awaiting-approval') {
+      return 'Awaiting approval';
+    }
+    if (
+      runtimeState?.status === 'running' ||
+      runtimeState?.status === 'sending'
+    ) {
+      return 'Runtime running';
+    }
+    if (
+      runtimeState?.status === 'completed' ||
+      runtimeState?.status === 'exited'
+    ) {
+      return 'Runtime complete';
+    }
+    return null;
+  }, [runtimeState]);
 
   const handleCopy = async () => {
     if (!artifact?.markdown) return;
@@ -244,6 +275,12 @@ export function WorkflowPlanPanel({
 
       {artifact ? (
         <>
+          {runtimeLabel && (
+            <div className="workflow-plan-panel__runtime-state">
+              <span className="workflow-plan-panel__runtime-dot" />
+              <span>{runtimeLabel}</span>
+            </div>
+          )}
           <div className="workflow-plan-panel__summary">
             <div>
               <span className="workflow-plan-panel__summary-value">
