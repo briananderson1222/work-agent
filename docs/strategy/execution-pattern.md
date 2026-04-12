@@ -47,6 +47,8 @@ feat/phase3-subagent-delegation
 
 Every task in the roadmap has a **"Done when"** statement. Read it before writing any code. Your implementation must satisfy these criteria.
 
+If the task changes user-visible behavior and there is no durable automated proof for that behavior yet, add one as part of the task. A roadmap item is not fully complete if it relies only on memory, manual local setup quirks, or one-time human signoff to prevent regression.
+
 ### Step 5: Implement
 
 Follow the project's conventions:
@@ -142,6 +144,7 @@ Before marking any task complete, verify:
 - [ ] Linting passes (`npx biome check src-server/ src-ui/ packages/`)
 - [ ] Tests pass (`npm test`)
 - [ ] Task-specific "Done when" criteria met
+- [ ] A reusable automated verification lane exists for the behavior changed, or an explicit existing lane is referenced
 - [ ] No hardcoded secrets or credentials
 - [ ] No mutation patterns (immutable preferred)
 - [ ] New features have OTel instrumentation

@@ -25,6 +25,39 @@ We also distinguish three kinds of checklist reality inside a phase:
 - **needs verification** — likely landed, but still needs definition-of-done proof
 - **open** — genuinely unfinished
 
+## Persistent Verification Program
+
+Roadmap work is not considered durable unless its user-facing behavior is protected by automation that can run again later. This is a standing product rule, not a one-time Phase 1 ritual.
+
+For any substantial capability, the responsible phase must either:
+
+- point to an existing automated verification lane that already proves the behavior, or
+- add a new automated verification lane as part of the work
+
+Preferred verification lanes:
+
+1. **Hermetic startup verification**
+   - use a temporary `STALLION_AI_DIR`
+   - run startup in a scrubbed child environment instead of mutating the developer machine
+   - prove first-run and provider-agnostic startup behavior
+
+2. **Adapter registration verification**
+   - prove runtime/provider adapter registration through a shared registry path
+   - prefer temp fixtures/plugins over manual inspection
+
+3. **Onboarding verification**
+   - prove the actual first-run path with Playwright or equivalent browser automation
+   - cover setup launcher, doctor guidance, and reaching a chat-capable path
+
+4. **Cross-runtime chat verification**
+   - prove managed, connected, and ACP flows with focused smoke or e2e coverage
+   - use route interception/mocks where practical, but keep at least one realistic end-to-end path
+
+5. **Platform-control verification**
+   - prove `stallion-control` behavior with an end-to-end or integration test that exercises a real management action
+
+When a roadmap item is marked done, its verification lane should still be useful later as regression protection. Avoid "sign off once, then forget it" validation.
+
 ---
 
 ## Phase 0: Foundation Documents
@@ -121,7 +154,7 @@ Polish the existing functionality.
 
 **Done when:** All CI gates pass. Manual smoke test of each agent type completes without errors.
 
-**Phase 1 Definition of Done:** All four sub-tasks verified. New user onboarding tested by someone who hasn't used Stallion before.
+**Phase 1 Definition of Done:** All four sub-tasks verified. New user onboarding tested by someone who hasn't used Stallion before. The corresponding verification lanes are automated and reusable as future regression gates, not one-time checklist items.
 
 ---
 

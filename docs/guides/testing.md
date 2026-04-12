@@ -26,6 +26,34 @@ PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test tests/foo.spec.ts  # single e2e
 npm run test:connected-agents         # focused connected-agents server suite
 ```
 
+## Durable Verification Lanes
+
+For roadmap work that changes product behavior, prefer adding or extending a named verification lane rather than relying on ad hoc manual checks.
+
+Recommended lane types:
+
+1. **Hermetic startup smoke**
+   - run with a temporary `STALLION_AI_DIR`
+   - scrub env vars in the child process instead of changing the developer's shell
+   - prove first-run behavior without depending on the current machine state
+
+2. **Adapter registration integration**
+   - prove runtime/provider adapters register through the shared registry path
+   - prefer temp fixtures or temp plugins
+
+3. **Onboarding e2e**
+   - prove setup launcher, doctor guidance, and reaching a chat-capable path
+
+4. **Cross-runtime smoke**
+   - managed agent path
+   - connected agent path
+   - ACP path
+
+5. **Platform-control smoke**
+   - exercise at least one real `stallion-control` action end to end
+
+The goal is persistent regression protection. If a test only proves something once and cannot be rerun meaningfully later, it is not enough on its own.
+
 ## Connected Agents Verification
 
 Use these terms consistently when adding connected-agents coverage:
