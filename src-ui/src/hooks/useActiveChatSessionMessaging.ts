@@ -195,12 +195,16 @@ export function useSendMessage(
               backendMessages as ActiveChatConversationMessage[],
               finishReason,
             );
+          const latestPlanArtifact =
+            deriveLatestPlanArtifactFromMessages(messages as any) ??
+            activeChatsStore.getSnapshot()[sessionId]?.planArtifact ??
+            null;
 
           const updates: Partial<ChatUIState> = {
             status: 'idle',
             abortController: undefined,
             messages,
-            planArtifact: deriveLatestPlanArtifactFromMessages(messages as any),
+            planArtifact: latestPlanArtifact,
           };
 
           if (noticeKind === 'tool-calls') {

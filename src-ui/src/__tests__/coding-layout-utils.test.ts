@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'vitest';
+import { selectWorkflowPlanSession } from '../components/coding-layout/planSession';
 import { buildNewTerminalItems } from '../components/coding-layout/utils';
 import type { ACPConnectionInfo } from '../hooks/useACPConnections';
 
@@ -68,5 +69,28 @@ describe('coding-layout utils', () => {
         connectionId: 'kiro',
       },
     ]);
+  });
+
+  test('selectWorkflowPlanSession matches active chat by session id before falling back', () => {
+    const olderSession = {
+      id: 'session-older',
+      conversationId: 'conv-older',
+      messages: [{ timestamp: 10 }],
+    };
+    const activeSession = {
+      id: 'session-active',
+      conversationId: 'conv-active',
+      messages: [{ timestamp: 1 }],
+    };
+
+    expect(
+      selectWorkflowPlanSession(
+        [olderSession, activeSession],
+        'session-active',
+      ),
+    ).toEqual(activeSession);
+    expect(
+      selectWorkflowPlanSession([olderSession, activeSession], 'conv-older'),
+    ).toEqual(olderSession);
   });
 });

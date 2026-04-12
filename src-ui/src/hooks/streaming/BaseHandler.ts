@@ -2,6 +2,7 @@
  * Base class for stream event handlers
  */
 
+import { derivePlanArtifactFromStreamingState } from '../../utils/planArtifacts';
 import { createNoOpResult } from './stateHelpers';
 import type {
   HandlerContext,
@@ -9,7 +10,6 @@ import type {
   StreamEvent,
   StreamState,
 } from './types';
-import { derivePlanArtifactFromStreamingState } from '../../utils/planArtifacts';
 
 export abstract class StreamEventHandler {
   protected context: HandlerContext;

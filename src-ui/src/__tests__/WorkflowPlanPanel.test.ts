@@ -1,6 +1,10 @@
 import { describe, expect, test } from 'vitest';
-import { deriveWorkflowPlanArtifact } from '../components/WorkflowPlanPanel';
+import {
+  deriveWorkflowPlanArtifact,
+  toWorkflowPlanArtifact,
+} from '../components/WorkflowPlanPanel';
 import type { ChatMessage } from '../types';
+import type { PlanArtifact } from '../utils/planArtifacts';
 
 describe('deriveWorkflowPlanArtifact', () => {
   test('parses plan steps from reasoning updates', () => {
@@ -73,5 +77,27 @@ describe('deriveWorkflowPlanArtifact', () => {
     ];
 
     expect(deriveWorkflowPlanArtifact(messages)).toBeNull();
+  });
+
+  test('preserves in-progress status when converting cached plan artifacts', () => {
+    const artifact: PlanArtifact = {
+      source: 'reasoning',
+      rawText:
+        '✅ Capture requirements\n⏳ Build workflow panel\n⬜ Verify layout',
+      steps: [
+        { content: 'Capture requirements', status: 'completed' },
+        { content: 'Build workflow panel', status: 'in_progress' },
+        { content: 'Verify layout', status: 'pending' },
+      ],
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+
+    const workflowArtifact = toWorkflowPlanArtifact(artifact);
+
+    expect(workflowArtifact?.markdown).toContain('- [>] Build workflow panel');
+    expect(workflowArtifact?.steps[1]).toMatchObject({
+      label: 'Build workflow panel',
+      status: 'in_progress',
+    });
   });
 });

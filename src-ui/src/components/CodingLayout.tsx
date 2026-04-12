@@ -12,9 +12,11 @@ import { DiffPanel } from './coding-layout/DiffPanel';
 import { FileContentViewer } from './coding-layout/FileContentViewer';
 import { FileTreePanel } from './coding-layout/FileTreePanel';
 import { NewTerminalModal } from './coding-layout/NewTerminalModal';
+import { selectWorkflowPlanSession } from './coding-layout/planSession';
 import type { TerminalTab } from './coding-layout/types';
 import {
   deriveWorkflowPlanArtifact,
+  toWorkflowPlanArtifact,
   WorkflowPlanPanel,
 } from './WorkflowPlanPanel';
 
@@ -40,31 +42,13 @@ export function CodingLayout({
   const projectSessions = useDerivedSessions('', null, _projectSlug);
 
   const planSession = useMemo(() => {
-    if (projectSessions.length === 0) {
-      return null;
-    }
-
-    const activeSession = projectSessions.find(
-      (session) =>
-        session.conversationId && session.conversationId === activeChat,
-    );
-    if (activeSession) {
-      return activeSession;
-    }
-
-    return (
-      [...projectSessions].sort((left, right) => {
-        const leftLastMessage =
-          left.messages[left.messages.length - 1]?.timestamp || 0;
-        const rightLastMessage =
-          right.messages[right.messages.length - 1]?.timestamp || 0;
-        return rightLastMessage - leftLastMessage;
-      })[0] || null
-    );
+    return selectWorkflowPlanSession(projectSessions, activeChat);
   }, [activeChat, projectSessions]);
 
   const planArtifact = useMemo(
-    () => deriveWorkflowPlanArtifact(planSession?.messages || []),
+    () =>
+      toWorkflowPlanArtifact(planSession?.planArtifact) ??
+      deriveWorkflowPlanArtifact(planSession?.messages || []),
     [planSession],
   );
 

@@ -127,11 +127,13 @@ export function useOpenConversation(apiBase: string) {
       const normalizedMessages = normalizeConversationMessages(
         messages as ActiveChatConversationMessage[],
       );
+      const latestPlanArtifact =
+        deriveLatestPlanArtifactFromMessages(normalizedMessages as any) ??
+        activeChatsStore.getSnapshot()[sessionId]?.planArtifact ??
+        null;
       updateChat(sessionId, {
         messages: normalizedMessages,
-        planArtifact: deriveLatestPlanArtifactFromMessages(
-          normalizedMessages as any,
-        ),
+        planArtifact: latestPlanArtifact,
       });
 
       return sessionId;
@@ -194,15 +196,17 @@ export function useRehydrateSessions(apiBase: string) {
       const normalizedMessages = normalizeConversationMessages(
         backendMessages as ActiveChatConversationMessage[],
       );
+      const latestPlanArtifact =
+        deriveLatestPlanArtifactFromMessages(normalizedMessages as any) ??
+        chat.planArtifact ??
+        null;
       updateChat(sessionId, {
         messages: normalizedMessages,
         inputHistory: buildRehydratedInputHistory(
           backendMessages as ActiveChatConversationMessage[],
           chat.inputHistory,
         ),
-        planArtifact: deriveLatestPlanArtifactFromMessages(
-          normalizedMessages as any,
-        ),
+        planArtifact: latestPlanArtifact,
       });
     }
   }, [apiBase, fetchMessages, updateChat]);

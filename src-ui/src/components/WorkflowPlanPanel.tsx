@@ -2,6 +2,10 @@ import { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { ChatMessage } from '../types';
+import {
+  deriveLatestPlanArtifactFromMessages,
+  type PlanArtifact,
+} from '../utils/planArtifacts';
 import { markdownCodeComponents } from './HighlightedCodeBlock';
 
 export type WorkflowPlanStepStatus = 'completed' | 'in_progress' | 'pending';
@@ -20,8 +24,6 @@ export interface WorkflowPlanArtifact {
   updatedAt?: number;
 }
 
-const PLAN_LINE_PATTERN =
-  /^\s*(?:(?:[-*]\s+)?\[(x|X| |>)\]|(✅|☑️?|🔄|⬜|☐))\s+(.+)$/;
 const MARKDOWN_STEP_PATTERN = /^\s*(?:[-*]|\d+\.)\s+\[(x|X| |>)\]\s+(.+)$/;
 const MARKDOWN_TITLE_PATTERN = /^#{1,6}\s+(.+)$/m;
 
@@ -34,23 +36,6 @@ function slugifyTitle(value: string) {
   );
 }
 
-function normalizeStatus(
-  symbol: string | undefined,
-  emoji: string | undefined,
-) {
-  if (
-    symbol?.toLowerCase() === 'x' ||
-    emoji === '✅' ||
-    emoji?.startsWith('☑')
-  ) {
-    return 'completed';
-  }
-  if (symbol === '>' || emoji === '🔄') {
-    return 'in_progress';
-  }
-  return 'pending';
-}
-
 function buildMarkdown(title: string, steps: WorkflowPlanStep[]) {
   if (steps.length === 0) {
     return `# ${title}`;
@@ -58,53 +43,17 @@ function buildMarkdown(title: string, steps: WorkflowPlanStep[]) {
 
   const checklist = steps
     .map((step) => {
-      const checkbox = step.status === 'completed' ? 'x' : ' ';
+      const checkbox =
+        step.status === 'completed'
+          ? 'x'
+          : step.status === 'in_progress'
+            ? '>'
+            : ' ';
       return `- [${checkbox}] ${step.label}`;
     })
     .join('\n');
 
   return `# ${title}\n\n${checklist}`;
-}
-
-function extractSteps(content: string): WorkflowPlanStep[] {
-  return content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .map((line, index) => {
-      const iconMatch = line.match(PLAN_LINE_PATTERN);
-      if (iconMatch) {
-        const [, symbol, emoji, label] = iconMatch;
-        return {
-          id: `plan-step-${index}`,
-          label: label.trim(),
-          status: normalizeStatus(symbol, emoji),
-        } satisfies WorkflowPlanStep;
-      }
-
-      const markdownMatch = line.match(MARKDOWN_STEP_PATTERN);
-      if (markdownMatch) {
-        const [, symbol, label] = markdownMatch;
-        return {
-          id: `plan-step-${index}`,
-          label: label.trim(),
-          status: normalizeStatus(symbol, undefined),
-        } satisfies WorkflowPlanStep;
-      }
-
-      return null;
-    })
-    .filter((step): step is WorkflowPlanStep => Boolean(step));
-}
-
-function looksLikePlanContent(content: string, steps: WorkflowPlanStep[]) {
-  if (steps.length >= 2) {
-    return true;
-  }
-
-  return (
-    /(^|\n)#{1,6}\s+.*plan/i.test(content) ||
-    /(^|\n)(steps?|checklist|next steps?):/i.test(content)
-  );
 }
 
 function extractTitle(content: string) {
@@ -121,72 +70,40 @@ function extractTitle(content: string) {
   return planLine || 'Workflow plan';
 }
 
-function extractArtifactFromContent(
-  content: string,
-  updatedAt?: number,
+export function deriveWorkflowPlanArtifact(
+  messages: ChatMessage[],
 ): WorkflowPlanArtifact | null {
-  const normalized = content.trim();
-  if (!normalized) {
+  return toWorkflowPlanArtifact(
+    deriveLatestPlanArtifactFromMessages(messages as any),
+  );
+}
+
+export function toWorkflowPlanArtifact(
+  artifact: PlanArtifact | null | undefined,
+): WorkflowPlanArtifact | null {
+  if (!artifact) {
     return null;
   }
 
-  const steps = extractSteps(normalized);
-  if (!looksLikePlanContent(normalized, steps)) {
-    return null;
-  }
-
-  const title = extractTitle(normalized);
+  const title = extractTitle(artifact.rawText);
+  const steps = artifact.steps.map((step, index) => ({
+    id: `plan-step-${index}`,
+    label: step.content,
+    status: step.status,
+  }));
   const markdown =
-    /^#{1,6}\s+/m.test(normalized) || MARKDOWN_STEP_PATTERN.test(normalized)
-      ? normalized
+    /^#{1,6}\s+/m.test(artifact.rawText) ||
+    MARKDOWN_STEP_PATTERN.test(artifact.rawText)
+      ? artifact.rawText
       : buildMarkdown(title, steps);
 
   return {
     title,
     markdown,
-    rawText: normalized,
+    rawText: artifact.rawText,
     steps,
-    updatedAt,
+    updatedAt: artifact.updatedAt ? Date.parse(artifact.updatedAt) : undefined,
   };
-}
-
-export function deriveWorkflowPlanArtifact(
-  messages: ChatMessage[],
-): WorkflowPlanArtifact | null {
-  for (
-    let messageIndex = messages.length - 1;
-    messageIndex >= 0;
-    messageIndex--
-  ) {
-    const message = messages[messageIndex];
-    if (message.role !== 'assistant') {
-      continue;
-    }
-
-    const parts = message.contentParts || [];
-    const candidates = [
-      ...parts
-        .filter(
-          (part) =>
-            (part.type === 'reasoning' || part.type === 'text') &&
-            typeof part.content === 'string',
-        )
-        .map((part) => part.content as string),
-      message.content,
-    ].filter(
-      (value): value is string =>
-        typeof value === 'string' && value.trim().length > 0,
-    );
-
-    for (const candidate of candidates) {
-      const artifact = extractArtifactFromContent(candidate, message.timestamp);
-      if (artifact) {
-        return artifact;
-      }
-    }
-  }
-
-  return null;
 }
 
 function downloadFile(filename: string, mimeType: string, contents: string) {
