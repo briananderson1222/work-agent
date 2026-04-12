@@ -9,6 +9,13 @@ import {
 } from '@stallion-ai/sdk';
 import { useState } from 'react';
 import './InsightsDashboard.css';
+import {
+  formatRelativeFuture,
+  formatRelativePast,
+  getHourlyBarStyle,
+  getInsightsUsageView,
+  summarizeFeedbackRatings,
+} from './insightsDashboardUtils';
 
 // ── Types ──────────────────────────────────────────────
 
@@ -61,14 +68,8 @@ function UsageTab() {
 
   if (!data) return <div className="insights-loading">Loading...</div>;
 
-  const maxHourly = Math.max(...data.hourlyActivity, 1);
-  const topTools = Object.entries(data.toolUsage)
-    .sort((a, b) => b[1].calls - a[1].calls)
-    .slice(0, 10);
-  const maxToolCalls = topTools.length > 0 ? topTools[0][1].calls : 1;
-  const agents = Object.entries(data.agentUsage).sort(
-    (a, b) => b[1].chats - a[1].chats,
-  );
+  const { agents, maxHourly, maxToolCalls, topTools } =
+    getInsightsUsageView(data);
 
   return (
     <>
@@ -107,10 +108,7 @@ function UsageTab() {
               key={hour}
               title={`${hour}:00 — ${count} events`}
               className={`insights-hourly-bar ${count > 0 ? 'has-data' : ''}`}
-              style={{
-                height: `${Math.max((count / maxHourly) * 100, count > 0 ? 8 : 2)}%`,
-                opacity: count > 0 ? 0.5 + (count / maxHourly) * 0.5 : 0.2,
-              }}
+              style={getHourlyBarStyle(count, maxHourly)}
             />
           ))}
         </div>
@@ -191,10 +189,8 @@ function FeedbackTab() {
   const clearMutation = useClearFeedbackAnalysisMutation();
   const deleteMutation = useDeleteFeedbackRatingMutation();
 
-  const noReason = ratings.filter((r) => !r.reason).length;
-  const liked = ratings.filter((r) => r.rating === 'thumbs_up').length;
-  const disliked = ratings.filter((r) => r.rating === 'thumbs_down').length;
-  const pending = ratings.filter((r) => !r.analyzedAt).length;
+  const { disliked, liked, noReason, pending } =
+    summarizeFeedbackRatings(ratings);
 
   const filtered = ratings.filter((r) => {
     if (filter === 'all') return true;
@@ -202,24 +198,6 @@ function FeedbackTab() {
     if (filter === 'no_reason') return !r.reason;
     return r.rating === filter;
   });
-
-  const relativeTime = (iso?: string) => {
-    if (!iso) return null;
-    const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.round(diff / 60_000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins} min ago`;
-    return `${Math.round(mins / 60)} hr ago`;
-  };
-
-  const relativeIn = (iso?: string) => {
-    if (!iso) return null;
-    const diff = new Date(iso).getTime() - Date.now();
-    const mins = Math.round(diff / 60_000);
-    if (mins <= 0) return 'soon';
-    if (mins < 60) return `in ${mins} min`;
-    return `in ${Math.round(mins / 60)} hr`;
-  };
 
   return (
     <div className="feedback-grid">
@@ -319,7 +297,7 @@ function FeedbackTab() {
           <div className="feedback-status">
             {status.isAnalyzing && <span className="feedback-status-dot" />}
             {status.lastAnalyzedAt
-              ? `Last analyzed: ${relativeTime(status.lastAnalyzedAt)}${status.nextAnalysisAt ? ` · Next: ${relativeIn(status.nextAnalysisAt)}` : ''}`
+              ? `Last analyzed: ${formatRelativePast(status.lastAnalyzedAt)}${status.nextAnalysisAt ? ` · Next: ${formatRelativeFuture(status.nextAnalysisAt)}` : ''}`
               : 'Not yet analyzed'}
           </div>
         )}

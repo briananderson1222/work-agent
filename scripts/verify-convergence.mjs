@@ -5768,6 +5768,9 @@ const insightsDashboard = readFileSync(
 if (insightsDashboard.includes('fetch(')) {
   errors.push('InsightsDashboard must not issue raw fetch() calls.');
 }
+if (!insightsDashboard.includes('./insightsDashboardUtils')) {
+  errors.push('InsightsDashboard must delegate derived usage/feedback helpers to insightsDashboardUtils.ts.');
+}
 for (const requiredHook of [
   'useAnalyzeFeedbackMutation',
   'useClearFeedbackAnalysisMutation',
@@ -5775,6 +5778,32 @@ for (const requiredHook of [
 ]) {
   if (!insightsDashboard.includes(requiredHook)) {
     errors.push(`InsightsDashboard must use ${requiredHook}.`);
+  }
+}
+for (const retiredInsightsSnippet of [
+  'const maxHourly = Math.max(',
+  'const topTools = Object.entries(data.toolUsage)',
+  'const relativeTime = (iso?: string) => {',
+  'const relativeIn = (iso?: string) => {',
+]) {
+  if (insightsDashboard.includes(retiredInsightsSnippet)) {
+    errors.push(`InsightsDashboard must not inline extracted helper ${retiredInsightsSnippet}.`);
+  }
+}
+
+const insightsDashboardUtils = readFileSync(
+  new URL('../src-ui/src/components/insightsDashboardUtils.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function getInsightsUsageView',
+  'export function getHourlyBarStyle',
+  'export function summarizeFeedbackRatings',
+  'export function formatRelativePast',
+  'export function formatRelativeFuture',
+]) {
+  if (!insightsDashboardUtils.includes(requiredHelper)) {
+    errors.push(`insightsDashboardUtils.ts must include ${requiredHelper}.`);
   }
 }
 
