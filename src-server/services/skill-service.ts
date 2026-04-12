@@ -9,7 +9,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import {
   extractResourceLinks,
@@ -30,6 +30,10 @@ import {
   skillDiscoveryDuration,
   skillOps,
 } from '../telemetry/metrics.js';
+import {
+  installSkillFromRegistry,
+  removeInstalledSkill,
+} from './skill-service-install.js';
 
 const SCRIPT_EXTS = new Set(['.py', '.sh', '.js', '.ts']);
 
@@ -234,51 +238,14 @@ export class SkillService {
     const { getSkillRegistryProviders } = await import(
       '../providers/registry.js'
     );
-    const entries = getSkillRegistryProviders();
-    if (entries.length === 0)
-      return { success: false, message: 'No skill registry configured' };
-
-    const targetDir = projectSlug
-      ? join(projectHomeDir, 'projects', projectSlug, 'skills')
-      : join(projectHomeDir, 'skills');
-
-    await mkdir(targetDir, { recursive: true });
-
-    for (const { provider } of entries) {
-      const result = await provider.install(name, targetDir);
-      if (result.success) {
-        try {
-          const items = await provider.listAvailable().catch(() => []);
-          const item = items.find((i: any) => i.id === name);
-          const version = item?.version ?? 'unknown';
-          const skillDir = join(targetDir, name);
-          await writeFile(
-            join(skillDir, '.stallion-meta.json'),
-            JSON.stringify({
-              version,
-              installedAt: new Date().toISOString(),
-              source: 'registry',
-            }),
-          );
-          // Write skill.json for ConfigLoader persistence
-          await this.configLoader.saveSkill(name, {
-            name,
-            description: item?.description,
-            source: 'registry',
-            installedAt: new Date().toISOString(),
-            version,
-            path: skillDir,
-          });
-        } catch {}
-        await this.discoverSkills(projectHomeDir, projectSlug);
-        return result;
-      }
-    }
-
-    return {
-      success: false,
-      message: `No skill registry provider could install ${name}`,
-    };
+    return installSkillFromRegistry({
+      name,
+      projectHomeDir,
+      projectSlug,
+      configLoader: this.configLoader,
+      providers: getSkillRegistryProviders(),
+      rediscover: async () => this.discoverSkills(projectHomeDir, projectSlug),
+    });
   }
 
   async removeSkill(
@@ -287,16 +254,12 @@ export class SkillService {
     projectSlug?: string,
   ): Promise<{ success: boolean; message: string }> {
     skillOps.add(1, { operation: 'remove' });
-    const targetDir = projectSlug
-      ? join(projectHomeDir, 'projects', projectSlug, 'skills', name)
-      : join(projectHomeDir, 'skills', name);
-
-    if (!existsSync(targetDir))
-      return { success: false, message: `Skill '${name}' not found` };
-
-    await rm(targetDir, { recursive: true, force: true });
-    await this.discoverSkills(projectHomeDir, projectSlug);
-    return { success: true, message: `Removed ${name}` };
+    return removeInstalledSkill({
+      name,
+      projectHomeDir,
+      projectSlug,
+      rediscover: async () => this.discoverSkills(projectHomeDir, projectSlug),
+    });
   }
 
   getSkillCount(): number {

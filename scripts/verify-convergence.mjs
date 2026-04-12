@@ -2133,6 +2133,42 @@ for (const requiredHelper of [
   }
 }
 
+const skillService = readFileSync(
+  new URL('../src-server/services/skill-service.ts', import.meta.url),
+  'utf8',
+);
+if (!skillService.includes('./skill-service-install.js')) {
+  errors.push('skill-service.ts must delegate registry install/remove helpers to skill-service-install.ts.');
+}
+for (const retiredInlineSkillSnippet of [
+  "const targetDir = projectSlug",
+  "message: 'No skill registry configured'",
+  "message: `No skill registry provider could install ${name}`",
+  "message: `Skill '${name}' not found`",
+  'await rm(targetDir, { recursive: true, force: true });',
+]) {
+  if (skillService.includes(retiredInlineSkillSnippet)) {
+    errors.push(
+      `skill-service.ts must not inline extracted skill install/remove logic ${retiredInlineSkillSnippet}.`,
+    );
+  }
+}
+
+const skillServiceInstall = readFileSync(
+  new URL('../src-server/services/skill-service-install.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export async function installSkillFromRegistry',
+  'export async function removeInstalledSkill',
+  'No skill registry configured',
+  "source: 'registry'",
+]) {
+  if (!skillServiceInstall.includes(requiredHelper)) {
+    errors.push(`skill-service-install.ts must include ${requiredHelper}.`);
+  }
+}
+
 const memoryAdapter = readFileSync(
   new URL('../src-server/adapters/file/memory-adapter.ts', import.meta.url),
   'utf8',
