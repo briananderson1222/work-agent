@@ -20,7 +20,8 @@
     "./provider": "./src/provider.ts",
     "./orchestration": "./src/orchestration.ts",
     "./scheduler": "./src/scheduler.ts",
-    "./tool": "./src/tool.ts"
+    "./tool": "./src/tool.ts",
+    "./ui-block": "./src/ui-block.ts"
   },
   "publishConfig": {
     "access": "public"
