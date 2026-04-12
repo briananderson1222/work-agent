@@ -2289,15 +2289,49 @@ const knowledgeFilesystem = readFileSync(
   new URL('../src-server/services/knowledge-filesystem.ts', import.meta.url),
   'utf8',
 );
+if (!knowledgeFilesystem.includes('./knowledge-scan-utils.js')) {
+  errors.push('knowledge-filesystem.ts must delegate scan/filter helpers to knowledge-scan-utils.ts.');
+}
 for (const requiredHelper of [
   'export function listKnowledgeDocuments',
   'export function buildKnowledgeDirectoryTree',
   'export async function scanKnowledgeDirectories',
-  'function matchesKnowledgeFilter',
-  'function collectKnowledgeFiles',
+  'matchesKnowledgeFilter',
+  'collectKnowledgeFiles',
 ]) {
   if (!knowledgeFilesystem.includes(requiredHelper)) {
     errors.push(`knowledge-filesystem.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredKnowledgeFilesystemSnippet of [
+  'const DEFAULT_EXTENSIONS = new Set([',
+  'const SKIP_DIRS = new Set([',
+  'function resolveKnowledgeScanPath(',
+  'function normalizeExtension(',
+  'function applyScanPatterns(',
+  'function globMatch(',
+  'function collectKnowledgeFiles(',
+]) {
+  if (knowledgeFilesystem.includes(retiredKnowledgeFilesystemSnippet)) {
+    errors.push(`knowledge-filesystem.ts must not inline extracted scan helper ${retiredKnowledgeFilesystemSnippet}.`);
+  }
+}
+
+const knowledgeScanUtils = readFileSync(
+  new URL('../src-server/services/knowledge-scan-utils.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function matchesKnowledgeFilter',
+  'export function resolveKnowledgeScanPath',
+  'export function normalizeKnowledgeExtension',
+  'export function applyKnowledgeScanPatterns',
+  'export function collectKnowledgeFiles',
+  'export function buildKnowledgeTree',
+  'const DEFAULT_EXTENSIONS = new Set([',
+]) {
+  if (!knowledgeScanUtils.includes(requiredHelper)) {
+    errors.push(`knowledge-scan-utils.ts must include ${requiredHelper}.`);
   }
 }
 
