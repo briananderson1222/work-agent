@@ -3,6 +3,7 @@ import { useAllActiveChats } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { conversationsStore } from '../contexts/ConversationsContext';
 import type { ChatSession } from '../types';
+import { deriveLatestPlanArtifactFromMessages } from '../utils/planArtifacts';
 
 // Hook to get all open tabs (with messages loaded from backend)
 export function useDerivedSessions(
@@ -99,6 +100,11 @@ export function useDerivedSessions(
         ...messagesWithTimestamps,
         ...ephemeralMessages,
       ].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      const latestPlanArtifact =
+        chatState.planArtifact ||
+        deriveLatestPlanArtifactFromMessages(
+          allMessages.filter((message) => !message.ephemeral) as any,
+        );
 
       // Compute isThinking: sending but not actively processing a step
       const isThinking =
@@ -137,6 +143,8 @@ export function useDerivedSessions(
         projectSlug: chatState.projectSlug,
         projectName: chatState.projectName,
         focusDirectoryId: chatState.focusDirectoryId,
+        currentModeId: chatState.currentModeId,
+        planArtifact: latestPlanArtifact,
       });
     }
 

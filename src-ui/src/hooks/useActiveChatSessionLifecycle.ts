@@ -8,6 +8,7 @@ import {
 } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { ChatExecutionMetadata } from '../utils/execution';
+import { deriveLatestPlanArtifactFromMessages } from '../utils/planArtifacts';
 import { useSendMessage } from './useActiveChatSessionMessaging';
 import {
   type ActiveChatConversationMessage,
@@ -123,9 +124,13 @@ export function useOpenConversation(apiBase: string) {
       await fetchMessages(apiBase, agentSlug, conversationId);
       const key = `messages:${agentSlug}:${conversationId}`;
       const messages = conversationsStore.getSnapshot().messages[key] || [];
+      const normalizedMessages = normalizeConversationMessages(
+        messages as ActiveChatConversationMessage[],
+      );
       updateChat(sessionId, {
-        messages: normalizeConversationMessages(
-          messages as ActiveChatConversationMessage[],
+        messages: normalizedMessages,
+        planArtifact: deriveLatestPlanArtifactFromMessages(
+          normalizedMessages as any,
         ),
       });
 
@@ -186,10 +191,17 @@ export function useRehydrateSessions(apiBase: string) {
       const messagesKey = `messages:${chat.agentSlug}:${chat.conversationId}`;
       const backendMessages =
         conversationsStore.getSnapshot().messages[messagesKey] || [];
+      const normalizedMessages = normalizeConversationMessages(
+        backendMessages as ActiveChatConversationMessage[],
+      );
       updateChat(sessionId, {
+        messages: normalizedMessages,
         inputHistory: buildRehydratedInputHistory(
           backendMessages as ActiveChatConversationMessage[],
           chat.inputHistory,
+        ),
+        planArtifact: deriveLatestPlanArtifactFromMessages(
+          normalizedMessages as any,
         ),
       });
     }

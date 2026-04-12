@@ -1,4 +1,5 @@
 import { activeChatsStore } from '../../contexts/active-chats-store';
+import { derivePlanArtifactFromStreamingState } from '../../utils/planArtifacts';
 import { extractUIBlocks } from '../../utils/uiBlocks';
 import {
   createAssistantStreamingMessage,
@@ -33,6 +34,21 @@ export function handleTextDeltaEvent(
         event.delta,
       ),
     },
+    planArtifact: derivePlanArtifactFromStreamingState(
+      {
+        streamingMessage: {
+          role: 'assistant',
+          content: `${streamingMessage.content || ''}${event.delta}`,
+          contentParts: upsertTextPart(
+            streamingMessage.contentParts,
+            'text',
+            event.delta,
+          ),
+        },
+        planArtifact: chat.planArtifact,
+      },
+      event.createdAt,
+    ),
   });
 }
 
@@ -53,6 +69,20 @@ export function handleReasoningDeltaEvent(
         event.delta,
       ),
     },
+    planArtifact: derivePlanArtifactFromStreamingState(
+      {
+        streamingMessage: {
+          ...streamingMessage,
+          contentParts: upsertTextPart(
+            streamingMessage.contentParts,
+            'reasoning',
+            event.delta,
+          ),
+        },
+        planArtifact: chat.planArtifact,
+      },
+      event.createdAt,
+    ),
   });
 }
 

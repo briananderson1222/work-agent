@@ -13,6 +13,7 @@ import {
 import type { FileAttachment } from '../types';
 import { runtimeConnectionIdToProviderKind } from '../utils/execution';
 import { log } from '../utils/logger';
+import { deriveLatestPlanArtifactFromMessages } from '../utils/planArtifacts';
 import {
   type ActiveChatConversationMessage,
   buildOutgoingUserMessage,
@@ -199,6 +200,7 @@ export function useSendMessage(
             status: 'idle',
             abortController: undefined,
             messages,
+            planArtifact: deriveLatestPlanArtifactFromMessages(messages as any),
           };
 
           if (noticeKind === 'tool-calls') {
