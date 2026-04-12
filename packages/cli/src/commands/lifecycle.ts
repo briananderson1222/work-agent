@@ -1,11 +1,5 @@
 import { execSync, spawn } from 'node:child_process';
-import {
-  existsSync,
-  openSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { existsSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveGitInfo } from '@stallion-ai/shared/git';
 import { CWD, PIDFILE, PROJECT_HOME } from './helpers.js';
@@ -161,47 +155,7 @@ export function stop(): void {
   console.log('  ✓ Stopped');
 }
 
-export function doctor(): void {
-  console.log('Checking prerequisites...\n');
-  let ok = true;
-
-  const check = (name: string, _cmd: string, versionCmd?: string) => {
-    try {
-      const ver = versionCmd
-        ? execSync(versionCmd, { encoding: 'utf-8' }).trim()
-        : '';
-      console.log(`  ✓ ${name}${ver ? ` ${ver}` : ''}`);
-    } catch {
-      console.log(`  ✗ ${name} — not found`);
-      ok = false;
-    }
-  };
-
-  check('Node.js', 'node', 'node -v');
-  check('npm', 'npm', 'npm -v');
-  check('git', 'git', 'git --version');
-  check('tsx', 'tsx', 'tsx --version');
-
-  try {
-    execSync('rustc --version', { stdio: 'pipe' });
-    const ver = execSync('rustc --version', { encoding: 'utf-8' }).trim();
-    console.log(`  ✓ Rust ${ver.split(' ')[1]} (desktop builds available)`);
-  } catch {
-    console.log('  ⚠ Rust — not installed (desktop builds unavailable)');
-  }
-
-  const major = parseInt(process.version.slice(1), 10);
-  if (major < 20) {
-    console.log(`\n  ✗ Node.js ${process.version} is too old (need >= 20)`);
-    ok = false;
-  }
-
-  if (!ok) {
-    console.log('\nMissing required prerequisites.');
-    process.exit(1);
-  }
-  console.log('\n  All good!');
-}
+export { collectDoctorReport, doctor } from './lifecycle-doctor.js';
 
 export function link(): void {
   createPathLink(CWD);

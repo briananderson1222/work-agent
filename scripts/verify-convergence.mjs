@@ -2711,6 +2711,46 @@ for (const retiredInlineCliDevSnippet of [
   }
 }
 
+const cliLifecycle = readFileSync(
+  new URL('../packages/cli/src/commands/lifecycle.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredImport of [
+  './lifecycle-doctor.js',
+  "export { collectDoctorReport, doctor } from './lifecycle-doctor.js';",
+]) {
+  if (!cliLifecycle.includes(requiredImport)) {
+    errors.push(`packages/cli/src/commands/lifecycle.ts must include ${requiredImport}.`);
+  }
+}
+for (const retiredLifecycleSnippet of [
+  'function execVersion(',
+  'async function detectOllama(',
+  'function doctorStatusSymbol(',
+  "const awsCredentialsPath = join(homedir(), '.aws', 'credentials');",
+]) {
+  if (cliLifecycle.includes(retiredLifecycleSnippet)) {
+    errors.push(
+      `packages/cli/src/commands/lifecycle.ts must not inline extracted doctor logic ${retiredLifecycleSnippet}.`,
+    );
+  }
+}
+
+const cliLifecycleDoctor = readFileSync(
+  new URL('../packages/cli/src/commands/lifecycle-doctor.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export async function collectDoctorReport',
+  'export async function doctor',
+  "const awsCredentialsPath = join(homedir(), '.aws', 'credentials');",
+  "label: 'Configured chat providers'",
+]) {
+  if (!cliLifecycleDoctor.includes(requiredHelper)) {
+    errors.push(`packages/cli/src/commands/lifecycle-doctor.ts must include ${requiredHelper}.`);
+  }
+}
+
 const cliDevHttp = readFileSync(
   new URL('../packages/cli/src/dev/http.ts', import.meta.url),
   'utf8',
