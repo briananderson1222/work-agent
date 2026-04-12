@@ -11,6 +11,10 @@ import type {
   S2SProviderState,
   S2SSessionConfig,
 } from '../s2s-types.js';
+import {
+  parseNovaSonicRawEvent,
+  processNovaSonicStreamEvent,
+} from './nova-sonic-events.js';
 
 const DEFAULT_MODEL = 'amazon.nova-2-sonic-v1:0';
 const DEFAULT_REGION = 'us-east-1';
@@ -55,7 +59,6 @@ export class NovaSonicProvider extends EventEmitter implements IS2SProvider {
   private currentToolName = '';
   private currentToolUseId = '';
   private currentToolContent = '';
-  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: runtime state tracking for content type
   private currentContentType = '';
 
   readonly outputAudioFormat = OUTPUT_FORMAT;
@@ -217,83 +220,30 @@ export class NovaSonicProvider extends EventEmitter implements IS2SProvider {
     try {
       for await (const raw of body) {
         if (!this.active) break;
-        let event: any;
-        try {
-          const bytes = raw.chunk?.bytes;
-          if (!bytes) continue;
-          event = JSON.parse(new TextDecoder().decode(bytes))?.event;
-          if (!event) continue;
-        } catch (err) {
-          console.warn('[NovaSonic] Failed to parse response chunk:', err);
-          continue;
-        }
-
-        if (event.completionStart) {
-          this.emit('turnStart');
-          this.setState('processing');
-        } else if (event.contentStart) {
-          const cs = event.contentStart;
-          this.currentRole = cs.role ?? '';
-          this.currentGenerationStage = cs.additionalModelFields
-            ? (JSON.parse(cs.additionalModelFields)?.generationStage ?? '')
-            : '';
-          this.currentContentType = cs.type ?? '';
-          this.currentToolName = '';
-          this.currentToolUseId = '';
-          this.currentToolContent = '';
-          if (cs.type === 'AUDIO') this.setState('speaking');
-        } else if (event.textOutput) {
-          const text: string = event.textOutput.content ?? '';
-          const role = this.currentRole.toLowerCase() as 'user' | 'assistant';
-          const stage = this.currentGenerationStage.toLowerCase() as
-            | 'speculative'
-            | 'final';
-          if (role === 'user' && stage === 'final')
-            this.emit('transcript', { text, role: 'user', stage: 'final' });
-          else if (role === 'assistant' && stage === 'speculative')
-            this.emit('transcript', {
-              text,
-              role: 'assistant',
-              stage: 'speculative',
-            });
-          else if (role === 'assistant' && stage === 'final')
-            this.emit('transcript', {
-              text,
-              role: 'assistant',
-              stage: 'final',
-            });
-        } else if (event.audioOutput) {
-          this.emit('audio', Buffer.from(event.audioOutput.content, 'base64'));
-        } else if (event.toolUse) {
-          this.currentToolName = event.toolUse.toolName ?? this.currentToolName;
-          this.currentToolUseId =
-            event.toolUse.toolUseId ?? this.currentToolUseId;
-          this.currentToolContent += event.toolUse.content ?? '';
-        } else if (event.contentEnd) {
-          if (
-            event.contentEnd.stopReason === 'TOOL_USE' &&
-            this.currentToolUseId
-          ) {
-            try {
-              this.emit('toolUse', {
-                toolName: this.currentToolName,
-                toolUseId: this.currentToolUseId,
-                parameters: JSON.parse(this.currentToolContent || '{}'),
-              });
-            } catch {
-              this.emit('toolUse', {
-                toolName: this.currentToolName,
-                toolUseId: this.currentToolUseId,
-                parameters: {},
-              });
-            }
-          } else if (event.contentEnd.stopReason === 'INTERRUPTED') {
-            this.setState('listening');
-          }
-        } else if (event.completionEnd) {
-          this.emit('turnEnd');
-          this.setState('listening');
-        }
+        const event = parseNovaSonicRawEvent(raw);
+        if (!event) continue;
+        const state = {
+          currentRole: this.currentRole,
+          currentGenerationStage: this.currentGenerationStage,
+          currentToolName: this.currentToolName,
+          currentToolUseId: this.currentToolUseId,
+          currentToolContent: this.currentToolContent,
+          currentContentType: this.currentContentType,
+        };
+        processNovaSonicStreamEvent(
+          event,
+          state,
+          {
+            emit: (name, payload) => this.emit(name, payload),
+            setState: (state) => this.setState(state),
+          },
+        );
+        this.currentRole = state.currentRole;
+        this.currentGenerationStage = state.currentGenerationStage;
+        this.currentToolName = state.currentToolName;
+        this.currentToolUseId = state.currentToolUseId;
+        this.currentToolContent = state.currentToolContent;
+        this.currentContentType = state.currentContentType;
       }
     } catch (err: any) {
       if (this.active) this.emit('error', err);

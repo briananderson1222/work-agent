@@ -4204,6 +4204,40 @@ for (const requiredVoiceHelper of [
   }
 }
 
+const novaSonic = readFileSync(
+  new URL('../src-server/voice/providers/nova-sonic.ts', import.meta.url),
+  'utf8',
+);
+if (!novaSonic.includes('./nova-sonic-events.js')) {
+  errors.push('nova-sonic.ts must delegate stream event parsing to nova-sonic-events.ts.');
+}
+for (const retiredNovaSnippet of [
+  "console.warn('[NovaSonic] Failed to parse response chunk:'",
+  "this.emit('transcript'",
+  "this.emit('audio', Buffer.from(event.audioOutput.content, 'base64'))",
+  "this.emit('toolUse'",
+]) {
+  if (novaSonic.includes(retiredNovaSnippet)) {
+    errors.push(`nova-sonic.ts must not inline extracted stream event helper ${retiredNovaSnippet}.`);
+  }
+}
+
+const novaSonicEvents = readFileSync(
+  new URL('../src-server/voice/providers/nova-sonic-events.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredNovaHelper of [
+  'export function parseNovaSonicRawEvent',
+  'export function processNovaSonicStreamEvent',
+  "console.warn",
+  "effects.emit('transcript'",
+  "effects.emit('toolUse'",
+]) {
+  if (!novaSonicEvents.includes(requiredNovaHelper)) {
+    errors.push(`nova-sonic-events.ts must include ${requiredNovaHelper}.`);
+  }
+}
+
 const newChatModal = readFileSync(
   new URL('../src-ui/src/components/NewChatModal.tsx', import.meta.url),
   'utf8',
