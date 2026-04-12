@@ -553,7 +553,11 @@
 }
 
 .workflow-plan-panel__step-badge--completed {
-  background: color-mix(in srgb, var(--color-success, #10b981) 18%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--color-success, #10b981) 18%,
+    transparent
+  );
   color: var(--color-success, #10b981);
 }
 
@@ -595,4 +599,17 @@
 
 .workflow-plan-panel__markdown > *:first-child {
   margin-top: 0;
+}
+
+@media (max-width: 1024px) {
+  .coding-layout__workspace {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+
+  .workflow-plan-panel {
+    max-height: 40vh;
+    border-left: none;
+    border-top: 1px solid var(--border-primary);
+  }
 }

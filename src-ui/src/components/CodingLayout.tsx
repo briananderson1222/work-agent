@@ -1,19 +1,22 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigation } from '../contexts/NavigationContext';
 import {
   type ACPConnectionInfo,
   useACPConnections,
 } from '../hooks/useACPConnections';
-import { useNavigation } from '../contexts/NavigationContext';
-import { useDockModePreference } from '../hooks/useDockModePreference';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
+import { useDockModePreference } from '../hooks/useDockModePreference';
 import './CodingLayout.css';
 import { CodingTerminalPanel } from './coding-layout/CodingTerminalPanel';
 import { DiffPanel } from './coding-layout/DiffPanel';
 import { FileContentViewer } from './coding-layout/FileContentViewer';
 import { FileTreePanel } from './coding-layout/FileTreePanel';
 import { NewTerminalModal } from './coding-layout/NewTerminalModal';
-import { WorkflowPlanPanel, deriveWorkflowPlanArtifact } from './WorkflowPlanPanel';
 import type { TerminalTab } from './coding-layout/types';
+import {
+  deriveWorkflowPlanArtifact,
+  WorkflowPlanPanel,
+} from './WorkflowPlanPanel';
 
 // ─── CodingLayout ─────────────────────────────────────────────────────────────
 
@@ -42,17 +45,22 @@ export function CodingLayout({
     }
 
     const activeSession = projectSessions.find(
-      (session) => session.conversationId && session.conversationId === activeChat,
+      (session) =>
+        session.conversationId && session.conversationId === activeChat,
     );
     if (activeSession) {
       return activeSession;
     }
 
-    return [...projectSessions].sort((left, right) => {
-      const leftLastMessage = left.messages[left.messages.length - 1]?.timestamp || 0;
-      const rightLastMessage = right.messages[right.messages.length - 1]?.timestamp || 0;
-      return rightLastMessage - leftLastMessage;
-    })[0] || null;
+    return (
+      [...projectSessions].sort((left, right) => {
+        const leftLastMessage =
+          left.messages[left.messages.length - 1]?.timestamp || 0;
+        const rightLastMessage =
+          right.messages[right.messages.length - 1]?.timestamp || 0;
+        return rightLastMessage - leftLastMessage;
+      })[0] || null
+    );
   }, [activeChat, projectSessions]);
 
   const planArtifact = useMemo(

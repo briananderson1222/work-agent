@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { markdownCodeComponents } from './HighlightedCodeBlock';
 import type { ChatMessage } from '../types';
+import { markdownCodeComponents } from './HighlightedCodeBlock';
 
 export type WorkflowPlanStepStatus = 'completed' | 'in_progress' | 'pending';
 
@@ -26,14 +26,23 @@ const MARKDOWN_STEP_PATTERN = /^\s*(?:[-*]|\d+\.)\s+\[(x|X| |>)\]\s+(.+)$/;
 const MARKDOWN_TITLE_PATTERN = /^#{1,6}\s+(.+)$/m;
 
 function slugifyTitle(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'workflow-plan';
+  return (
+    value
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'workflow-plan'
+  );
 }
 
-function normalizeStatus(symbol: string | undefined, emoji: string | undefined) {
-  if (symbol?.toLowerCase() === 'x' || emoji === '✅' || emoji?.startsWith('☑')) {
+function normalizeStatus(
+  symbol: string | undefined,
+  emoji: string | undefined,
+) {
+  if (
+    symbol?.toLowerCase() === 'x' ||
+    emoji === '✅' ||
+    emoji?.startsWith('☑')
+  ) {
     return 'completed';
   }
   if (symbol === '>' || emoji === '🔄') {
@@ -92,7 +101,10 @@ function looksLikePlanContent(content: string, steps: WorkflowPlanStep[]) {
     return true;
   }
 
-  return /(^|\n)#{1,6}\s+.*plan/i.test(content) || /(^|\n)(steps?|checklist|next steps?):/i.test(content);
+  return (
+    /(^|\n)#{1,6}\s+.*plan/i.test(content) ||
+    /(^|\n)(steps?|checklist|next steps?):/i.test(content)
+  );
 }
 
 function extractTitle(content: string) {
@@ -141,7 +153,11 @@ function extractArtifactFromContent(
 export function deriveWorkflowPlanArtifact(
   messages: ChatMessage[],
 ): WorkflowPlanArtifact | null {
-  for (let messageIndex = messages.length - 1; messageIndex >= 0; messageIndex--) {
+  for (
+    let messageIndex = messages.length - 1;
+    messageIndex >= 0;
+    messageIndex--
+  ) {
     const message = messages[messageIndex];
     if (message.role !== 'assistant') {
       continue;
@@ -157,7 +173,10 @@ export function deriveWorkflowPlanArtifact(
         )
         .map((part) => part.content as string),
       message.content,
-    ].filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    ].filter(
+      (value): value is string =>
+        typeof value === 'string' && value.trim().length > 0,
+    );
 
     for (const candidate of candidates) {
       const artifact = extractArtifactFromContent(candidate, message.timestamp);
