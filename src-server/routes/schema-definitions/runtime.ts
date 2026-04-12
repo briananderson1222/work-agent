@@ -132,6 +132,25 @@ export const connectionSchema = z.object({
   lastCheckedAt: z.string().nullable().optional(),
 });
 
+export const modelOptionSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  originalId: z.string(),
+});
+
+export const runtimeCatalogStatusSchema = z.object({
+  source: z.enum(['live', 'cached', 'fallback', 'none']),
+  fetchedAt: z.string().nullable().optional(),
+  reason: z.string().nullable().optional(),
+  models: z.array(modelOptionSchema),
+  fallbackModels: z.array(modelOptionSchema),
+});
+
+export const runtimeConnectionViewSchema = connectionSchema.extend({
+  kind: z.literal('runtime'),
+  runtimeCatalog: runtimeCatalogStatusSchema.optional(),
+});
+
 // Conversation context
 export const contextActionSchema = z.object({
   action: z.string().min(1),

@@ -1,4 +1,7 @@
-import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
+import type {
+  ConnectionConfig,
+  RuntimeConnectionView as RuntimeConnectionViewData,
+} from '@stallion-ai/contracts/tool';
 import {
   useConnectionQuery,
   useDeleteConnectionMutation,
@@ -16,6 +19,7 @@ import {
   connectionTypeLabel,
   prerequisiteCategoryLabel,
   prerequisiteStatusLabel,
+  runtimeCatalogSourceLabel,
 } from '../utils/execution';
 import './PluginManagementView.css';
 import './page-layout.css';
@@ -34,7 +38,9 @@ export function RuntimeConnectionView({
   const [form, setForm] = useState<ConnectionConfig | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const { data: runtimes = [], isLoading } = useRuntimeConnectionsQuery();
+  const { data: runtimes = [], isLoading } = useRuntimeConnectionsQuery() as {
+    data?: RuntimeConnectionViewData[];
+  };
 
   const { data: runtime } = useConnectionQuery(selectedRuntimeId, {
     enabled: !!selectedRuntimeId,
@@ -91,7 +97,7 @@ export function RuntimeConnectionView({
         .map((connection) => ({
           id: connection.id,
           name: connection.name,
-          subtitle: `${connectionStatusLabel(connection.status)} · ${connectionTypeLabel(connection.type)}`,
+          subtitle: `${connectionStatusLabel(connection.status)} · ${runtimeCatalogSourceLabel(connection.runtimeCatalog?.source ?? 'none')} catalog · ${connectionTypeLabel(connection.type)}`,
           icon: (
             <span
               style={{
@@ -136,6 +142,8 @@ export function RuntimeConnectionView({
     typeof form?.config.providerLabel === 'string'
       ? form.config.providerLabel
       : connectionTypeLabel(form?.type ?? '');
+  const runtimeCatalog = (form as RuntimeConnectionViewData | null)
+    ?.runtimeCatalog;
 
   return (
     <SplitPaneLayout
@@ -198,6 +206,16 @@ export function RuntimeConnectionView({
             </div>
 
             <div className="editor-field">
+              <label className="editor-label">Catalog</label>
+              <div className="editor-input editor-input--readonly">
+                {runtimeCatalogSourceLabel(runtimeCatalog?.source ?? 'none')}
+              </div>
+              {runtimeCatalog?.reason && (
+                <p className="editor-help">{runtimeCatalog.reason}</p>
+              )}
+            </div>
+
+            <div className="editor-field">
               <label className="editor-label">Model Backend</label>
               <div
                 className="editor-input"
@@ -257,6 +275,29 @@ export function RuntimeConnectionView({
                   Optional runtime-scoped default model hint. Leave blank to
                   inherit the app default.
                 </p>
+              </div>
+            )}
+
+            {runtimeCatalog && (
+              <div className="editor-field">
+                <label className="editor-label">Runtime Models</label>
+                <p className="editor-help">
+                  {runtimeCatalog.models.length > 0
+                    ? `${runtimeCatalog.models.length} live or cached models available.`
+                    : runtimeCatalog.fallbackModels.length > 0
+                      ? `${runtimeCatalog.fallbackModels.length} fallback models available.`
+                      : 'No runtime models reported.'}
+                </p>
+                <div className="plugins__caps">
+                  {(runtimeCatalog.models.length > 0
+                    ? runtimeCatalog.models
+                    : runtimeCatalog.fallbackModels
+                  ).map((model) => (
+                    <span key={model.id} className="plugins__cap">
+                      {model.name}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
 

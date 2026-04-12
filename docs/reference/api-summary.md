@@ -2,7 +2,7 @@
 
 ## Endpoint Overview
 
-### Stallion Endpoints (~203 endpoints total):
+### Stallion Endpoints (~211 endpoints total):
 
 #### Agent Management (5)
 - `GET /api/agents` - Enriched agent list
@@ -45,6 +45,16 @@
 #### Configuration (2)
 - `GET /config/app` - Get app config
 - `PUT /config/app` - Update app config
+
+#### Connections (8)
+- `GET /api/connections` - List model and runtime connections
+- `GET /api/connections/models` - List model/provider connections
+- `GET /api/connections/runtimes` - List runtime connections with runtime-scoped model metadata
+- `GET /api/connections/:id` - Get one connection
+- `POST /api/connections` - Create a connection
+- `PUT /api/connections/:id` - Update a connection
+- `DELETE /api/connections/:id` - Delete or reset a connection
+- `POST /api/connections/:id/test` - Run a connection health check
 
 #### Bedrock Models (4)
 - `GET /bedrock/models` - List models
@@ -281,6 +291,7 @@
 | Workflow Management | 5 |
 | Conversation Management | 6 |
 | Configuration | 2 |
+| Connections | 8 |
 | Bedrock Models | 4 |
 | Analytics | 4 |
 | Monitoring | 3 |
@@ -308,7 +319,7 @@
 | Telemetry Events | 1 |
 | Global Routes | 3 |
 | UI Commands | 1 |
-| **Total** | **~203** |
+| **Total** | **~211** |
 
 ---
 
@@ -334,6 +345,9 @@
 
 | Hook | Endpoints |
 |------|-----------|
+| `useConnectionsQuery` / `useConnectionQuery` | `/api/connections`, `/api/connections/:id` |
+| `useModelConnectionsQuery` | `/api/connections/models` |
+| `useRuntimeConnectionsQuery` | `/api/connections/runtimes` |
 | `useSystemStatus` | `/api/system/status`, `/api/system/verify-bedrock` |
 | `useServerCapabilities` | `/api/system/capabilities` |
 | `useServerEvents` | `/events` (SSE) |
@@ -348,6 +362,9 @@
 | Component/View | Endpoints |
 |----------------|-----------|
 | `PluginManagementView` | `/api/plugins/*`, `/api/fs/browse` |
+| `ConnectionsHub` | `/api/connections` |
+| `RuntimeConnectionView` | `/api/connections/runtimes`, `/api/connections/:id`, `/api/connections/:id/test` |
+| `ProviderSettingsView` / `KnowledgeConnectionView` | `/api/connections/models`, `/api/connections/:id`, `/api/connections/:id/test` |
 | `ToolsView` | `/api/registry/tools`, `/tools` |
 | `SettingsView` | `/api/system/status`, `/api/system/core-update` |
 | `AgentEditorView` | `/api/agents`, `/tools`, `/agents/default/invoke` |
@@ -356,6 +373,7 @@
 | `ActivityTimeline` | `/api/analytics/usage` |
 | `UsageStatsPanel` | `/api/analytics/usage` (DELETE) |
 | `ACPConnectionsSection` | `/acp/connections` (CRUD) |
+| `NewChatModal` / chat dock / agent runtime editor | `/api/connections/models`, `/api/connections/runtimes` |
 | `UserDetailModal` | `/api/users/:alias` |
 | `OnboardingGate` / `Header` | `/api/system/status` |
 

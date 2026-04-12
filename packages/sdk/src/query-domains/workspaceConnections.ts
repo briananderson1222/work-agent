@@ -1,4 +1,7 @@
-import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
+import type {
+  ConnectionConfig,
+  RuntimeConnectionView,
+} from '@stallion-ai/contracts/tool';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { _getApiBase } from '../api';
 import {
@@ -63,7 +66,7 @@ export function useModelConnectionsQuery(
 }
 
 export function useRuntimeConnectionsQuery(
-  config?: QueryConfig<ConnectionConfig[]>,
+  config?: QueryConfig<RuntimeConnectionView[]>,
 ) {
   return useApiQuery(
     ['connections', 'runtimes'],
@@ -74,7 +77,7 @@ export function useRuntimeConnectionsQuery(
       if (!result.success) {
         throw new Error(result.error);
       }
-      return result.data as ConnectionConfig[];
+      return result.data as RuntimeConnectionView[];
     },
     config,
   );

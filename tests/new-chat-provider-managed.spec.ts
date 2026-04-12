@@ -30,6 +30,7 @@ function seedRoutes(
   options?: {
     projectHasProviderDefaults?: boolean;
     agentRequiresMcp?: boolean;
+    runtimeConnections?: unknown[];
   },
 ) {
   const agents =
@@ -82,7 +83,10 @@ function seedRoutes(
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: [] }),
+        body: JSON.stringify({
+          success: true,
+          data: options?.runtimeConnections ?? [],
+        }),
       }),
     ),
     page.route('**/api/connections/models', (route) =>
@@ -148,13 +152,16 @@ function seedRoutes(
         }),
       }),
     ),
-    page.route('**/api/config', (route) =>
+    page.route('**/config/app', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          defaultModel: 'llama3.2',
-          defaultLLMProvider: 'ollama-local',
+          success: true,
+          data: {
+            defaultModel: 'llama3.2',
+            defaultLLMProvider: 'ollama-local',
+          },
         }),
       }),
     ),
@@ -222,6 +229,54 @@ test('selected project context does not show Stallion when provider-managed fall
   await expect(
     page.locator('.new-chat-modal__agent', { hasText: 'Stallion' }),
   ).toHaveCount(0);
+});
+
+test('new chat shows degraded runtime compatibility messaging from runtime catalog status', async ({
+  page,
+}) => {
+  await seedRoutes(page, {
+    runtimeConnections: [
+      {
+        id: 'codex-runtime',
+        kind: 'runtime',
+        type: 'codex-runtime',
+        name: 'Codex Runtime',
+        enabled: true,
+        capabilities: ['agent-runtime'],
+        config: { defaultModel: 'gpt-5-codex' },
+        status: 'degraded',
+        runtimeCatalog: {
+          source: 'fallback',
+          reason: 'Live catalog unavailable.',
+          models: [],
+          fallbackModels: [
+            {
+              id: 'gpt-5-codex',
+              name: 'GPT-5 Codex',
+              originalId: 'gpt-5-codex',
+            },
+          ],
+        },
+        prerequisites: [],
+      },
+    ],
+  });
+  await page.addInitScript(() => {
+    localStorage.removeItem('recentAgents');
+  });
+
+  await page.goto('/?dock=open');
+
+  const newChatBtn = page.getByTitle(/New Chat/);
+  await expect(newChatBtn).toBeVisible({ timeout: 5000 });
+  await newChatBtn.dispatchEvent('click');
+
+  await expect(page.getByText('New Chat')).toBeVisible({ timeout: 3000 });
+  await expect(
+    page.getByText(
+      /Runtime status: Codex Runtime: Degraded · Catalog Fallback — Live catalog unavailable\./,
+    ),
+  ).toBeVisible();
 });
 
 test('new chat still shows Stallion when provider-managed fallback matches the agent capability set', async ({

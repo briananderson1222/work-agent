@@ -19,6 +19,23 @@ vi.mock('@stallion-ai/sdk', () => ({
         config: {},
         prerequisites: [],
       },
+      {
+        id: 'codex-runtime',
+        kind: 'runtime',
+        type: 'codex-runtime',
+        name: 'Codex Runtime',
+        enabled: true,
+        status: 'degraded',
+        capabilities: ['agent-runtime'],
+        config: {},
+        runtimeCatalog: {
+          source: 'fallback',
+          reason: 'Live runtime catalog is unavailable.',
+          models: [],
+          fallbackModels: [],
+        },
+        prerequisites: [],
+      },
     ],
   }),
   useIntegrationsQuery: () => ({ data: [] }),
@@ -52,5 +69,6 @@ describe('ConnectionsHub', () => {
 
     expect(screen.getByText('Setup required')).toBeTruthy();
     expect(screen.queryByText('Enabled')).toBeNull();
+    expect(screen.getByText('Catalog: Fallback')).toBeTruthy();
   });
 });

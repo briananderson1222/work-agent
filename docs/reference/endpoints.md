@@ -105,6 +105,21 @@ Standalone `/layouts` endpoints were removed. Layout management is project-scope
 | `/config/app` | GET | ✅ in-use | `ConfigContext.tsx` |
 | `/config/app` | PUT | ✅ in-use | `ConfigContext.tsx` |
 
+### Connections (8/8)
+
+| Endpoint | Method | Status | Used By |
+|----------|--------|--------|---------|
+| `/api/connections` | GET | ✅ in-use | `ConnectionsHub.tsx`, `useConnectionsQuery()` |
+| `/api/connections/models` | GET | ✅ in-use | `ProviderSettingsView.tsx`, `KnowledgeConnectionView.tsx`, `NewChatModal.tsx`, `AgentEditorRuntimeTab.tsx`, `useModelConnectionsQuery()` |
+| `/api/connections/runtimes` | GET | ✅ in-use | `RuntimeConnectionView.tsx`, `ConnectionsHub.tsx`, `NewChatModal.tsx`, `useChatDockViewModel.ts`, `ChatDockTabBar.tsx`, `AgentEditorBasicTab.tsx`, `AgentEditorRuntimeTab.tsx`, `useRuntimeConnectionsQuery()` |
+| `/api/connections/:id` | GET | ✅ in-use | `RuntimeConnectionView.tsx`, `useConnectionQuery()` |
+| `/api/connections` | POST | ✅ in-use | `useSaveConnectionMutation()` (new connection path) |
+| `/api/connections/:id` | PUT | ✅ in-use | `RuntimeConnectionView.tsx`, `ProviderSettingsView.tsx`, `KnowledgeConnectionView.tsx`, `useSaveConnectionMutation()` |
+| `/api/connections/:id` | DELETE | ✅ in-use | `RuntimeConnectionView.tsx`, `ProviderSettingsView.tsx`, `useDeleteConnectionMutation()` |
+| `/api/connections/:id/test` | POST | ✅ in-use | `RuntimeConnectionView.tsx`, `ProviderSettingsView.tsx`, `useTestConnectionMutation()` |
+
+> **Runtime catalog note**: `/api/connections/runtimes` currently exposes runtime-scoped model metadata on `config`, including `provider`, `providerLabel`, `modelOptions`, and `fallbackModelOptions`. Current runtime/model UI surfaces read those fields directly.
+
 ### Bedrock Models (1/4)
 
 | Endpoint | Method | Status | Used By |
@@ -371,6 +386,7 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 | `ActiveChatsContext` | `/agents/:slug/conversations` |
 | `StatsContext` | `/agents/:slug/conversations/:id/stats` |
 | `ConfigContext` | `/config/app` (GET/PUT) |
+| `Connections` views + query hooks | `/api/connections`, `/api/connections/models`, `/api/connections/runtimes`, `/api/connections/:id`, `/api/connections/:id/test` |
 | `ModelsContext` | `/bedrock/models` |
 | `AppDataContext` | `/bedrock/models` |
 | `AnalyticsContext` | `/api/analytics/usage`, `/api/analytics/achievements`, `/api/analytics/rescan` |
@@ -386,6 +402,10 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 |------------------|----------------|
 | `useServerEvents.ts` | `/events` (SSE) |
 | `useBranding.ts` | `/api/branding` |
+| `useConnectionsQuery()` / `useConnectionQuery()` | `/api/connections`, `/api/connections/:id` |
+| `useModelConnectionsQuery()` | `/api/connections/models` |
+| `useRuntimeConnectionsQuery()` | `/api/connections/runtimes` |
+| `useSaveConnectionMutation()` / `useDeleteConnectionMutation()` / `useTestConnectionMutation()` | `/api/connections`, `/api/connections/:id`, `/api/connections/:id/test` |
 | `useSystemStatus.ts` | `/api/system/status`, `/api/system/verify-bedrock` |
 | `useServerCapabilities.ts` | `/api/system/capabilities` |
 | `useScheduler*.ts` | `/scheduler/jobs`, `/scheduler/stats`, `/scheduler/status`, `/scheduler/providers`, `/scheduler/events`, `/scheduler/jobs/:target/*`, `/scheduler/runs/output`, `/scheduler/open` |
@@ -394,6 +414,10 @@ We implemented a custom `/api/agents/:slug/chat` endpoint instead of using the f
 | `useSlashCommands.ts` | `/acp/commands/:agentSlug` |
 | `PluginManagementView.tsx` | `/api/plugins` (GET/DELETE), `/api/plugins/preview`, `/api/plugins/install`, `/api/plugins/check-updates`, `/api/plugins/:name/update`, `/api/plugins/:name/providers`, `/api/plugins/:name/overrides` (PUT), `/api/plugins/reload`, `/api/fs/browse` |
 | `PluginRegistry.ts` | `/api/plugins`, `/api/plugins/:name/bundle.js`, `/api/plugins/:name/bundle.css` |
+| `ConnectionsHub.tsx` | `/api/connections` |
+| `RuntimeConnectionView.tsx` | `/api/connections/runtimes`, `/api/connections/:id`, `/api/connections/:id/test` |
+| `ProviderSettingsView.tsx` / `KnowledgeConnectionView.tsx` | `/api/connections/models`, `/api/connections/:id`, `/api/connections/:id/test` |
+| `NewChatModal.tsx`, `ChatDockTabBar.tsx`, `useChatDockViewModel.ts`, `AgentEditorBasicTab.tsx`, `AgentEditorRuntimeTab.tsx` | `/api/connections/models`, `/api/connections/runtimes` |
 | `ToolsView.tsx` | `/integrations`, `/api/registry/integrations`, `/api/registry/integrations/install`, `/api/registry/integrations/:id` |
 | `ToolManagementView.tsx` | `/integrations`, `/agents`, `/agents/:slug/tools` (GET/POST) |
 | `SettingsView.tsx` | `/api/system/status`, `/api/system/core-update` (GET/POST) |

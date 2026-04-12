@@ -1,24 +1,23 @@
 import { agentQueries } from '@stallion-ai/sdk';
-import {
-  bindingHasModelCatalog,
-  bindingUsesGlobalModelCatalog,
-  resolveEffectiveCapabilityState,
-} from '../utils/execution';
+import { runtimeCatalogSourceLabel } from '../utils/execution';
 import { registerCommand } from './registry';
 import { promptSlug } from './utils';
 
 // MCP command
 registerCommand(
   'mcp',
-  async ({ chatState, queryClient, addEphemeralMessage, sessionId, agent }) => {
+  async ({
+    chatState,
+    queryClient,
+    addEphemeralMessage,
+    sessionId,
+    agent,
+    bindingStatus,
+  }) => {
     try {
-      const support = resolveEffectiveCapabilityState({
-        agent,
-        chatState,
-        hasModelCatalog: false,
-      });
+      const support = bindingStatus?.capabilityState;
 
-      if (!support.mcp) {
+      if (!support?.mcp) {
         addEphemeralMessage(sessionId, {
           role: 'system',
           content:
@@ -120,38 +119,14 @@ registerCommand(
     sessionId,
     autocomplete,
     addEphemeralMessage,
-    agent,
-    chatState,
-    queryClient,
-    availableModels = [],
-    modelsAreBindingScoped = false,
+    bindingStatus,
   }) => {
-    const models = queryClient.getQueryData<any[]>(['models']) || [];
-    const hasModelCatalog = bindingHasModelCatalog({
-      agent,
-      chatState,
-      globalModelCount:
-        modelsAreBindingScoped ||
-        bindingUsesGlobalModelCatalog({
-          agent,
-          chatState,
-        })
-          ? modelsAreBindingScoped
-            ? availableModels.length
-            : models.length
-          : 0,
-    });
-    const support = resolveEffectiveCapabilityState({
-      agent,
-      chatState,
-      hasModelCatalog,
-    });
+    const support = bindingStatus?.capabilityState;
 
-    if (!support.model_selection) {
+    if (!support?.model_selection) {
       addEphemeralMessage(sessionId, {
         role: 'system',
-        content:
-          'Model selection is unavailable for this binding. The current chat does not have a usable model catalog.',
+        content: `Model selection is unavailable for this binding. Readiness: ${bindingStatus?.bindingReadiness ?? 'needs_configuration'}. Catalog: ${runtimeCatalogSourceLabel(bindingStatus?.catalogSource ?? 'none')}${bindingStatus?.catalogReason ? ` — ${bindingStatus.catalogReason}` : ''}`,
       });
       autocomplete.closeAll();
       updateChat(sessionId, { input: '' });

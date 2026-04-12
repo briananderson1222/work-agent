@@ -16,6 +16,7 @@ import {
   IconTool,
 } from './connections-hub/utils';
 import './ConnectionsHub.css';
+import { runtimeCatalogSourceLabel } from '../utils/execution';
 
 export type ConnectionsHubProps = Record<string, never>;
 
@@ -163,6 +164,17 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
                   <span className="connections-hub__card-type">
                     {getConnectionTypeText(connection.type)}
                   </span>
+                  <span className="connections-hub__card-type">
+                    Catalog:{' '}
+                    {runtimeCatalogSourceLabel(
+                      connection.runtimeCatalog?.source ?? 'none',
+                    )}
+                  </span>
+                  {connection.runtimeCatalog?.reason && (
+                    <span className="connections-hub__card-type">
+                      {connection.runtimeCatalog.reason}
+                    </span>
+                  )}
                   {desc && (
                     <span className="connections-hub__card-type">{desc}</span>
                   )}

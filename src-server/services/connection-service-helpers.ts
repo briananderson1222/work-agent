@@ -8,9 +8,12 @@ import type {
   ConnectionCapability,
   ConnectionConfig,
   ConnectionStatus,
+  ModelOption,
   Prerequisite,
   ProviderConnectionConfig,
+  RuntimeCatalogStatus,
   RuntimeConnectionSettings,
+  RuntimeConnectionView,
 } from '@stallion-ai/contracts/tool';
 import type { ProviderAdapterShape } from '../providers/adapter-shape.js';
 
@@ -125,7 +128,7 @@ export function mergeRuntimeConfig(
 
 function runtimeModelOptionsForAdapter(
   adapter: ProviderAdapterShape,
-): Array<{ id: string; name: string; originalId: string }> | undefined {
+): ModelOption[] | undefined {
   switch (adapter.provider) {
     case 'claude':
       return [
@@ -158,13 +161,108 @@ function runtimeModelOptionsForAdapter(
   }
 }
 
+function normalizeModelOptions(value: unknown): ModelOption[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((item) => {
+    if (
+      !item ||
+      typeof item !== 'object' ||
+      typeof item.id !== 'string' ||
+      typeof item.name !== 'string'
+    ) {
+      return [];
+    }
+    return [
+      {
+        id: item.id,
+        name: item.name,
+        originalId:
+          typeof item.originalId === 'string' ? item.originalId : item.id,
+      },
+    ];
+  });
+}
+
+function buildRuntimeCatalogStatus({
+  adapter,
+  settings,
+  liveModelOptions,
+}: {
+  adapter: ProviderAdapterShape;
+  settings: RuntimeConnectionSettings;
+  liveModelOptions?: ModelOption[];
+}): RuntimeCatalogStatus | undefined {
+  const fallbackModels = runtimeModelOptionsForAdapter(adapter) ?? [];
+  const config = settings.config ?? {};
+  const cachedModels = normalizeModelOptions(
+    (config as Record<string, unknown>).cachedModelOptions,
+  );
+  const cachedFallbackModels = normalizeModelOptions(
+    (config as Record<string, unknown>).cachedFallbackModelOptions,
+  );
+  const cachedFetchedAt =
+    typeof (config as Record<string, unknown>).cachedCatalogFetchedAt ===
+    'string'
+      ? ((config as Record<string, unknown>).cachedCatalogFetchedAt as string)
+      : null;
+  const cachedReason =
+    typeof (config as Record<string, unknown>).cachedCatalogReason === 'string'
+      ? ((config as Record<string, unknown>).cachedCatalogReason as string)
+      : null;
+
+  if (liveModelOptions && liveModelOptions.length > 0) {
+    return {
+      source: 'live',
+      fetchedAt: new Date().toISOString(),
+      reason: null,
+      models: liveModelOptions,
+      fallbackModels,
+    };
+  }
+
+  if (cachedModels.length > 0 || cachedFallbackModels.length > 0) {
+    return {
+      source: 'cached',
+      fetchedAt: cachedFetchedAt,
+      reason:
+        cachedReason ??
+        'Using the most recent cached runtime catalog while live discovery is unavailable.',
+      models: cachedModels,
+      fallbackModels:
+        cachedFallbackModels.length > 0 ? cachedFallbackModels : fallbackModels,
+    };
+  }
+
+  if (fallbackModels.length > 0) {
+    return {
+      source: 'fallback',
+      fetchedAt: null,
+      reason: adapter.listModels
+        ? 'Live runtime catalog is unavailable, so Stallion is showing built-in fallback models.'
+        : 'This runtime uses built-in fallback models because it does not expose a live catalog.',
+      models: [],
+      fallbackModels,
+    };
+  }
+
+  return {
+    source: 'none',
+    fetchedAt: null,
+    reason: 'No runtime model catalog is available for this connection.',
+    models: [],
+    fallbackModels: [],
+  };
+}
+
 export async function listRuntimeConnectionsForAdapters(options: {
   adapters: ProviderAdapterShape[];
   appConfig: AppConfig;
   acpConnections: ACPConnectionConfig[];
   acpStatus: { connections?: ACPConnectionStatus[] };
-}): Promise<ConnectionConfig[]> {
-  const runtimeConnections: ConnectionConfig[] = await Promise.all(
+}): Promise<RuntimeConnectionView[]> {
+  const runtimeConnections: RuntimeConnectionView[] = await Promise.all(
     options.adapters.map(async (adapter) => {
       const prerequisites = (await adapter.getPrerequisites?.()) ?? [];
       const id = runtimeIdForAdapter(adapter);
@@ -173,10 +271,11 @@ export async function listRuntimeConnectionsForAdapters(options: {
       const liveModelOptions = await adapter
         .listModels?.()
         .catch(() => undefined);
-      const modelOptions =
-        liveModelOptions && liveModelOptions.length > 0
-          ? liveModelOptions
-          : runtimeModelOptionsForAdapter(adapter);
+      const runtimeCatalog = buildRuntimeCatalogStatus({
+        adapter,
+        settings,
+        liveModelOptions,
+      });
       return {
         id,
         kind: 'runtime',
@@ -189,19 +288,12 @@ export async function listRuntimeConnectionsForAdapters(options: {
           ...mergeRuntimeConfig(id, options.appConfig, settings),
           provider: adapter.provider,
           providerLabel: providerLabelForAdapter(adapter),
-          ...(modelOptions
-            ? adapter.listModels
-              ? {
-                  modelOptions,
-                  fallbackModelOptions: runtimeModelOptionsForAdapter(adapter),
-                }
-              : { fallbackModelOptions: modelOptions }
-            : {}),
         },
+        runtimeCatalog,
         prerequisites,
         status: statusFromPrerequisites(enabled, prerequisites),
         lastCheckedAt: null,
-      } satisfies ConnectionConfig;
+      } satisfies RuntimeConnectionView;
     }),
   );
 

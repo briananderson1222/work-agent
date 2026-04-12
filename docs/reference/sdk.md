@@ -174,6 +174,63 @@ Returns the current API base URL.
 
 ---
 
+### Connection Hooks
+
+#### `useConnectionsQuery(): ConnectionConfig[]`
+
+Returns the merged Connections list used by the Connections hub. The result includes both model and runtime rows from `GET /api/connections`.
+
+#### `useModelConnectionsQuery(): ConnectionConfig[]`
+
+Returns model/provider-backed connections from `GET /api/connections/models`.
+
+Use this when you need provider readiness, editable provider config, or provider-scoped `config.modelOptions`.
+
+#### `useRuntimeConnectionsQuery(): ConnectionConfig[]`
+
+Returns runtime connection rows from `GET /api/connections/runtimes`.
+
+Runtime rows can expose runtime-scoped model metadata on `config`, including:
+
+- `provider` / `providerLabel` — runtime ownership metadata
+- `defaultModel` — editable runtime default-model hint
+- `modelOptions` — live runtime catalog data when the adapter can enumerate models
+- `fallbackModelOptions` — built-in fallback catalog data when live enumeration is missing or unavailable
+
+This is the query used by runtime/model UI surfaces such as `ConnectionsHub`, `RuntimeConnectionView`, `NewChatModal`, the chat dock model selector, and `AgentEditorRuntimeTab`.
+
+```tsx
+const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery();
+
+const codexRuntime = runtimeConnections.find((c) => c.id === 'codex-runtime');
+const visibleModels =
+  (codexRuntime?.config.modelOptions as Array<{ id: string; name: string }> | undefined) ??
+  (codexRuntime?.config.fallbackModelOptions as Array<{ id: string; name: string }> | undefined) ??
+  [];
+```
+
+#### `useConnectionQuery(id: string): ConnectionConfig | null`
+
+Returns a single connection from `GET /api/connections/:id`.
+
+Useful for detail views that need the fully refreshed server projection before editing or testing a connection.
+
+#### `useSaveConnectionMutation()`
+
+Saves a connection through `POST /api/connections` or `PUT /api/connections/:id`.
+
+For runtime connections, the writable payload stays on the existing editable fields (`name`, `enabled`, `config`). Read-only catalog metadata such as `modelOptions` / `fallbackModelOptions` is returned by the server projection and should not be treated as user-editable input.
+
+#### `useDeleteConnectionMutation()`
+
+Deletes or resets a connection through `DELETE /api/connections/:id`.
+
+#### `useTestConnectionMutation()`
+
+Runs the connection health check via `POST /api/connections/:id/test`.
+
+---
+
 ### Model Hooks
 
 #### `useModels(): Model[]`

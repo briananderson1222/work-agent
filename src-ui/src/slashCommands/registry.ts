@@ -1,5 +1,6 @@
 // Slash command plugin system
 import type { QueryClient } from '@tanstack/react-query';
+import type { BindingStatus } from '../utils/execution';
 
 export type SlashCommandContext = {
   sessionId: string;
@@ -8,7 +9,7 @@ export type SlashCommandContext = {
   args: string[];
   apiBase: string;
   availableModels?: Array<{ id: string; name: string; originalId?: string }>;
-  modelsAreBindingScoped?: boolean;
+  bindingStatus?: BindingStatus;
   updateChat: (sessionId: string, updates: any) => void;
   addEphemeralMessage: (
     sessionId: string,

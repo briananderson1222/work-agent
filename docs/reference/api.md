@@ -834,6 +834,186 @@ PUT /config/app
 
 ---
 
+## Connections
+
+### List All Connections
+```http
+GET /api/connections
+```
+
+Returns the merged Connections surface used by the UI, including both model/provider rows and runtime rows.
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "bedrock-default",
+      "kind": "model",
+      "type": "bedrock",
+      "name": "Bedrock",
+      "enabled": true,
+      "capabilities": ["llm"],
+      "config": {},
+      "status": "ready",
+      "prerequisites": [],
+      "lastCheckedAt": null
+    },
+    {
+      "id": "codex-runtime",
+      "kind": "runtime",
+      "type": "codex-runtime",
+      "name": "Codex Runtime",
+      "enabled": true,
+      "capabilities": ["agent-runtime", "resume"],
+      "config": {
+        "provider": "codex",
+        "providerLabel": "Codex",
+        "defaultModel": "gpt-5.3-codex"
+      },
+      "status": "ready",
+      "prerequisites": [],
+      "lastCheckedAt": null
+    }
+  ]
+}
+```
+
+**Used by**: `ConnectionsHub.tsx`
+
+---
+
+### List Model Connections
+```http
+GET /api/connections/models
+```
+
+Returns provider/model-backed connections only.
+
+LLM-capable rows can include `config.modelOptions` when the provider can enumerate models.
+
+**Used by**: `ProviderSettingsView.tsx`, `KnowledgeConnectionView.tsx`, `NewChatModal.tsx`, `AgentEditorRuntimeTab.tsx`
+
+---
+
+### List Runtime Connections
+```http
+GET /api/connections/runtimes
+```
+
+Returns runtime connections only.
+
+Current connected-runtime rows may expose runtime-scoped model metadata directly on `config`:
+
+- `provider` / `providerLabel`
+- `defaultModel`
+- `modelOptions` when the runtime adapter returns a live catalog
+- `fallbackModelOptions` when the server falls back to built-in runtime defaults
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "codex-runtime",
+      "kind": "runtime",
+      "type": "codex-runtime",
+      "name": "Codex Runtime",
+      "enabled": true,
+      "description": "Codex app-server runtime over the local Codex CLI.",
+      "capabilities": ["agent-runtime", "resume"],
+      "config": {
+        "provider": "codex",
+        "providerLabel": "Codex",
+        "defaultModel": "gpt-5.3-codex",
+        "modelOptions": [
+          {
+            "id": "gpt-5.4-codex",
+            "name": "GPT-5.4 Codex",
+            "originalId": "gpt-5.4-codex"
+          }
+        ],
+        "fallbackModelOptions": [
+          {
+            "id": "gpt-5.3-codex",
+            "name": "GPT-5.3 Codex",
+            "originalId": "gpt-5.3-codex"
+          }
+        ]
+      },
+      "status": "ready",
+      "prerequisites": [],
+      "lastCheckedAt": null
+    }
+  ]
+}
+```
+
+**Used by**: `RuntimeConnectionView.tsx`, `ConnectionsHub.tsx`, `NewChatModal.tsx`, `useChatDockViewModel.ts`, `ChatDockTabBar.tsx`, `AgentEditorRuntimeTab.tsx`
+
+---
+
+### Get One Connection
+```http
+GET /api/connections/:id
+```
+
+Returns a single connection projection with the same shape used by the list endpoints.
+
+**Used by**: `RuntimeConnectionView.tsx`
+
+---
+
+### Save a Connection
+```http
+POST /api/connections
+PUT /api/connections/:id
+```
+
+Creates or updates a connection.
+
+For runtime connections, the writable payload remains the existing editable surface (`name`, `enabled`, `config`). Server-projected runtime model metadata such as `config.modelOptions` and `config.fallbackModelOptions` is read-only response state and should not be treated as user-editable input.
+
+**Used by**: `ProviderSettingsView.tsx`, `KnowledgeConnectionView.tsx`, `RuntimeConnectionView.tsx`
+
+---
+
+### Delete or Reset a Connection
+```http
+DELETE /api/connections/:id
+```
+
+Deletes a model connection or resets a runtime connection override.
+
+**Used by**: `ProviderSettingsView.tsx`, `RuntimeConnectionView.tsx`
+
+---
+
+### Test a Connection
+```http
+POST /api/connections/:id/test
+```
+
+Runs a lightweight health check for the selected connection.
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "healthy": true,
+    "status": "ready",
+    "prerequisites": []
+  }
+}
+```
+
+**Used by**: `ProviderSettingsView.tsx`, `RuntimeConnectionView.tsx`
+
+---
+
 ## Bedrock Models
 
 ### List Available Models

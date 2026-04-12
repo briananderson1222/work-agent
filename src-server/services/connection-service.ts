@@ -5,6 +5,7 @@ import type {
   ConnectionStatus,
   Prerequisite,
   ProviderConnectionConfig,
+  RuntimeConnectionView,
 } from '@stallion-ai/contracts/tool';
 import type { ProviderAdapterShape } from '../providers/adapter-shape.js';
 import {
@@ -81,7 +82,7 @@ export class ConnectionService {
     );
   }
 
-  async listRuntimeConnections(): Promise<ConnectionConfig[]> {
+  async listRuntimeConnections(): Promise<RuntimeConnectionView[]> {
     const [appConfig, acpConnections] = await Promise.all([
       this.getAppConfig(),
       this.getACPConnections(),

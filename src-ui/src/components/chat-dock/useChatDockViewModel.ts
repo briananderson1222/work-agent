@@ -2,14 +2,15 @@ import {
   useProjectLayoutsQuery,
   useRuntimeConnectionsQuery,
 } from '@stallion-ai/sdk';
+import type { RuntimeConnectionView } from '@stallion-ai/contracts/tool';
 import type { AgentData } from '../../contexts/AgentsContext';
 import { useModelSupportsAttachments } from '../../contexts/ModelCapabilitiesContext';
 import { useProject } from '../../contexts/ProjectsContext';
 import { useGitStatus } from '../../hooks/useGitStatus';
 import type { ChatSession } from '../../types';
 import {
+  resolveBindingStatus,
   resolveSessionExecutionSummary,
-  runtimeConnectionIdToProviderKind,
 } from '../../utils/execution';
 
 type ModelOption = { id: string; name: string };
@@ -60,7 +61,7 @@ export function useChatDockViewModel({
     { enabled: !!sessionProjectSlug },
   );
   const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery() as {
-    data?: Array<any>;
+    data?: RuntimeConnectionView[];
   };
   const sessionCodingLayout = sessionLayouts.find(
     (layout: any) => layout.type === 'coding',
@@ -73,39 +74,21 @@ export function useChatDockViewModel({
   const runtimeConnection = runtimeConnections.find(
     (connection) => connection.id === runtimeConnectionId,
   );
-  const activeProvider =
-    activeSessionForHook?.orchestrationProvider ??
-    activeSessionForHook?.provider ??
-    runtimeConnectionIdToProviderKind(runtimeConnectionId);
-  const runtimeModelOptions = Array.isArray(
-    runtimeConnection?.config?.modelOptions,
-  )
-    ? runtimeConnection.config.modelOptions
-    : [];
-  const runtimeFallbackModelOptions = Array.isArray(
-    runtimeConnection?.config?.fallbackModelOptions,
-  )
-    ? runtimeConnection.config.fallbackModelOptions
-    : [];
   const currentModelId =
     activeSession?.model ||
     agents.find((agent) => agent.slug === activeSession?.agentSlug)?.model;
-  const hasBindingScopedModels =
-    (agentForHook?.modelOptions?.length ?? 0) > 0 ||
-    runtimeModelOptions.length > 0;
-  const canUseGlobalModels =
-    activeSessionForHook?.executionMode !== 'provider-managed' &&
-    (!activeProvider || activeProvider === 'bedrock');
+  const bindingStatus = resolveBindingStatus({
+    agent: agentForHook,
+    chatState: activeSessionForHook,
+    runtimeConnection,
+    globalModels: availableModels.map((model) => ({
+      id: model.id,
+      name: model.name,
+      originalId: model.id,
+    })),
+  });
   const effectiveModels = ensureActiveModelOption(
-    hasBindingScopedModels
-      ? ((agentForHook?.modelOptions?.length
-          ? agentForHook.modelOptions
-          : runtimeModelOptions) as ModelOption[])
-      : runtimeFallbackModelOptions.length > 0
-        ? (runtimeFallbackModelOptions as ModelOption[])
-        : canUseGlobalModels
-          ? availableModels
-          : [],
+    bindingStatus.visibleModels as ModelOption[],
     currentModelId,
   );
   const bedrockModelSupportsAttachments = useModelSupportsAttachments(
@@ -123,10 +106,7 @@ export function useChatDockViewModel({
     activeSession,
     activeSessionForHook,
     agentDefaultModelId,
-    bindingModelsScoped:
-      hasBindingScopedModels ||
-      runtimeFallbackModelOptions.length > 0 ||
-      canUseGlobalModels,
+    bindingStatus,
     effectiveModels,
     executionSummary,
     gitStatus,

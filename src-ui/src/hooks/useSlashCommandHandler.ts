@@ -11,6 +11,7 @@ import { getAllCommands, getCommand } from '../slashCommands/registry';
 import '../slashCommands/builtins';
 import '../slashCommands/tools';
 import { findMatchingPlaybookCommand } from '../utils/playbook-commands';
+import type { BindingStatus } from '../utils/execution';
 
 export function useSlashCommandHandler() {
   const { apiBase } = useApiBase();
@@ -30,7 +31,7 @@ export function useSlashCommandHandler() {
           name: string;
           originalId?: string;
         }>;
-        modelsAreBindingScoped?: boolean;
+        bindingStatus?: BindingStatus;
         autocomplete: {
           openModel: () => void;
           openNewChat: () => void;
@@ -109,7 +110,7 @@ export function useSlashCommandHandler() {
           args,
           apiBase,
           availableModels: context.availableModels,
-          modelsAreBindingScoped: context.modelsAreBindingScoped,
+          bindingStatus: context.bindingStatus,
           updateChat,
           addEphemeralMessage,
           queryClient,

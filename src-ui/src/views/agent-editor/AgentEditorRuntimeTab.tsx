@@ -1,12 +1,17 @@
-import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
+import type {
+  ConnectionConfig,
+  RuntimeConnectionView,
+} from '@stallion-ai/contracts/tool';
 import {
   useModelConnectionsQuery,
   useRuntimeConnectionsQuery,
 } from '@stallion-ai/sdk';
 import { Checkbox } from '../../components/Checkbox';
 import {
+  connectionStatusLabel,
   isManagedRuntimeConnectionId,
   preferredConnectedRuntime,
+  runtimeCatalogSourceLabel,
 } from '../../utils/execution';
 import type { AgentEditorFormProps } from './types';
 
@@ -17,7 +22,7 @@ export function AgentEditorRuntimeTab({
   onNavigate,
 }: Pick<AgentEditorFormProps, 'form' | 'setForm' | 'locked' | 'onNavigate'>) {
   const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery() as {
-    data?: ConnectionConfig[];
+    data?: RuntimeConnectionView[];
   };
   const { data: modelConnections = [] } = useModelConnectionsQuery() as {
     data?: ConnectionConfig[];
@@ -100,6 +105,19 @@ export function AgentEditorRuntimeTab({
               : selectedRuntimeId === 'codex-runtime'
                 ? 'Runs via the Codex CLI. Requires Codex installed and OPENAI_API_KEY.'
                 : 'Runs via AWS Bedrock. Requires a configured Model Connection.')}
+          {selectedRuntime && (
+            <>
+              {' '}
+              Current status: {connectionStatusLabel(selectedRuntime.status)} ·
+              Catalog{' '}
+              {runtimeCatalogSourceLabel(
+                selectedRuntime.runtimeCatalog?.source ?? 'none',
+              )}
+              {selectedRuntime.runtimeCatalog?.reason
+                ? ` — ${selectedRuntime.runtimeCatalog.reason}`
+                : ''}
+            </>
+          )}
         </span>
       </div>
 

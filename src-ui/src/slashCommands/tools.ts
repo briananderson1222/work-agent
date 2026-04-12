@@ -1,5 +1,4 @@
 import { agentQueries } from '@stallion-ai/sdk';
-import { resolveEffectiveCapabilityState } from '../utils/execution';
 import { registerCommand } from './registry';
 
 registerCommand(
@@ -12,6 +11,7 @@ registerCommand(
     sessionId,
     autocomplete,
     updateChat,
+    bindingStatus,
   }) => {
     try {
       if (!agent) {
@@ -24,13 +24,7 @@ registerCommand(
         return;
       }
 
-      const support = resolveEffectiveCapabilityState({
-        agent,
-        chatState,
-        hasModelCatalog: false,
-      });
-
-      if (!support.tool_execution) {
+      if (!bindingStatus?.capabilityState.tool_execution) {
         addEphemeralMessage(sessionId, {
           role: 'system',
           content:

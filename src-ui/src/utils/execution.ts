@@ -3,6 +3,9 @@ import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import type {
   ConnectionConfig,
   ConnectionStatus,
+  ModelOption,
+  RuntimeCatalogSource,
+  RuntimeConnectionView,
 } from '@stallion-ai/contracts/tool';
 
 export function connectionTypeLabel(type: string): string {
@@ -118,6 +121,16 @@ export type SharedCapability =
 
 export type EffectiveCapabilityState = Record<SharedCapability, boolean>;
 
+export type BindingReadiness = 'ready' | 'degraded' | 'needs_configuration';
+
+export type BindingStatus = {
+  catalogSource: RuntimeCatalogSource;
+  catalogReason?: string | null;
+  bindingReadiness: BindingReadiness;
+  capabilityState: EffectiveCapabilityState;
+  visibleModels: ModelOption[];
+};
+
 export type ChatExecutionMetadata = {
   executionMode: 'runtime' | 'provider-managed';
   executionScope?: 'project' | 'global';
@@ -128,11 +141,165 @@ export type ChatExecutionMetadata = {
   providerOptions: Record<string, unknown>;
 };
 
+function asModelOptions(value: unknown): ModelOption[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.flatMap((entry) => {
+    if (
+      !entry ||
+      typeof entry !== 'object' ||
+      typeof entry.id !== 'string' ||
+      typeof entry.name !== 'string'
+    ) {
+      return [];
+    }
+    return [
+      {
+        id: entry.id,
+        name: entry.name,
+        originalId:
+          typeof entry.originalId === 'string' ? entry.originalId : entry.id,
+      },
+    ];
+  });
+}
+
+function runtimeCatalogVisibleModels(
+  runtimeConnection?: RuntimeConnectionView | ConnectionConfig | null,
+): ModelOption[] {
+  const runtimeCatalog = (runtimeConnection as RuntimeConnectionView | null)
+    ?.runtimeCatalog;
+  if (!runtimeCatalog) {
+    return [];
+  }
+  if (runtimeCatalog.models.length > 0) {
+    return runtimeCatalog.models;
+  }
+  if (runtimeCatalog.fallbackModels.length > 0) {
+    return runtimeCatalog.fallbackModels;
+  }
+  return [];
+}
+
+export function runtimeCatalogSourceLabel(
+  source: RuntimeCatalogSource,
+): string {
+  switch (source) {
+    case 'live':
+      return 'Live';
+    case 'cached':
+      return 'Cached';
+    case 'fallback':
+      return 'Fallback';
+    case 'none':
+      return 'None';
+    default:
+      return source;
+  }
+}
+
+function bindingReadinessForConnection(
+  runtimeConnection?: RuntimeConnectionView | ConnectionConfig | null,
+): BindingReadiness {
+  if (!runtimeConnection) {
+    return 'needs_configuration';
+  }
+  if (
+    runtimeConnection.status === 'missing_prerequisites' ||
+    runtimeConnection.status === 'disabled' ||
+    runtimeConnection.status === 'error'
+  ) {
+    return 'needs_configuration';
+  }
+  if (runtimeConnection.status === 'degraded') {
+    return 'degraded';
+  }
+  return 'ready';
+}
+
 export function supportsProviderManagedBinding(
   agent: AgentWithExecution | null | undefined,
 ): boolean {
   if (!agent) return false;
   return !agent.toolsConfig?.mcpServers?.length;
+}
+
+export function resolveBindingStatus({
+  agent,
+  chatState,
+  runtimeConnection,
+  globalModels = [],
+}: {
+  agent:
+    | (AgentWithExecution & { modelOptions?: Array<unknown> | null })
+    | null
+    | undefined;
+  chatState?: ChatBindingState | null;
+  runtimeConnection?: RuntimeConnectionView | ConnectionConfig | null;
+  globalModels?: ModelOption[];
+}): BindingStatus {
+  const runtimeConnectionId =
+    chatState?.runtimeConnectionId ??
+    agent?.execution?.runtimeConnectionId ??
+    null;
+  const activeProvider =
+    chatState?.orchestrationProvider ??
+    chatState?.provider ??
+    runtimeConnectionIdToProviderKind(runtimeConnectionId);
+  const agentModels = asModelOptions(agent?.modelOptions);
+  const runtimeModels = runtimeCatalogVisibleModels(runtimeConnection);
+  const usesGlobalCatalog =
+    chatState?.executionMode !== 'provider-managed' &&
+    (!activeProvider || activeProvider === 'bedrock');
+  const visibleModels =
+    agentModels.length > 0
+      ? agentModels
+      : runtimeModels.length > 0
+        ? runtimeModels
+        : usesGlobalCatalog
+          ? globalModels
+          : [];
+  const runtimeCatalog = (runtimeConnection as RuntimeConnectionView | null)
+    ?.runtimeCatalog;
+  const catalogSource: RuntimeCatalogSource =
+    runtimeCatalog?.source ??
+    (visibleModels.length > 0 && usesGlobalCatalog ? 'live' : 'none');
+  const capabilityState: EffectiveCapabilityState =
+    chatState?.executionMode === 'provider-managed'
+      ? {
+          system_prompt: true,
+          mcp: false,
+          tool_execution: false,
+          model_catalog: false,
+          model_selection: false,
+        }
+      : activeProvider && activeProvider !== 'bedrock'
+        ? {
+            system_prompt: true,
+            mcp: false,
+            tool_execution: false,
+            model_catalog: visibleModels.length > 0,
+            model_selection: visibleModels.length > 0,
+          }
+        : {
+            system_prompt: !!agent,
+            mcp: !!agent?.toolsConfig?.mcpServers?.length,
+            tool_execution: !!agent?.toolsConfig?.mcpServers?.length,
+            model_catalog: visibleModels.length > 0,
+            model_selection: visibleModels.length > 0,
+          };
+
+  return {
+    catalogSource,
+    catalogReason: runtimeCatalog?.reason ?? null,
+    bindingReadiness:
+      chatState?.executionMode === 'provider-managed'
+        ? 'ready'
+        : bindingReadinessForConnection(runtimeConnection),
+    capabilityState,
+    visibleModels,
+  };
 }
 
 export function bindingHasModelCatalog({
@@ -147,15 +314,15 @@ export function bindingHasModelCatalog({
   chatState?: ChatBindingState | null;
   globalModelCount: number;
 }): boolean {
-  if ((agent?.modelOptions?.length ?? 0) > 0) {
-    return true;
-  }
-
-  if (chatState?.executionMode === 'provider-managed') {
-    return false;
-  }
-
-  return globalModelCount > 0;
+  return resolveBindingStatus({
+    agent,
+    chatState,
+    globalModels: Array.from({ length: globalModelCount }, (_, index) => ({
+      id: `model-${index}`,
+      name: `model-${index}`,
+      originalId: `model-${index}`,
+    })),
+  }).capabilityState.model_catalog;
 }
 
 export function bindingUsesGlobalModelCatalog({
@@ -165,20 +332,13 @@ export function bindingUsesGlobalModelCatalog({
   agent: AgentWithExecution | null | undefined;
   chatState?: ChatBindingState | null;
 }): boolean {
-  const runtimeConnectionId =
-    chatState?.runtimeConnectionId ??
-    agent?.execution?.runtimeConnectionId ??
-    null;
-  const activeProvider =
-    chatState?.orchestrationProvider ??
-    chatState?.provider ??
-    runtimeConnectionIdToProviderKind(runtimeConnectionId);
-
-  if (chatState?.executionMode === 'provider-managed') {
-    return false;
-  }
-
-  return !activeProvider || activeProvider === 'bedrock';
+  return (
+    resolveBindingStatus({
+      agent,
+      chatState,
+      globalModels: [{ id: 'global', name: 'Global', originalId: 'global' }],
+    }).catalogSource === 'live' && !((agent?.modelOptions?.length ?? 0) > 0)
+  );
 }
 
 export function resolveEffectiveCapabilityState({
@@ -190,43 +350,13 @@ export function resolveEffectiveCapabilityState({
   chatState?: ChatBindingState | null;
   hasModelCatalog: boolean;
 }): EffectiveCapabilityState {
-  const runtimeConnectionId =
-    chatState?.runtimeConnectionId ??
-    agent?.execution?.runtimeConnectionId ??
-    null;
-  const activeProvider =
-    chatState?.orchestrationProvider ??
-    chatState?.provider ??
-    runtimeConnectionIdToProviderKind(runtimeConnectionId);
-  if (chatState?.executionMode === 'provider-managed') {
-    return {
-      system_prompt: true,
-      mcp: false,
-      tool_execution: false,
-      model_catalog: false,
-      model_selection: false,
-    };
-  }
-
-  if (activeProvider && activeProvider !== 'bedrock') {
-    return {
-      system_prompt: true,
-      mcp: false,
-      tool_execution: false,
-      model_catalog: hasModelCatalog,
-      model_selection: hasModelCatalog,
-    };
-  }
-
-  const hasMcp = !!agent?.toolsConfig?.mcpServers?.length;
-
-  return {
-    system_prompt: !!agent,
-    mcp: hasMcp,
-    tool_execution: hasMcp,
-    model_catalog: hasModelCatalog,
-    model_selection: hasModelCatalog,
-  };
+  return resolveBindingStatus({
+    agent,
+    chatState,
+    globalModels: hasModelCatalog
+      ? [{ id: 'catalog', name: 'Catalog', originalId: 'catalog' }]
+      : [],
+  }).capabilityState;
 }
 
 type SessionExecutionSummary = {
@@ -512,7 +642,7 @@ function resolveProviderManagedExecution(
 }
 
 export function buildRuntimeChatAgent(
-  connection: ConnectionConfig,
+  connection: RuntimeConnectionView,
 ): AgentWithExecution & {
   slug: string;
   name: string;
@@ -533,13 +663,7 @@ export function buildRuntimeChatAgent(
           ? connection.config.defaultModel
           : null,
     },
-    modelOptions: Array.isArray(connection.config.modelOptions)
-      ? (connection.config.modelOptions as Array<{
-          id: string;
-          name: string;
-          originalId: string;
-        }>)
-      : null,
+    modelOptions: runtimeCatalogVisibleModels(connection),
   };
 }
 

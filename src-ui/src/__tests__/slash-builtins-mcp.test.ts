@@ -20,6 +20,21 @@ describe('default-agent slash commands', () => {
     return {
       sessionId: 's1',
       chatState: { agentSlug: 'default' },
+      bindingStatus: {
+        catalogSource: 'live',
+        catalogReason: null,
+        bindingReadiness: 'ready',
+        capabilityState: {
+          system_prompt: true,
+          mcp: true,
+          tool_execution: true,
+          model_catalog: true,
+          model_selection: true,
+        },
+        visibleModels: [
+          { id: 'model-a', name: 'Model A', originalId: 'model-a' },
+        ],
+      },
       agent: {
         slug: 'default',
         name: 'Stallion',
@@ -140,6 +155,19 @@ describe('default-agent slash commands', () => {
         agentSlug: 'default',
         executionMode: 'provider-managed',
       },
+      bindingStatus: {
+        catalogSource: 'none',
+        catalogReason: null,
+        bindingReadiness: 'ready',
+        capabilityState: {
+          system_prompt: true,
+          mcp: false,
+          tool_execution: false,
+          model_catalog: false,
+          model_selection: false,
+        },
+        visibleModels: [],
+      },
       queryClient: {
         fetchQuery: vi.fn(),
       } as any,
@@ -162,6 +190,20 @@ describe('default-agent slash commands', () => {
       queryClient: {
         getQueryData: vi.fn(() => []),
       } as any,
+      bindingStatus: {
+        catalogSource: 'none',
+        catalogReason:
+          'No runtime model catalog is available for this connection.',
+        bindingReadiness: 'needs_configuration',
+        capabilityState: {
+          system_prompt: true,
+          mcp: true,
+          tool_execution: true,
+          model_catalog: false,
+          model_selection: false,
+        },
+        visibleModels: [],
+      },
       autocomplete: {
         openModel: vi.fn(),
         openNewChat: vi.fn(),
@@ -196,11 +238,20 @@ describe('default-agent slash commands', () => {
         executionMode: 'runtime',
         runtimeConnectionId: 'claude-runtime',
       },
-      queryClient: {
-        getQueryData: vi.fn(() => [
-          { id: 'claude-sonnet', name: 'Claude Sonnet' },
-        ]),
-      } as any,
+      bindingStatus: {
+        catalogSource: 'none',
+        catalogReason:
+          'No runtime model catalog is available for this connection.',
+        bindingReadiness: 'needs_configuration',
+        capabilityState: {
+          system_prompt: true,
+          mcp: false,
+          tool_execution: false,
+          model_catalog: false,
+          model_selection: false,
+        },
+        visibleModels: [],
+      },
       autocomplete: {
         openModel: vi.fn(),
         openNewChat: vi.fn(),
@@ -235,11 +286,25 @@ describe('default-agent slash commands', () => {
         executionMode: 'runtime',
         runtimeConnectionId: 'claude-runtime',
       },
-      availableModels: [{ id: 'claude-sonnet', name: 'Claude Sonnet' }],
-      modelsAreBindingScoped: true,
-      queryClient: {
-        getQueryData: vi.fn(() => []),
-      } as any,
+      bindingStatus: {
+        catalogSource: 'fallback',
+        catalogReason: 'Using built-in fallback models.',
+        bindingReadiness: 'degraded',
+        capabilityState: {
+          system_prompt: true,
+          mcp: false,
+          tool_execution: false,
+          model_catalog: true,
+          model_selection: true,
+        },
+        visibleModels: [
+          {
+            id: 'claude-sonnet',
+            name: 'Claude Sonnet',
+            originalId: 'claude-sonnet',
+          },
+        ],
+      },
       autocomplete: {
         openModel: vi.fn(),
         openNewChat: vi.fn(),

@@ -6,13 +6,8 @@ import {
 import { useCallback, useMemo } from 'react';
 import { useAgents } from '../contexts/AgentsContext';
 import type { ChatUIState } from '../contexts/active-chats-state';
-import { useModels } from '../contexts/ModelsContext';
 import { promptSlug } from '../slashCommands/utils';
-import {
-  bindingHasModelCatalog,
-  bindingUsesGlobalModelCatalog,
-  resolveEffectiveCapabilityState,
-} from '../utils/execution';
+import type { BindingStatus } from '../utils/execution';
 
 export interface SlashCommand {
   cmd: string;
@@ -36,16 +31,10 @@ function getModelDisplayName(modelId: string): string {
 
 export function useSlashCommands(
   agentSlug: string | null,
-  chatState?: ChatUIState | null,
-  availableModels: Array<{
-    id: string;
-    name: string;
-    originalId?: string;
-  }> = [],
-  modelsAreBindingScoped: boolean = false,
+  _chatState?: ChatUIState | null,
+  bindingStatus?: BindingStatus,
 ) {
   const agents = useAgents();
-  const models = useModels();
   const { data: prompts } = usePromptsQuery();
 
   const currentAgent = agentSlug
@@ -70,25 +59,13 @@ export function useSlashCommands(
   const commands = useMemo(() => {
     const currentModelId = currentAgent?.model || 'default';
     const modelDisplayName = getModelDisplayName(currentModelId);
-    const hasModelCatalog = bindingHasModelCatalog({
-      agent: currentAgent,
-      chatState,
-      globalModelCount:
-        modelsAreBindingScoped ||
-        bindingUsesGlobalModelCatalog({
-          agent: currentAgent,
-          chatState,
-        })
-          ? modelsAreBindingScoped
-            ? availableModels.length
-            : models.length
-          : 0,
-    });
-    const support = resolveEffectiveCapabilityState({
-      agent: currentAgent,
-      chatState,
-      hasModelCatalog,
-    });
+    const support = bindingStatus?.capabilityState ?? {
+      system_prompt: true,
+      mcp: false,
+      tool_execution: false,
+      model_catalog: false,
+      model_selection: false,
+    };
 
     const BUILTIN_COMMANDS: SlashCommand[] = [
       {
@@ -160,17 +137,7 @@ export function useSlashCommands(
       : [];
 
     return [...BUILTIN_COMMANDS, ...customCommands, ...promptCommands];
-  }, [
-    agentSlug,
-    acpCommands,
-    currentAgent,
-    isAcp,
-    prompts,
-    chatState,
-    availableModels.length,
-    modelsAreBindingScoped,
-    models.length,
-  ]);
+  }, [agentSlug, acpCommands, currentAgent, isAcp, prompts, bindingStatus]);
 
   // Fetch live autocomplete options from kiro-cli for ACP agents
   const fetchCommandOptions = useCallback(

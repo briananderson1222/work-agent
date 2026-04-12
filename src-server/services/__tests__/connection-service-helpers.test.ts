@@ -84,14 +84,17 @@ describe('connection-service helpers', () => {
           defaultModel: 'claude-3-7',
           provider: 'codex',
           providerLabel: 'Codex',
-          modelOptions: [
+        }),
+        runtimeCatalog: expect.objectContaining({
+          source: 'live',
+          models: [
             {
               id: 'gpt-5.4-codex',
               name: 'GPT-5.4 Codex',
               originalId: 'gpt-5.4-codex',
             },
           ],
-          fallbackModelOptions: expect.arrayContaining([
+          fallbackModels: expect.arrayContaining([
             expect.objectContaining({ id: 'gpt-5.3-codex' }),
           ]),
         }),

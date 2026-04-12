@@ -1,10 +1,12 @@
-import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
+import type { RuntimeConnectionView } from '@stallion-ai/contracts/tool';
 import type { AgentData } from '../contexts/AgentsContext';
 import type { ProjectMetadata } from '../contexts/ProjectsContext';
 import {
   buildRuntimeChatAgent,
   canAgentStartChat,
+  connectionStatusLabel,
   isRuntimeConnectionSelectable,
+  runtimeCatalogSourceLabel,
 } from '../utils/execution';
 
 export const GLOBAL_CONTEXT = '__global__';
@@ -30,6 +32,7 @@ export interface NewChatModalViewModel {
   currentContextOption: NewChatModalContextOption | undefined;
   groups: NewChatModalAgentGroup[];
   flatList: AgentData[];
+  compatibilityMessage?: string;
 }
 
 type ActiveChatSnapshot = Record<
@@ -120,7 +123,7 @@ export function buildNewChatModalViewModel({
 }: {
   agents: AgentData[];
   projects: ProjectMetadata[];
-  runtimeConnections: ConnectionConfig[];
+  runtimeConnections: RuntimeConnectionView[];
   selectedContext: string;
   contextSearch: string;
   agentSearch: string;
@@ -280,6 +283,20 @@ export function buildNewChatModalViewModel({
   }
 
   const visibleGroups = groups.filter((group) => group.agents.length > 0);
+  const degradedRuntime = runtimeConnections.find(
+    (connection) =>
+      connection.type !== 'acp' &&
+      connection.enabled &&
+      connection.capabilities.includes('agent-runtime') &&
+      connection.status !== 'ready',
+  );
+  const compatibilityMessage = degradedRuntime
+    ? `${degradedRuntime.name}: ${connectionStatusLabel(
+        degradedRuntime.status,
+      )} · Catalog ${runtimeCatalogSourceLabel(
+        degradedRuntime.runtimeCatalog?.source ?? 'none',
+      )}${degradedRuntime.runtimeCatalog?.reason ? ` — ${degradedRuntime.runtimeCatalog.reason}` : ''}`
+    : undefined;
   return {
     isGlobal,
     selectedProject,
@@ -288,5 +305,6 @@ export function buildNewChatModalViewModel({
     currentContextOption,
     groups: visibleGroups,
     flatList: visibleGroups.flatMap((group) => group.agents),
+    compatibilityMessage,
   };
 }

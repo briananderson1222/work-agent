@@ -8,6 +8,7 @@ import {
   preferredChatRuntime,
   preferredConnectedRuntime,
   resolveAgentExecution,
+  resolveBindingStatus,
   resolveEffectiveCapabilityState,
   resolveGlobalProviderManagedExecution,
   resolveProjectProviderManagedExecution,
@@ -156,15 +157,19 @@ describe('execution utils', () => {
         capabilities: ['agent-runtime'],
         config: {
           defaultModel: 'gpt-5-codex',
-          modelOptions: [
+        },
+        status: 'ready',
+        runtimeCatalog: {
+          source: 'live',
+          models: [
             {
               id: 'gpt-5-codex',
               name: 'GPT-5 Codex',
               originalId: 'gpt-5-codex',
             },
           ],
+          fallbackModels: [],
         },
-        status: 'ready',
         prerequisites: [],
       },
     ] as any);
@@ -427,6 +432,62 @@ describe('execution utils', () => {
       tool_execution: false,
       model_catalog: true,
       model_selection: true,
+    });
+  });
+
+  test('resolves binding status from runtime catalog metadata', () => {
+    expect(
+      resolveBindingStatus({
+        agent: {
+          slug: '__runtime:codex-runtime',
+          execution: { runtimeConnectionId: 'codex-runtime' },
+        } as any,
+        chatState: {
+          executionMode: 'runtime',
+          runtimeConnectionId: 'codex-runtime',
+        } as any,
+        runtimeConnection: {
+          id: 'codex-runtime',
+          kind: 'runtime',
+          type: 'codex-runtime',
+          name: 'Codex Runtime',
+          enabled: true,
+          capabilities: ['agent-runtime'],
+          config: {},
+          status: 'degraded',
+          prerequisites: [],
+          runtimeCatalog: {
+            source: 'fallback',
+            reason: 'Live catalog unavailable.',
+            models: [],
+            fallbackModels: [
+              {
+                id: 'gpt-5.3-codex',
+                name: 'GPT-5.3 Codex',
+                originalId: 'gpt-5.3-codex',
+              },
+            ],
+          },
+        } as any,
+      }),
+    ).toEqual({
+      catalogSource: 'fallback',
+      catalogReason: 'Live catalog unavailable.',
+      bindingReadiness: 'degraded',
+      capabilityState: {
+        system_prompt: true,
+        mcp: false,
+        tool_execution: false,
+        model_catalog: true,
+        model_selection: true,
+      },
+      visibleModels: [
+        {
+          id: 'gpt-5.3-codex',
+          name: 'GPT-5.3 Codex',
+          originalId: 'gpt-5.3-codex',
+        },
+      ],
     });
   });
 });

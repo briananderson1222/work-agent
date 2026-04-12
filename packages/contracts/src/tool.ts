@@ -75,6 +75,22 @@ export type ConnectionStatus =
   | 'disabled'
   | 'error';
 
+export interface ModelOption {
+  id: string;
+  name: string;
+  originalId: string;
+}
+
+export type RuntimeCatalogSource = 'live' | 'cached' | 'fallback' | 'none';
+
+export interface RuntimeCatalogStatus {
+  source: RuntimeCatalogSource;
+  fetchedAt?: string | null;
+  reason?: string | null;
+  models: ModelOption[];
+  fallbackModels: ModelOption[];
+}
+
 export interface ConnectionConfig {
   id: string;
   kind: ConnectionKind;
@@ -87,6 +103,11 @@ export interface ConnectionConfig {
   status: ConnectionStatus;
   prerequisites: Prerequisite[];
   lastCheckedAt?: string | null;
+}
+
+export interface RuntimeConnectionView extends ConnectionConfig {
+  kind: 'runtime';
+  runtimeCatalog?: RuntimeCatalogStatus;
 }
 
 export interface RuntimeConnectionSettings {

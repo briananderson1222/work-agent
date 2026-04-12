@@ -203,6 +203,7 @@ export function NewChatModal({
     filteredContextOptions,
     groups,
     flatList,
+    compatibilityMessage,
   } = viewModel;
   // Close context dropdown on outside click
   useEffect(() => {
@@ -399,6 +400,11 @@ export function NewChatModal({
         </div>
 
         <div className="new-chat-modal__list">
+          {compatibilityMessage && (
+            <div className="new-chat-modal__group-label">
+              Runtime status: {compatibilityMessage}
+            </div>
+          )}
           {flatList.length === 0 && (
             <div className="new-chat-modal__group-label">
               No chat-capable agents or runtimes are ready.

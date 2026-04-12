@@ -6,11 +6,7 @@ import {
 import { useAgent } from '../contexts/AgentsContext';
 import { useToast } from '../contexts/ToastContext';
 import type { FileAttachment } from '../types';
-import {
-  bindingHasModelCatalog,
-  bindingUsesGlobalModelCatalog,
-  resolveEffectiveCapabilityState,
-} from '../utils/execution';
+import { type BindingStatus, resolveBindingStatus } from '../utils/execution';
 import { useCancelMessage, useSendMessage } from './useActiveChatSessions';
 import { useAutocompleteState } from './useAutocompleteState';
 import { useSlashCommandHandler } from './useSlashCommandHandler';
@@ -28,7 +24,7 @@ interface UseChatInputOptions {
   agentSlug: string | null;
   conversationId?: string;
   availableModels: Model[];
-  modelsAreBindingScoped?: boolean;
+  bindingStatus?: BindingStatus;
   agentDefaultModel?: string;
   onSessionMigrate?: (newSessionId: string) => void;
   onAuthError?: () => void;
@@ -40,8 +36,8 @@ export function useChatInput({
   sessionId,
   agentSlug,
   conversationId,
-  availableModels: _availableModels,
-  modelsAreBindingScoped = false,
+  availableModels,
+  bindingStatus,
   agentDefaultModel,
   onSessionMigrate,
   onAuthError,
@@ -82,8 +78,7 @@ export function useChatInput({
   const { commands: slashCommands } = useSlashCommands(
     agentSlug,
     activeChatState,
-    _availableModels,
-    modelsAreBindingScoped,
+    bindingStatus,
   );
   const handleSlashCommand = useSlashCommandHandler();
 
@@ -92,8 +87,18 @@ export function useChatInput({
     async (sid: string, command: string) => {
       return handleSlashCommand(sid, command, {
         onInputCleared,
-        availableModels: _availableModels,
-        modelsAreBindingScoped,
+        availableModels,
+        bindingStatus:
+          bindingStatus ??
+          resolveBindingStatus({
+            agent: currentAgent,
+            chatState: activeChatState,
+            globalModels: availableModels.map((model) => ({
+              id: model.id,
+              name: model.name,
+              originalId: model.id,
+            })),
+          }),
         autocomplete: {
           openModel,
           openNewChat: onOpenNewChat || (() => {}),
@@ -109,8 +114,10 @@ export function useChatInput({
       closeCommand,
       closeAll,
       onInputCleared,
-      _availableModels,
-      modelsAreBindingScoped,
+      availableModels,
+      bindingStatus,
+      currentAgent,
+      activeChatState,
     ],
   );
 
@@ -132,23 +139,18 @@ export function useChatInput({
   const input = activeChatState?.input || '';
   const attachments = activeChatState?.attachments || [];
   const currentModel = activeChatState?.model;
-  const hasModelCatalog = bindingHasModelCatalog({
-    agent: currentAgent,
-    chatState: activeChatState,
-    globalModelCount:
-      modelsAreBindingScoped ||
-      bindingUsesGlobalModelCatalog({
-        agent: currentAgent,
-        chatState: activeChatState,
-      })
-        ? _availableModels.length
-        : 0,
-  });
-  const support = resolveEffectiveCapabilityState({
-    agent: currentAgent,
-    chatState: activeChatState,
-    hasModelCatalog,
-  });
+  const resolvedBindingStatus =
+    bindingStatus ??
+    resolveBindingStatus({
+      agent: currentAgent,
+      chatState: activeChatState,
+      globalModels: availableModels.map((model) => ({
+        id: model.id,
+        name: model.name,
+        originalId: model.id,
+      })),
+    });
+  const support = resolvedBindingStatus.capabilityState;
 
   // Handlers
   const handleInputChange = useCallback(

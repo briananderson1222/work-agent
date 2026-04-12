@@ -127,6 +127,7 @@ describe('new-chat-modal-utils', () => {
           capabilities: ['agent-runtime'],
           config: {},
           status: 'ready',
+          runtimeCatalog: { source: 'live', models: [], fallbackModels: [] },
           prerequisites: [],
         } as any,
       ],
@@ -161,6 +162,7 @@ describe('new-chat-modal-utils', () => {
       '__runtime:bedrock-runtime',
       'acp:gamma',
     ]);
+    expect(viewModel.compatibilityMessage).toBeUndefined();
   });
 
   test('dedupes runtime chat agents when agents already include matching runtime entries', () => {
@@ -199,6 +201,7 @@ describe('new-chat-modal-utils', () => {
           capabilities: ['agent-runtime'],
           config: {},
           status: 'ready',
+          runtimeCatalog: { source: 'live', models: [], fallbackModels: [] },
           prerequisites: [],
         } as any,
         {
@@ -211,6 +214,11 @@ describe('new-chat-modal-utils', () => {
           capabilities: ['agent-runtime'],
           config: {},
           status: 'ready',
+          runtimeCatalog: {
+            source: 'fallback',
+            models: [],
+            fallbackModels: [],
+          },
           prerequisites: [],
         } as any,
         {
@@ -222,6 +230,7 @@ describe('new-chat-modal-utils', () => {
           capabilities: ['agent-runtime'],
           config: {},
           status: 'ready',
+          runtimeCatalog: { source: 'live', models: [], fallbackModels: [] },
           prerequisites: [],
         } as any,
       ],
@@ -339,6 +348,7 @@ describe('new-chat-modal-utils', () => {
           capabilities: ['agent-runtime'],
           config: {},
           status: 'ready',
+          runtimeCatalog: { source: 'live', models: [], fallbackModels: [] },
           prerequisites: [],
         } as any,
         {
@@ -350,6 +360,7 @@ describe('new-chat-modal-utils', () => {
           capabilities: ['agent-runtime'],
           config: {},
           status: 'ready',
+          runtimeCatalog: { source: 'cached', models: [], fallbackModels: [] },
           prerequisites: [],
         } as any,
       ],
@@ -374,5 +385,44 @@ describe('new-chat-modal-utils', () => {
     expect(viewModel.groups[1]?.agents.map((agent) => agent.slug)).toEqual([
       '__runtime:claude-runtime',
     ]);
+  });
+
+  test('surfaces degraded runtime compatibility messaging', () => {
+    const viewModel = buildNewChatModalViewModel({
+      agents: [],
+      projects: [],
+      runtimeConnections: [
+        {
+          id: 'codex-runtime',
+          kind: 'runtime',
+          type: 'codex-runtime',
+          name: 'Codex Runtime',
+          enabled: true,
+          capabilities: ['agent-runtime'],
+          config: {},
+          status: 'degraded',
+          runtimeCatalog: {
+            source: 'fallback',
+            reason: 'Live catalog unavailable.',
+            models: [],
+            fallbackModels: [],
+          },
+          prerequisites: [],
+        } as any,
+      ],
+      selectedContext: GLOBAL_CONTEXT,
+      contextSearch: '',
+      agentSearch: '',
+      selectedProjectAgentFilter: undefined,
+      layoutAvailableAgents: [],
+      layoutName: undefined,
+      layoutIcon: undefined,
+      providerManagedAgentSlugs: [],
+      recentSlugs: [],
+    });
+
+    expect(viewModel.compatibilityMessage).toContain(
+      'Codex Runtime: Degraded · Catalog Fallback',
+    );
   });
 });
