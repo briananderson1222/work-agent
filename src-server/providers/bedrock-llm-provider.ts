@@ -18,8 +18,8 @@ export class BedrockLLMProvider implements ILLMProvider {
   readonly displayName = 'Amazon Bedrock';
   private region: string;
 
-  constructor({ region }: { region: string }) {
-    this.region = region;
+  constructor({ region }: { region?: string }) {
+    this.region = region || 'us-east-1';
   }
 
   private getProvider() {

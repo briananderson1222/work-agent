@@ -1,5 +1,5 @@
-import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 import type { AppConfig } from '@stallion-ai/contracts/config';
+import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import type { ILLMProvider } from '../providers/model-provider-types.js';
 import { providerOps } from '../telemetry/metrics.js';
@@ -70,8 +70,18 @@ export class ProviderService {
     }
 
     const appConfig = await this.getAppConfig();
+    const configuredProviders = this.storageAdapter
+      .listProviderConnections()
+      .filter(
+        (connection) =>
+          connection.enabled && connection.capabilities.includes('llm'),
+      );
+    const fallbackProviderId =
+      appConfig.defaultLLMProvider ??
+      configuredProviders[0]?.id ??
+      'ollama-default';
     return {
-      providerId: appConfig.defaultLLMProvider ?? 'bedrock',
+      providerId: fallbackProviderId,
       model: appConfig.defaultModel,
     };
   }

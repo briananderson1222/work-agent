@@ -42,7 +42,9 @@ export function getArtifactSummary(event: MonitoringEvent): {
     | undefined;
   if (!artifacts) return null;
 
-  const textArtifacts = artifacts.filter((artifact) => artifact.type === 'text');
+  const textArtifacts = artifacts.filter(
+    (artifact) => artifact.type === 'text',
+  );
   const finalOutput =
     textArtifacts.length > 0
       ? String(textArtifacts[textArtifacts.length - 1].content ?? '')
@@ -62,9 +64,7 @@ export function getTotalChars(event: MonitoringEvent): number | null {
     return null;
   }
 
-  return (
-    (event[K.INPUT_CHARS] as number) + (event[K.OUTPUT_CHARS] as number)
-  );
+  return (event[K.INPUT_CHARS] as number) + (event[K.OUTPUT_CHARS] as number);
 }
 
 export function getTotalTokens(event: MonitoringEvent): number | null {

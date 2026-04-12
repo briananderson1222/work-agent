@@ -1,10 +1,7 @@
 import { activeChatsStore } from '../../contexts/active-chats-store';
 import { buildAssistantTurnContent } from './messageParts';
 
-export function finalizeAssistantTurn(
-  threadId: string,
-  fallbackText?: string,
-) {
+export function finalizeAssistantTurn(threadId: string, fallbackText?: string) {
   const chat = activeChatsStore.getSnapshot()[threadId];
   if (!chat) return;
 

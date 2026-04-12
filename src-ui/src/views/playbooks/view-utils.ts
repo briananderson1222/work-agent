@@ -1,4 +1,5 @@
 import type { Playbook } from '@stallion-ai/contracts/catalog';
+import { formatPlaybookStatsSummary } from './utils';
 
 export function buildPlaybookCategories(playbooks: Playbook[]): string[] {
   return [
@@ -37,7 +38,11 @@ export function buildPlaybookListItems(playbooks: Playbook[]) {
   return playbooks.map((playbook) => ({
     id: playbook.id,
     name: playbook.name,
-    subtitle: [playbook.category, playbook.tags?.slice(0, 2).join(', ')]
+    subtitle: [
+      playbook.category,
+      playbook.tags?.slice(0, 2).join(', '),
+      formatPlaybookStatsSummary(playbook),
+    ]
       .filter(Boolean)
       .join(' · '),
   }));

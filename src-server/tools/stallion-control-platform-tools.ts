@@ -82,7 +82,9 @@ export function registerPlatformTools(server: McpServer) {
     'create_provider',
     'Add a new provider connection',
     {
-      type: z.string().describe('Provider type: bedrock, ollama, openai-compat'),
+      type: z
+        .string()
+        .describe('Provider type: bedrock, ollama, openai-compat'),
       name: z.string(),
       config: z
         .record(z.any())
@@ -135,7 +137,9 @@ export function registerPlatformTools(server: McpServer) {
     'Update an installed plugin',
     { name: z.string().describe('Plugin name') },
     async ({ name }) =>
-      jsonToolResult(await api(`/api/plugins/${name}/update`, { method: 'POST' })),
+      jsonToolResult(
+        await api(`/api/plugins/${name}/update`, { method: 'POST' }),
+      ),
   );
 
   server.tool(

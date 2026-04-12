@@ -1,5 +1,8 @@
 import { describe, expect, test, vi } from 'vitest';
-import type { ProviderAdapterShape, ProviderSession } from '../../providers/adapter-shape.js';
+import type {
+  ProviderAdapterShape,
+  ProviderSession,
+} from '../../providers/adapter-shape.js';
 import {
   projectOrchestrationEventToReadModel,
   recoverOrchestrationSessions,
@@ -65,8 +68,13 @@ describe('orchestration-session-state', () => {
       eventStore,
     });
 
-    expect(sessionReadModel.get('thread-2')).toMatchObject({ status: 'closed' });
-    expect(eventStore.markSessionClosed).toHaveBeenCalledWith('thread-2', 'claude');
+    expect(sessionReadModel.get('thread-2')).toMatchObject({
+      status: 'closed',
+    });
+    expect(eventStore.markSessionClosed).toHaveBeenCalledWith(
+      'thread-2',
+      'claude',
+    );
     expect(eventStore.upsertSession).not.toHaveBeenCalled();
   });
 

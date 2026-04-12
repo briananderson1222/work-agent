@@ -156,12 +156,12 @@ function App() {
 
   // Determine first project for default routing
   const firstProjectSlug = projects[0]?.slug || '';
-  const { data: firstProjectLayouts = [], isLoading: firstProjectLayoutsLoading } = useProjectLayoutsQuery(
-    firstProjectSlug,
-    {
-      enabled: !!firstProjectSlug,
-    },
-  );
+  const {
+    data: firstProjectLayouts = [],
+    isLoading: firstProjectLayoutsLoading,
+  } = useProjectLayoutsQuery(firstProjectSlug, {
+    enabled: !!firstProjectSlug,
+  });
 
   // Resolve the home route to a project layout or project creation.
   useEffect(() => {

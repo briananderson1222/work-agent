@@ -1,14 +1,9 @@
 import { execSync } from 'node:child_process';
-import {
-  existsSync,
-  mkdirSync,
-  symlinkSync,
-  unlinkSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, symlinkSync, unlinkSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build as esbuild } from 'esbuild';
 import type { PluginManifest } from '@stallion-ai/contracts/plugin';
+import { build as esbuild } from 'esbuild';
 import { readPluginManifest } from './parsers.js';
 
 const sharedDirectory = dirname(fileURLToPath(import.meta.url));

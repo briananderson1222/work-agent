@@ -13,8 +13,11 @@ import type {
   WorkingMemoryScope,
 } from '@voltagent/core';
 import type { UIMessage } from 'ai';
-import { applyConversationQueryOptions } from './memory-adapter-conversations.js';
-import { createMemoryConversationStore } from './memory-adapter-conversations.js';
+import { createLogger } from '../../utils/logger.js';
+import {
+  applyConversationQueryOptions,
+  createMemoryConversationStore,
+} from './memory-adapter-conversations.js';
 import {
   addStoredMessage,
   addStoredMessages,
@@ -31,7 +34,6 @@ import {
   setWorkflowStateEntry as setWorkflowStateEntryFile,
   setWorkingMemoryState as setWorkingMemoryStateFile,
 } from './memory-adapter-state.js';
-import { createLogger } from '../../utils/logger.js';
 
 const logger = createLogger({ name: 'memory-adapter' });
 
@@ -177,9 +179,8 @@ export class FileMemoryAdapter implements StorageAdapter {
   }
 
   async getConversations(resourceId: string): Promise<Conversation[]> {
-    const conversations = await this.conversations.listAgentConversations(
-      resourceId,
-    );
+    const conversations =
+      await this.conversations.listAgentConversations(resourceId);
     return applyConversationQueryOptions(conversations);
   }
 
@@ -225,7 +226,10 @@ export class FileMemoryAdapter implements StorageAdapter {
       return;
     }
 
-    await this.conversations.deleteConversationAssets(conversation.resourceId, id);
+    await this.conversations.deleteConversationAssets(
+      conversation.resourceId,
+      id,
+    );
   }
 
   // ===========================================================================

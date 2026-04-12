@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
-import type { AgentData } from '../../contexts/AgentsContext';
 import { AgentIcon } from '../../components/AgentIcon';
+import type { AgentData } from '../../contexts/AgentsContext';
 import { formatExecutionSummary } from '../../utils/execution';
 import type { AgentFormData } from './types';
 
@@ -15,8 +15,12 @@ export function buildAgentsViewItems(
   agents: AgentData[],
   acpConnections: ACPConnectionItem[],
 ) {
-  const standalone = agents.filter((a) => !a.slug.includes(':') && a.source !== 'acp');
-  const layoutAgents = agents.filter((a) => a.slug.includes(':') && a.source !== 'acp');
+  const standalone = agents.filter(
+    (a) => !a.slug.includes(':') && a.source !== 'acp',
+  );
+  const layoutAgents = agents.filter(
+    (a) => a.slug.includes(':') && a.source !== 'acp',
+  );
 
   const agentItems = [...standalone, ...layoutAgents].map((agent) => ({
     id: agent.slug,

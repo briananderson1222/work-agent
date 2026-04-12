@@ -54,7 +54,9 @@ describe('knowledge-filesystem helpers', () => {
         metadata: { owner: 'ops' },
       },
       dataDir: dir,
-      listNamespaces: () => [{ id: 'default', label: 'Default', behavior: 'rag' }],
+      listNamespaces: () => [
+        { id: 'default', label: 'Default', behavior: 'rag' },
+      ],
       resolveStorageDir: () => storageDir,
     });
 
@@ -105,7 +107,10 @@ describe('knowledge-filesystem helpers', () => {
         fileCount: 2,
       }),
     );
-    expect(tree.children?.map((child) => child.name)).toEqual(['docs', 'root.md']);
+    expect(tree.children?.map((child) => child.name)).toEqual([
+      'docs',
+      'root.md',
+    ]);
     expect(tree.children?.[0]).toEqual(
       expect.objectContaining({
         type: 'directory',
@@ -118,8 +123,14 @@ describe('knowledge-filesystem helpers', () => {
     const workingDirectory = join(dir, 'workspace');
     mkdirSync(join(workingDirectory, 'src'), { recursive: true });
     mkdirSync(join(workingDirectory, 'docs'), { recursive: true });
-    writeFileSync(join(workingDirectory, 'src', 'keep.ts'), 'export const keep = true;\n');
-    writeFileSync(join(workingDirectory, 'src', 'skip.ts'), 'export const skip = true;\n');
+    writeFileSync(
+      join(workingDirectory, 'src', 'keep.ts'),
+      'export const keep = true;\n',
+    );
+    writeFileSync(
+      join(workingDirectory, 'src', 'skip.ts'),
+      'export const skip = true;\n',
+    );
     writeFileSync(join(workingDirectory, 'docs', 'guide.md'), '# guide\n');
 
     const uploadDocument = vi.fn(async () => ({}));

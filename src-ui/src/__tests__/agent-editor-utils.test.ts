@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import type { Tool } from '../types';
+import type { AgentFormData } from '../views/agent-editor/types';
 import {
   getAgentType,
   getEditorTabs,
@@ -9,7 +10,6 @@ import {
   toggleIntegrationToolAutoApprove,
   toggleIntegrationToolEnabled,
 } from '../views/agent-editor/utils';
-import type { AgentFormData } from '../views/agent-editor/types';
 
 const toolList: Tool[] = [
   {

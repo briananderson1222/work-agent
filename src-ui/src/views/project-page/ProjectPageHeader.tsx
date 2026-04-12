@@ -31,7 +31,9 @@ export function ProjectPageHeader({
     <>
       <div className="project-page__header">
         <div className="project-page__identity">
-          {project.icon && <span className="project-page__icon">{project.icon}</span>}
+          {project.icon && (
+            <span className="project-page__icon">{project.icon}</span>
+          )}
           <div className="project-page__identity-info">
             <h2 className="project-page__name">{project.name}</h2>
             {!editingDir && (
@@ -56,7 +58,10 @@ export function ProjectPageHeader({
             )}
           </div>
         </div>
-        <button className="project-page__settings-btn" onClick={navigateToSettings}>
+        <button
+          className="project-page__settings-btn"
+          onClick={navigateToSettings}
+        >
           ⚙ Settings
         </button>
       </div>

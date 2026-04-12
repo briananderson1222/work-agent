@@ -1,4 +1,3 @@
-import { writeFileSync } from 'node:fs';
 import type {
   AddJobOpts,
   SchedulerCapability,
@@ -8,16 +7,9 @@ import type {
   SchedulerProviderStatus,
 } from '../providers/provider-contracts.js';
 import type { ISchedulerProvider } from '../providers/provider-interfaces.js';
+import { schedulerHealthy } from '../telemetry/metrics.js';
 import {
-  schedulerHealthy,
-  schedulerJobDuration,
-  schedulerJobRuns,
-} from '../telemetry/metrics.js';
-import { cronMatches, nextCronTimes } from './cron.js';
-import {
-  appendSchedulerJobLog,
   type StoredJob,
-  getSchedulerRunOutputPath,
   getStoredJobStats,
   getStoredJobView,
   readSchedulerJobLogs,
@@ -26,6 +18,8 @@ import {
   readStoredJobs,
   writeStoredJobs,
 } from './builtin-scheduler-storage.js';
+import { executeSchedulerJobAttempt } from './builtin-scheduler-execution.js';
+import { cronMatches, nextCronTimes } from './cron.js';
 import type { NotificationService } from './notification-service.js';
 import { SSEBroadcaster } from './sse-broadcaster.js';
 
@@ -139,107 +133,32 @@ export class BuiltinScheduler implements ISchedulerProvider {
     this.running.add(job.name);
     this.broadcast({ event: 'job.started', job: job.name, id });
 
-    const outFile = getSchedulerRunOutputPath(id);
-
     try {
       if (!this.chatFn)
         throw new Error('Scheduler not connected to agent runtime');
-      const agent =
-        job.agent && job.agent !== 'default' ? job.agent : 'default';
-      const JOB_TIMEOUT = 10 * 60_000;
-      const output = await Promise.race([
-        this.chatFn(agent, job.prompt),
-        new Promise<never>((_, reject) =>
-          setTimeout(
-            () =>
-              reject(new Error(`Job timed out after ${JOB_TIMEOUT / 60_000}m`)),
-            JOB_TIMEOUT,
-          ),
-        ),
-      ]);
-
-      writeFileSync(outFile, output);
-      const completedAt = new Date().toISOString();
-      const durationSecs =
-        (Date.parse(completedAt) - Date.parse(startedAt)) / 1000;
-
-      schedulerJobRuns.add(1, { job: job.name, status: 'success' });
-      schedulerJobDuration.record(durationSecs * 1000, { job: job.name });
-      appendSchedulerJobLog(job.name, {
+      const result = await executeSchedulerJobAttempt({
+        job,
         id,
-        job: job.name,
-        startedAt,
-        completedAt,
-        success: true,
-        durationSecs,
-        missedCount: this.missed.get(job.name) || 0,
         manual,
-        output: outFile,
         attempt,
         maxAttempts,
-      });
-      this.broadcast({
-        event: 'job.completed',
-        job: job.name,
-        id,
-        success: true,
-        duration_secs: durationSecs,
-      });
-    } catch (e: any) {
-      writeFileSync(outFile, e.message);
-      const completedAt = new Date().toISOString();
-      const durationSecs =
-        (Date.parse(completedAt) - Date.parse(startedAt)) / 1000;
-      schedulerJobRuns.add(1, { job: job.name, status: 'error' });
-      schedulerJobDuration.record(durationSecs * 1000, { job: job.name });
-
-      const willRetry = (job.retryCount ?? 0) > 0 && attempt < maxAttempts;
-
-      appendSchedulerJobLog(job.name, {
-        id,
-        job: job.name,
         startedAt,
-        completedAt,
-        success: false,
-        durationSecs,
-        missedCount: this.missed.get(job.name) || 0,
-        manual,
-        output: outFile,
-        error: e.message,
-        attempt,
-        maxAttempts,
+        chatFn: this.chatFn,
+        notificationService: this.notificationService,
+        broadcast: (event) => this.broadcast(event),
+        getMissedCount: () => this.missed.get(job.name) || 0,
       });
 
-      if (willRetry) {
+      if (
+        !result.success &&
+        (job.retryCount ?? 0) > 0 &&
+        attempt < maxAttempts
+      ) {
         const delaySecs = job.retryDelaySecs ?? 0;
-        this.broadcast({
-          event: 'job.retrying',
-          job: job.name,
-          id,
-          error: e.message,
-          attempt,
-          maxAttempts,
-        });
         setTimeout(
           () => this.executeJob(job, manual, attempt + 1),
           delaySecs * 1000,
         );
-      } else {
-        this.broadcast({
-          event: 'job.failed',
-          job: job.name,
-          id,
-          error: e.message,
-        });
-        this.notificationService?.schedule('scheduler', {
-          category: 'job-failure',
-          title: `Job "${job.name}" failed`,
-          body: e.message,
-          priority: 'high',
-          dedupeTag: `scheduler:fail:${job.name}`,
-          actions: [{ id: 'view-logs', label: 'View Logs' }],
-          metadata: { jobName: job.name, link: `/schedule?job=${job.name}` },
-        });
       }
     } finally {
       this.missed.delete(job.name);

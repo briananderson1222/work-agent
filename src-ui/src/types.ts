@@ -1,15 +1,17 @@
-import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import type {
   AgentExecutionConfig,
   AgentUIConfig,
   SlashCommand,
 } from '@stallion-ai/contracts/agent';
+import type { ProviderKind } from '@stallion-ai/contracts/provider';
+import type { UIBlock } from '@stallion-ai/contracts/ui-block';
+
 export type {
   LayoutAction,
-  LayoutPrompt,
-  LayoutTab,
   LayoutDefinition,
   LayoutDefinitionMetadata,
+  LayoutPrompt,
+  LayoutTab,
 } from '@stallion-ai/contracts/layout';
 export type { WorkflowMetadata } from '@stallion-ai/contracts/runtime';
 
@@ -58,12 +60,14 @@ export interface ChatMessage {
   timestamp?: number;
   traceId?: string;
   contentParts?: Array<{
-    type: 'text' | 'image' | 'file' | 'tool' | 'reasoning';
+    type: 'text' | 'image' | 'file' | 'tool' | 'reasoning' | 'ui-block';
     content?: string;
     image?: string;
     mediaType?: string;
     url?: string;
     tool?: any;
+    uiBlock?: UIBlock;
+    toolCallId?: string;
   }>;
   attachments?: FileAttachment[];
   toolCalls?: Array<{
@@ -134,7 +138,9 @@ export interface WorkflowFile {
 }
 
 export type { TemplateVariable } from '@stallion-ai/contracts/config';
-export type AppConfig = Partial<import('@stallion-ai/contracts/config').AppConfig>;
+export type AppConfig = Partial<
+  import('@stallion-ai/contracts/config').AppConfig
+>;
 
 export type NavigationView =
   | { type: 'agents' }

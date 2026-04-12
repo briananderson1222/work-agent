@@ -6,8 +6,12 @@ import {
   readFileSync,
   writeFileSync,
 } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { PLUGINS_DIR, PROJECT_HOME } from './helpers.js';
+
+function getRegistryInstallsPath(): string {
+  return join(PROJECT_HOME, 'config', 'registry-installs.json');
+}
 
 function readConfiguredRegistryUrl(configPath: string): string | undefined {
   if (!existsSync(configPath)) return undefined;
@@ -33,6 +37,88 @@ function saveRegistryUrl(configPath: string, registryUrl: string): void {
   console.log(`  ✓ Registry URL saved: ${registryUrl}`);
 }
 
+function readRegistryInstallAliases(): Record<string, string> {
+  const aliasesPath = getRegistryInstallsPath();
+  if (!existsSync(aliasesPath)) return {};
+
+  try {
+    return JSON.parse(readFileSync(aliasesPath, 'utf-8')) as Record<
+      string,
+      string
+    >;
+  } catch {
+    return {};
+  }
+}
+
+export function recordRegistryInstall(
+  registryId: string,
+  pluginName: string,
+): void {
+  if (!registryId || registryId === pluginName) {
+    return;
+  }
+
+  const aliasesPath = getRegistryInstallsPath();
+  mkdirSync(dirname(aliasesPath), { recursive: true });
+  const aliases = readRegistryInstallAliases();
+  aliases[registryId] = pluginName;
+  writeFileSync(aliasesPath, JSON.stringify(aliases, null, 2));
+}
+
+function normalizeRegistrySource(source: string, registryUrl: string): string {
+  if (
+    source.startsWith('git@') ||
+    source.startsWith('https://') ||
+    source.startsWith('http://')
+  ) {
+    return source;
+  }
+  if (isAbsolute(source)) {
+    return source;
+  }
+  if (registryUrl.startsWith('/') || registryUrl.startsWith('.')) {
+    return resolve(dirname(registryUrl), source);
+  }
+  return new URL(source, registryUrl).toString();
+}
+
+async function fetchRegistryManifest(registryUrl: string): Promise<any> {
+  if (registryUrl.startsWith('/') || registryUrl.startsWith('.')) {
+    return JSON.parse(readFileSync(registryUrl, 'utf-8'));
+  }
+
+  const response = await fetch(registryUrl);
+  if (!response.ok) {
+    throw new Error(
+      `Failed to fetch registry: ${response.status} ${response.statusText}`,
+    );
+  }
+  return response.json();
+}
+
+export async function resolveRegistryPluginSource(
+  id: string | undefined,
+): Promise<string> {
+  if (!id) {
+    throw new Error('registry install requires a plugin id');
+  }
+
+  const configPath = join(PROJECT_HOME, 'config.json');
+  const registryUrl = readConfiguredRegistryUrl(configPath);
+  if (!registryUrl) {
+    throw new Error('No registry URL configured');
+  }
+
+  const manifest = await fetchRegistryManifest(registryUrl);
+  const plugin = (manifest.plugins || []).find((entry: any) => entry.id === id);
+  if (!plugin?.source) {
+    throw new Error(`Plugin '${id}' not found in registry`);
+  }
+
+  return normalizeRegistrySource(plugin.source, registryUrl);
+}
+
 export function showOrSaveRegistry(registryUrl?: string): void {
   const configPath = join(PROJECT_HOME, 'config.json');
   const url = registryUrl || readConfiguredRegistryUrl(configPath);
@@ -51,11 +137,15 @@ export function showOrSaveRegistry(registryUrl?: string): void {
 
   console.log(`📋 Fetching registry from ${url}...\n`);
   try {
-    const result = execSync(`curl -sf "${url}"`, {
-      encoding: 'utf-8',
-      timeout: 15000,
-    });
-    const manifest = JSON.parse(result);
+    const manifest =
+      url.startsWith('/') || url.startsWith('.')
+        ? JSON.parse(readFileSync(url, 'utf-8'))
+        : JSON.parse(
+            execSync(`curl -sf "${url}"`, {
+              encoding: 'utf-8',
+              timeout: 15000,
+            }),
+          );
     const plugins = manifest.plugins || [];
 
     if (!plugins.length) {
@@ -64,6 +154,7 @@ export function showOrSaveRegistry(registryUrl?: string): void {
     }
 
     const installed = new Set<string>();
+    const aliases = readRegistryInstallAliases();
     if (existsSync(PLUGINS_DIR)) {
       for (const entry of readdirSync(PLUGINS_DIR, { withFileTypes: true })) {
         if (entry.isDirectory()) installed.add(entry.name);
@@ -72,13 +163,14 @@ export function showOrSaveRegistry(registryUrl?: string): void {
 
     console.log('Available Plugins:\n');
     for (const plugin of plugins) {
-      const status = installed.has(plugin.id) ? ' [installed]' : '';
+      const installedPluginName = aliases[plugin.id] || plugin.id;
+      const status = installed.has(installedPluginName) ? ' [installed]' : '';
       console.log(
         `  ${plugin.displayName || plugin.id} (${plugin.id}@${plugin.version || '?'})${status}`,
       );
       if (plugin.description) console.log(`    ${plugin.description}`);
     }
-    console.log(`\n  Install with: stallion install <source>`);
+    console.log(`\n  Install with: stallion registry install <id>`);
   } catch (error: any) {
     console.error(`Failed to fetch registry: ${error.message}`);
     process.exit(1);

@@ -26,6 +26,7 @@ describe('loadRuntimePluginAssets', () => {
       loadPluginOverrides: expect.any(Function),
     });
     expect(loadPrompts).toHaveBeenCalledWith({
+      logger: expect.anything(),
       projectHomeDir: '/tmp/project',
     });
     expect(calls).toEqual(['providers', 'prompts']);

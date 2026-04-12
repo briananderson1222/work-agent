@@ -1,13 +1,13 @@
 import type { ClientSideConnection } from '@agentclientprotocol/sdk';
 import type { ACPConnectionConfig } from '@stallion-ai/contracts/acp';
+import type { ACPMode, ACPSlashCommand } from './acp-bridge-types.js';
+import type { ACPConnectionStatus } from './acp-connection.js';
 import {
   getACPConnectionStatusView,
   getACPConnectionVirtualAgents,
   getACPCurrentModelName,
   hasACPConnectionAgent,
 } from './acp-connection-view.js';
-import type { ACPMode, ACPSlashCommand } from './acp-bridge-types.js';
-import type { ACPConnectionStatus } from './acp-connection.js';
 
 interface ACPConfigOption {
   category?: string;
@@ -65,7 +65,11 @@ export function getACPConnectionVirtualAgentViews({
   prefix: string;
   config: ACPConnectionConfig;
   configOptions: ACPConfigOption[];
-  promptCapabilities: { image?: boolean; audio?: boolean; embeddedContext?: boolean };
+  promptCapabilities: {
+    image?: boolean;
+    audio?: boolean;
+    embeddedContext?: boolean;
+  };
   detectedModel: string | null;
 }): any[] {
   return getACPConnectionVirtualAgents({

@@ -1,5 +1,5 @@
-// biome-ignore lint/correctness/noUnusedImports: React needed for classic JSX transform
-import React, {
+import type { LayoutDefinition } from '@stallion-ai/contracts/layout';
+import {
   createContext,
   type ReactNode,
   useCallback,
@@ -7,7 +7,6 @@ import React, {
   useEffect,
   useState,
 } from 'react';
-import type { LayoutDefinition } from '@stallion-ai/contracts/layout';
 import { _setLayoutContext } from './api';
 
 /**

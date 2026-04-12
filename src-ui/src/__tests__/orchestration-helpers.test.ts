@@ -1,11 +1,17 @@
 import { describe, expect, test, vi } from 'vitest';
+
 vi.mock('../contexts/active-chats-store', () => ({
   activeChatsStore: {
     getSnapshot: () => ({}),
     updateChat: () => undefined,
   },
 }));
-import { buildAssistantTurnContent, upsertTextPart, upsertToolPart } from '../hooks/orchestration/messageParts';
+
+import {
+  buildAssistantTurnContent,
+  upsertTextPart,
+  upsertToolPart,
+} from '../hooks/orchestration/messageParts';
 import { buildOrchestrationSnapshotSyncPlan } from '../hooks/orchestration/snapshotHandlers';
 
 describe('orchestration helpers', () => {

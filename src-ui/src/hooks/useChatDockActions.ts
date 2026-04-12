@@ -1,13 +1,13 @@
 import { useCallback } from 'react';
 import { useActiveChatActions } from '../contexts/ActiveChatsContext';
-import {
-  useCreateChatSession,
-  useOpenConversation,
-} from './useActiveChatSessions';
 import type { AgentData } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { resolveAgentExecution } from '../utils/execution';
+import {
+  useCreateChatSession,
+  useOpenConversation,
+} from './useActiveChatSessions';
 
 interface DerivedSession {
   id: string;

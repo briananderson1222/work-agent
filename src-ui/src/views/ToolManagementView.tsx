@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 import { Button } from '../components/Button';
 import { ConfirmModal } from '../components/ConfirmModal';
 import {
+  type AgentToolConfig,
   addAgentTool,
   fetchToolManagementData,
   removeAgentTool,
-  type AgentToolConfig,
   type ToolDef,
   updateAgentAllowedTools,
   updateAgentToolAliases,

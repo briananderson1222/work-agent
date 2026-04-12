@@ -1,10 +1,11 @@
-import type { ACPConnectionConfig, ACPStatusValue } from '@stallion-ai/contracts/acp';
+import type {
+  ACPConnectionConfig,
+  ACPStatusValue,
+} from '@stallion-ai/contracts/acp';
 import type { Context } from 'hono';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import { MonitoringEmitter } from '../monitoring/emitter.js';
-import { ACPProbe } from './acp-probe.js';
 import { ACPConnection } from './acp-connection.js';
-import { ApprovalRegistry } from './approval-registry.js';
 import {
   addACPManagerConnection,
   getOrCreateACPManagerSession,
@@ -19,6 +20,8 @@ import {
   getACPManagerStatus,
   getACPManagerVirtualAgents,
 } from './acp-manager-view.js';
+import { ACPProbe } from './acp-probe.js';
+import { ApprovalRegistry } from './approval-registry.js';
 
 /**
  * Probe + Session Pool architecture.
@@ -116,7 +119,9 @@ export class ACPManager {
   }
 
   isConnected(): boolean {
-    return Array.from(this.probes.values()).some((probe) => probe.isAvailable());
+    return Array.from(this.probes.values()).some((probe) =>
+      probe.isAvailable(),
+    );
   }
 
   getSlashCommands(slug: string): any[] {

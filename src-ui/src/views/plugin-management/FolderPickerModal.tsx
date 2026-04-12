@@ -1,5 +1,5 @@
-import { useState } from 'react';
 import { useFileSystemBrowseQuery } from '@stallion-ai/sdk';
+import { useState } from 'react';
 
 export function FolderPickerModal({
   onSelect,
@@ -70,7 +70,9 @@ export function FolderPickerModal({
                 <div
                   key={entry.name}
                   className="plugins__folder-entry"
-                  onClick={() => setCurrentPath(`${resolvedPath}/${entry.name}`)}
+                  onClick={() =>
+                    setCurrentPath(`${resolvedPath}/${entry.name}`)
+                  }
                 >
                   <span className="plugins__folder-icon">📁</span>
                   <span className="plugins__folder-name">{entry.name}</span>

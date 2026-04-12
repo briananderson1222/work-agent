@@ -43,7 +43,9 @@ interface HandleACPConnectionChatParams {
   }) => void;
   setActiveWriter: (writer: ((chunk: any) => Promise<void>) | null) => void;
   setResponseAccumulator: (value: string) => void;
-  setResponseParts: (parts: Array<{ type: string; [key: string]: any }>) => void;
+  setResponseParts: (
+    parts: Array<{ type: string; [key: string]: any }>,
+  ) => void;
   touchActivity: () => void;
   start: () => Promise<boolean>;
 }

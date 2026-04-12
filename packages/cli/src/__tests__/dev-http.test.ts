@@ -27,9 +27,9 @@ describe('dev http helpers', () => {
   });
 
   test('isAllowedOpenFilePath only allows cwd and plugin tree access', () => {
-    expect(isAllowedOpenFilePath('/repo/src/file.ts', '/repo', '/plugins')).toBe(
-      true,
-    );
+    expect(
+      isAllowedOpenFilePath('/repo/src/file.ts', '/repo', '/plugins'),
+    ).toBe(true);
     expect(
       isAllowedOpenFilePath('/plugins/demo/plugin.json', '/repo', '/plugins'),
     ).toBe(true);

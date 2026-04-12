@@ -1,16 +1,16 @@
 import { useCallback, useState } from 'react';
 import type { SavedConnection } from '../core/types';
+import { ConnectionManagerDiscoverPanel } from './ConnectionManagerDiscoverPanel';
+import { useConnections } from './ConnectionsContext';
 import { ConnectionListPanel } from './connection-manager-modal/ConnectionListPanel';
 import { ManualAddPanel } from './connection-manager-modal/ManualAddPanel';
-import { useConnections } from './ConnectionsContext';
-import { QRScanner } from './QRScanner';
-import { ConnectionManagerDiscoverPanel } from './ConnectionManagerDiscoverPanel';
-import { useNetworkDiscovery } from './useNetworkDiscovery';
 import {
+  type ConnectionManagerPanel,
   getConnectionManagerTitle,
   getConnectionStatus,
-  type ConnectionManagerPanel,
 } from './connection-manager-modal-utils';
+import { QRScanner } from './QRScanner';
+import { useNetworkDiscovery } from './useNetworkDiscovery';
 
 interface ConnectionManagerModalContentProps {
   onClose: () => void;

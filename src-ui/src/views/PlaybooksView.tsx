@@ -47,7 +47,9 @@ export function PlaybooksView() {
               className="editor-select editor-select--small"
               value={viewModel.sortBy}
               onChange={(e) =>
-                viewModel.setSortBy(e.target.value as 'name' | 'date' | 'category')
+                viewModel.setSortBy(
+                  e.target.value as 'name' | 'date' | 'category',
+                )
               }
             >
               <option value="date">Newest</option>
@@ -85,7 +87,9 @@ export function PlaybooksView() {
             onGlobalChange={viewModel.onGlobalChange}
             onSave={viewModel.handleSave}
             onTest={() => viewModel.setShowRunModal(true)}
-            onGenerateContent={(value) => viewModel.updateField('content', value)}
+            onGenerateContent={(value) =>
+              viewModel.updateField('content', value)
+            }
             onGenerateDescription={(value) =>
               viewModel.updateField('description', value)
             }

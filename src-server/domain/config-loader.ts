@@ -49,6 +49,7 @@ import {
 import { validator } from './validator.js';
 
 const logger = createLogger({ name: 'config-loader' });
+
 export { DEFAULT_SYSTEM_PROMPT } from './config-loader-app.js';
 
 export interface ConfigLoaderOptions {

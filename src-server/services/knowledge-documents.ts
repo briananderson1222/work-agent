@@ -120,7 +120,12 @@ export async function deleteKnowledgeDocument(
 
   const ns = knowledgeVectorNamespace(projectSlug, targetNs);
   const storageDir = deps.resolveStorageDir(projectSlug, targetNs);
-  const meta = loadKnowledgeMeta(storageDir, deps.dataDir, projectSlug, targetNs);
+  const meta = loadKnowledgeMeta(
+    storageDir,
+    deps.dataDir,
+    projectSlug,
+    targetNs,
+  );
   const doc = meta.find((candidate) => candidate.id === docId);
   if (!doc) {
     throw new Error(`Document '${docId}' not found in namespace '${targetNs}'`);
@@ -149,7 +154,12 @@ export async function getKnowledgeDocumentContent(
   }
 
   const storageDir = deps.resolveStorageDir(projectSlug, targetNs);
-  const meta = loadKnowledgeMeta(storageDir, deps.dataDir, projectSlug, targetNs);
+  const meta = loadKnowledgeMeta(
+    storageDir,
+    deps.dataDir,
+    projectSlug,
+    targetNs,
+  );
   const doc = meta.find((candidate) => candidate.id === docId);
   if (!doc) {
     throw new Error(`Document '${docId}' not found`);

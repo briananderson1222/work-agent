@@ -1,4 +1,10 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 
@@ -22,8 +28,13 @@ export function applyInstalledPluginLayout(params: {
   skipSet: Set<string>;
   projectArgv?: string[];
 }): void {
-  const { finalDir, manifest, projectHome, skipSet, projectArgv = process.argv } =
-    params;
+  const {
+    finalDir,
+    manifest,
+    projectHome,
+    skipSet,
+    projectArgv = process.argv,
+  } = params;
   if (!manifest.layout || skipSet.has(`layout:${manifest.layout.slug}`)) {
     return;
   }

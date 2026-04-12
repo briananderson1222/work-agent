@@ -1,4 +1,6 @@
 import { NewProjectModal } from '../components/NewProjectModal';
+import { NotificationsPage } from '../pages/NotificationsPage';
+import { ProfilePage } from '../pages/ProfilePage';
 import type { AgentSummary, NavigationView } from '../types';
 import { AgentsView } from '../views/AgentsView';
 import { ConnectionsHub } from '../views/ConnectionsHub';
@@ -16,8 +18,6 @@ import { ScheduleView } from '../views/ScheduleView';
 import { SettingsView } from '../views/SettingsView';
 import { ToolManagementView } from '../views/ToolManagementView';
 import { WorkflowManagementView } from '../views/WorkflowManagementView';
-import { NotificationsPage } from '../pages/NotificationsPage';
-import { ProfilePage } from '../pages/ProfilePage';
 import { ProjectLayoutRenderer } from './ProjectLayoutRenderer';
 
 export function AppViewContent({

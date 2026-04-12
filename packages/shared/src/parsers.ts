@@ -99,7 +99,9 @@ export function copyPluginIntegrations(
         const definitionPath = join(target, 'integration.json');
         if (existsSync(definitionPath)) {
           try {
-            const definition = JSON.parse(readFileSync(definitionPath, 'utf-8'));
+            const definition = JSON.parse(
+              readFileSync(definitionPath, 'utf-8'),
+            );
             definition.plugin = pluginName;
             writeFileSync(definitionPath, JSON.stringify(definition, null, 2));
           } catch {}

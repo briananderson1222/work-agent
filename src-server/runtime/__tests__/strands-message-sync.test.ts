@@ -10,7 +10,12 @@ describe('mapStrandsContentBlocksToParts', () => {
       mapStrandsContentBlocksToParts([
         { text: 'hello' },
         { type: 'reasoningBlock', reasoningText: 'think' },
-        { type: 'toolUseBlock', toolUseId: 'tool-1', name: 'read_file', input: { path: 'a' } },
+        {
+          type: 'toolUseBlock',
+          toolUseId: 'tool-1',
+          name: 'read_file',
+          input: { path: 'a' },
+        },
         { type: 'toolResultBlock', toolUseId: 'tool-1', content: { ok: true } },
       ]),
     ).toEqual([
@@ -43,7 +48,11 @@ describe('syncStrandsMessagesToMemory', () => {
         { role: 'user', content: [{ text: 'old' }] },
         { role: 'assistant', content: [{ text: 'new' }] },
       ],
-      invocation: { agentSlug: 'agent', conversationId: 'conv-1', userId: 'user-1' },
+      invocation: {
+        agentSlug: 'agent',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+      },
       logger,
       memoryAdapter: memoryAdapter as any,
       resolvedModel: 'anthropic.test',

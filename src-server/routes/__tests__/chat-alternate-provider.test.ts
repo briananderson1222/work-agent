@@ -9,9 +9,7 @@ describe('chat-alternate-provider helpers', () => {
   test('buildAlternateProviderMessages combines system prompts, history, and current user text', async () => {
     const messages = await buildAlternateProviderMessages({
       ctx: {
-        agentSpecs: new Map([
-          ['writer', { prompt: 'Agent prompt' }],
-        ]),
+        agentSpecs: new Map([['writer', { prompt: 'Agent prompt' }]]),
         appConfig: { systemPrompt: 'Global prompt' },
         replaceTemplateVariables: (text: string) => text,
         memoryAdapters: new Map([
@@ -29,7 +27,9 @@ describe('chat-alternate-provider helpers', () => {
         ]),
       } as any,
       slug: 'writer',
-      input: [{ role: 'user', parts: [{ type: 'text', text: 'Current input' }] }],
+      input: [
+        { role: 'user', parts: [{ type: 'text', text: 'Current input' }] },
+      ],
       options: { conversationId: 'conv-1' },
       injectContext: 'Inject block',
       ragContext: 'Rag block',

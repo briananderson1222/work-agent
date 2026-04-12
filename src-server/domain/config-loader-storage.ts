@@ -52,7 +52,9 @@ export async function deleteIntegrationConfig(
 
 export async function listIntegrationMetadata(
   projectHomeDir: string,
-  logger: { error: (message: string, fields?: Record<string, unknown>) => void },
+  logger: {
+    error: (message: string, fields?: Record<string, unknown>) => void;
+  },
 ): Promise<ToolMetadata[]> {
   const integrationsDir = join(projectHomeDir, 'integrations');
   if (!existsSync(integrationsDir)) {

@@ -84,7 +84,7 @@ export function createBedrockRoutes(
           500,
         );
       }
-      const region = c.req.query('region') || appConfig.region;
+      const region = c.req.query('region') || appConfig.region || 'us-east-1';
       bedrockOps.add(1, { op: 'get_pricing' });
       const pricing = await modelCatalog.getModelPricing(region);
       return c.json({ success: true, data: pricing });

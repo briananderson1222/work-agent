@@ -1,8 +1,8 @@
 import { type HonoServerConfig } from '@voltagent/server-hono';
 import { cors } from 'hono/cors';
 import type { EventBus } from '../services/event-bus.js';
-import type { Logger } from '../utils/logger.js';
 import { isAuthError } from '../utils/auth-errors.js';
+import type { Logger } from '../utils/logger.js';
 
 type RuntimeApp = Parameters<NonNullable<HonoServerConfig['configureApp']>>[0];
 
@@ -55,7 +55,9 @@ export function configureRuntimeHttp({
   });
 }
 
-export function resolveRuntimeCorsOrigin(origin?: string): string | null | undefined {
+export function resolveRuntimeCorsOrigin(
+  origin?: string,
+): string | null | undefined {
   if (!origin) {
     return origin;
   }
@@ -90,6 +92,7 @@ function getInvalidationKeysForPath(path: string): string[] {
   if (path.startsWith('/agents')) keys.push('agents');
   if (path.startsWith('/integrations')) keys.push('integrations');
   if (path.includes('/prompts')) keys.push('prompts');
+  if (path.includes('/playbooks')) keys.push('playbooks');
   if (path.includes('/skills')) keys.push('skills');
   if (path.includes('/providers')) keys.push('providers');
   if (path.includes('/scheduler') || path.includes('/jobs')) {

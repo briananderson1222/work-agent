@@ -5,6 +5,7 @@ import {
   useDeletePlaybookMutation,
   useImportPlaybooksMutation,
   usePlaybooksQuery,
+  useTrackPlaybookRunMutation,
   useUpdatePlaybookMutation,
 } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -63,6 +64,7 @@ export function usePlaybooksViewModel() {
   const { data: agents = [] } = useAgentsQuery() as {
     data?: AgentOption[];
   };
+  const trackRunMutation = useTrackPlaybookRunMutation();
 
   const handleRun = useCallback(
     async (resolvedContent: string, agentSlug: string) => {
@@ -77,14 +79,19 @@ export function usePlaybooksViewModel() {
       setActiveChat(null);
       setShowRunModal(false);
       await sendMessage(sessionId, agent.slug, undefined, resolvedContent);
+      if (selectedId) {
+        await trackRunMutation.mutateAsync(selectedId).catch(() => undefined);
+      }
     },
     [
       agents,
       createChatSession,
       form.name,
+      selectedId,
       sendMessage,
       setActiveChat,
       setDockState,
+      trackRunMutation,
     ],
   );
 

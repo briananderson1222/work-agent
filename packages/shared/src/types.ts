@@ -1,31 +1,9 @@
-export * from './runtime-events.js';
-
 export type {
   ACPConfig,
   ACPConnectionConfig,
   ACPStatusValue,
 } from '@stallion-ai/contracts/acp';
 export { ACPStatus } from '@stallion-ai/contracts/acp';
-
-export type {
-  Notification,
-  NotificationAction,
-  NotificationPriority,
-  NotificationStatus,
-  ScheduleNotificationOpts,
-} from '@stallion-ai/contracts/notification';
-
-export type {
-  AddJobOpts,
-  SchedulerCapability,
-  SchedulerEvent,
-  SchedulerFormField,
-  SchedulerJob,
-  SchedulerLogEntry,
-  SchedulerProviderStats,
-  SchedulerProviderStatus,
-} from '@stallion-ai/contracts/scheduler';
-
 export type {
   AgentExecutionConfig,
   AgentGuardrails,
@@ -37,19 +15,12 @@ export type {
   SlashCommand,
   SlashCommandParam,
 } from '@stallion-ai/contracts/agent';
-
 export type {
   AuthStatus,
   RenewResult,
   UserDetailVM,
   UserIdentity,
 } from '@stallion-ai/contracts/auth';
-
-export type {
-  AppConfig,
-  TemplateVariable,
-} from '@stallion-ai/contracts/config';
-
 export type {
   InstallResult,
   Playbook,
@@ -57,7 +28,10 @@ export type {
   RegistryItem,
   Skill,
 } from '@stallion-ai/contracts/catalog';
-
+export type {
+  AppConfig,
+  TemplateVariable,
+} from '@stallion-ai/contracts/config';
 export type {
   KnowledgeDocumentMeta,
   KnowledgeNamespaceBehavior,
@@ -66,18 +40,23 @@ export type {
   KnowledgeTreeNode,
 } from '@stallion-ai/contracts/knowledge';
 export { BUILTIN_KNOWLEDGE_NAMESPACES } from '@stallion-ai/contracts/knowledge';
-
 export type {
   LayoutAction,
   LayoutConfig,
+  LayoutDefinition,
+  LayoutDefinitionMetadata,
   LayoutMetadata,
   LayoutPrompt,
   LayoutTab,
   LayoutTemplate,
-  LayoutDefinition,
-  LayoutDefinitionMetadata,
 } from '@stallion-ai/contracts/layout';
-
+export type {
+  Notification,
+  NotificationAction,
+  NotificationPriority,
+  NotificationStatus,
+  ScheduleNotificationOpts,
+} from '@stallion-ai/contracts/notification';
 export type {
   ConflictInfo,
   PluginComponent,
@@ -89,12 +68,10 @@ export type {
   PluginProviderEntry,
   PluginSettingField,
 } from '@stallion-ai/contracts/plugin';
-
 export type {
   ProjectConfig,
   ProjectMetadata,
 } from '@stallion-ai/contracts/project';
-
 export type {
   AgentInvokeResponse,
   AgentSwitchState,
@@ -104,7 +81,16 @@ export type {
   ToolCallResponse,
   WorkflowMetadata,
 } from '@stallion-ai/contracts/runtime';
-
+export type {
+  AddJobOpts,
+  SchedulerCapability,
+  SchedulerEvent,
+  SchedulerFormField,
+  SchedulerJob,
+  SchedulerLogEntry,
+  SchedulerProviderStats,
+  SchedulerProviderStatus,
+} from '@stallion-ai/contracts/scheduler';
 export type {
   ConnectionCapability,
   ConnectionConfig,
@@ -117,5 +103,6 @@ export type {
   ToolMetadata,
   ToolPermissions,
 } from '@stallion-ai/contracts/tool';
+export * from './runtime-events.js';
 
 // ── Plugin Preview / Validation ────────────────────────────────────

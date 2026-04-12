@@ -1,9 +1,13 @@
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import {
   useModelConnectionsQuery,
   useRuntimeConnectionsQuery,
 } from '@stallion-ai/sdk';
-import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import { Checkbox } from '../../components/Checkbox';
+import {
+  isManagedRuntimeConnectionId,
+  preferredConnectedRuntime,
+} from '../../utils/execution';
 import type { AgentEditorFormProps } from './types';
 
 export function AgentEditorRuntimeTab({
@@ -12,10 +16,12 @@ export function AgentEditorRuntimeTab({
   locked,
   onNavigate,
 }: Pick<AgentEditorFormProps, 'form' | 'setForm' | 'locked' | 'onNavigate'>) {
-  const { data: runtimeConnections = [] } =
-    useRuntimeConnectionsQuery() as { data?: ConnectionConfig[] };
-  const { data: modelConnections = [] } =
-    useModelConnectionsQuery() as { data?: ConnectionConfig[] };
+  const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery() as {
+    data?: ConnectionConfig[];
+  };
+  const { data: modelConnections = [] } = useModelConnectionsQuery() as {
+    data?: ConnectionConfig[];
+  };
 
   const availableRuntimeConnections = runtimeConnections.filter(
     (connection) =>
@@ -24,13 +30,16 @@ export function AgentEditorRuntimeTab({
       connection.capabilities.includes('agent-runtime'),
   );
   const selectedRuntimeId =
-    form.execution.runtimeConnectionId || 'bedrock-runtime';
+    form.execution.runtimeConnectionId ||
+    preferredConnectedRuntime(availableRuntimeConnections)?.id ||
+    'bedrock-runtime';
   const selectedRuntime = availableRuntimeConnections.find(
     (connection) => connection.id === selectedRuntimeId,
   );
-  const needsModelConnection = selectedRuntimeId === 'bedrock-runtime';
+  const needsModelConnection = isManagedRuntimeConnectionId(selectedRuntimeId);
   const readyModelConnections = modelConnections.filter(
-    (connection) => connection.enabled && connection.capabilities.includes('llm'),
+    (connection) =>
+      connection.enabled && connection.capabilities.includes('llm'),
   );
 
   return (
@@ -38,8 +47,8 @@ export function AgentEditorRuntimeTab({
       <div className="agent-editor__section-header">
         <h4 className="agent-editor__section-title">Execution</h4>
         <p className="agent-editor__section-desc">
-          Which AI engine powers this agent and how it runs. To inspect or test a
-          runtime, visit{' '}
+          Which AI engine powers this agent and how it runs. To inspect or test
+          a runtime, visit{' '}
           <button
             type="button"
             className="editor-link"
@@ -65,10 +74,11 @@ export function AgentEditorRuntimeTab({
               ...current,
               execution: {
                 runtimeConnectionId: event.target.value,
-                modelConnectionId:
-                  event.target.value === 'bedrock-runtime'
-                    ? current.execution.modelConnectionId
-                    : '',
+                modelConnectionId: isManagedRuntimeConnectionId(
+                  event.target.value,
+                )
+                  ? current.execution.modelConnectionId
+                  : '',
                 runtimeOptions:
                   event.target.value === current.execution.runtimeConnectionId
                     ? current.execution.runtimeOptions
@@ -144,7 +154,7 @@ export function AgentEditorRuntimeTab({
               ? 'e.g. claude-opus-4-6'
               : selectedRuntimeId === 'codex-runtime'
                 ? 'e.g. codex-mini'
-                : selectedRuntimeId === 'bedrock-runtime'
+                : isManagedRuntimeConnectionId(selectedRuntimeId)
                   ? 'e.g. anthropic.claude-3-5-sonnet-20241022-v2:0'
                   : 'Model ID (leave blank for runtime default)'
           }

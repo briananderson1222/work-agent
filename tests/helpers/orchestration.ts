@@ -6,6 +6,23 @@ export const STATUS_READY = JSON.stringify({
   acp: { connected: false, connections: [] },
   clis: {},
   prerequisites: [],
+  providers: {
+    configured: [
+      {
+        id: 'codex-runtime',
+        type: 'codex',
+        enabled: true,
+        capabilities: ['llm'],
+      },
+    ],
+    detected: { ollama: false, bedrock: false },
+  },
+  capabilities: {
+    chat: {
+      ready: true,
+      source: 'codex-runtime',
+    },
+  },
 });
 
 export const TEST_PROJECTS = [
@@ -67,6 +84,33 @@ export const DEFAULT_PROVIDER_SUMMARIES = [
     prerequisites: [{ name: 'OPENAI_API_KEY', status: 'installed' }],
   },
 ];
+
+export const DEFAULT_CONVERSATIONS = [
+  {
+    id: 'conv-1',
+    title: 'Dev Agent Chat',
+    createdAt: '2026-01-01T00:00:00Z',
+    updatedAt: '2026-01-01T00:00:00Z',
+    messageCount: 0,
+  },
+];
+
+export const DEFAULT_CONVERSATION_LOOKUPS = {
+  'conv-1': {
+    id: 'conv-1',
+    agentSlug: 'dev-agent',
+    projectSlug: 'dev',
+    title: 'Dev Agent Chat',
+  },
+} satisfies Record<
+  string,
+  {
+    id: string;
+    agentSlug: string;
+    projectSlug?: string;
+    title?: string;
+  }
+>;
 
 type StoredChat = {
   sessionId: string;
@@ -138,10 +182,29 @@ export async function installMockOrchestrationEventSource(
           instance.dispatch(type, payload);
         }
       },
+      count() {
+        return MockEventSource.instances.length;
+      },
+      hasUrl(fragment: string) {
+        return MockEventSource.instances.some((instance) =>
+          instance.url.includes(fragment),
+        );
+      },
     };
 
     (window as any).EventSource = MockEventSource;
   });
+}
+
+export async function waitForMockOrchestrationEventSource(
+  page: Page,
+): Promise<void> {
+  await page.waitForFunction(
+    () =>
+      (window as any).__mockOrchestrationSse?.hasUrl?.(
+        '/api/orchestration/events',
+      ) === true,
+  );
 }
 
 export async function emitMockOrchestrationEvent(
@@ -165,10 +228,29 @@ export async function seedOrchestrationRoutes(
       activeSessions: number;
       prerequisites: Array<{ name: string; status: string }>;
     }>;
+    conversations?: Array<{
+      id: string;
+      title?: string;
+      createdAt: string;
+      updatedAt: string;
+      messageCount?: number;
+    }>;
+    conversationLookups?: Record<
+      string,
+      {
+        id: string;
+        agentSlug: string;
+        projectSlug?: string;
+        title?: string;
+      }
+    >;
   },
 ): Promise<void> {
   const providerSummaries =
     options?.providerSummaries ?? DEFAULT_PROVIDER_SUMMARIES;
+  const conversations = options?.conversations ?? DEFAULT_CONVERSATIONS;
+  const conversationLookups =
+    options?.conversationLookups ?? DEFAULT_CONVERSATION_LOOKUPS;
 
   await Promise.all([
     page.route('**/api/system/status', (r) =>
@@ -223,6 +305,13 @@ export async function seedOrchestrationRoutes(
         }),
       }),
     ),
+    page.route('**/agents/**/conversations', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: conversations }),
+      }),
+    ),
     page.route('**/agents/**/conversations/**/messages', (r) =>
       r.fulfill({
         status: 200,
@@ -230,6 +319,21 @@ export async function seedOrchestrationRoutes(
         body: JSON.stringify({ success: true, data: [] }),
       }),
     ),
+    page.route('**/api/conversations/*', (r) => {
+      const url = new URL(r.request().url());
+      const conversationId =
+        url.pathname.split('/').filter(Boolean).pop() ?? '';
+      const conversation = conversationLookups[conversationId];
+      return r.fulfill({
+        status: conversation ? 200 : 404,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          conversation
+            ? { success: true, data: conversation }
+            : { success: false, error: 'Conversation not found' },
+        ),
+      });
+    }),
     page.route('**/api/feedback/ratings', (r) =>
       r.fulfill({
         status: 200,

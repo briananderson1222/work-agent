@@ -1,9 +1,4 @@
-import {
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  rmSync,
-} from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 import {
@@ -101,7 +96,8 @@ export function previewPlugin(source: string): void {
     }
     if (manifest.layout) {
       const conflict = conflicts.find(
-        (entry) => entry.type === 'layout' && entry.id === manifest.layout!.slug,
+        (entry) =>
+          entry.type === 'layout' && entry.id === manifest.layout!.slug,
       );
       console.log(
         `    layout:${manifest.layout.slug}${conflict ? ' ⚠ CONFLICT (already installed)' : ''}`,
@@ -136,7 +132,9 @@ export function previewPlugin(source: string): void {
     }
     console.log(`\n  Install with: stallion install ${source}`);
     if (conflicts.length) {
-      const skipArgs = conflicts.map((entry) => `${entry.type}:${entry.id}`).join(',');
+      const skipArgs = conflicts
+        .map((entry) => `${entry.type}:${entry.id}`)
+        .join(',');
       console.log(
         `  Skip conflicts: stallion install ${source} --skip=${skipArgs}`,
       );

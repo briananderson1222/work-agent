@@ -4,8 +4,8 @@ import { pluginRegistry } from '../core/PluginRegistry';
 import type {
   AgentQuickPrompt,
   AgentSummary,
-  LayoutTab,
   LayoutDefinition,
+  LayoutTab,
 } from '../types';
 
 export interface AgentLayoutProps {

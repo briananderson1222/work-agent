@@ -35,12 +35,16 @@ export function ProjectKnowledgeDocGroup({
   return (
     <div className="project-page__doc-group">
       <button className="project-page__doc-group-header" onClick={onToggleOpen}>
-        <span className="project-page__doc-group-chevron">{open ? '▾' : '▸'}</span>
+        <span className="project-page__doc-group-chevron">
+          {open ? '▾' : '▸'}
+        </span>
         <span className="project-page__doc-group-icon">{icon}</span>
         <span className="project-page__doc-group-label">{title}</span>
         {docs.length > 0 && (
           <>
-            <span className="project-page__doc-group-count">{docs.length} files</span>
+            <span className="project-page__doc-group-count">
+              {docs.length} files
+            </span>
             <input
               type="checkbox"
               className="project-page__doc-group-check"

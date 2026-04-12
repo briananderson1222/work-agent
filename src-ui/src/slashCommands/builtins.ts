@@ -64,7 +64,10 @@ registerCommand(
     }
 
     // Global prompts
-    const prompts = queryClient.getQueryData<any[]>(['prompts']) || [];
+    const prompts =
+      queryClient.getQueryData<any[]>(['playbooks']) ||
+      queryClient.getQueryData<any[]>(['prompts']) ||
+      [];
     if (prompts.length > 0) {
       const promptList = prompts
         .map(

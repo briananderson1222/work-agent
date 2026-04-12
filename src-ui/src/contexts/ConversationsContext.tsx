@@ -1,12 +1,12 @@
 import { useQueryClient } from '@stallion-ai/sdk';
 import { type ReactNode, useCallback } from 'react';
 import { ConversationsContext } from './conversation-context';
-import { conversationsStore } from './conversations-store';
 import type { ConversationsContextType } from './conversation-types';
+import { conversationsStore } from './conversations-store';
 
 export * from './conversation-hooks';
-export * from './conversations-store';
 export type * from './conversation-types';
+export * from './conversations-store';
 
 export function ConversationsProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
@@ -39,11 +39,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
     ConversationsContextType['deleteConversation']
   >(
     (apiBase, agentSlug, conversationId) =>
-      conversationsStore.deleteConversation(
-        apiBase,
-        agentSlug,
-        conversationId,
-      ),
+      conversationsStore.deleteConversation(apiBase, agentSlug, conversationId),
     [],
   );
 

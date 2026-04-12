@@ -1,8 +1,8 @@
+import type { ACPConnectionEventFields } from './acp-connection-events.js';
 import {
   flushACPTextPart,
   updateACPToolResultState,
 } from './acp-connection-state.js';
-import type { ACPConnectionEventFields } from './acp-connection-events.js';
 
 export interface ACPConnectionEventState {
   activeWriter: ((chunk: any) => Promise<void>) | null;

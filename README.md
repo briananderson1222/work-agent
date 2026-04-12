@@ -1,6 +1,6 @@
 # Stallion
 
-A local-first AI agent system with a pluggable project architecture. Built on Amazon Bedrock with dual runtime support (VoltAgent default, Strands optional).
+A local-first AI agent system with a pluggable project architecture. Works with local and hosted model providers, with dual runtime support (VoltAgent default, Strands optional).
 
 ## Overview
 
@@ -34,7 +34,11 @@ Stallion is a desktop-ready platform for running multiple AI agents with MCP too
 ### Prerequisites
 
 - Node.js 20+ (see `.nvmrc`)
-- AWS credentials configured for Bedrock access (`bedrock:InvokeModel`, `bedrock:InvokeModelWithResponseStream`, `bedrock:ListFoundationModels`)
+- A model path is recommended, but not required before first launch.
+- Stallion will detect what is already available on your machine:
+  - local Ollama on `http://localhost:11434`
+  - AWS credentials for Bedrock access
+  - runtime CLIs such as Claude or Codex
 
 ### Install & Run
 
@@ -46,7 +50,7 @@ cd stallion
 
 Dependencies are installed and the app is built automatically on first run. The server starts on `http://localhost:3141` and the UI on `http://localhost:3000`.
 
-Open `http://localhost:3000`, configure a Bedrock model in **Settings**, then start chatting with the default agent.
+Open `http://localhost:3000`. On first run, Stallion opens a setup launcher that points you to the right provider or runtime screen based on what it detects locally. If nothing is ready yet, `./stallion doctor` shows the exact missing pieces.
 
 Use `./stallion --help` to see all available commands.
 
@@ -78,6 +82,17 @@ All runtime data lives in `~/.stallion-ai/`:
 ```
 
 Set `STALLION_AI_DIR` to override the default location.
+
+## Self-Configuring Agents
+
+`stallion-control` is the built-in MCP surface that lets an agent manage Stallion itself. A managed agent can create or refine playbooks, delegate to child agents, inspect the workspace, and coordinate setup flows without leaving the platform.
+
+- **Platform control** — agent CRUD, playbook CRUD, project/config updates, scheduler control, UI navigation, and agent-to-agent messaging
+- **Safer delegation** — child agents inherit depth limits, blocked-tool lists, and approval restrictions
+- **Approval stack** — human approval remains the fallback, with inbox aggregation and an optional guardian review layer for approval-bound tools
+- **Richer output** — tool results can now surface structured chat blocks, notifications, and progress instead of only plain text
+
+See [Build a Self-Configuring Agent](docs/guides/self-configuring-agent.md) for the walkthrough and [examples/self-configuring-agent](examples/self-configuring-agent/README.md) for a concrete bootstrap bundle.
 
 ## Plugin System
 
@@ -173,6 +188,7 @@ Browse registries from the CLI:
 ```bash
 ./stallion registry              # Browse configured registry
 ./stallion registry <url>        # Set a remote registry URL
+./stallion registry install <id> # Install a plugin from the configured registry
 ```
 
 ### Plugin Bundles
@@ -184,10 +200,16 @@ Plugins ship pre-built IIFE bundles. The core loads them at runtime via `<script
 Use the CLI to scaffold a new plugin:
 
 ```bash
-./stallion init my-plugin
+./stallion create-plugin my-plugin --template=full
 cd my-plugin
 ./stallion build
 ```
+
+Templates:
+
+- `full` — layout + agent starter
+- `layout` — UI-only starter
+- `provider` — server-side starter with `serverModule`
 
 Or manually:
 
@@ -195,7 +217,7 @@ Or manually:
 2. Build with esbuild (see `examples/demo-layout/ ` for reference)
 3. Install with the CLI
 
-See `examples/demo-layout/` for a minimal working example.
+See [Build Your First Plugin](docs/guides/build-your-first-plugin.md) for the fast-start tutorial, then use `examples/demo-layout/` for a minimal working example.
 
 ### Developing Plugins Locally
 
@@ -463,6 +485,7 @@ See [Deployment Guide](docs/guides/deployment.md) for reverse proxy setup and en
 |-----|-------------|
 | [Architecture](docs/architecture.md) | System overview, diagrams, component map, data flows |
 | [Agent Development](docs/guides/agents.md) | Agent config, MCP tools, guardrails, approval flow |
+| [Self-Configuring Agent](docs/guides/self-configuring-agent.md) | `stallion-control`, delegation, playbook refinement, workspace bootstrap |
 | [Plugins](docs/guides/plugins.md) | Plugin architecture and development |
 | [Custom Commands](docs/guides/commands.md) | Slash command system |
 | [ACP](docs/guides/acp.md) | Agent Communication Protocol — connecting external runtimes |

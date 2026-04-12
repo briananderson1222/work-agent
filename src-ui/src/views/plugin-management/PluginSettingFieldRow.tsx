@@ -26,7 +26,9 @@ export function PluginSettingFieldRow({
       ) : field.type === 'select' ? (
         <select
           className="plugins__setting-input"
-          value={(value as string | number | readonly string[] | undefined) ?? ''}
+          value={
+            (value as string | number | readonly string[] | undefined) ?? ''
+          }
           onChange={(event) => onChange(event.target.value)}
         >
           <option value="">—</option>

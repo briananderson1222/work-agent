@@ -5,31 +5,30 @@ import {
   type SessionNotification,
 } from '@agentclientprotocol/sdk';
 import {
-  ACPStatus,
   type ACPConnectionConfig,
+  ACPStatus,
   type ACPStatusValue,
 } from '@stallion-ai/contracts/acp';
 import type { Context } from 'hono';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import { MonitoringEmitter } from '../monitoring/emitter.js';
 import { acpOps } from '../telemetry/metrics.js';
-import { ApprovalRegistry } from './approval-registry.js';
+import type {
+  ACPMode,
+  ACPSlashCommand,
+  ManagedTerminal,
+} from './acp-bridge-types.js';
 import { handleACPConnectionChat } from './acp-connection-chat.js';
-import { createACPConnectionClient } from './acp-connection-events.js';
 import {
-  initializeACPConnectionProcess,
-} from './acp-connection-lifecycle.js';
-import {
+  type ACPConnectionEventController,
   createACPConnectionEventController,
   runACPConnectionExtensionMethod,
   runACPConnectionExtensionNotification,
   runACPConnectionSessionUpdate,
-  type ACPConnectionEventController,
 } from './acp-connection-event-controller.js';
-import {
-  cleanupACPConnectionState,
-  getOrCreateACPAdapter,
-} from './acp-connection-state.js';
+import type { ACPConnectionEventState } from './acp-connection-event-state.js';
+import { createACPConnectionClient } from './acp-connection-events.js';
+import { initializeACPConnectionProcess } from './acp-connection-lifecycle.js';
 import {
   type ACPConnectionStatusView,
   getACPConnectionCommandOptions,
@@ -44,15 +43,14 @@ import {
   loadACPConnectionSession,
 } from './acp-connection-session.js';
 import {
+  cleanupACPConnectionState,
+  getOrCreateACPAdapter,
+} from './acp-connection-state.js';
+import {
   getACPCurrentModelName,
   hasACPConnectionAgent,
 } from './acp-connection-view.js';
-import type {
-  ACPMode,
-  ACPSlashCommand,
-  ManagedTerminal,
-} from './acp-bridge-types.js';
-import type { ACPConnectionEventState } from './acp-connection-event-state.js';
+import { ApprovalRegistry } from './approval-registry.js';
 
 export type ACPConnectionStatus =
   | 'disconnected'

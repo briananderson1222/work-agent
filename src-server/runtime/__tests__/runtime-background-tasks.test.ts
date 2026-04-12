@@ -91,13 +91,10 @@ describe('scheduleRuntimePluginUpdateCheck', () => {
     expect(fetchImpl).toHaveBeenCalledWith(
       'http://localhost:4111/api/plugins/check-updates',
     );
-    expect(eventBus.emit).toHaveBeenCalledWith(
-      'plugins:updates-available',
-      {
-        count: 1,
-        updates: [{ id: 'plugin-1' }],
-      },
-    );
+    expect(eventBus.emit).toHaveBeenCalledWith('plugins:updates-available', {
+      count: 1,
+      updates: [{ id: 'plugin-1' }],
+    });
     expect(logger.info).toHaveBeenCalledWith('Plugin updates available', {
       count: 1,
     });

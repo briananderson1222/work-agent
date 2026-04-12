@@ -8,8 +8,8 @@ import {
   useProjectQuery,
 } from '@stallion-ai/sdk';
 import { useRef, useState } from 'react';
-import { getKnowledgeTimeAgo } from './utils';
 import type { DocMeta, KnowledgeStatus } from './types';
+import { getKnowledgeTimeAgo } from './utils';
 
 export function KnowledgeSection({ slug }: { slug: string }) {
   const [scanning, setScanning] = useState(false);
@@ -80,7 +80,8 @@ export function KnowledgeSection({ slug }: { slug: string }) {
         {status && (
           <span className="knowledge-section__stat">
             {status.totalChunks} chunks · {status.documentCount} docs
-            {status.lastIndexed && ` · indexed ${getKnowledgeTimeAgo(status.lastIndexed)}`}
+            {status.lastIndexed &&
+              ` · indexed ${getKnowledgeTimeAgo(status.lastIndexed)}`}
           </span>
         )}
       </div>

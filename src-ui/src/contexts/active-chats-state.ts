@@ -1,15 +1,18 @@
 import type { ProviderKind } from '@stallion-ai/contracts/provider';
+import type { UIBlock } from '@stallion-ai/contracts/ui-block';
 import type { FileAttachment } from '../types';
 
 export type ChatRole = 'user' | 'assistant' | 'system';
 
 export type ChatContentPart = {
-  type: 'text' | 'tool' | 'file';
+  type: 'text' | 'tool' | 'file' | 'ui-block';
   content?: string;
   url?: string;
   mediaType?: string;
   name?: string;
   tool?: any;
+  uiBlock?: UIBlock;
+  toolCallId?: string;
 };
 
 export type ChatMessage = {
@@ -154,7 +157,6 @@ export function createDefaultChatState(
     queuedMessages: [],
     inputHistory: [],
     hasUnread: false,
-    provider: 'bedrock',
     providerOptions: {},
     orchestrationSessionStarted: false,
     ...metadata,
@@ -177,10 +179,9 @@ export function hydrateActiveChats(
       model: session.model,
       projectSlug: session.projectSlug,
       projectName: session.projectName,
-      provider: session.provider || 'bedrock',
+      provider: session.provider,
       providerOptions: session.providerOptions || {},
-      orchestrationSessionStarted:
-        session.orchestrationSessionStarted || false,
+      orchestrationSessionStarted: session.orchestrationSessionStarted || false,
       orchestrationProvider: session.orchestrationProvider,
       orchestrationModel: session.orchestrationModel,
       orchestrationStatus: session.orchestrationStatus,
@@ -203,7 +204,7 @@ export function serializeActiveChats(
       model: chat.model,
       projectSlug: chat.projectSlug,
       projectName: chat.projectName,
-      provider: chat.provider || 'bedrock',
+      provider: chat.provider,
       providerOptions: chat.providerOptions || {},
       orchestrationSessionStarted: chat.orchestrationSessionStarted || false,
       orchestrationProvider: chat.orchestrationProvider,
@@ -382,7 +383,9 @@ export function createEphemeralMessageState(
       : [];
   const latestTimestamp =
     backendMessages.length > 0
-      ? Math.max(...backendMessages.map((entry) => readTimestamp(entry.timestamp)))
+      ? Math.max(
+          ...backendMessages.map((entry) => readTimestamp(entry.timestamp)),
+        )
       : now();
   return {
     ...chat,

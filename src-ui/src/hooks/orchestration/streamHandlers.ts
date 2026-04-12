@@ -1,12 +1,17 @@
 import { activeChatsStore } from '../../contexts/active-chats-store';
+import { extractUIBlocks } from '../../utils/uiBlocks';
 import {
   createAssistantStreamingMessage,
   upsertTextPart,
   upsertToolPart,
+  upsertToolResultBlocks,
 } from './messageParts';
+import { notifyToolCompletion } from './toolActivityNotifications';
 import type { OrchestrationEvent } from './types';
 
-function getStreamingMessage(chat: ReturnType<typeof activeChatsStore.getSnapshot>[string]) {
+function getStreamingMessage(
+  chat: ReturnType<typeof activeChatsStore.getSnapshot>[string],
+) {
   return chat.streamingMessage || createAssistantStreamingMessage();
 }
 
@@ -70,6 +75,7 @@ export function handleToolStartedEvent(
           toolName: event.toolName,
           args: event.arguments || {},
           state: 'running',
+          activityAt: event.createdAt,
         },
       ),
     },
@@ -93,6 +99,7 @@ export function handleToolProgressEvent(
         {
           state: 'running',
           progressMessage: event.message,
+          activityAt: event.createdAt,
         },
       ),
     },
@@ -110,10 +117,8 @@ export function handleToolCompletedEvent(
     isProcessingStep: false,
     streamingMessage: {
       ...streamingMessage,
-      contentParts: upsertToolPart(
-        streamingMessage.contentParts,
-        event.toolCallId,
-        {
+      contentParts: upsertToolResultBlocks(
+        upsertToolPart(streamingMessage.contentParts, event.toolCallId, {
           name: event.toolName,
           toolName: event.toolName,
           state:
@@ -124,8 +129,12 @@ export function handleToolCompletedEvent(
                 : 'error',
           result: event.output,
           error: event.error,
-        },
+        }),
+        event.toolCallId,
+        extractUIBlocks(event.output),
       ),
     },
   });
+
+  notifyToolCompletion(event, chat);
 }

@@ -33,6 +33,7 @@ import type {
 interface ProviderEntry {
   provider: any;
   source: string;
+  builtin: boolean;
 }
 
 // type -> workspace -> entry  (workspace '*' = global)
@@ -44,10 +45,11 @@ const additiveStore = new Map<string, ProviderEntry[]>();
 export function registerProvider(
   type: string,
   provider: any,
-  opts?: { layout?: string; source?: string },
+  opts?: { layout?: string; source?: string; builtin?: boolean },
 ): void {
   const ws = opts?.layout ?? '*';
   const source = opts?.source ?? 'unknown';
+  const builtin = opts?.builtin ?? false;
   // For additive types, push to array
   if (
     type === 'pluginRegistry' ||
@@ -58,12 +60,12 @@ export function registerProvider(
     type === 'providerAdapter'
   ) {
     if (!additiveStore.has(type)) additiveStore.set(type, []);
-    additiveStore.get(type)!.push({ provider, source });
+    additiveStore.get(type)!.push({ provider, source, builtin });
     return;
   }
   // Singleton types
   if (!store.has(type)) store.set(type, new Map());
-  store.get(type)!.set(ws, { provider, source });
+  store.get(type)!.set(ws, { provider, source, builtin });
 }
 
 export function getProvider<T>(type: string, layout?: string): T | null {
@@ -99,18 +101,35 @@ export function clearAll(): void {
 export function clearPluginProviders(): void {
   store.clear();
   for (const [type, entries] of additiveStore) {
-    const builtIn = entries.filter((e) => BUILTIN_SOURCES.has(e.source));
+    const builtIn = entries.filter((entry) => entry.builtin);
     if (builtIn.length > 0) additiveStore.set(type, builtIn);
     else additiveStore.delete(type);
   }
 }
 
-const BUILTIN_SOURCES = new Set(['bedrock', 'claude', 'codex']);
-
 // ── Provider Adapters ──────────────────────────────────
 
 export function registerProviderAdapter(adapter: ProviderAdapterShape): void {
-  registerProvider('providerAdapter', adapter, { source: adapter.provider });
+  const existing = additiveStore.get('providerAdapter') ?? [];
+  additiveStore.set(
+    'providerAdapter',
+    existing.filter(
+      (entry) =>
+        (entry.provider as ProviderAdapterShape).provider !== adapter.provider,
+    ),
+  );
+  registerProvider('providerAdapter', adapter, {
+    source: adapter.provider,
+    builtin: adapter.metadata.builtin ?? false,
+  });
+}
+
+export function registerProviderAdapters(
+  adapters: ProviderAdapterShape[],
+): void {
+  for (const adapter of adapters) {
+    registerProviderAdapter(adapter);
+  }
 }
 
 export function getProviderAdapters(): ProviderAdapterShape[] {
@@ -203,7 +222,9 @@ export function registerIntegrationRegistryProvider(
 export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
   const entries = listProviders('integrationRegistry');
   if (entries.length === 0) return new DefaultIntegrationRegistryProvider();
-  const providers = entries.map((entry) => entry.provider as IIntegrationRegistryProvider);
+  const providers = entries.map(
+    (entry) => entry.provider as IIntegrationRegistryProvider,
+  );
   return createIntegrationRegistryProvider(providers);
 }
 

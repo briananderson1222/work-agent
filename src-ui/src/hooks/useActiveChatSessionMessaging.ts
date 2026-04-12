@@ -1,26 +1,37 @@
+import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useCallback } from 'react';
-import {
-  conversationsStore,
-  useConversationActions,
-} from '../contexts/ConversationsContext';
+import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import {
   activeChatsStore,
   type ChatUIState,
 } from '../contexts/active-chats-store';
-import { useActiveChatActions } from '../contexts/ActiveChatsContext';
-import { log } from '../utils/logger';
 import {
-  sendOrchestrationTurn,
-  startOrchestrationSession,
-} from './useOrchestration';
-import { useStreamingMessage } from './useStreamingMessage';
+  conversationsStore,
+  useConversationActions,
+} from '../contexts/ConversationsContext';
+import type { FileAttachment } from '../types';
+import { runtimeConnectionIdToProviderKind } from '../utils/execution';
+import { log } from '../utils/logger';
 import {
   type ActiveChatConversationMessage,
   buildOutgoingUserMessage,
   buildPostSendState,
 } from './useActiveChatSessions.helpers';
-import type { FileAttachment } from '../types';
+import {
+  sendOrchestrationTurn,
+  startOrchestrationSession,
+} from './useOrchestration';
+import { useStreamingMessage } from './useStreamingMessage';
+
+function inferRuntimeProvider(agentSlug: string): ProviderKind | undefined {
+  if (!agentSlug.startsWith('__runtime:')) {
+    return undefined;
+  }
+  return runtimeConnectionIdToProviderKind(
+    agentSlug.slice('__runtime:'.length),
+  );
+}
 
 export function useSendMessage(
   apiBase: string,
@@ -94,9 +105,12 @@ export function useSendMessage(
       try {
         const title = !conversationId ? currentState?.title : undefined;
         const model = currentState?.model;
-        const provider = currentState?.provider || 'bedrock';
+        const provider =
+          currentState?.orchestrationProvider ||
+          currentState?.provider ||
+          inferRuntimeProvider(agentSlug);
 
-        if (provider !== 'bedrock') {
+        if (provider && provider !== 'bedrock') {
           if (attachments && attachments.length > 0) {
             throw new Error(
               'Attachments are not supported yet for Claude or Codex sessions.',
@@ -164,14 +178,11 @@ export function useSendMessage(
 
           clearStreamingMessage(sessionId);
 
-          const {
-            messages,
-            noticeKind,
-            effectiveFinishReason,
-          } = buildPostSendState(
-            backendMessages as ActiveChatConversationMessage[],
-            finishReason,
-          );
+          const { messages, noticeKind, effectiveFinishReason } =
+            buildPostSendState(
+              backendMessages as ActiveChatConversationMessage[],
+              finishReason,
+            );
 
           const updates: Partial<ChatUIState> = {
             status: 'idle',
@@ -232,7 +243,8 @@ export function useSendMessage(
             updatedState.queuedMessages.length > 0 &&
             !updatedState.isEditingQueue
           ) {
-            const [nextMessage, ...remainingQueue] = updatedState.queuedMessages;
+            const [nextMessage, ...remainingQueue] =
+              updatedState.queuedMessages;
             updateChat(sessionId, { queuedMessages: remainingQueue });
             setTimeout(() => {
               sendMessage(

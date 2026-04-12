@@ -1,10 +1,10 @@
 import {
   existsSync,
+  mkdirSync,
   readdirSync,
+  readFileSync,
   rmSync,
   writeFileSync,
-  readFileSync,
-  mkdirSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import type {
@@ -17,18 +17,18 @@ import type {
   ProjectMetadata,
 } from '@stallion-ai/contracts/project';
 import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
-import type {
-  ConversationRecord,
-  DocumentRecord,
-  IStorageAdapter,
-  LayoutAgentReference,
-} from './storage-adapter.js';
 import {
   listProjectSlugs,
   readJsonFile,
   resolveProjectSlugById,
   writeJsonFile,
 } from './file-storage-helpers.js';
+import type {
+  ConversationRecord,
+  DocumentRecord,
+  IStorageAdapter,
+  LayoutAgentReference,
+} from './storage-adapter.js';
 
 export class FileStorageAdapter implements IStorageAdapter {
   constructor(private readonly projectHomeDir: string) {}
@@ -41,10 +41,13 @@ export class FileStorageAdapter implements IStorageAdapter {
       .flatMap((entry) => {
         const projectPath = join(dir, entry.name, 'project.json');
         if (!existsSync(projectPath)) return [];
-        const config: ProjectConfig = JSON.parse(readFileSync(projectPath, 'utf-8'));
+        const config: ProjectConfig = JSON.parse(
+          readFileSync(projectPath, 'utf-8'),
+        );
         const layoutsDir = join(dir, entry.name, 'layouts');
         const layoutCount = existsSync(layoutsDir)
-          ? readdirSync(layoutsDir).filter((file) => file.endsWith('.json')).length
+          ? readdirSync(layoutsDir).filter((file) => file.endsWith('.json'))
+              .length
           : 0;
         return [
           {
@@ -237,7 +240,12 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   private conversationsFile(projectSlug: string): string {
-    return join(this.projectHomeDir, 'projects', projectSlug, 'conversations.json');
+    return join(
+      this.projectHomeDir,
+      'projects',
+      projectSlug,
+      'conversations.json',
+    );
   }
 
   private readConversations(projectSlug: string): ConversationRecord[] {
@@ -256,7 +264,9 @@ export class FileStorageAdapter implements IStorageAdapter {
     opts?: { limit?: number; offset?: number },
   ): ConversationRecord[] {
     let records = this.readConversations(projectSlug);
-    records.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    records.sort((left, right) =>
+      right.updatedAt.localeCompare(left.updatedAt),
+    );
     if (opts?.offset) records = records.slice(opts.offset);
     if (opts?.limit) records = records.slice(0, opts.limit);
     return records;
@@ -273,9 +283,14 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   saveConversation(record: ConversationRecord): void {
-    const projectSlug = resolveProjectSlugById(this.projectHomeDir, record.projectId);
+    const projectSlug = resolveProjectSlugById(
+      this.projectHomeDir,
+      record.projectId,
+    );
     const records = this.readConversations(projectSlug);
-    const index = records.findIndex((conversation) => conversation.id === record.id);
+    const index = records.findIndex(
+      (conversation) => conversation.id === record.id,
+    );
     if (index >= 0) records[index] = record;
     else records.push(record);
     this.writeConversations(projectSlug, records);
@@ -326,7 +341,10 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   saveDocument(record: DocumentRecord): void {
-    const projectSlug = resolveProjectSlugById(this.projectHomeDir, record.projectId);
+    const projectSlug = resolveProjectSlugById(
+      this.projectHomeDir,
+      record.projectId,
+    );
     const records = this.readDocuments(projectSlug);
     const index = records.findIndex((document) => document.id === record.id);
     if (index >= 0) records[index] = record;

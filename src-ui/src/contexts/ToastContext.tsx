@@ -17,7 +17,7 @@ type Toast = {
   message: string;
   sessionId?: string;
   duration?: number;
-  type?: 'info' | 'tool-approval';
+  type?: 'info' | 'tool-approval' | 'tool-activity';
   toolName?: string;
   agentName?: string;
   conversationTitle?: string;
@@ -149,6 +149,63 @@ class ToastStore {
     return id;
   }
 
+  showToolActivity(options: {
+    sessionId: string;
+    toolName: string;
+    agentName: string;
+    conversationTitle?: string;
+    detail?: string;
+    status: 'completed' | 'cancelled' | 'error';
+    onNavigate?: () => void;
+    duration?: number;
+  }) {
+    const id = `tool-${Date.now()}-${Math.random()}`;
+    const verb =
+      options.status === 'error'
+        ? 'failed'
+        : options.status === 'cancelled'
+          ? 'cancelled'
+          : 'finished';
+
+    const toast: Toast = {
+      id,
+      message: `${options.agentName} ${verb} ${options.toolName}`,
+      sessionId: options.sessionId,
+      type: 'tool-activity',
+      toolName: options.toolName,
+      agentName: options.agentName,
+      conversationTitle: options.conversationTitle,
+      onNavigate: options.onNavigate,
+      duration:
+        options.duration ??
+        (options.status === 'error'
+          ? 9000
+          : options.status === 'cancelled'
+            ? 7000
+            : 6000),
+      metadata: options.detail ? { detail: options.detail } : undefined,
+    };
+
+    this.toasts.push(toast);
+    this.history.unshift({ ...toast, timestamp: Date.now(), dismissed: false });
+
+    if (this.history.length > this.maxHistory) {
+      this.history = this.history.slice(0, this.maxHistory);
+    }
+
+    this.notify();
+    this.notifyHistory();
+
+    if (toast.duration && toast.duration > 0) {
+      const timeout = setTimeout(() => {
+        this.dismiss(id);
+      }, toast.duration);
+      this.timeouts.set(id, timeout);
+    }
+
+    return id;
+  }
+
   dismiss(id: string) {
     const timeout = this.timeouts.get(id);
     if (timeout) {
@@ -199,6 +256,16 @@ const ToastContext = createContext<{
     actions: ToastAction[];
     onNavigate?: () => void;
   }) => string;
+  showToolActivity: (options: {
+    sessionId: string;
+    toolName: string;
+    agentName: string;
+    conversationTitle?: string;
+    detail?: string;
+    status: 'completed' | 'cancelled' | 'error';
+    onNavigate?: () => void;
+    duration?: number;
+  }) => string;
   dismissToast: (id: string) => void;
   clearToasts: () => void;
   clearHistory: () => void;
@@ -233,6 +300,22 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [],
   );
 
+  const showToolActivity = useCallback(
+    (options: {
+      sessionId: string;
+      toolName: string;
+      agentName: string;
+      conversationTitle?: string;
+      detail?: string;
+      status: 'completed' | 'cancelled' | 'error';
+      onNavigate?: () => void;
+      duration?: number;
+    }) => {
+      return toastStore.showToolActivity(options);
+    },
+    [],
+  );
+
   const dismissToast = useCallback((id: string) => {
     toastStore.dismiss(id);
   }, []);
@@ -250,6 +333,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       value={{
         showToast,
         showToolApproval,
+        showToolActivity,
         dismissToast,
         clearToasts,
         clearHistory,

@@ -1,3 +1,4 @@
+import type { LayoutDefinition } from '@stallion-ai/contracts/layout';
 import {
   _setApiBase,
   _setLayoutContext,
@@ -6,23 +7,20 @@ import {
   useProjectLayoutQuery,
   useProjectLayoutsQuery,
 } from '@stallion-ai/sdk';
-import type { LayoutDefinition } from '@stallion-ai/contracts/layout';
 import { type ReactNode, useEffect } from 'react';
-import {
-  useActiveChatActions,
-} from '../contexts/ActiveChatsContext';
-import {
-  useCreateChatSession,
-  useLaunchChat,
-  useOpenConversation,
-  useSendMessage,
-} from '../hooks/useActiveChatSessions';
+import { useActiveChatActions } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useConversations } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
+import {
+  useCreateChatSession,
+  useLaunchChat,
+  useOpenConversation,
+  useSendMessage,
+} from '../hooks/useActiveChatSessions';
 import {
   configureProvider,
   getActiveProviderId,

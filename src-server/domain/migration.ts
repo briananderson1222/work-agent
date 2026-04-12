@@ -33,20 +33,6 @@ export async function runStartupMigrations(
       capabilities: ['vectordb'] as ('llm' | 'embedding' | 'vectordb')[],
     });
   }
-  if (!existing.some((c) => c.capabilities.includes('llm'))) {
-    storageAdapter.saveProviderConnection({
-      id: 'bedrock-default',
-      type: 'bedrock',
-      name: 'Amazon Bedrock',
-      config: { region: '' },
-      enabled: true,
-      capabilities: ['llm', 'embedding'] as (
-        | 'llm'
-        | 'embedding'
-        | 'vectordb'
-      )[],
-    });
-  }
 
   const projectsDir = join(projectHomeDir, 'projects');
 

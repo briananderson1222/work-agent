@@ -2,6 +2,7 @@ import { createReadStream, existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { createLogger } from '../utils/logger.js';
 import {
   ACHIEVEMENTS,
   type Achievement,
@@ -13,7 +14,6 @@ import {
   mergeRescannedUsageStats,
   type UsageStats,
 } from './usage-aggregator-state.js';
-import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger({ name: 'usage-aggregator' });
 
@@ -138,7 +138,12 @@ export class UsageAggregator {
           if (!line.trim()) continue;
           try {
             const message = JSON.parse(line);
-            applyMessageToUsageStats(currentStats, message, agentSlug, agentModel);
+            applyMessageToUsageStats(
+              currentStats,
+              message,
+              agentSlug,
+              agentModel,
+            );
           } catch (error) {
             logger.error('Failed to parse message', { file, error });
           }

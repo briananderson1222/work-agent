@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
 import type { IntegrationViewModel } from '@stallion-ai/sdk';
+import { describe, expect, test } from 'vitest';
 import {
   filterIntegrationItems,
   formToMcpJson,

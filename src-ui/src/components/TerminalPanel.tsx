@@ -1,7 +1,4 @@
-import {
-  executeCodingCommand,
-  fetchTerminalPort,
-} from '@stallion-ai/sdk';
+import { executeCodingCommand, fetchTerminalPort } from '@stallion-ai/sdk';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal } from '@xterm/xterm';
 import { useEffect, useRef, useState } from 'react';

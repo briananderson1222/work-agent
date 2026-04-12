@@ -4,8 +4,9 @@ import {
   useConnectionStatus,
   useConnections,
 } from '@stallion-ai/connect';
-import { NotificationHistory } from '../NotificationHistory';
+import { useNotificationsQuery } from '@stallion-ai/sdk';
 import { checkServerHealth } from '../../lib/serverHealth';
+import { NotificationHistory } from '../NotificationHistory';
 import { HelpMenu } from './HelpMenu';
 import { OverflowMenu } from './OverflowMenu';
 import type { HeaderHelpPrompt } from './utils';
@@ -60,6 +61,9 @@ export function HeaderActions({
     checkHealth: checkServerHealth,
     pollInterval: 15_000,
   });
+  const { data: activeNotifications = [] } = useNotificationsQuery({
+    status: ['delivered', 'pending'],
+  });
 
   return (
     <>
@@ -100,6 +104,11 @@ export function HeaderActions({
               <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
               <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
             </svg>
+            {activeNotifications.length > 0 && (
+              <span className="app-toolbar__notification-badge">
+                {activeNotifications.length}
+              </span>
+            )}
           </button>
           <NotificationHistory
             isOpen={showNotifications}

@@ -33,7 +33,9 @@ export function MonitoringHeader({
         </div>
         <div className="stat-item">
           <span className="stat-label">Running:</span>
-          <span className="stat-value">{stats?.summary.runningAgents || 0}</span>
+          <span className="stat-value">
+            {stats?.summary.runningAgents || 0}
+          </span>
         </div>
       </div>
 

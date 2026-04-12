@@ -10,7 +10,11 @@ export interface ChatMessage {
 interface PrepareChatRequestContext {
   ctx: Pick<
     RuntimeContext,
-    'providerService' | 'knowledgeService' | 'feedbackService' | 'storageAdapter' | 'logger'
+    | 'providerService'
+    | 'knowledgeService'
+    | 'feedbackService'
+    | 'storageAdapter'
+    | 'logger'
   >;
   input: string | ChatMessage[];
   options: Record<string, any>;
@@ -39,14 +43,13 @@ export async function prepareChatRequest(
         options.model = resolved.model;
       }
       if (resolved.providerId && resolved.providerId !== 'bedrock') {
-        const connections = context.ctx.providerService.listProviderConnections();
+        const connections =
+          context.ctx.providerService.listProviderConnections();
         resolvedProviderConn =
-          connections.find((connection) => connection.id === resolved.providerId) ??
-          null;
-        if (
-          resolvedProviderConn &&
-          resolvedProviderConn.type !== 'bedrock'
-        ) {
+          connections.find(
+            (connection) => connection.id === resolved.providerId,
+          ) ?? null;
+        if (resolvedProviderConn && resolvedProviderConn.type !== 'bedrock') {
           useAlternateProvider = true;
         }
       }

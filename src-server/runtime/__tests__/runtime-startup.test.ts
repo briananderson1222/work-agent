@@ -63,7 +63,63 @@ describe('initializeRuntimeUsageAggregator', () => {
 });
 
 describe('seedRuntimeDefaultProviderConnection', () => {
-  test('seeds bedrock when no providers exist and credentials are available', async () => {
+  test('still seeds a default llm provider when only non-llm providers exist', async () => {
+    const storageAdapter = {
+      listProviderConnections: vi.fn(() => [
+        {
+          id: 'lancedb-builtin',
+          type: 'lancedb',
+          enabled: true,
+          capabilities: ['vectordb'],
+        },
+      ]),
+      saveProviderConnection: vi.fn(),
+    };
+    const logger = { info: vi.fn(), debug: vi.fn() };
+
+    await seedRuntimeDefaultProviderConnection({
+      storageAdapter: storageAdapter as any,
+      appConfig: {},
+      logger,
+      checkOllamaAvailability: async () => true,
+      checkBedrockCredentials: async () => true,
+    });
+
+    expect(storageAdapter.saveProviderConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'ollama',
+      }),
+    );
+  });
+
+  test('seeds ollama when no providers exist and a local runtime is reachable', async () => {
+    const storageAdapter = {
+      listProviderConnections: vi.fn(() => []),
+      saveProviderConnection: vi.fn(),
+    };
+    const logger = { info: vi.fn(), debug: vi.fn() };
+
+    await seedRuntimeDefaultProviderConnection({
+      storageAdapter: storageAdapter as any,
+      appConfig: {},
+      logger,
+      checkOllamaAvailability: async () => true,
+      checkBedrockCredentials: async () => true,
+    });
+
+    expect(storageAdapter.saveProviderConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'ollama',
+        config: { baseUrl: 'http://localhost:11434' },
+        capabilities: ['llm', 'embedding'],
+      }),
+    );
+    expect(logger.info).toHaveBeenCalledWith(
+      'Seeded default Ollama provider connection',
+    );
+  });
+
+  test('falls back to bedrock when ollama is unavailable and credentials are available', async () => {
     const storageAdapter = {
       listProviderConnections: vi.fn(() => []),
       saveProviderConnection: vi.fn(),
@@ -74,6 +130,7 @@ describe('seedRuntimeDefaultProviderConnection', () => {
       storageAdapter: storageAdapter as any,
       appConfig: { region: 'us-west-2' },
       logger,
+      checkOllamaAvailability: async () => false,
       checkBedrockCredentials: async () => true,
     });
 
@@ -85,6 +142,29 @@ describe('seedRuntimeDefaultProviderConnection', () => {
     );
     expect(logger.info).toHaveBeenCalledWith(
       'Seeded default Bedrock provider connection',
+    );
+  });
+
+  test('seeds bedrock without a region override when region is unset', async () => {
+    const storageAdapter = {
+      listProviderConnections: vi.fn(() => []),
+      saveProviderConnection: vi.fn(),
+    };
+    const logger = { info: vi.fn(), debug: vi.fn() };
+
+    await seedRuntimeDefaultProviderConnection({
+      storageAdapter: storageAdapter as any,
+      appConfig: {},
+      logger,
+      checkOllamaAvailability: async () => false,
+      checkBedrockCredentials: async () => true,
+    });
+
+    expect(storageAdapter.saveProviderConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'bedrock',
+        config: {},
+      }),
     );
   });
 });
@@ -140,5 +220,57 @@ describe('prepareRuntimeStartup', () => {
     expect(runStartupMigrations).toHaveBeenCalledWith('/tmp/project');
     expect(result).toBe(usageAggregator);
     expect(timers).toHaveLength(1);
+  });
+
+  test('seeds an llm provider after migrations add only vectordb providers', async () => {
+    const timers: NodeJS.Timeout[] = [];
+    const providerConnections: Array<{
+      id: string;
+      type: string;
+      enabled: boolean;
+      capabilities: string[];
+    }> = [];
+    const storageAdapter = {
+      listProjects: vi.fn(() => [{ slug: 'project-a' }]),
+      listProviderConnections: vi.fn(() => providerConnections),
+      saveProviderConnection: vi.fn((connection) => {
+        providerConnections.push(connection);
+      }),
+    };
+    const configLoader = {
+      loadPluginOverrides: vi.fn(async () => ({})),
+    };
+    const skillService = {
+      discoverSkills: vi.fn(async () => {}),
+    };
+    const logger = { info: vi.fn(), debug: vi.fn() };
+    const runStartupMigrations = vi.fn(async () => {
+      providerConnections.push({
+        id: 'lancedb-builtin',
+        type: 'lancedb',
+        enabled: true,
+        capabilities: ['vectordb'],
+      });
+    });
+
+    await prepareRuntimeStartup({
+      projectHomeDir: '/tmp/project',
+      appConfig: {},
+      storageAdapter: storageAdapter as any,
+      configLoader,
+      skillService,
+      logger,
+      timers,
+      runStartupMigrations,
+      checkOllamaAvailability: async () => true,
+      createUsageAggregator: () =>
+        ({ fullRescan: vi.fn(async () => {}) }) as any,
+    });
+
+    expect(storageAdapter.saveProviderConnection).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'ollama',
+      }),
+    );
   });
 });

@@ -31,7 +31,9 @@ describe('chat-model-override helpers', () => {
     const tempAgent = { id: 'writer:alt' };
     const activeAgents = new Map<string, any>();
     const createTempAgent = vi.fn().mockResolvedValue({ raw: tempAgent });
-    const createBedrockModel = vi.fn().mockResolvedValue({ id: 'resolved-model' });
+    const createBedrockModel = vi
+      .fn()
+      .mockResolvedValue({ id: 'resolved-model' });
     const logger = {
       warn: vi.fn(),
       info: vi.fn(),
@@ -69,9 +71,12 @@ describe('chat-model-override helpers', () => {
       tools: [{ name: 'tool-a' }],
     });
     expect(activeAgents.get('writer:sonnet')).toBe(tempAgent);
-    expect(logger.info).toHaveBeenCalledWith('Created agent with model override', {
-      slug: 'writer',
-      modelOverride: 'sonnet',
-    });
+    expect(logger.info).toHaveBeenCalledWith(
+      'Created agent with model override',
+      {
+        slug: 'writer',
+        modelOverride: 'sonnet',
+      },
+    );
   });
 });

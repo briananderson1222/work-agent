@@ -71,3 +71,37 @@ export function buildPlaybookExportMarkdown(form: {
 export function buildPlaybookFilename(name: string) {
   return `${name.replace(/[^a-zA-Z0-9_-]/g, '-')}.md`;
 }
+
+export function formatPlaybookStatsSummary(playbook: Playbook): string | null {
+  const runs = playbook.stats?.runs ?? 0;
+  const score = playbook.stats?.qualityScore;
+
+  if (runs === 0 && score == null) {
+    return null;
+  }
+
+  const parts = [`${runs} run${runs === 1 ? '' : 's'}`];
+  if (score != null) {
+    parts.push(`${score}% success`);
+  }
+  return parts.join(' · ');
+}
+
+export function formatPlaybookProvenanceSummary(
+  playbook: Playbook,
+): string | null {
+  const source =
+    playbook.provenance?.updatedFrom ?? playbook.provenance?.createdFrom;
+  if (!source) {
+    return null;
+  }
+  if (source.kind === 'agent') {
+    return source.agentSlug
+      ? `refined by ${source.agentSlug}`
+      : 'refined by agent';
+  }
+  if (source.kind === 'plugin') {
+    return 'provided by plugin';
+  }
+  return 'authored locally';
+}

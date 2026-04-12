@@ -1,4 +1,7 @@
-import type { MonitoringEvent, MonitoringStats } from '../../contexts/MonitoringContext';
+import type {
+  MonitoringEvent,
+  MonitoringStats,
+} from '../../contexts/MonitoringContext';
 import { getAgentColor } from '../monitoring-utils';
 import {
   getHistoricalAgentSlugs,
@@ -37,7 +40,10 @@ export function MonitoringSidebar({
 
       <div className="agent-list">
         {activeAgents.map((agent) => {
-          const runningConversations = getRunningConversations(events, agent.slug);
+          const runningConversations = getRunningConversations(
+            events,
+            agent.slug,
+          );
           const isSelected = selectedAgents.includes(agent.slug);
           const agentColor = getAgentColor(agent.slug);
 
@@ -72,26 +78,27 @@ export function MonitoringSidebar({
                 </span>
               </div>
 
-              {agent.status === 'running' && runningConversations.length > 0 && (
-                <div className="running-conversations">
-                  <div className="conversations-label">Active Chats</div>
-                  {runningConversations.map((conversation) => (
-                    <div
-                      key={conversation.id}
-                      className="conversation-item"
-                      style={{ borderLeftColor: conversation.color }}
-                      onClick={(event) => {
-                        event.stopPropagation();
-                        onConversationClick(conversation.id, agent.slug);
-                      }}
-                    >
-                      <span className="conversation-id">
-                        {conversation.id.split(':').pop()?.substring(0, 8)}...
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              {agent.status === 'running' &&
+                runningConversations.length > 0 && (
+                  <div className="running-conversations">
+                    <div className="conversations-label">Active Chats</div>
+                    {runningConversations.map((conversation) => (
+                      <div
+                        key={conversation.id}
+                        className="conversation-item"
+                        style={{ borderLeftColor: conversation.color }}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onConversationClick(conversation.id, agent.slug);
+                        }}
+                      >
+                        <span className="conversation-id">
+                          {conversation.id.split(':').pop()?.substring(0, 8)}...
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
 
               <div className="agent-meta">
                 <div className="meta-item">

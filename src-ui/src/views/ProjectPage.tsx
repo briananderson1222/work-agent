@@ -2,22 +2,25 @@ import {
   fetchAvailableLayouts,
   useAddLayoutFromPluginMutation,
   useCreateLayoutMutation,
+  useKnowledgeDocsQuery,
+  useKnowledgeNamespacesQuery,
+  useKnowledgeStatusQuery,
   useProjectConversationsQuery,
   useProjectLayoutsQuery,
   useProjectQuery,
   useUpdateProjectMutation,
-  useKnowledgeDocsQuery,
-  useKnowledgeNamespacesQuery,
-  useKnowledgeStatusQuery,
 } from '@stallion-ai/sdk';
 import { useEffect, useState } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useGitLog, useGitStatus } from '../hooks/useGitStatus';
-import { ProjectAddLayoutModal, ProjectLayoutsSection } from './project-page/ProjectLayoutsSection';
 import { ProjectConversationsSection } from './project-page/ProjectConversationsSection';
-import { ProjectPageHeader } from './project-page/ProjectPageHeader';
 import { ProjectKnowledgeSection } from './project-page/ProjectKnowledgeSection';
+import {
+  ProjectAddLayoutModal,
+  ProjectLayoutsSection,
+} from './project-page/ProjectLayoutsSection';
+import { ProjectPageHeader } from './project-page/ProjectPageHeader';
 import type { AvailableLayout, ConversationRecord } from './project-page/types';
 import './ProjectPage.css';
 
@@ -140,7 +143,9 @@ export function ProjectPage({ slug }: { slug: string }) {
                 {gitLog.map((commit) => (
                   <div key={commit.sha} className="project-page__git-commit">
                     <span className="project-page__git-sha">{commit.sha}</span>
-                    <span className="project-page__git-msg">{commit.message}</span>
+                    <span className="project-page__git-msg">
+                      {commit.message}
+                    </span>
                     <span className="project-page__git-meta">
                       {commit.author} · {commit.relativeTime}
                     </span>

@@ -42,14 +42,6 @@ class MonitoringErrorBoundary extends Component<
   }
 }
 
-export function MonitoringViewBoundary({
-  children,
-}: {
-  children: ReactNode;
-}) {
-  return (
-    <MonitoringErrorBoundary>
-      {children}
-    </MonitoringErrorBoundary>
-  );
+export function MonitoringViewBoundary({ children }: { children: ReactNode }) {
+  return <MonitoringErrorBoundary>{children}</MonitoringErrorBoundary>;
 }

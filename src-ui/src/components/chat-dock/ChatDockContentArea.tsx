@@ -64,7 +64,9 @@ export function ChatDockContentArea({
             onClick={onCloseHistory}
           />
           <ConversationHistory
-            sessions={sessions.filter((s) => s.conversationId) as SessionListItem[]}
+            sessions={
+              sessions.filter((s) => s.conversationId) as SessionListItem[]
+            }
             activeSessionId={activeSessionId}
             agents={agents}
             onTitleUpdate={onTitleUpdate}

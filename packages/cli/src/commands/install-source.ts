@@ -1,10 +1,5 @@
 import { execSync } from 'node:child_process';
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  rmSync,
-} from 'node:fs';
+import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { isGitUrl, parseGitSource } from './helpers.js';
 
@@ -13,7 +8,8 @@ export function preparePluginSource(
   pluginDir: string,
   stdio: 'pipe' | 'inherit',
 ): void {
-  if (existsSync(pluginDir)) rmSync(pluginDir, { recursive: true, force: true });
+  if (existsSync(pluginDir))
+    rmSync(pluginDir, { recursive: true, force: true });
 
   if (isGitUrl(source)) {
     const { url, branch } = parseGitSource(source);

@@ -1,4 +1,8 @@
-export type ProviderKind = 'bedrock' | 'claude' | 'codex';
+export const PROVIDER_BEDROCK = 'bedrock';
+export const PROVIDER_CLAUDE = 'claude';
+export const PROVIDER_CODEX = 'codex';
+
+export type ProviderKind = string;
 
 export interface ProviderSessionStartInput {
   threadId: string;

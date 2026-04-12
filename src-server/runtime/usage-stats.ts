@@ -176,10 +176,7 @@ export function buildConversationStatsUpdate({
   const newInputTokens = stats.inputTokens + inputTokens;
   const newOutputTokens = stats.outputTokens + outputTokens;
   const contextTokens =
-    systemPromptTokens +
-    mcpServerTokens +
-    userMessageTokens +
-    newOutputTokens;
+    systemPromptTokens + mcpServerTokens + userMessageTokens + newOutputTokens;
 
   const updatedStats: ConversationStats = {
     inputTokens: newInputTokens,

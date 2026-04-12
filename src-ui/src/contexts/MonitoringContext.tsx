@@ -1,8 +1,8 @@
+import { K } from '@shared/monitoring-keys';
 import {
   fetchMonitoringEvents,
   useMonitoringStatsQuery,
 } from '@stallion-ai/sdk';
-import { K } from '@shared/monitoring-keys';
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
 import { log } from '@/utils/logger';
 import { useApiBase } from './ApiBaseContext';
@@ -120,7 +120,10 @@ class MonitoringStore {
     try {
       this.isLoading = true;
       this.notify();
-      this.events = (await fetchMonitoringEvents(start, end)) as MonitoringEvent[];
+      this.events = (await fetchMonitoringEvents(
+        start,
+        end,
+      )) as MonitoringEvent[];
     } catch (error) {
       log.api('Failed to fetch historical events:', error);
     } finally {

@@ -8,9 +8,7 @@ describe('app-shell routing', () => {
       type: 'connections-provider-edit',
       id: 'demo',
     });
-    expect(
-      resolveViewFromPath('/projects/demo/layouts/coding'),
-    ).toEqual({
+    expect(resolveViewFromPath('/projects/demo/layouts/coding')).toEqual({
       type: 'layout',
       projectSlug: 'demo',
       layoutSlug: 'coding',

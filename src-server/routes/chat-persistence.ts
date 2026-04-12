@@ -26,15 +26,10 @@ export async function ensureChatConversation(options: {
   slug: string;
   input: string | ChatMessage[];
   title?: string;
+  metadata?: Record<string, unknown>;
 }): Promise<void> {
-  const {
-    conversationStorage,
-    conversationId,
-    userId,
-    slug,
-    input,
-    title,
-  } = options;
+  const { conversationStorage, conversationId, userId, slug, input, title } =
+    options;
   if (!conversationStorage || !conversationId || !userId) {
     return;
   }
@@ -57,7 +52,7 @@ export async function ensureChatConversation(options: {
     resourceId: slug,
     userId,
     title: resolvedTitle,
-    metadata: {},
+    metadata: options.metadata || {},
   });
 }
 

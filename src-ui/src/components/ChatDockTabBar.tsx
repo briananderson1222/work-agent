@@ -1,7 +1,5 @@
-import {
-  useRuntimeConnectionsQuery,
-} from '@stallion-ai/sdk';
 import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
+import { useRuntimeConnectionsQuery } from '@stallion-ai/sdk';
 import { useEffect, useRef, useState } from 'react';
 import { type AgentData, useAgents } from '../contexts/AgentsContext';
 import { useModels } from '../contexts/ModelsContext';
@@ -43,8 +41,9 @@ export function ChatDockTabBar({
   const newChatShortcut = useShortcutDisplay('dock.newChat');
   const openConversationShortcut = useShortcutDisplay('dock.openConversation');
 
-  const { data: runtimeConnections = [] } =
-    useRuntimeConnectionsQuery() as { data?: ConnectionConfig[] };
+  const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery() as {
+    data?: ConnectionConfig[];
+  };
 
   const tabListRef = useRef<HTMLDivElement>(null);
   const [showScrollButtons, setShowScrollButtons] = useState({

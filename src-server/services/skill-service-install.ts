@@ -24,7 +24,10 @@ interface RemoveSkillDeps {
   rediscover: () => Promise<void>;
 }
 
-function getSkillTargetDir(projectHomeDir: string, projectSlug?: string): string {
+function getSkillTargetDir(
+  projectHomeDir: string,
+  projectSlug?: string,
+): string {
   return projectSlug
     ? join(projectHomeDir, 'projects', projectSlug, 'skills')
     : join(projectHomeDir, 'skills');

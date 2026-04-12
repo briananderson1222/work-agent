@@ -11,13 +11,21 @@ import type {
 } from '../providers/model-provider-types.js';
 import { knowledgeOps } from '../telemetry/metrics.js';
 import {
-  DEFAULT_KNOWLEDGE_NAMESPACE,
-} from './knowledge-storage.js';
-import {
   buildKnowledgeInjectContext,
   buildKnowledgeRagContext,
   findKnowledgeDocumentNamespace,
 } from './knowledge-context.js';
+import {
+  deleteKnowledgeDocument,
+  getKnowledgeDocumentContent,
+  updateKnowledgeDocument,
+  uploadKnowledgeDocument,
+} from './knowledge-documents.js';
+import {
+  buildKnowledgeDirectoryTree,
+  listKnowledgeDocuments,
+  scanKnowledgeDirectories,
+} from './knowledge-filesystem.js';
 import {
   getKnowledgeNamespaceConfig,
   listKnowledgeNamespaces,
@@ -26,18 +34,8 @@ import {
   resolveKnowledgeStorageDir,
   updateKnowledgeNamespace,
 } from './knowledge-namespaces.js';
-import {
-  buildKnowledgeDirectoryTree,
-  listKnowledgeDocuments,
-  scanKnowledgeDirectories,
-} from './knowledge-filesystem.js';
-import {
-  deleteKnowledgeDocument,
-  getKnowledgeDocumentContent,
-  updateKnowledgeDocument,
-  uploadKnowledgeDocument,
-} from './knowledge-documents.js';
 import { searchKnowledgeDocuments } from './knowledge-search.js';
+import { DEFAULT_KNOWLEDGE_NAMESPACE } from './knowledge-storage.js';
 
 /** @deprecated Use KnowledgeDocumentMeta from contracts. Kept for backward compat. */
 export type DocumentMeta = KnowledgeDocumentMeta;
@@ -65,10 +63,7 @@ export class KnowledgeService {
     );
   }
 
-  private getNamespaceConfig(
-    projectSlug: string,
-    namespace: string,
-  ) {
+  private getNamespaceConfig(projectSlug: string, namespace: string) {
     return getKnowledgeNamespaceConfig(
       projectSlug,
       namespace,
@@ -294,7 +289,8 @@ export class KnowledgeService {
       projectSlug,
       namespaces,
       dataDir: this.dataDir,
-      resolveStorageDir: (slug, namespace) => this.resolveStorageDir(slug, namespace),
+      resolveStorageDir: (slug, namespace) =>
+        this.resolveStorageDir(slug, namespace),
       vectorDb,
       embeddingProvider,
     });
@@ -325,13 +321,7 @@ export class KnowledgeService {
         source,
         targetNamespace,
       ) =>
-        this.uploadDocument(
-          slug,
-          filename,
-          content,
-          source,
-          targetNamespace,
-        ),
+        this.uploadDocument(slug, filename, content, source, targetNamespace),
     });
   }
 
@@ -343,7 +333,8 @@ export class KnowledgeService {
       docId,
       namespaces: this.listNamespaces(projectSlug),
       dataDir: this.dataDir,
-      resolveStorageDir: (slug, namespace) => this.resolveStorageDir(slug, namespace),
+      resolveStorageDir: (slug, namespace) =>
+        this.resolveStorageDir(slug, namespace),
     });
   }
 }

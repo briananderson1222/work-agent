@@ -1,18 +1,20 @@
 /**
  * JSON Manifest Registry Provider
- * Implements both IAgentRegistryProvider and IIntegrationRegistryProvider
+ * Implements registry lookups for plugins and integrations from a remote or local JSON manifest.
  * by fetching a remote JSON manifest.
  */
 
 import { execFileSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { cpSync, existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { ToolDef } from '@stallion-ai/contracts/tool';
+import { readPluginManifestFileSync } from '../services/plugin-manifest-loader.js';
+import type { InstallResult, RegistryItem } from './provider-contracts.js';
 import type {
   IAgentRegistryProvider,
   IIntegrationRegistryProvider,
+  IPluginRegistryProvider,
 } from './provider-interfaces.js';
-import type { InstallResult, RegistryItem } from './provider-contracts.js';
 
 interface ManifestPlugin {
   id: string;
@@ -38,7 +40,10 @@ interface Manifest {
 }
 
 export class JsonManifestRegistryProvider
-  implements IAgentRegistryProvider, IIntegrationRegistryProvider
+  implements
+    IAgentRegistryProvider,
+    IIntegrationRegistryProvider,
+    IPluginRegistryProvider
 {
   private manifestCache: Manifest | null = null;
   private cacheExpiry = 0;
@@ -77,6 +82,30 @@ export class JsonManifestRegistryProvider
     return join(this.projectHomeDir, 'plugins');
   }
 
+  private resolveManifestSource(source: string): string {
+    if (
+      source.startsWith('git@') ||
+      source.startsWith('https://') ||
+      source.startsWith('http://')
+    ) {
+      return source;
+    }
+
+    if (isAbsolute(source)) {
+      return source;
+    }
+
+    if (this.manifestUrl.startsWith('/') || this.manifestUrl.startsWith('.')) {
+      return resolve(dirname(this.manifestUrl), source);
+    }
+
+    try {
+      return new URL(source, this.manifestUrl).toString();
+    } catch {
+      return source;
+    }
+  }
+
   private readInstalledPlugins(): RegistryItem[] {
     const pluginsDir = this.getPluginsDir();
     if (!existsSync(pluginsDir)) return [];
@@ -90,7 +119,7 @@ export class JsonManifestRegistryProvider
       if (!existsSync(manifestPath)) continue;
 
       try {
-        const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+        const manifest = readPluginManifestFileSync(manifestPath);
         items.push({
           id: manifest.name || entry.name,
           displayName: manifest.displayName,
@@ -111,28 +140,52 @@ export class JsonManifestRegistryProvider
     return items;
   }
 
+  private readRegistryInstallAliases(): Record<string, string> {
+    const aliasesPath = join(
+      this.projectHomeDir,
+      'config',
+      'registry-installs.json',
+    );
+    if (!existsSync(aliasesPath)) {
+      return {};
+    }
+
+    try {
+      return JSON.parse(readFileSync(aliasesPath, 'utf-8')) as Record<
+        string,
+        string
+      >;
+    } catch {
+      return {};
+    }
+  }
+
   private async installFromSource(
     _id: string,
     source: string,
     targetDir: string,
   ): Promise<void> {
+    const resolvedSource = this.resolveManifestSource(source);
     const isGit =
-      source.startsWith('git@') ||
-      source.endsWith('.git') ||
-      (source.startsWith('https://') &&
-        (source.includes('.git') ||
-          source.includes('gitlab') ||
-          source.includes('github')));
+      resolvedSource.startsWith('git@') ||
+      resolvedSource.endsWith('.git') ||
+      (resolvedSource.startsWith('https://') &&
+        (resolvedSource.includes('.git') ||
+          resolvedSource.includes('gitlab') ||
+          resolvedSource.includes('github')));
 
     if (isGit) {
-      const [url, branch] = source.split('#');
+      const [url, branch] = resolvedSource.split('#');
       const cloneArgs = ['clone', '--depth', '1'];
       if (branch) cloneArgs.push('--branch', branch);
       cloneArgs.push(url, targetDir);
 
       execFileSync('git', cloneArgs, { timeout: 30000, windowsHide: true });
     } else {
-      throw new Error('Only git sources are supported');
+      if (!existsSync(resolvedSource)) {
+        throw new Error(`Source not found: ${resolvedSource}`);
+      }
+      cpSync(resolvedSource, targetDir, { recursive: true });
     }
   }
 
@@ -145,12 +198,31 @@ export class JsonManifestRegistryProvider
       displayName: plugin.displayName,
       description: plugin.description,
       version: plugin.version,
+      source: this.resolveManifestSource(plugin.source),
       installed: false,
     }));
   }
 
   async listInstalled(): Promise<RegistryItem[]> {
-    return this.readInstalledPlugins();
+    const manifest = await this.fetchManifest();
+    const installedPluginNames = new Set(
+      this.readInstalledPlugins().map((item) => String(item.id)),
+    );
+    const aliases = this.readRegistryInstallAliases();
+
+    return manifest.plugins
+      .filter((plugin) => {
+        const installedPluginName = aliases[plugin.id] || plugin.id;
+        return installedPluginNames.has(installedPluginName);
+      })
+      .map((plugin) => ({
+        id: plugin.id,
+        displayName: plugin.displayName,
+        description: plugin.description,
+        version: plugin.version,
+        source: this.resolveManifestSource(plugin.source),
+        installed: true,
+      }));
   }
 
   async install(id: string): Promise<InstallResult> {
@@ -196,6 +268,12 @@ export class JsonManifestRegistryProvider
     } catch (error: any) {
       return { success: false, message: error.message };
     }
+  }
+
+  async resolveSource(id: string): Promise<string | null> {
+    const manifest = await this.fetchManifest();
+    const plugin = manifest.plugins.find((entry) => entry.id === id);
+    return plugin ? this.resolveManifestSource(plugin.source) : null;
   }
 
   // IIntegrationRegistryProvider implementation

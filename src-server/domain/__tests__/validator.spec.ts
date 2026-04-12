@@ -71,6 +71,23 @@ describe('Agent schema validation', () => {
   });
 });
 
+describe('App schema validation', () => {
+  it('accepts app config without region', () => {
+    const config = {
+      defaultModel: 'claude-sonnet',
+      invokeModel: 'invoke-model',
+      structureModel: 'structure-model',
+      approvalGuardian: {
+        enabled: true,
+        mode: 'enforce',
+        model: 'guardian-model',
+      },
+    };
+
+    expect(() => validator.validateAppConfig(config)).not.toThrow();
+  });
+});
+
 describe('ConfigLoader workflow metadata', () => {
   let workDir: string;
 

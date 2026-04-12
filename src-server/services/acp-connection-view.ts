@@ -27,7 +27,9 @@ export function getACPCurrentModelName(
   configOptions: ACPConfigOption[],
   detectedModel: string | null,
 ): string | null {
-  const modelOption = configOptions.find((option) => option.category === 'model');
+  const modelOption = configOptions.find(
+    (option) => option.category === 'model',
+  );
   if (!modelOption) {
     return detectedModel;
   }
@@ -53,7 +55,9 @@ export function getACPConnectionVirtualAgents({
   promptCapabilities: { image?: boolean };
   currentModelName: string | null;
 }): any[] {
-  const modelConfig = configOptions.find((option) => option.category === 'model');
+  const modelConfig = configOptions.find(
+    (option) => option.category === 'model',
+  );
   const modelOptions =
     modelConfig?.options?.map((option) => ({
       id: option.value,
@@ -86,7 +90,12 @@ export function getACPConnectionStatusView({
   currentModel,
   interactive,
 }: {
-  status: ACPStatusValue | 'disconnected' | 'connecting' | 'connected' | 'error';
+  status:
+    | ACPStatusValue
+    | 'disconnected'
+    | 'connecting'
+    | 'connected'
+    | 'error';
   modes: ACPModeLike[];
   sessionId: string | null;
   mcpServers: string[];
@@ -94,7 +103,12 @@ export function getACPConnectionStatusView({
   currentModel: string | null;
   interactive?: { args: string[] };
 }): {
-  status: ACPStatusValue | 'disconnected' | 'connecting' | 'connected' | 'error';
+  status:
+    | ACPStatusValue
+    | 'disconnected'
+    | 'connecting'
+    | 'connected'
+    | 'error';
   modes: string[];
   sessionId: string | null;
   mcpServers: string[];

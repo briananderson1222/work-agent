@@ -132,6 +132,11 @@ export function RuntimeConnectionView({
     );
   }
 
+  const providerLabel =
+    typeof form?.config.providerLabel === 'string'
+      ? form.config.providerLabel
+      : connectionTypeLabel(form?.type ?? '');
+
   return (
     <SplitPaneLayout
       label={
@@ -198,13 +203,7 @@ export function RuntimeConnectionView({
                 className="editor-input"
                 style={{ background: 'var(--bg-tertiary)', cursor: 'default' }}
               >
-                {form.type === 'bedrock'
-                  ? 'Amazon Bedrock'
-                  : form.type === 'claude'
-                    ? 'Claude API (direct)'
-                    : form.type === 'codex'
-                      ? 'Codex API (direct)'
-                      : form.type || 'Unknown'}
+                {providerLabel || 'Unknown'}
               </div>
             </div>
 

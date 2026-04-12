@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import type { ACPConnectionInfo } from '../../hooks/useACPConnections';
-import { getRecentAgentSlugs, trackRecentAgent } from '../../hooks/useRecentAgents';
+import {
+  getRecentAgentSlugs,
+  trackRecentAgent,
+} from '../../hooks/useRecentAgents';
 import { buildNewTerminalItems } from './utils';
 
 export function NewTerminalModal({

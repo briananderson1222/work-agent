@@ -5,11 +5,7 @@ import {
 } from '@stallion-ai/sdk';
 import { useState } from 'react';
 
-export function RegistryModal({
-  onClose,
-}: {
-  onClose: () => void;
-}) {
+export function RegistryModal({ onClose }: { onClose: () => void }) {
   const [message, setMessage] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -40,7 +36,10 @@ export function RegistryModal({
 
   return (
     <div className="plugins__modal-overlay" onClick={onClose}>
-      <div className="plugins__modal" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="plugins__modal"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="plugins__modal-header">
           <h3 className="plugins__modal-title">Integration Registry</h3>
           <button className="plugins__modal-close" onClick={onClose}>

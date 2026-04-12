@@ -41,10 +41,7 @@ export function mapStrandsContentBlocksToParts(
       continue;
     }
 
-    if (
-      block.reasoningText !== undefined ||
-      block.type === 'reasoningBlock'
-    ) {
+    if (block.reasoningText !== undefined || block.type === 'reasoningBlock') {
       parts.push({
         type: 'reasoning' as const,
         text: block.reasoningText || block.text || '',

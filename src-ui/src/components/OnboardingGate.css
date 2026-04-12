@@ -146,3 +146,244 @@
     opacity: 1;
   }
 }
+
+.onboarding-reconnect-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 9000;
+  background: #7c2d12;
+  color: #fed7aa;
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  gap: 8px;
+}
+
+.onboarding-setup-banner {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 9000;
+  width: min(420px, calc(100vw - 32px));
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.22);
+  background: linear-gradient(
+    180deg,
+    rgba(10, 18, 34, 0.97),
+    rgba(9, 13, 24, 0.97)
+  );
+  color: #e5eefc;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+  padding: 16px;
+}
+
+.onboarding-setup-banner__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.onboarding-setup-banner__title {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.onboarding-setup-banner__description {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(229, 238, 252, 0.78);
+}
+
+.onboarding-setup-banner__dismiss {
+  border: none;
+  background: transparent;
+  color: rgba(229, 238, 252, 0.7);
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+}
+
+.onboarding-setup-banner__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.onboarding-setup-banner__badge {
+  border: 1px solid rgba(147, 197, 253, 0.22);
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.14);
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+}
+
+.onboarding-setup-banner__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+.onboarding-setup-launcher {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.onboarding-setup-launcher__backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at top, rgba(37, 99, 235, 0.16), transparent 45%),
+    rgba(4, 7, 12, 0.68);
+  backdrop-filter: blur(8px);
+}
+
+.onboarding-setup-launcher__panel {
+  position: relative;
+  z-index: 1;
+  width: min(640px, calc(100vw - 32px));
+  border-radius: 22px;
+  border: 1px solid rgba(96, 165, 250, 0.22);
+  background: linear-gradient(
+    180deg,
+    rgba(12, 18, 30, 0.98),
+    rgba(9, 13, 22, 0.98)
+  );
+  color: #e5eefc;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+  padding: 24px;
+}
+
+.onboarding-setup-launcher__eyebrow {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #93c5fd;
+  margin-bottom: 12px;
+}
+
+.onboarding-setup-launcher__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.onboarding-setup-launcher__title {
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.15;
+  margin-bottom: 10px;
+}
+
+.onboarding-setup-launcher__description {
+  font-size: 14px;
+  line-height: 1.6;
+  color: rgba(229, 238, 252, 0.82);
+  max-width: 52ch;
+}
+
+.onboarding-setup-launcher__dismiss {
+  border: none;
+  background: transparent;
+  color: rgba(229, 238, 252, 0.72);
+  cursor: pointer;
+  font-size: 22px;
+  line-height: 1;
+  padding: 0;
+}
+
+.onboarding-setup-launcher__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.onboarding-setup-launcher__badge {
+  border: 1px solid rgba(147, 197, 253, 0.22);
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.14);
+  color: #bfdbfe;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+}
+
+.onboarding-setup-launcher__steps {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.onboarding-setup-launcher__step {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.onboarding-setup-launcher__step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.18);
+  color: #bfdbfe;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.onboarding-setup-launcher__step-title {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.onboarding-setup-launcher__step-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(229, 238, 252, 0.72);
+}
+
+.onboarding-setup-launcher__primary {
+  margin-top: 18px;
+  width: 100%;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #3b82f6, #2563eb);
+  color: white;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 650;
+  padding: 13px 14px;
+}
+
+.onboarding-setup-launcher__actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}

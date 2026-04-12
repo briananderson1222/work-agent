@@ -30,6 +30,7 @@ export async function loadRuntimePluginAssets(
   });
 
   await loadPrompts({
+    logger: context.logger,
     projectHomeDir: context.projectHomeDir,
   });
 }

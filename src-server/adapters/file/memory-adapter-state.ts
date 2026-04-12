@@ -1,16 +1,13 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, unlink, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import type {
-  WorkflowStateEntry,
-  WorkingMemoryScope,
-} from '@voltagent/core';
+import type { WorkflowStateEntry, WorkingMemoryScope } from '@voltagent/core';
 import { createLogger } from '../../utils/logger.js';
 import { MemoryAdapterPaths } from './memory-adapter-paths.js';
 import {
-  type WorkflowStateJson,
   deserializeWorkflowState,
   serializeWorkflowState,
+  type WorkflowStateJson,
 } from './memory-adapter-workflows.js';
 
 const logger = createLogger({ name: 'memory-adapter-state' });
@@ -23,10 +20,7 @@ export async function getWorkingMemoryState({
   scope,
 }: {
   paths: MemoryAdapterPaths;
-  resolveResourceId(
-    conversationId?: string,
-    userId?: string,
-  ): Promise<string>;
+  resolveResourceId(conversationId?: string, userId?: string): Promise<string>;
   conversationId?: string;
   userId?: string;
   scope: WorkingMemoryScope;
@@ -79,10 +73,7 @@ export async function setWorkingMemoryState({
   scope,
 }: {
   paths: MemoryAdapterPaths;
-  resolveResourceId(
-    conversationId?: string,
-    userId?: string,
-  ): Promise<string>;
+  resolveResourceId(conversationId?: string, userId?: string): Promise<string>;
   conversationId?: string;
   userId?: string;
   content: string;
@@ -126,10 +117,7 @@ export async function deleteWorkingMemoryState({
   scope,
 }: {
   paths: MemoryAdapterPaths;
-  resolveResourceId(
-    conversationId?: string,
-    userId?: string,
-  ): Promise<string>;
+  resolveResourceId(conversationId?: string, userId?: string): Promise<string>;
   conversationId?: string;
   userId?: string;
   scope: WorkingMemoryScope;

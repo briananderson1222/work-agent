@@ -1,12 +1,8 @@
 import { useAgentsQuery } from '@stallion-ai/sdk';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
-import {
-  type AgentData,
-} from '../contexts/AgentsContext';
+import { type AgentData } from '../contexts/AgentsContext';
 import type { NavigationView } from '../types';
-import {
-  AgentsViewEditorPane,
-} from './agent-editor/AgentsViewEditorPane';
+import { AgentsViewEditorPane } from './agent-editor/AgentsViewEditorPane';
 import { useAgentsViewModel } from './agent-editor/useAgentsViewModel';
 import './editor-layout.css';
 import './page-layout.css';

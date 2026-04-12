@@ -1,14 +1,11 @@
 import { K } from '@shared/monitoring-keys';
-import { parseSearchQuery } from '../../hooks/useSearchAutocomplete';
 import type {
   AgentStats,
   MonitoringEvent,
   MonitoringStats,
 } from '../../contexts/MonitoringContext';
-import {
-  getConversationColor,
-  getEventType,
-} from '../monitoring-utils';
+import { parseSearchQuery } from '../../hooks/useSearchAutocomplete';
+import { getConversationColor, getEventType } from '../monitoring-utils';
 
 export const MONITORING_QUERY_FILTER_KEYS = [
   'agent',
@@ -61,7 +58,8 @@ export function filterMonitoringEvents(
         return false;
       }
 
-      const traceIdToFilter = parsed.filters.trace?.[0] || selection.selectedTraceId;
+      const traceIdToFilter =
+        parsed.filters.trace?.[0] || selection.selectedTraceId;
       if (traceIdToFilter && event[K.TRACE_ID] !== traceIdToFilter) {
         return false;
       }
@@ -96,8 +94,11 @@ export function getHistoricalAgentSlugs(
   filteredEvents: MonitoringEvent[],
   activeAgents: AgentStats[],
 ) {
-  return [...new Set(filteredEvents.map((e) => e[K.AGENT_SLUG]).filter(Boolean))].filter(
-    (slug): slug is string => !activeAgents.some((agent) => agent.slug === slug),
+  return [
+    ...new Set(filteredEvents.map((e) => e[K.AGENT_SLUG]).filter(Boolean)),
+  ].filter(
+    (slug): slug is string =>
+      !activeAgents.some((agent) => agent.slug === slug),
   );
 }
 
@@ -106,7 +107,10 @@ export function getMonitoringAgentCountLabel(
   filteredEvents: MonitoringEvent[],
 ) {
   const activeCount = stats?.agents.length || 0;
-  const historicalCount = getHistoricalAgentSlugs(filteredEvents, stats?.agents || []).length;
+  const historicalCount = getHistoricalAgentSlugs(
+    filteredEvents,
+    stats?.agents || [],
+  ).length;
   return `${activeCount} Active${historicalCount > 0 ? ` • ${historicalCount} Historical` : ''}`;
 }
 

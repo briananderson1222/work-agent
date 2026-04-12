@@ -9,14 +9,19 @@ export function filterIntegrationItems(
       if (!search) return true;
       const query = search.toLowerCase();
       return (
-        (integration.displayName || integration.id).toLowerCase().includes(query) ||
+        (integration.displayName || integration.id)
+          .toLowerCase()
+          .includes(query) ||
         integration.description?.toLowerCase().includes(query)
       );
     })
     .map((integration) => ({
       id: integration.id,
       name: integration.displayName || integration.id,
-      subtitle: [integration.transport || integration.kind, integration.description]
+      subtitle: [
+        integration.transport || integration.kind,
+        integration.description,
+      ]
         .filter(Boolean)
         .join(' · '),
       icon: (

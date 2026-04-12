@@ -17,7 +17,10 @@ export function HelpMenu({
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={onClose} />
+      <div
+        style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+        onClick={onClose}
+      />
       <div
         style={{
           position: 'fixed',

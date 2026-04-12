@@ -6,6 +6,7 @@ import {
   executionStatusLabel,
   formatExecutionSummary,
   preferredChatRuntime,
+  preferredConnectedRuntime,
   resolveAgentExecution,
   resolveSessionExecutionSummary,
   runtimeConnectionIdToProviderKind,
@@ -17,6 +18,10 @@ describe('execution utils', () => {
     expect(runtimeConnectionIdToProviderKind('codex-runtime')).toBe('codex');
     expect(runtimeConnectionIdToProviderKind('bedrock-runtime')).toBe(
       'bedrock',
+    );
+    expect(runtimeConnectionIdToProviderKind('custom-runtime')).toBe('custom');
+    expect(runtimeConnectionIdToProviderKind('unknown-runtime')).toBe(
+      'unknown',
     );
   });
 
@@ -160,5 +165,34 @@ describe('execution utils', () => {
         modelId: 'gpt-5-codex',
       },
     });
+  });
+
+  test('prefers connected runtimes when choosing a connected agent default', () => {
+    const runtime = preferredConnectedRuntime([
+      {
+        id: 'bedrock-runtime',
+        kind: 'runtime',
+        type: 'bedrock-runtime',
+        name: 'Bedrock Runtime',
+        enabled: true,
+        capabilities: ['agent-runtime'],
+        config: {},
+        status: 'ready',
+        prerequisites: [],
+      },
+      {
+        id: 'codex-runtime',
+        kind: 'runtime',
+        type: 'codex-runtime',
+        name: 'Codex Runtime',
+        enabled: true,
+        capabilities: ['agent-runtime'],
+        config: {},
+        status: 'ready',
+        prerequisites: [],
+      },
+    ] as any);
+
+    expect(runtime?.id).toBe('codex-runtime');
   });
 });

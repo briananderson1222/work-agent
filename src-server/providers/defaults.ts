@@ -5,6 +5,14 @@
 import { userInfo as osUserInfo } from 'node:os';
 import type { ToolDef } from '@stallion-ai/contracts/tool';
 import type {
+  AuthStatus,
+  InstallResult,
+  RegistryItem,
+  RenewResult,
+  UserDetailVM,
+  UserIdentity,
+} from './provider-contracts.js';
+import type {
   IAgentRegistryProvider,
   IAuthProvider,
   IBrandingProvider,
@@ -13,14 +21,6 @@ import type {
   IUserDirectoryProvider,
   IUserIdentityProvider,
 } from './provider-interfaces.js';
-import type {
-  AuthStatus,
-  InstallResult,
-  RegistryItem,
-  RenewResult,
-  UserDetailVM,
-  UserIdentity,
-} from './provider-contracts.js';
 
 // ── Package Registry Defaults ──────────────────────────
 

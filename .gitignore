@@ -42,3 +42,4 @@ docs/plans/
 *.tsbuildinfo
 qa-reports/
 docs/audits/
+.omx/

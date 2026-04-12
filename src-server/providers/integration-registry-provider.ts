@@ -27,7 +27,11 @@ export function readDiskIntegrations(
           execSync(cmd, { stdio: 'pipe', windowsHide: true });
           commandExists = true;
         } catch (error) {
-          console.debug('Command not found for integration:', def.command, error);
+          console.debug(
+            'Command not found for integration:',
+            def.command,
+            error,
+          );
         }
       }
       items.push({
@@ -38,7 +42,11 @@ export function readDiskIntegrations(
         status: commandExists ? 'connected' : 'missing binary',
       });
     } catch (error) {
-      console.debug('Failed to read integration definition:', entry.name, error);
+      console.debug(
+        'Failed to read integration definition:',
+        entry.name,
+        error,
+      );
     }
   }
   return items;

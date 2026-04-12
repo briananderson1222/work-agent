@@ -1,5 +1,5 @@
-import { useEffect, useRef } from 'react';
 import { fetchConversationById } from '@stallion-ai/sdk';
+import { useEffect, useRef } from 'react';
 import { type ChatSession } from '../../types';
 
 interface UseChatDockActiveChatSyncArgs {

@@ -1,17 +1,20 @@
 import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import { useRuntimeConnectionsQuery } from '@stallion-ai/sdk';
 import { useState } from 'react';
+import type { AgentData } from '../../contexts/AgentsContext';
+import { useApiBase } from '../../contexts/ApiBaseContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { useNavigation } from '../../contexts/NavigationContext';
 import {
   useCreateChatSession,
   useSendMessage,
 } from '../../hooks/useActiveChatSessions';
 import { useShortcutDisplay } from '../../hooks/useKeyboardShortcut';
-import { canAgentStartChat, resolveAgentExecution } from '../../utils/execution';
-import type { AgentData } from '../../contexts/AgentsContext';
-import { useApiBase } from '../../contexts/ApiBaseContext';
-import { useAuth } from '../../contexts/AuthContext';
-import { useNavigation } from '../../contexts/NavigationContext';
 import type { NavigationView } from '../../types';
+import {
+  canAgentStartChat,
+  resolveAgentExecution,
+} from '../../utils/execution';
 import { getInitials } from '../../utils/layout';
 import { getHeaderBreadcrumb, getHelpPrompts } from './utils';
 
@@ -32,10 +35,9 @@ export function useHeaderViewModel({
   const { user: authUser } = useAuth();
   const createChatSession = useCreateChatSession();
   const sendMessage = useSendMessage(apiBase);
-  const { data: runtimeConnections = [] } =
-    useRuntimeConnectionsQuery() as {
-      data?: ConnectionConfig[];
-    };
+  const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery() as {
+    data?: ConnectionConfig[];
+  };
 
   const [showHelp, setShowHelp] = useState(false);
   const [showOverflow, setShowOverflow] = useState(false);

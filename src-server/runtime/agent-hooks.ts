@@ -14,8 +14,11 @@ import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import type { ApprovalGuardianService } from '../services/approval-guardian.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import { findModelPricing } from '../utils/pricing.js';
+import { isDelegatedToolAllowed } from './delegation.js';
+import type { MCPToolNameMappingEntry } from './mcp-tool-names.js';
 import { isAutoApproved } from './tool-executor.js';
 import type {
   IAgentHooks,
@@ -42,6 +45,8 @@ export interface AgentHooksDeps {
   >;
   memoryAdapters: Map<string, FileMemoryAdapter>;
   approvalRegistry: ApprovalRegistry;
+  approvalGuardian?: ApprovalGuardianService;
+  toolNameMapping: Map<string, MCPToolNameMappingEntry>;
   logger: any;
 }
 
@@ -63,10 +68,67 @@ export function createAgentHooks(deps: AgentHooksDeps): IAgentHooks & {
   const hooks: IAgentHooks & {
     requestApproval?: (tool: ToolCallContext) => Promise<boolean>;
   } = {
-    beforeToolCall: async (tool, _invocation) => {
+    beforeToolCall: async (tool, invocation) => {
+      if (
+        !isDelegatedToolAllowed({
+          toolName: tool.toolName,
+          delegation: invocation.delegation,
+          toolNameMapping: deps.toolNameMapping,
+        })
+      ) {
+        deps.logger.warn('Delegated child agent blocked tool execution', {
+          toolName: tool.toolName,
+          agentSlug: invocation.agentSlug,
+          conversationId: invocation.conversationId,
+        });
+        return false;
+      }
+
       if (isAutoApproved(tool.toolName, autoApprove)) {
         return true;
       }
+
+      if (deps.approvalGuardian?.isEnabled()) {
+        const review = await deps.approvalGuardian.reviewToolCall({
+          agentName: deps.spec.name,
+          agentSlug: invocation.agentSlug,
+          conversationId: invocation.conversationId,
+          toolName: tool.toolName,
+          toolDescription: tool.toolDescription,
+          toolArgs: tool.toolArgs,
+        });
+
+        if (review.decision === 'allow') {
+          deps.logger.info('Approval guardian allowed tool execution', {
+            toolName: tool.toolName,
+            agentSlug: invocation.agentSlug,
+            reason: review.reason,
+          });
+          return true;
+        }
+
+        if (
+          review.decision === 'deny' &&
+          deps.approvalGuardian.getMode() === 'enforce'
+        ) {
+          deps.logger.warn('Approval guardian denied tool execution', {
+            toolName: tool.toolName,
+            agentSlug: invocation.agentSlug,
+            reason: review.reason,
+          });
+          return false;
+        }
+      }
+
+      if (invocation.delegation?.denyApprovals) {
+        deps.logger.warn('Delegated child agent denied approval-bound tool', {
+          toolName: tool.toolName,
+          agentSlug: invocation.agentSlug,
+          conversationId: invocation.conversationId,
+        });
+        return false;
+      }
+
       if (hooks.requestApproval) {
         return hooks.requestApproval(tool);
       }

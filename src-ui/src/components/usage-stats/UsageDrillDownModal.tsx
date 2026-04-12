@@ -41,7 +41,10 @@ export function UsageDrillDownModal({
 
     return (
       <div className="drill-down-overlay" onClick={onClose}>
-        <div className="drill-down-modal" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="drill-down-modal"
+          onClick={(event) => event.stopPropagation()}
+        >
           <div className="drill-down-header">
             <h3>🤖 {displayName}</h3>
             <button onClick={onClose} className="drill-down-close">
@@ -102,14 +105,18 @@ export function UsageDrillDownModal({
               <div className="drill-down-section">
                 <h4>Agents Using This Model</h4>
                 <div className="drill-down-list">
-                  {agentsUsingModel.map(({ agentId, agentName, messages, cost }) => (
-                    <div key={agentId} className="drill-down-list-item">
-                      <span className="drill-down-list-name">{agentName}</span>
-                      <span className="drill-down-list-stats">
-                        {messages} msgs · ${cost.toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
+                  {agentsUsingModel.map(
+                    ({ agentId, agentName, messages, cost }) => (
+                      <div key={agentId} className="drill-down-list-item">
+                        <span className="drill-down-list-name">
+                          {agentName}
+                        </span>
+                        <span className="drill-down-list-stats">
+                          {messages} msgs · ${cost.toFixed(2)}
+                        </span>
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             )}
@@ -137,24 +144,30 @@ export function UsageDrillDownModal({
                 {modelInfo?.outputCostPer1kTokens && (
                   <div>
                     <strong>Output Cost:</strong> $
-                    {(modelInfo.outputCostPer1kTokens ?? 0).toFixed(4)}/1K tokens
+                    {(modelInfo.outputCostPer1kTokens ?? 0).toFixed(4)}/1K
+                    tokens
                   </div>
                 )}
                 {modelInfo?.supportsStreaming !== undefined && (
                   <div>
                     <strong>Streaming:</strong>{' '}
-                    {modelInfo.supportsStreaming ? '✓ Supported' : '✗ Not supported'}
+                    {modelInfo.supportsStreaming
+                      ? '✓ Supported'
+                      : '✗ Not supported'}
                   </div>
                 )}
                 {modelInfo?.supportsVision !== undefined && (
                   <div>
                     <strong>Vision:</strong>{' '}
-                    {modelInfo.supportsVision ? '✓ Supported' : '✗ Not supported'}
+                    {modelInfo.supportsVision
+                      ? '✓ Supported'
+                      : '✗ Not supported'}
                   </div>
                 )}
                 {modelInfo?.maxTokens && (
                   <div>
-                    <strong>Max Tokens:</strong> {modelInfo.maxTokens.toLocaleString()}
+                    <strong>Max Tokens:</strong>{' '}
+                    {modelInfo.maxTokens.toLocaleString()}
                   </div>
                 )}
               </div>
@@ -177,7 +190,10 @@ export function UsageDrillDownModal({
 
     return (
       <div className="drill-down-overlay" onClick={onClose}>
-        <div className="drill-down-modal" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="drill-down-modal"
+          onClick={(event) => event.stopPropagation()}
+        >
           <div className="drill-down-header">
             <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               {agent ? <AgentIcon agent={agent} size="medium" /> : '🎯'}{' '}
@@ -219,14 +235,18 @@ export function UsageDrillDownModal({
               <div className="drill-down-section">
                 <h4>Models Used</h4>
                 <div className="drill-down-list">
-                  {modelBreakdown.map(({ modelId, displayName, messages, cost }) => (
-                    <div key={modelId} className="drill-down-list-item">
-                      <span className="drill-down-list-name">{displayName}</span>
-                      <span className="drill-down-list-stats">
-                        {messages} msgs · ${cost.toFixed(2)}
-                      </span>
-                    </div>
-                  ))}
+                  {modelBreakdown.map(
+                    ({ modelId, displayName, messages, cost }) => (
+                      <div key={modelId} className="drill-down-list-item">
+                        <span className="drill-down-list-name">
+                          {displayName}
+                        </span>
+                        <span className="drill-down-list-stats">
+                          {messages} msgs · ${cost.toFixed(2)}
+                        </span>
+                      </div>
+                    ),
+                  )}
                 </div>
               </div>
             )}

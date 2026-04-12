@@ -1,6 +1,8 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import type { Prompt } from '@stallion-ai/contracts/catalog';
+import type { ContextSafetyFinding } from './context-safety.js';
+import { scanContextText } from './context-safety.js';
 
 function parseFrontmatter(content: string): {
   meta: Record<string, any>;
@@ -44,15 +46,51 @@ function parseFrontmatter(content: string): {
   return { meta, body: match[2].trim() };
 }
 
+export interface BlockedPromptFile {
+  file: string;
+  findings: ContextSafetyFinding[];
+}
+
 export function scanPromptDir(dir: string, namespace: string): Prompt[] {
-  if (!existsSync(dir)) return [];
+  return scanPromptDirDetailed(dir, namespace).prompts;
+}
+
+export function scanPromptDirDetailed(
+  dir: string,
+  namespace: string,
+): {
+  blockedFiles: BlockedPromptFile[];
+  prompts: Prompt[];
+} {
+  if (!existsSync(dir)) {
+    return { blockedFiles: [], prompts: [] };
+  }
   const files = readdirSync(dir).filter((f) => f.endsWith('.md'));
   const now = new Date().toISOString();
-  return files.map((file) => {
+  const prompts: Prompt[] = [];
+  const blockedFiles: BlockedPromptFile[] = [];
+
+  for (const file of files) {
     const raw = readFileSync(join(dir, file), 'utf-8');
+    const hiddenChannelSafety = scanContextText(raw, {
+      profile: 'hidden-only',
+      source: `plugin prompt '${namespace}/${file}'`,
+    });
+    if (hiddenChannelSafety.blocked) {
+      blockedFiles.push({ file, findings: hiddenChannelSafety.findings });
+      continue;
+    }
+
     const { meta, body } = parseFrontmatter(raw);
+    const bodySafety = scanContextText(body, {
+      source: `plugin prompt '${namespace}/${file}' body`,
+    });
+    if (bodySafety.blocked) {
+      blockedFiles.push({ file, findings: bodySafety.findings });
+      continue;
+    }
     const id = meta.id || basename(file, '.md');
-    return {
+    prompts.push({
       id: `${namespace}:${id}`,
       name: meta.label || meta.name || id,
       content: body,
@@ -65,6 +103,8 @@ export function scanPromptDir(dir: string, namespace: string): Prompt[] {
       source: `plugin:${namespace}`,
       createdAt: now,
       updatedAt: now,
-    };
-  });
+    });
+  }
+
+  return { blockedFiles, prompts };
 }

@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { InstallResult, RegistryItem } from '@stallion-ai/contracts/catalog';
+import type {
+  InstallResult,
+  RegistryItem,
+} from '@stallion-ai/contracts/catalog';
 import { createLogger } from '../utils/logger.js';
 import type { ISkillRegistryProvider } from './provider-interfaces.js';
 

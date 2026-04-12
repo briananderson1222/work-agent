@@ -1,7 +1,4 @@
-import {
-  useAuthStatusQuery,
-  useRenewAuthMutation,
-} from '@stallion-ai/sdk';
+import { useAuthStatusQuery, useRenewAuthMutation } from '@stallion-ai/sdk';
 import {
   createContext,
   type ReactNode,
@@ -48,7 +45,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setStatus(authStatus.status);
       setProvider(authStatus.provider);
-      setExpiresAt(authStatus.expiresAt ? new Date(authStatus.expiresAt) : null);
+      setExpiresAt(
+        authStatus.expiresAt ? new Date(authStatus.expiresAt) : null,
+      );
       setUser(authStatus.user ?? null);
     } catch {
       setStatus('missing');

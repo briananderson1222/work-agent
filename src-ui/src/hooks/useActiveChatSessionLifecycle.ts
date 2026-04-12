@@ -1,17 +1,19 @@
 import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import { fetchAgentConversations } from '@stallion-ai/sdk';
 import { useCallback, useEffect } from 'react';
-import { useConversationActions } from '../contexts/ConversationsContext';
-import { activeChatsStore } from '../contexts/active-chats-store';
 import { useActiveChatActions } from '../contexts/ActiveChatsContext';
+import { activeChatsStore } from '../contexts/active-chats-store';
+import {
+  conversationsStore,
+  useConversationActions,
+} from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
-import { conversationsStore } from '../contexts/ConversationsContext';
+import { useSendMessage } from './useActiveChatSessionMessaging';
 import {
   type ActiveChatConversationMessage,
   buildRehydratedInputHistory,
   normalizeConversationMessages,
 } from './useActiveChatSessions.helpers';
-import { useSendMessage } from './useActiveChatSessionMessaging';
 
 export function usePruneActiveChats() {
   useEffect(() => {
@@ -38,7 +40,9 @@ export function usePruneActiveChats() {
       for (const [slug, sessions] of byAgent) {
         try {
           const conversations = await fetchAgentConversations(slug);
-          const ids = new Set(conversations.map((conversation) => conversation.id));
+          const ids = new Set(
+            conversations.map((conversation) => conversation.id),
+          );
           for (const [sessionId, chat] of sessions) {
             if (!ids.has(chat.conversationId!)) {
               activeChatsStore.removeChat(sessionId);

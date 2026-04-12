@@ -1,9 +1,9 @@
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import {
   useProjectLayoutQuery,
   useProjectQuery,
   useRuntimeConnectionsQuery,
 } from '@stallion-ai/sdk';
-import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 import type { AgentData } from '../contexts/AgentsContext';
@@ -59,10 +59,9 @@ export function NewChatModal({
       enabled: !!activeLayoutProject && !!selectedProjectLayout,
     },
   );
-  const { data: runtimeConnections = [] } =
-    useRuntimeConnectionsQuery() as {
-      data?: ConnectionConfig[];
-    };
+  const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery() as {
+    data?: ConnectionConfig[];
+  };
 
   // Fetch project config for agent scoping
   const selectedProjectSlug =

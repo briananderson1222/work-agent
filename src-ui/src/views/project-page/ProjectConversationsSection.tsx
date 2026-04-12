@@ -15,7 +15,9 @@ export function ProjectConversationsSection({
   return (
     <div className="project-page__conversations">
       <div className="project-page__section-header">
-        <span className="project-page__section-label">Recent Conversations</span>
+        <span className="project-page__section-label">
+          Recent Conversations
+        </span>
       </div>
       <div className="project-page__conversation-list">
         {conversations.map((conversation) => (

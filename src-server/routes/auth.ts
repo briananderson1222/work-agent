@@ -1,6 +1,6 @@
 import { userInfo } from 'node:os';
-import { Hono } from 'hono';
 import type { UserIdentity } from '@stallion-ai/contracts/auth';
+import { Hono } from 'hono';
 import {
   getAuthProvider,
   getUserDirectoryProvider,

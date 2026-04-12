@@ -5,8 +5,8 @@ import {
 } from '../contexts/ActiveChatsContext';
 import { useToast } from '../contexts/ToastContext';
 import type { FileAttachment } from '../types';
-import { useAutocompleteState } from './useAutocompleteState';
 import { useCancelMessage, useSendMessage } from './useActiveChatSessions';
+import { useAutocompleteState } from './useAutocompleteState';
 import { useSlashCommandHandler } from './useSlashCommandHandler';
 import type { SlashCommand } from './useSlashCommands';
 import { useSlashCommands } from './useSlashCommands';

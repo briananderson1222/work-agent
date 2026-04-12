@@ -5,9 +5,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type {
-  KnowledgeNamespaceConfig,
-} from '@stallion-ai/contracts/knowledge';
+import type { KnowledgeNamespaceConfig } from '@stallion-ai/contracts/knowledge';
 import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 import { Hono } from 'hono';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
@@ -93,7 +91,9 @@ function getAvailableLayouts(projectHomeDir: string) {
 function readPluginLayout(projectHomeDir: string, pluginName: string) {
   const pluginFile = join(projectHomeDir, 'plugins', pluginName, 'plugin.json');
   if (!existsSync(pluginFile)) return null;
-  const plugin = JSON.parse(readFileSync(pluginFile, 'utf-8')) as PluginManifest;
+  const plugin = JSON.parse(
+    readFileSync(pluginFile, 'utf-8'),
+  ) as PluginManifest;
   if (!plugin.layout) return null;
 
   const layoutFile = join(

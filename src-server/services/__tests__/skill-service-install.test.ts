@@ -23,10 +23,12 @@ describe('skill-service-install', () => {
     const saveSkill = vi.fn().mockResolvedValue(undefined);
     const rediscover = vi.fn().mockResolvedValue(undefined);
     const provider = {
-      install: vi.fn().mockImplementation(async (_name: string, targetDir: string) => {
-        mkdirSync(join(targetDir, 'deep-research'), { recursive: true });
-        return { success: true, message: 'ok' };
-      }),
+      install: vi
+        .fn()
+        .mockImplementation(async (_name: string, targetDir: string) => {
+          mkdirSync(join(targetDir, 'deep-research'), { recursive: true });
+          return { success: true, message: 'ok' };
+        }),
       listAvailable: vi.fn().mockResolvedValue([
         {
           id: 'deep-research',
@@ -56,7 +58,9 @@ describe('skill-service-install', () => {
         path: skillDir,
       }),
     );
-    expect(JSON.parse(readFileSync(join(skillDir, '.stallion-meta.json'), 'utf-8'))).toEqual(
+    expect(
+      JSON.parse(readFileSync(join(skillDir, '.stallion-meta.json'), 'utf-8')),
+    ).toEqual(
       expect.objectContaining({
         version: '1.2.3',
         source: 'registry',

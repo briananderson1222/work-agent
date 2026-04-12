@@ -494,7 +494,10 @@ describe('CodexAdapter', () => {
     await nextEvent(iterator, 'session.configured');
 
     const transport = (adapter as any).transport;
-    transport.handleStdoutLine(transport.requireSession('thread-3'), '{not json');
+    transport.handleStdoutLine(
+      transport.requireSession('thread-3'),
+      '{not json',
+    );
 
     expect(await nextEvent(iterator, 'runtime.warning')).toMatchObject({
       method: 'runtime.warning',

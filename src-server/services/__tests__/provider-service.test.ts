@@ -84,6 +84,31 @@ describe('ProviderService', () => {
     expect(result).toEqual({ providerId: 'anthropic', model: 'claude-3.5' });
   });
 
+  test('resolveProvider falls back to the first enabled llm connection before a hard-coded provider', async () => {
+    const adapter = createMockStorageAdapter();
+    adapter.getProject.mockRejectedValue(new Error('not found'));
+    adapter.saveProviderConnection({
+      id: 'ollama-local',
+      type: 'ollama',
+      enabled: true,
+      capabilities: ['llm'],
+    });
+    const svc = new ProviderService(
+      adapter as any,
+      async () =>
+        ({
+          defaultModel: 'llama3.2',
+        }) as any,
+    );
+
+    const result = await svc.resolveProvider({ projectSlug: 'missing' });
+
+    expect(result).toEqual({
+      providerId: 'ollama-local',
+      model: 'llama3.2',
+    });
+  });
+
   test('checkHealth returns provider health', async () => {
     const adapter = createMockStorageAdapter();
     const svc = new ProviderService(adapter as any, async () => ({}) as any);

@@ -1,9 +1,9 @@
-import type { PluginMessage, PreviewData } from './types';
 import { FolderPickerModal } from './FolderPickerModal';
 import { InstallPluginModal } from './InstallPluginModal';
 import { InstallPreviewModal } from './InstallPreviewModal';
 import { LayoutAssignmentModal } from './LayoutAssignmentModal';
 import { PluginRegistryModal } from './PluginRegistryModal';
+import type { PluginMessage, PreviewData } from './types';
 
 export function PluginModalStack({
   apiBase,
@@ -127,7 +127,10 @@ export function PluginModalStack({
 
       {removeConfirm && (
         <div className="plugins__confirm-overlay" onClick={onCancelRemove}>
-          <div className="plugins__confirm" onClick={(e) => e.stopPropagation()}>
+          <div
+            className="plugins__confirm"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3>Remove Plugin</h3>
             <p>Remove &ldquo;{removeConfirm}&rdquo;? This cannot be undone.</p>
             <div className="plugins__confirm-actions">

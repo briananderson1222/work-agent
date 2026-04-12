@@ -10,10 +10,7 @@ import type { KnowledgeDocumentMeta } from '@stallion-ai/contracts/knowledge';
 
 export const DEFAULT_KNOWLEDGE_NAMESPACE = 'default';
 
-export function chunkKnowledgeText(
-  text: string,
-  maxChunkSize = 500,
-): string[] {
+export function chunkKnowledgeText(text: string, maxChunkSize = 500): string[] {
   const sections = text.split(/(?=^#{1,6}\s)/m);
   const chunks: string[] = [];
   let current = '';

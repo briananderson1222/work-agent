@@ -262,6 +262,7 @@ Browse available plugins from the configured registry URL, or set the registry U
 
 ```
 stallion registry [url]
+stallion registry install <id>
 ```
 
 Without a URL argument, fetches and displays the registry. The URL is read from `~/.stallion-ai/config.json` (`registryUrl` field).
@@ -274,6 +275,9 @@ stallion registry https://registry.example.com/plugins.json
 
 # Browse registry
 stallion registry
+
+# Install from the configured registry
+stallion registry install demo-layout
 ```
 
 ---
@@ -291,6 +295,28 @@ stallion init [name]
 ```bash
 stallion init
 stallion init my-plugin
+```
+
+`init` is the compatibility alias for the `full` template in `create-plugin`.
+
+### `create-plugin [name]`
+
+Scaffold a new plugin project using a specific template.
+
+```
+stallion create-plugin [name] [--template=<full|layout|provider>]
+```
+
+| Template | Description |
+|----------|-------------|
+| `full` | Layout + agent + build config starter |
+| `layout` | UI-focused starter with layout manifest and entrypoint |
+| `provider` | Server-side starter with `serverModule`, provider files, and request hooks |
+
+```bash
+stallion create-plugin my-plugin --template=full
+stallion create-plugin my-layout --template=layout
+stallion create-plugin my-provider --template=provider
 ```
 
 ### `build`

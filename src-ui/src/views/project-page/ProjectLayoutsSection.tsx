@@ -32,13 +32,18 @@ export function ProjectLayoutsSection({
               )}
               <span className="project-page__card-name">{layout.name}</span>
               {layout.description && (
-                <span className="project-page__card-desc">{layout.description}</span>
+                <span className="project-page__card-desc">
+                  {layout.description}
+                </span>
               )}
               <span className="project-page__card-type">{layout.type}</span>
             </button>
           ))
         ) : (
-          <button className="project-page__empty-card" onClick={onOpenAddLayout}>
+          <button
+            className="project-page__empty-card"
+            onClick={onOpenAddLayout}
+          >
             + Add your first layout to get started
           </button>
         )}
@@ -66,7 +71,10 @@ export function ProjectAddLayoutModal({
 
   return (
     <div className="project-page__modal-overlay" onClick={onClose}>
-      <div className="project-page__modal" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="project-page__modal"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h3 className="project-page__modal-title">Add Layout</h3>
         <div className="project-page__modal-list">
           {available.map((item) => (

@@ -36,7 +36,7 @@ export function useNotifications() {
       metadata?: Record<string, unknown>;
       dedupeTag?: string;
     }) => {
-      const res = await fetch(`${apiBase}/api/notifications`, {
+      const res = await fetch(`${apiBase}/notifications`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source: 'sdk', ...opts }),
@@ -47,7 +47,7 @@ export function useNotifications() {
     },
     /** Dismiss a notification */
     dismiss: async (id: string) => {
-      await fetch(`${apiBase}/api/notifications/${id}`, { method: 'DELETE' });
+      await fetch(`${apiBase}/notifications/${id}`, { method: 'DELETE' });
     },
   };
 }

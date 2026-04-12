@@ -1,4 +1,7 @@
-export type OrchestrationProviderKind = 'bedrock' | 'claude' | 'codex';
+import type { ProviderKind } from '@stallion-ai/contracts/provider';
+import type { UIBlock } from '@stallion-ai/contracts/ui-block';
+
+export type OrchestrationProviderKind = ProviderKind;
 
 export interface ConversationSummary {
   id: string;
@@ -25,6 +28,8 @@ export interface ConversationMessagePart {
   server?: string;
   toolName?: string;
   originalName?: string;
+  toolCallId?: string;
+  uiBlock?: UIBlock;
 }
 
 export interface ConversationMessage {

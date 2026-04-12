@@ -1,7 +1,4 @@
-import {
-  useConfigQuery,
-  useUpdateConfigMutation,
-} from '@stallion-ai/sdk';
+import { useConfigQuery, useUpdateConfigMutation } from '@stallion-ai/sdk';
 import { log } from '@/utils/logger';
 import type { AppConfig } from '../types';
 

@@ -60,11 +60,7 @@ describe('codex-adapter-events', () => {
       scope: 'session',
     });
     expect(
-      buildApprovalResult(
-        'item/fileChange/requestApproval',
-        {},
-        'decline',
-      ),
+      buildApprovalResult('item/fileChange/requestApproval', {}, 'decline'),
     ).toEqual({ decision: 'decline' });
 
     expect(mapApprovalResolutionStatus('accept')).toBe('approved');

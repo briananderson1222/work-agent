@@ -3,8 +3,8 @@ import {
   buildContextOptions,
   buildNewChatModalViewModel,
   filterContextOptions,
-  getRecentAgentSlugsForContext,
   GLOBAL_CONTEXT,
+  getRecentAgentSlugsForContext,
 } from '../components/new-chat-modal-utils';
 
 describe('new-chat-modal-utils', () => {

@@ -3,16 +3,24 @@
  * from pluggable registry providers.
  */
 
+import { join } from 'node:path';
 import { Hono } from 'hono';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import {
   getAgentRegistryProvider,
   getIntegrationRegistryProvider,
-  getPluginRegistryProviders,
   getSkillRegistryProviders,
 } from '../providers/registry.js';
 import type { SkillService } from '../services/skill-service.js';
 import { registryOps } from '../telemetry/metrics.js';
+import type { Logger } from '../utils/logger.js';
+import {
+  installPluginFromSource,
+  type PluginLifecycleEventBus,
+  readRegistryPluginAvailability,
+  resolvePluginRegistrySource,
+  uninstallInstalledPlugin,
+} from './plugin-install-shared.js';
 import {
   getBody,
   param,
@@ -21,13 +29,33 @@ import {
   validate,
 } from './schemas.js';
 
+interface RegistryRouteDeps {
+  eventBus?: PluginLifecycleEventBus;
+  logger: Logger;
+}
+
 export function createRegistryRoutes(
   configLoader: ConfigLoader,
   refreshACPModes: () => Promise<void>,
   reloadSkills?: () => Promise<void>,
   skillService?: SkillService,
+  deps?: RegistryRouteDeps,
 ) {
   const app = new Hono();
+  const projectHomeDir = configLoader.getProjectHomeDir();
+  const pluginInstallDeps = deps
+    ? {
+        agentsDir: join(projectHomeDir, 'agents'),
+        buildPlugin: async (pluginDir: string, name: string) => {
+          const { buildPlugin } = await import('./plugin-bundles.js');
+          return buildPlugin(pluginDir, name, deps.logger);
+        },
+        eventBus: deps.eventBus,
+        logger: deps.logger,
+        pluginsDir: join(projectHomeDir, 'plugins'),
+        projectHomeDir,
+      }
+    : null;
 
   // ── Agent Registry ─────────────────────────────────────
 
@@ -223,53 +251,77 @@ export function createRegistryRoutes(
 
   app.get('/plugins', async (c) => {
     registryOps.add(1, { operation: 'list-plugins' });
-    const entries = getPluginRegistryProviders();
-    if (entries.length === 0) return c.json({ success: true, data: [] });
-    const results = await Promise.all(
-      entries.map(async (e) => {
-        const items = await e.provider.listAvailable();
-        return items.map((item) => ({ ...item, source: e.source }));
-      }),
-    );
-    return c.json({ success: true, data: results.flat() });
+    const items = await readRegistryPluginAvailability();
+    return c.json({ success: true, data: items });
   });
 
   app.get('/plugins/installed', async (c) => {
     registryOps.add(1, { operation: 'list-plugins-installed' });
-    const entries = getPluginRegistryProviders();
-    if (entries.length === 0) return c.json({ success: true, data: [] });
-    const results = await Promise.all(
-      entries.map(async (e) => e.provider.listInstalled()),
+    const items = (await readRegistryPluginAvailability()).filter(
+      (item: any) => item.installed,
     );
-    return c.json({ success: true, data: results.flat() });
+    return c.json({ success: true, data: items });
   });
 
   app.post('/plugins/install', validate(registryInstallSchema), async (c) => {
     const { id } = getBody(c);
     registryOps.add(1, { operation: 'install-plugin', item: id });
-    const entries = getPluginRegistryProviders();
-    for (const e of entries) {
-      const result = await e.provider.install(id);
-      if (result.success) return c.json(result);
+    if (!pluginInstallDeps) {
+      return c.json(
+        { success: false, message: 'Plugin install dependencies unavailable' },
+        500,
+      );
     }
-    return c.json(
-      { success: false, message: `No provider could install ${id}` },
-      500,
-    );
+    const source = await resolvePluginRegistrySource(id);
+    if (!source) {
+      return c.json(
+        { success: false, message: `Plugin '${id}' not found in registry` },
+        404,
+      );
+    }
+    try {
+      const installed = await installPluginFromSource(
+        source,
+        [],
+        pluginInstallDeps,
+        {
+          registryId: id,
+        },
+      );
+      return c.json(installed);
+    } catch (error: unknown) {
+      return c.json(
+        {
+          success: false,
+          message: error instanceof Error ? error.message : 'Install failed',
+        },
+        500,
+      );
+    }
   });
 
   app.delete('/plugins/:id', async (c) => {
     const id = param(c, 'id');
     registryOps.add(1, { operation: 'uninstall-plugin', item: id });
-    const entries = getPluginRegistryProviders();
-    for (const e of entries) {
-      const result = await e.provider.uninstall(id);
-      if (result.success) return c.json(result);
+    if (!pluginInstallDeps) {
+      return c.json(
+        { success: false, message: 'Plugin install dependencies unavailable' },
+        500,
+      );
     }
-    return c.json(
-      { success: false, message: `No provider could uninstall ${id}` },
-      500,
-    );
+    try {
+      const removed = await uninstallInstalledPlugin(id, pluginInstallDeps);
+      return c.json(removed);
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : `No provider could uninstall ${id}`;
+      return c.json(
+        { success: false, message },
+        message === 'Plugin not found' ? 404 : 500,
+      );
+    }
   });
 
   return app;

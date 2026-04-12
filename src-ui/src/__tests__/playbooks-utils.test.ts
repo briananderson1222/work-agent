@@ -5,6 +5,8 @@ import {
   buildPlaybookFilename,
   buildPlaybookPayload,
   extractTemplateVariables,
+  formatPlaybookProvenanceSummary,
+  formatPlaybookStatsSummary,
   playbookToForm,
 } from '../views/playbooks/utils';
 
@@ -77,5 +79,41 @@ describe('playbooks utils', () => {
     expect(buildPlaybookFilename('Copy of Research / Plan?')).toBe(
       'Copy-of-Research---Plan-.md',
     );
+  });
+
+  test('formatPlaybookStatsSummary includes runs and quality score when present', () => {
+    expect(
+      formatPlaybookStatsSummary({
+        id: 'pb-1',
+        name: 'Research assistant',
+        content: 'Draft the plan',
+        stats: {
+          runs: 3,
+          successes: 2,
+          failures: 1,
+          qualityScore: 67,
+        },
+        createdAt: '2026-04-11T10:00:00Z',
+        updatedAt: '2026-04-11T11:00:00Z',
+      } as Playbook),
+    ).toBe('3 runs · 67% success');
+  });
+
+  test('formatPlaybookProvenanceSummary describes the last authoring source', () => {
+    expect(
+      formatPlaybookProvenanceSummary({
+        id: 'pb-1',
+        name: 'Research assistant',
+        content: 'Draft the plan',
+        provenance: {
+          updatedFrom: {
+            kind: 'agent',
+            agentSlug: 'planner',
+          },
+        },
+        createdAt: '2026-04-11T10:00:00Z',
+        updatedAt: '2026-04-11T11:00:00Z',
+      } as Playbook),
+    ).toBe('refined by planner');
   });
 });

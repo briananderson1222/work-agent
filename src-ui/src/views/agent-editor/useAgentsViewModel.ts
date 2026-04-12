@@ -20,6 +20,10 @@ import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
 import { useUrlSelection } from '../../hooks/useUrlSelection';
 import type { NavigationView, Tool } from '../../types';
 import {
+  buildAgentsViewEmptyContent,
+  buildAgentsViewItems,
+} from './agentsViewHelpers';
+import {
   buildAgentPayload,
   createEmptyAgentForm,
   createNewAgentForm,
@@ -28,10 +32,6 @@ import {
   isAgentFormDirty,
   validateAgentForm,
 } from './agentsViewUtils';
-import {
-  buildAgentsViewEmptyContent,
-  buildAgentsViewItems,
-} from './agentsViewHelpers';
 import type { AgentFormData } from './types';
 
 interface UseAgentsViewModelArgs {

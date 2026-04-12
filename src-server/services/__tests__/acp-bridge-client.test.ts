@@ -2,12 +2,12 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { ApprovalRegistry } from '../approval-registry.js';
 import {
   createACPBridgeClient,
   handleACPBridgeCreateTerminal,
   handleACPBridgePermissionRequest,
 } from '../acp-bridge-client.js';
+import { ApprovalRegistry } from '../approval-registry.js';
 
 const mockLogger = {
   info: vi.fn(),
@@ -112,7 +112,9 @@ describe('createACPBridgeClient', () => {
 
     await client.sessionUpdate?.({ update: {} } as any);
     await client.extNotification?.('_kiro.dev/test', { x: 1 });
-    await expect(client.extMethod?.('_kiro.dev/test', { x: 1 })).resolves.toEqual({
+    await expect(
+      client.extMethod?.('_kiro.dev/test', { x: 1 }),
+    ).resolves.toEqual({
       ok: true,
     });
 

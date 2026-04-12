@@ -13,6 +13,7 @@ const playbooks = [
     updatedAt: '2025-01-02T00:00:00.000Z',
     category: 'Ops',
     tags: ['deploy', 'ship'],
+    stats: { runs: 4, successes: 3, failures: 1, qualityScore: 75 },
   },
   {
     id: 'a',
@@ -55,7 +56,11 @@ describe('playbooks view utils', () => {
 
   it('builds list items with subtitle summary', () => {
     expect(buildPlaybookListItems(playbooks as any)).toEqual([
-      { id: 'b', name: 'Beta', subtitle: 'Ops · deploy, ship' },
+      {
+        id: 'b',
+        name: 'Beta',
+        subtitle: 'Ops · deploy, ship · 4 runs · 75% success',
+      },
       { id: 'a', name: 'Alpha', subtitle: 'Research · spec' },
       { id: 'c', name: 'Gamma', subtitle: 'Ops · review' },
     ]);

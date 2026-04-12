@@ -4,32 +4,22 @@
  */
 
 import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
-import { BedrockLLMProvider } from '../providers/bedrock-llm-provider.js';
-import type { ILLMProvider, LLMMessage } from '../providers/model-provider-types.js';
-import { OllamaLLMProvider } from '../providers/ollama-provider.js';
-import { OpenAICompatLLMProvider } from '../providers/openai-compat-provider.js';
+import { createLLMProvider } from '../providers/connection-factories.js';
+import type {
+  ILLMProvider,
+  LLMMessage,
+} from '../providers/model-provider-types.js';
 import { providerOps } from '../telemetry/metrics.js';
 
 export function createLLMProviderFromConfig(
   conn: ProviderConnectionConfig,
 ): ILLMProvider | null {
-  switch (conn.type) {
-    case 'ollama':
-      providerOps.add(1, { op: 'route', provider: conn.type });
-      return new OllamaLLMProvider(conn.config as any);
-    case 'openai-compat':
-      providerOps.add(1, { op: 'route', provider: conn.type });
-      return new OpenAICompatLLMProvider(conn.config as any);
-    case 'bedrock':
-      providerOps.add(1, { op: 'route', provider: conn.type });
-      return new BedrockLLMProvider(conn.config as any);
-    default:
-      providerOps.add(1, {
-        op: 'route_error',
-        provider: conn.type ?? 'unknown',
-      });
-      return null;
-  }
+  const provider = createLLMProvider(conn);
+  providerOps.add(1, {
+    op: provider ? 'route' : 'route_error',
+    provider: conn.type ?? 'unknown',
+  });
+  return provider;
 }
 
 /**

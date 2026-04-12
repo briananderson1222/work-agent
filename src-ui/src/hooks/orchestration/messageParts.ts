@@ -1,7 +1,11 @@
+import type { UIBlock } from '@stallion-ai/contracts/ui-block';
+
 type OrchestrationContentPart = {
   type: string;
   content?: string;
   tool?: any;
+  toolCallId?: string;
+  uiBlock?: UIBlock;
 };
 
 export type OrchestrationStreamingMessage = {
@@ -64,6 +68,40 @@ export function upsertToolPart(
   return next;
 }
 
+export function upsertToolResultBlocks(
+  parts: Array<OrchestrationContentPart> | undefined,
+  toolCallId: string,
+  blocks: UIBlock[],
+) {
+  const next = [...(parts || [])].filter(
+    (part) => !(part.type === 'ui-block' && part.toolCallId === toolCallId),
+  );
+
+  if (blocks.length === 0) {
+    return next;
+  }
+
+  const toolIndex = next.findIndex(
+    (part) => part.type === 'tool' && part.tool?.id === toolCallId,
+  );
+  const blockParts = blocks.map((block, index) => ({
+    type: 'ui-block',
+    toolCallId,
+    uiBlock: {
+      ...block,
+      id: block.id || `${toolCallId}-block-${index}`,
+    },
+  }));
+
+  if (toolIndex === -1) {
+    next.push(...blockParts);
+    return next;
+  }
+
+  next.splice(toolIndex + 1, 0, ...blockParts);
+  return next;
+}
+
 export function buildAssistantTurnContent(
   streamingMessage: OrchestrationStreamingMessage | undefined,
   fallbackText?: string,
@@ -78,4 +116,3 @@ export function buildAssistantTurnContent(
     ''
   );
 }
-

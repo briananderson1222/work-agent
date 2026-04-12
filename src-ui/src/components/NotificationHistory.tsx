@@ -1,5 +1,15 @@
-import { useEffect, useRef } from 'react';
-import { useNotificationHistory } from '../contexts/ToastContext';
+import {
+  useDismissNotificationMutation,
+  useNotificationActionMutation,
+  useNotificationsQuery,
+} from '@stallion-ai/sdk';
+import { useEffect, useMemo, useRef } from 'react';
+import {
+  formatNotificationTime,
+  isApprovalNotification,
+  notificationDetail,
+  sortNotifications,
+} from '../utils/notifications';
 
 interface NotificationHistoryProps {
   isOpen: boolean;
@@ -12,9 +22,16 @@ export function NotificationHistory({
   onClose,
   onViewAll,
 }: NotificationHistoryProps) {
-  const history = useNotificationHistory();
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const recentNotifications = history.slice(0, 5); // Show only 5 most recent
+  const { data: notifications = [] } = useNotificationsQuery({
+    status: ['delivered', 'pending'],
+  });
+  const dismissMutation = useDismissNotificationMutation();
+  const actionMutation = useNotificationActionMutation();
+  const recentNotifications = useMemo(
+    () => sortNotifications(notifications).slice(0, 5),
+    [notifications],
+  );
 
   useEffect(() => {
     if (!isOpen) return;
@@ -33,18 +50,6 @@ export function NotificationHistory({
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
-
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-    return date.toLocaleDateString();
-  };
 
   return (
     <div
@@ -86,114 +91,155 @@ export function NotificationHistory({
               fontSize: '13px',
             }}
           >
-            No notifications yet
+            No active notifications
           </div>
         ) : (
           <div>
-            {recentNotifications.map((notification) => (
-              <div
-                key={notification.id}
-                style={{
-                  padding: '12px 16px',
-                  borderBottom: '1px solid var(--border-primary)',
-                  opacity: notification.dismissed ? 0.6 : 1,
-                  fontSize: '13px',
-                }}
-              >
+            {recentNotifications.map((notification) => {
+              const detail = notificationDetail(notification);
+              return (
                 <div
+                  key={notification.id}
                   style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'start',
-                    marginBottom: '4px',
+                    padding: '12px 16px',
+                    borderBottom: '1px solid var(--border-primary)',
+                    fontSize: '13px',
                   }}
                 >
-                  <div style={{ flex: 1, paddingRight: '8px' }}>
-                    {notification.type === 'tool-approval' && (
-                      <div
-                        style={{
-                          fontSize: '11px',
-                          color: 'var(--text-muted)',
-                          marginBottom: '4px',
-                        }}
-                      >
-                        Tool Approval Request
-                      </div>
-                    )}
-                    <div>{notification.message}</div>
-                    {notification.metadata?.detail ? (
-                      <div
-                        style={{
-                          fontSize: '11px',
-                          color: 'var(--text-muted)',
-                          marginTop: '4px',
-                          whiteSpace: 'pre-line',
-                          lineHeight: 1.3,
-                        }}
-                      >
-                        {notification.metadata.detail as string}
-                      </div>
-                    ) : null}
-                    {notification.actions &&
-                      notification.actions.length > 0 && (
-                        <div
-                          style={{
-                            display: 'flex',
-                            gap: '6px',
-                            marginTop: '8px',
-                          }}
-                        >
-                          {notification.actions.map((action, idx) => (
-                            <button
-                              key={idx}
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                action.onClick();
-                                onClose();
-                              }}
-                              style={{
-                                padding: '4px 10px',
-                                background:
-                                  action.variant === 'primary'
-                                    ? 'var(--accent-primary)'
-                                    : 'var(--bg-tertiary)',
-                                color:
-                                  action.variant === 'primary'
-                                    ? 'white'
-                                    : 'var(--text-primary)',
-                                border:
-                                  action.variant === 'primary'
-                                    ? 'none'
-                                    : '1px solid var(--border-primary)',
-                                borderRadius: '4px',
-                                cursor: 'pointer',
-                                fontSize: '11px',
-                                fontWeight: 500,
-                              }}
-                            >
-                              {action.label}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                  </div>
                   <div
                     style={{
-                      fontSize: '11px',
-                      color: 'var(--text-muted)',
-                      whiteSpace: 'nowrap',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'start',
+                      marginBottom: '4px',
                     }}
                   >
-                    {formatTime(notification.timestamp)}
+                    <div style={{ flex: 1, paddingRight: '8px' }}>
+                      {isApprovalNotification(notification) && (
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            marginBottom: '4px',
+                          }}
+                        >
+                          Approval Request
+                        </div>
+                      )}
+                      <div>{notification.title}</div>
+                      {notification.body ? (
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            marginTop: '4px',
+                            whiteSpace: 'pre-line',
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {notification.body}
+                        </div>
+                      ) : null}
+                      {detail ? (
+                        <div
+                          style={{
+                            fontSize: '11px',
+                            color: 'var(--text-muted)',
+                            marginTop: '4px',
+                            whiteSpace: 'pre-line',
+                            lineHeight: 1.3,
+                          }}
+                        >
+                          {detail}
+                        </div>
+                      ) : null}
+                      <div
+                        style={{
+                          display: 'flex',
+                          gap: '6px',
+                          marginTop: '8px',
+                          flexWrap: 'wrap',
+                        }}
+                      >
+                        {notification.actions?.map((action) => (
+                          <button
+                            key={action.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              actionMutation.mutate({
+                                actionId: action.id,
+                                id: notification.id,
+                              });
+                              onClose();
+                            }}
+                            style={{
+                              padding: '4px 10px',
+                              background:
+                                action.variant === 'primary'
+                                  ? 'var(--accent-primary)'
+                                  : action.variant === 'danger'
+                                    ? 'var(--status-error)'
+                                    : 'var(--bg-tertiary)',
+                              color:
+                                action.variant === 'primary' ||
+                                action.variant === 'danger'
+                                  ? 'white'
+                                  : 'var(--text-primary)',
+                              border:
+                                action.variant === 'primary' ||
+                                action.variant === 'danger'
+                                  ? 'none'
+                                  : '1px solid var(--border-primary)',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '11px',
+                              fontWeight: 500,
+                            }}
+                            disabled={actionMutation.isPending}
+                          >
+                            {action.label}
+                          </button>
+                        ))}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            dismissMutation.mutate(notification.id);
+                            onClose();
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            background: 'transparent',
+                            color: 'var(--text-muted)',
+                            border: '1px solid var(--border-primary)',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                          }}
+                          disabled={dismissMutation.isPending}
+                        >
+                          Dismiss
+                        </button>
+                      </div>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: '11px',
+                        color: 'var(--text-muted)',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {formatNotificationTime(notification.updatedAt)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
 
-      {history.length > 0 && (
+      {notifications.length > 0 && (
         <div
           style={{
             padding: '12px 16px',

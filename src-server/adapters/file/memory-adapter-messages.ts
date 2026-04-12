@@ -1,10 +1,5 @@
 import { createReadStream, existsSync } from 'node:fs';
-import {
-  appendFile,
-  mkdir,
-  truncate,
-  writeFile,
-} from 'node:fs/promises';
+import { appendFile, mkdir, truncate, writeFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import type { GetMessagesOptions } from '@voltagent/core';
 import type { UIMessage } from 'ai';
@@ -29,10 +24,7 @@ export async function addStoredMessage({
   context,
 }: {
   paths: MemoryAdapterPaths;
-  resolveResourceId(
-    conversationId?: string,
-    userId?: string,
-  ): Promise<string>;
+  resolveResourceId(conversationId?: string, userId?: string): Promise<string>;
   touchConversation(conversationId: string): Promise<void>;
   usageAggregator?: any;
   message: UIMessage;
@@ -97,10 +89,7 @@ export async function addStoredMessages({
   conversationId,
 }: {
   paths: MemoryAdapterPaths;
-  resolveResourceId(
-    conversationId?: string,
-    userId?: string,
-  ): Promise<string>;
+  resolveResourceId(conversationId?: string, userId?: string): Promise<string>;
   touchConversation(conversationId: string): Promise<void>;
   messages: UIMessage[];
   userId: string;
@@ -128,10 +117,7 @@ export async function readStoredMessages({
   options,
 }: {
   paths: MemoryAdapterPaths;
-  resolveResourceId(
-    conversationId?: string,
-    userId?: string,
-  ): Promise<string>;
+  resolveResourceId(conversationId?: string, userId?: string): Promise<string>;
   findConversationLocation(
     conversationId: string,
   ): Promise<{ path: string; resourceId: string } | null>;
@@ -186,13 +172,10 @@ export async function clearStoredMessages({
   conversationId,
 }: {
   paths: MemoryAdapterPaths;
-  resolveResourceId(
-    conversationId?: string,
-    userId?: string,
-  ): Promise<string>;
-  getConversationsByUserId(userId: string): Promise<
-    Array<{ id: string; resourceId: string }>
-  >;
+  resolveResourceId(conversationId?: string, userId?: string): Promise<string>;
+  getConversationsByUserId(
+    userId: string,
+  ): Promise<Array<{ id: string; resourceId: string }>>;
   userId: string;
   conversationId?: string;
 }): Promise<void> {
@@ -226,10 +209,7 @@ export async function removeLastStoredMessage({
   conversationId,
 }: {
   paths: MemoryAdapterPaths;
-  resolveResourceId(
-    conversationId?: string,
-    userId?: string,
-  ): Promise<string>;
+  resolveResourceId(conversationId?: string, userId?: string): Promise<string>;
   userId: string;
   conversationId: string;
 }): Promise<void> {

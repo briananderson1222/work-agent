@@ -134,7 +134,9 @@ export function buildNewChatModalViewModel({
     contextOptions,
     contextSearch,
   );
-  const selectedProject = projects.find((project) => project.slug === selectedContext);
+  const selectedProject = projects.find(
+    (project) => project.slug === selectedContext,
+  );
   const currentContextOption = contextOptions.find(
     (option) => option.value === selectedContext,
   );
@@ -168,7 +170,9 @@ export function buildNewChatModalViewModel({
     return false;
   };
 
-  const runtimeAgents = filtered.filter((agent) => runtimeChatSlugs.has(agent.slug));
+  const runtimeAgents = filtered.filter((agent) =>
+    runtimeChatSlugs.has(agent.slug),
+  );
   const wsAgents = filtered.filter(
     (agent) => !runtimeChatSlugs.has(agent.slug) && isLayoutAgent(agent),
   );
@@ -193,9 +197,9 @@ export function buildNewChatModalViewModel({
 
   const recentAgents = agentSearch
     ? []
-    : recentSlugs
+    : (recentSlugs
         .map((slug) => filtered.find((agent) => agent.slug === slug))
-        .filter(Boolean) as AgentData[];
+        .filter(Boolean) as AgentData[]);
   const recentSet = new Set(recentSlugs);
 
   const groups: NewChatModalAgentGroup[] = [];
@@ -213,7 +217,9 @@ export function buildNewChatModalViewModel({
     groups.push({
       label: layoutName || 'Layout',
       icon: layoutIcon,
-      agents: wsAgents.filter((agent) => !recentSet.has(agent.slug) || !!agentSearch),
+      agents: wsAgents.filter(
+        (agent) => !recentSet.has(agent.slug) || !!agentSearch,
+      ),
     });
   }
 
@@ -230,7 +236,9 @@ export function buildNewChatModalViewModel({
     groups.push({
       label: 'Global',
       icon: '🌐',
-      agents: globalAgents.filter((agent) => !recentSet.has(agent.slug) || !!agentSearch),
+      agents: globalAgents.filter(
+        (agent) => !recentSet.has(agent.slug) || !!agentSearch,
+      ),
     });
   }
 

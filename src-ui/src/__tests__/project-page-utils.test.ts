@@ -40,9 +40,29 @@ describe('project-page utils', () => {
 
   test('splitKnowledgeDocs partitions directory and uploaded docs by namespace', () => {
     const docs = [
-      { id: '1', filename: 'a.md', namespace: 'rules', source: 'upload', chunkCount: 1, createdAt: '' },
-      { id: '2', filename: 'b.md', namespace: 'rules', source: 'directory-scan', chunkCount: 2, createdAt: '' },
-      { id: '3', filename: 'c.md', source: 'upload', chunkCount: 3, createdAt: '' },
+      {
+        id: '1',
+        filename: 'a.md',
+        namespace: 'rules',
+        source: 'upload',
+        chunkCount: 1,
+        createdAt: '',
+      },
+      {
+        id: '2',
+        filename: 'b.md',
+        namespace: 'rules',
+        source: 'directory-scan',
+        chunkCount: 2,
+        createdAt: '',
+      },
+      {
+        id: '3',
+        filename: 'c.md',
+        source: 'upload',
+        chunkCount: 3,
+        createdAt: '',
+      },
     ];
 
     expect(splitKnowledgeDocs(docs, 'rules')).toEqual({
@@ -53,7 +73,9 @@ describe('project-page utils', () => {
   });
 
   test('buildKnowledgeScanOptions trims empty patterns', () => {
-    expect(buildKnowledgeScanOptions('src/**, docs/**', 'dist/**, , node_modules')).toEqual({
+    expect(
+      buildKnowledgeScanOptions('src/**, docs/**', 'dist/**, , node_modules'),
+    ).toEqual({
       includePatterns: ['src/**', 'docs/**'],
       excludePatterns: ['dist/**', 'node_modules'],
     });

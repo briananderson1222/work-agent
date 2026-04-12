@@ -73,9 +73,7 @@ describe('acp-connection-state helpers', () => {
     const proc = {} as any;
     const cancelAll = vi.fn(() => 2);
     const logger = { info: vi.fn() };
-    const terminals = new Map([
-      ['term-1', { process: { kill: processKill } }],
-    ]);
+    const terminals = new Map([['term-1', { process: { kill: processKill } }]]);
 
     const result = cleanupACPConnectionState({
       approvalRegistry: { cancelAll },

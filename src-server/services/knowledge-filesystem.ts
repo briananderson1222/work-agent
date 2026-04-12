@@ -1,9 +1,4 @@
-import {
-  existsSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-} from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { extname, join, relative } from 'node:path';
 import type {
   KnowledgeDocumentMeta,
@@ -106,7 +101,12 @@ export function buildKnowledgeDirectoryTree({
 }): KnowledgeTreeNode {
   const storageDir = resolveStorageDir(projectSlug, namespace);
   const filesDir = join(storageDir, 'files');
-  const metadata = loadKnowledgeMeta(storageDir, dataDir, projectSlug, namespace);
+  const metadata = loadKnowledgeMeta(
+    storageDir,
+    dataDir,
+    projectSlug,
+    namespace,
+  );
   const metadataByPath = new Map(
     metadata.map((document) => [document.path || document.filename, document]),
   );

@@ -23,7 +23,10 @@ export function ProjectSidebar() {
   return (
     <>
       {isMobile && mobileOpen && (
-        <div className="sidebar-backdrop" onClick={() => setMobileOpen(false)} />
+        <div
+          className="sidebar-backdrop"
+          onClick={() => setMobileOpen(false)}
+        />
       )}
       <aside
         className={buildSidebarClassName({

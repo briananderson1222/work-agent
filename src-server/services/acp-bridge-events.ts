@@ -109,7 +109,9 @@ export async function handleACPBridgeSessionUpdate(
     case 'tool_call_update': {
       if (!state.activeWriter) break;
       if (Array.isArray(update.content)) {
-        const diffContent = update.content.find((content) => content.type === 'diff');
+        const diffContent = update.content.find(
+          (content) => content.type === 'diff',
+        );
         if (diffContent) {
           const output = formatDiff(
             diffContent.path || '',
@@ -132,7 +134,9 @@ export async function handleACPBridgeSessionUpdate(
         if (Array.isArray(update.content)) {
           textContent = update.content
             .filter((content) => {
-              return content.type === 'content' && content.content?.type === 'text';
+              return (
+                content.type === 'content' && content.content?.type === 'text'
+              );
             })
             .map((content) => content.content?.text || '')
             .join('\n');
@@ -188,7 +192,9 @@ export async function handleACPBridgeSessionUpdate(
     case 'available_commands_update':
       state.slashCommands = ((update as any).availableCommands || []).map(
         (command: any) => ({
-          name: command.name.startsWith('/') ? command.name : `/${command.name}`,
+          name: command.name.startsWith('/')
+            ? command.name
+            : `/${command.name}`,
           description: command.description || '',
           hint: command.input?.hint,
         }),
@@ -199,14 +205,20 @@ export async function handleACPBridgeSessionUpdate(
       break;
 
     default:
-      if (state.activeWriter && update.sessionUpdate?.startsWith('_kiro.dev/')) {
+      if (
+        state.activeWriter &&
+        update.sessionUpdate?.startsWith('_kiro.dev/')
+      ) {
         const message =
           (update as any).message ||
           (update as any).status ||
           (update as any).text;
         if (message && typeof message === 'string') {
           state.responseAccumulator += `${message}\n`;
-          await state.activeWriter({ type: 'text-delta', text: `${message}\n` });
+          await state.activeWriter({
+            type: 'text-delta',
+            text: `${message}\n`,
+          });
         }
         logger.info('[ACPBridge] Kiro extension session update', {
           type: update.sessionUpdate,
@@ -256,10 +268,12 @@ export function handleACPBridgeExtensionNotification(
       const url = notificationParams.url;
       logger.info('[ACPBridge] MCP OAuth requested', { url });
       if (state.activeWriter && url) {
-        state.activeWriter({
-          type: 'text-delta',
-          text: `\n\n🔐 **Authentication required** — An MCP server needs you to sign in:\n[Open authentication page](${url})\n\n`,
-        }).catch((error) => logger.error?.('[acp] cleanup failed:', { error }));
+        state
+          .activeWriter({
+            type: 'text-delta',
+            text: `\n\n🔐 **Authentication required** — An MCP server needs you to sign in:\n[Open authentication page](${url})\n\n`,
+          })
+          .catch((error) => logger.error?.('[acp] cleanup failed:', { error }));
       }
       break;
     }
@@ -268,11 +282,13 @@ export function handleACPBridgeExtensionNotification(
       const status = (params as any).status || 'done';
       const message =
         (params as any).message ||
-        (method.includes('compaction') ? 'Context compacted.' : 'History cleared.');
+        (method.includes('compaction')
+          ? 'Context compacted.'
+          : 'History cleared.');
       if (state.activeWriter) {
-        state.activeWriter({ type: 'text-delta', text: `${message}\n` }).catch(
-          () => {},
-        );
+        state
+          .activeWriter({ type: 'text-delta', text: `${message}\n` })
+          .catch(() => {});
         state.responseAccumulator += `${message}\n`;
       }
       logger.info('[ACPBridge] Session maintenance', { method, status });
@@ -285,9 +301,9 @@ export function handleACPBridgeExtensionNotification(
           (params as any).text ||
           (params as any).status;
         if (text && typeof text === 'string') {
-          state.activeWriter({ type: 'text-delta', text: `${text}\n` }).catch(
-            () => {},
-          );
+          state
+            .activeWriter({ type: 'text-delta', text: `${text}\n` })
+            .catch(() => {});
           state.responseAccumulator += `${text}\n`;
         }
       }
@@ -330,7 +346,11 @@ export function handleACPBridgeExtensionMethod(
   }
 }
 
-function formatDiff(path: string, oldText: string | null, newText: string): string {
+function formatDiff(
+  path: string,
+  oldText: string | null,
+  newText: string,
+): string {
   if (!oldText) return `**New file:** \`${path}\`\n\`\`\`\n${newText}\n\`\`\``;
   return `**Modified:** \`${path}\`\n\`\`\`diff\n${simpleDiff(oldText, newText)}\n\`\`\``;
 }

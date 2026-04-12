@@ -3,9 +3,13 @@
  * Reads plugin manifests, applies user overrides, detects singleton conflicts.
  */
 
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import type { PluginManifest, PluginOverrides } from '@stallion-ai/contracts/plugin';
+import type {
+  PluginManifest,
+  PluginOverrides,
+} from '@stallion-ai/contracts/plugin';
+import { readPluginManifestFileSync } from '../services/plugin-manifest-loader.js';
 import { PROVIDER_TYPE_META } from './provider-interfaces.js';
 
 export interface ResolvedEntry {
@@ -46,7 +50,7 @@ export function resolvePluginProviders(
 
     let manifest: PluginManifest;
     try {
-      manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+      manifest = readPluginManifestFileSync(manifestPath);
     } catch (e) {
       console.debug('Failed to parse plugin manifest:', manifestPath, e);
       continue;

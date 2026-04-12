@@ -112,12 +112,28 @@ export function NotificationContainer() {
                     Tool Approval Request
                   </div>
                 )}
+                {notification.type === 'tool-activity' && (
+                  <div
+                    style={{
+                      fontSize: '11px',
+                      color: 'var(--text-muted)',
+                      textTransform: 'uppercase',
+                      fontWeight: 600,
+                      letterSpacing: '0.5px',
+                    }}
+                  >
+                    Tool Activity
+                  </div>
+                )}
                 <div
                   style={{
                     fontSize: '11px',
                     color: 'var(--text-tertiary)',
                     marginLeft:
-                      notification.type === 'tool-approval' ? '0' : 'auto',
+                      notification.type === 'tool-approval' ||
+                      notification.type === 'tool-activity'
+                        ? '0'
+                        : 'auto',
                   }}
                 >
                   {formatTimestamp(notification.timestamp)}

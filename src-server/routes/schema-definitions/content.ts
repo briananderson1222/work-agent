@@ -1,5 +1,11 @@
 import { z } from 'zod';
 
+export const promptSourceContextSchema = z.object({
+  kind: z.enum(['agent', 'plugin', 'user']),
+  agentSlug: z.string().optional(),
+  conversationId: z.string().optional(),
+});
+
 // Prompts
 export const promptCreateSchema = z.object({
   name: z.string().min(1).max(200),
@@ -9,6 +15,7 @@ export const promptCreateSchema = z.object({
   tags: z.array(z.string()).optional(),
   agent: z.string().optional(),
   global: z.boolean().optional(),
+  _sourceContext: promptSourceContextSchema.optional(),
 });
 
 export const promptUpdateSchema = promptCreateSchema
@@ -16,6 +23,10 @@ export const promptUpdateSchema = promptCreateSchema
   .refine((obj) => Object.keys(obj).length > 0, {
     message: 'At least one field is required',
   });
+
+export const promptOutcomeSchema = z.object({
+  outcome: z.enum(['success', 'failure']),
+});
 
 // Projects
 export const projectCreateSchema = z

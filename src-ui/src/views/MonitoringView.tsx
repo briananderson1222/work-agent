@@ -1,20 +1,10 @@
 import { K } from '@shared/monitoring-keys';
-import {
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { MetricsPanel } from '../components/monitoring/MetricsPanel';
 import { useModels } from '../contexts/ModelsContext';
 import { useMonitoring } from '../contexts/MonitoringContext';
 import { useToast } from '../contexts/ToastContext';
-import {
-  useSearchAutocomplete,
-} from '../hooks/useSearchAutocomplete';
-import {
-  getEventType,
-} from './monitoring-utils';
+import { useSearchAutocomplete } from '../hooks/useSearchAutocomplete';
 import { MonitoringViewBoundary } from './MonitoringErrorBoundary';
 import { MonitoringLogControls } from './MonitoringLogControls';
 import { MonitoringTimeControls } from './MonitoringTimeControls';
@@ -23,10 +13,9 @@ import { MonitoringHeader } from './monitoring/MonitoringHeader';
 import { MonitoringLogStream } from './monitoring/MonitoringLogStream';
 import { MonitoringSidebar } from './monitoring/MonitoringSidebar';
 import { useMonitoringFilters } from './monitoring/useMonitoringFilters';
-import {
-  filterMonitoringEvents,
-} from './monitoring/view-utils';
+import { filterMonitoringEvents } from './monitoring/view-utils';
 import { useMonitoringTimeRange } from './monitoring-time-range';
+import { getEventType } from './monitoring-utils';
 import './MonitoringView.css';
 
 export function MonitoringView() {
@@ -230,34 +219,31 @@ export function MonitoringView() {
 
   return (
     <div className="monitoring-view">
-      <MonitoringHeader
-        stats={stats}
-        connectionStatus={connectionStatus}
-      >
-          <MonitoringTimeControls
-            clearTime={clearTime}
-            timeMode={timeMode}
-            relativeTime={relativeTime}
-            absoluteStart={absoluteStart}
-            absoluteEnd={absoluteEnd}
-            isLiveMode={isLiveMode}
-            elapsedLabel={elapsedLabel}
-            showTimeControls={showTimeControls}
-            onToggleControls={() => {
-              setShowTimeControls(!showTimeControls);
-              if (!showTimeControls && (clearTime || absoluteStart)) {
-                handleTimeModeChange('absolute');
-              }
-            }}
-            onTimeModeChange={handleTimeModeChange}
-            onRelativeSelect={selectRelativeTime}
-            onAbsoluteStartChange={setAbsoluteStart}
-            onAbsoluteEndChange={setAbsoluteEndValue}
-            onAbsoluteEndNow={setAbsoluteEndToNow}
-            onApplyAbsolute={applyAbsoluteRange}
-            onToggleLiveMode={() => setIsLiveMode(!isLiveMode)}
-            onClearAll={handleClearAll}
-          />
+      <MonitoringHeader stats={stats} connectionStatus={connectionStatus}>
+        <MonitoringTimeControls
+          clearTime={clearTime}
+          timeMode={timeMode}
+          relativeTime={relativeTime}
+          absoluteStart={absoluteStart}
+          absoluteEnd={absoluteEnd}
+          isLiveMode={isLiveMode}
+          elapsedLabel={elapsedLabel}
+          showTimeControls={showTimeControls}
+          onToggleControls={() => {
+            setShowTimeControls(!showTimeControls);
+            if (!showTimeControls && (clearTime || absoluteStart)) {
+              handleTimeModeChange('absolute');
+            }
+          }}
+          onTimeModeChange={handleTimeModeChange}
+          onRelativeSelect={selectRelativeTime}
+          onAbsoluteStartChange={setAbsoluteStart}
+          onAbsoluteEndChange={setAbsoluteEndValue}
+          onAbsoluteEndNow={setAbsoluteEndToNow}
+          onApplyAbsolute={applyAbsoluteRange}
+          onToggleLiveMode={() => setIsLiveMode(!isLiveMode)}
+          onClearAll={handleClearAll}
+        />
       </MonitoringHeader>
 
       <div className="monitoring-content">

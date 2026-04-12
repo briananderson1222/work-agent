@@ -72,7 +72,11 @@ export function removeKnowledgeNamespace(
   storageAdapter?: IStorageAdapter,
 ): void {
   if (!storageAdapter) throw new Error('Storage adapter required');
-  if (BUILTIN_KNOWLEDGE_NAMESPACES.some((namespace) => namespace.id === namespaceId)) {
+  if (
+    BUILTIN_KNOWLEDGE_NAMESPACES.some(
+      (namespace) => namespace.id === namespaceId,
+    )
+  ) {
     throw new Error(`Cannot remove built-in namespace '${namespaceId}'`);
   }
   const project = storageAdapter.getProject(projectSlug);
@@ -92,7 +96,9 @@ export function updateKnowledgeNamespace(
   if (!storageAdapter) throw new Error('Storage adapter required');
   const project = storageAdapter.getProject(projectSlug);
   const namespaces = project.knowledgeNamespaces ?? [];
-  const index = namespaces.findIndex((namespace) => namespace.id === namespaceId);
+  const index = namespaces.findIndex(
+    (namespace) => namespace.id === namespaceId,
+  );
 
   if (index >= 0) {
     namespaces[index] = { ...namespaces[index], ...updates, id: namespaceId };

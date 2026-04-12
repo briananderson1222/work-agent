@@ -1,15 +1,21 @@
+import type {
+  ProviderKind,
+  ProviderSession,
+} from '@stallion-ai/contracts/provider';
 import type { CanonicalRuntimeEvent } from '@stallion-ai/contracts/runtime-events';
 import type { ProviderAdapterShape } from '../providers/adapter-shape.js';
 import type { IProviderAdapterRegistry } from '../providers/provider-interfaces.js';
 import type { EventStore } from './event-store.js';
-import type { ProviderKind, ProviderSession } from '@stallion-ai/contracts/provider';
 
 export function trackOrchestrationSession(options: {
   threadProviders: Map<string, ProviderKind>;
   sessionReadModel: Map<string, ProviderSession>;
   session: ProviderSession;
 }): void {
-  options.threadProviders.set(options.session.threadId, options.session.provider);
+  options.threadProviders.set(
+    options.session.threadId,
+    options.session.provider,
+  );
   options.sessionReadModel.set(options.session.threadId, options.session);
 }
 
@@ -85,7 +91,9 @@ export function projectOrchestrationEventToReadModel(options: {
       };
       break;
     default:
-      nextSession = existing ? { ...existing, updatedAt: event.createdAt } : null;
+      nextSession = existing
+        ? { ...existing, updatedAt: event.createdAt }
+        : null;
       break;
   }
 

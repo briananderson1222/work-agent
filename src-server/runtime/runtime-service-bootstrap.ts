@@ -1,5 +1,8 @@
 import type { EventEmitter } from 'node:events';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
+import { FileTerminalHistoryStore } from '../adapters/file-terminal-history-store.js';
+import { NodePtyAdapter } from '../adapters/node-pty-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import { MonitoringEmitter } from '../monitoring/emitter.js';
@@ -19,9 +22,6 @@ import { ProviderService } from '../services/provider-service.js';
 import { SkillService } from '../services/skill-service.js';
 import { TerminalService } from '../services/terminal-service.js';
 import { TerminalWebSocketServer } from '../services/terminal-ws-server.js';
-import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
-import { FileTerminalHistoryStore } from '../adapters/file-terminal-history-store.js';
-import { NodePtyAdapter } from '../adapters/node-pty-adapter.js';
 import { NovaSonicProvider } from '../voice/providers/nova-sonic.js';
 import { VoiceSessionService } from '../voice/voice-session.js';
 
@@ -50,7 +50,10 @@ interface RuntimeServiceBootstrapContext {
   agentTools: Map<string, any[]>;
   mcpConfigs: Map<string, any>;
   mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>;
-  integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }>;
+  integrationMetadata: Map<
+    string,
+    { type: string; transport?: string; toolCount?: number }
+  >;
   toolNameMapping: ToolNameMapping;
   usageAggregatorRef: { get: () => any };
   getTerminalShell: () => string | undefined;
@@ -75,7 +78,10 @@ interface RuntimeServiceBootstrapFactories {
   createTerminalService?: (...args: any[]) => any;
   createTerminalWsServer?: (terminalService: any) => any;
   createVoiceService?: (options: any) => any;
-  createMonitoringEmitter?: (events: EventEmitter, persist: (event: any) => Promise<void>) => any;
+  createMonitoringEmitter?: (
+    events: EventEmitter,
+    persist: (event: any) => Promise<void>,
+  ) => any;
   createACPManager?: (...args: any[]) => any;
   createConnectionService?: (...args: any[]) => any;
   createFeedbackService?: (projectHomeDir: string) => any;
@@ -142,7 +148,10 @@ export function createRuntimeServiceBundle(
   const providerService =
     factories.createProviderService?.(storageAdapter, () =>
       context.configLoader.loadAppConfig(),
-    ) ?? new ProviderService(storageAdapter, () => context.configLoader.loadAppConfig());
+    ) ??
+    new ProviderService(storageAdapter, () =>
+      context.configLoader.loadAppConfig(),
+    );
 
   const knowledgeService =
     factories.createKnowledgeService?.(
@@ -168,7 +177,8 @@ export function createRuntimeServiceBundle(
       ptyAdapter,
       historyStore,
       context.getTerminalShell,
-    ) ?? new TerminalService(ptyAdapter, historyStore, context.getTerminalShell);
+    ) ??
+    new TerminalService(ptyAdapter, historyStore, context.getTerminalShell);
 
   const terminalWsServer =
     factories.createTerminalWsServer?.(terminalService) ??
@@ -203,7 +213,7 @@ export function createRuntimeServiceBundle(
       context.logger,
       process.cwd(),
       context.memoryAdapters,
-          (_slug: string) =>
+      (_slug: string) =>
         new FileMemoryAdapter({
           projectHomeDir: context.configLoader.getProjectHomeDir(),
           usageAggregator: context.usageAggregatorRef.get(),

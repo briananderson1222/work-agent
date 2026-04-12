@@ -1,5 +1,11 @@
 import { execSync, spawn } from 'node:child_process';
-import { existsSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { resolveGitInfo } from '@stallion-ai/shared/git';
 import { CWD, PIDFILE, PROJECT_HOME } from './helpers.js';

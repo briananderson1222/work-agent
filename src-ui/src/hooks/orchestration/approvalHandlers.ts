@@ -44,7 +44,12 @@ export function handleRequestOpenedEvent(
         label: 'Allow Once',
         variant: 'primary',
         onClick: () => {
-          void resolveApproval(apiBase, event.threadId, event.requestId, 'accept');
+          void resolveApproval(
+            apiBase,
+            event.threadId,
+            event.requestId,
+            'accept',
+          );
         },
       },
       {
@@ -63,7 +68,12 @@ export function handleRequestOpenedEvent(
         label: 'Deny',
         variant: 'danger',
         onClick: () => {
-          void resolveApproval(apiBase, event.threadId, event.requestId, 'decline');
+          void resolveApproval(
+            apiBase,
+            event.threadId,
+            event.requestId,
+            'decline',
+          );
         },
       },
     ],

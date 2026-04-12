@@ -5,14 +5,15 @@
  * framework-agnostic interfaces in runtime/types.ts.
  */
 
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import {
   Agent,
   createHooks,
   type MCPConfiguration,
   Memory,
   type Tool,
+  ToolDeniedError,
 } from '@voltagent/core';
-import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
@@ -181,14 +182,46 @@ export class VoltAgentFramework {
     const sharedHooks = config.hooks;
     const _autoApprove = spec.tools?.autoApprove || [];
     const hooks = createHooks({
-      onToolStart: async ({ tool, context }) => {
+      onToolStart: async ({ tool, context, args, options }) => {
         const currentCount =
           (context.context.get('toolCallCount') as number) || 0;
         context.context.set('toolCallCount', currentCount + 1);
+        const approved = await sharedHooks?.beforeToolCall?.(
+          {
+            toolName: tool.name,
+            toolCallId: options?.toolContext?.callId || '',
+            toolArgs: args,
+          },
+          {
+            agentSlug: slug,
+            conversationId: context.conversationId,
+            userId: context.userId,
+            traceId: (context as any).traceId,
+            delegation: (options as any)?.delegation,
+          },
+        );
+        if (approved === false) {
+          throw new ToolDeniedError({
+            toolName: tool.name,
+            message: `Tool '${tool.name}' is not allowed in this delegated child session.`,
+            code: 'TOOL_FORBIDDEN',
+            httpStatus: 403,
+          });
+        }
         sharedHooks?.afterToolCall?.(
-          { toolName: tool.name, toolCallId: '', toolArgs: {} },
+          {
+            toolName: tool.name,
+            toolCallId: options?.toolContext?.callId || '',
+            toolArgs: args,
+          },
           {},
-          { agentSlug: slug },
+          {
+            agentSlug: slug,
+            conversationId: context.conversationId,
+            userId: context.userId,
+            traceId: (context as any).traceId,
+            delegation: (options as any)?.delegation,
+          },
         );
       },
       onEnd: async ({ context, output }) => {
@@ -202,6 +235,7 @@ export class VoltAgentFramework {
             conversationId: context.conversationId,
             userId: context.userId,
             traceId: (context as any).traceId,
+            delegation: (context as any).delegation,
           },
           usage: usage
             ? {

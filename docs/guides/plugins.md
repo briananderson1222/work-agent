@@ -2,6 +2,8 @@
 
 Plugins are the product — the core provides the foundation. A plugin can contribute layout UIs, agents, MCP tools, provider implementations, and knowledge namespaces. A single plugin can combine any of these.
 
+For the shortest path from scaffold to install, start with [Build Your First Plugin](./build-your-first-plugin.md) and use this document as the full reference.
+
 ## Directory Structure
 
 ```
@@ -33,6 +35,7 @@ All fields:
   "displayName": "My Plugin",
   "description": "What this plugin does",
   "entrypoint": "src/index.tsx",
+  "serverModule": "./plugin.mjs",
   "capabilities": ["chat", "navigation"],
   "permissions": ["navigation.dock"],
   "agents": [
@@ -69,6 +72,7 @@ All fields:
 | `displayName` | string | no | Human-readable name shown in UI |
 | `description` | string | no | Short description |
 | `entrypoint` | string | no | Path to UI entry point (layout plugins only) |
+| `serverModule` | string | no | Path to a server-side module that registers request-scoped plugin routes and lifecycle hooks |
 | `capabilities` | string[] | no | Declared capabilities, e.g. `["chat", "navigation"]` |
 | `permissions` | string[] | no | Permissions the plugin needs (see Permissions) |
 | `agents` | array | no | Agent configs to install |
@@ -613,11 +617,17 @@ Build produces `dist/bundle.js` (and optionally `dist/bundle.css`). Do not commi
 ### 1. Scaffold
 
 ```bash
-./stallion init my-plugin
+./stallion create-plugin my-plugin --template=full
 cd my-plugin
 ```
 
 This creates the full plugin structure with a working entry point, layout config, and agent.
+
+Available templates:
+
+- `full` — layout + agent + build config
+- `layout` — UI-focused starter
+- `provider` — server-side starter with `serverModule` and provider examples
 
 ### 2. Dev Server
 
@@ -666,6 +676,38 @@ Installs the current directory as a plugin into the running Stallion instance.
 ./stallion remove my-plugin # uninstall
 ./stallion preview <source> # validate before installing
 ./stallion registry [url]   # browse or set registry URL
+./stallion registry install <id>
+```
+
+## Request-Scoped Server Modules
+
+Plugins that need server routes can declare `serverModule` in `plugin.json`. Stallion loads that module per plugin and mounts it under `/api/plugins/<plugin-name>`.
+
+The module can export:
+
+- `register(app, context)` — register Hono routes for the plugin
+- `hooks.onRequest(context)` — request-start lifecycle hook
+- `hooks.onResponse(context)` — response lifecycle hook
+- `hooks.onError(context)` — error lifecycle hook
+
+Each request gets a correlation ID. Stallion exposes it to request hooks and returns it as the `x-stallion-correlation-id` response header. The `register()` context itself contains `pluginName`, `projectHomeDir`, `logger`, and config helpers.
+
+```js
+export const hooks = {
+  onRequest({ correlationId, path }) {
+    console.log('plugin request', correlationId, path);
+  },
+};
+
+export function register(app, context) {
+  app.get('/ping', (c) =>
+    c.json({
+      ok: true,
+      plugin: context.pluginName,
+      correlationId: c.req.header('x-stallion-correlation-id') || null,
+    }),
+  );
+}
 ```
 
 ## Agent Config (agent.json)

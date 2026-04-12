@@ -5,8 +5,9 @@ import type {
   MonitoringEvent,
 } from '../contexts/MonitoringContext';
 
-vi.mock('@shared/monitoring-keys', async () =>
-  import('../../../src-shared/monitoring-keys'),
+vi.mock(
+  '@shared/monitoring-keys',
+  async () => import('../../../src-shared/monitoring-keys'),
 );
 
 const {

@@ -10,9 +10,7 @@ export interface HeaderBreadcrumb {
   layoutSlug?: string;
 }
 
-export function getHelpPrompts(
-  view?: NavigationView,
-): HeaderHelpPrompt[] {
+export function getHelpPrompts(view?: NavigationView): HeaderHelpPrompt[] {
   const generic = [
     {
       label: 'What can you do?',

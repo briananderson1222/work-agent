@@ -1,5 +1,8 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { isContextSafetyError } from '../services/context-safety.js';
+import { readPluginManifestFileSync } from '../services/plugin-manifest-loader.js';
+import { scanPromptDirDetailed } from '../services/prompt-scanner.js';
 
 interface RuntimeLogger {
   info: (message: string, meta?: Record<string, unknown>) => void;
@@ -14,12 +17,11 @@ interface RuntimePluginLoaderContext {
 }
 
 export async function loadRuntimePluginPrompts(
-  context: Pick<RuntimePluginLoaderContext, 'projectHomeDir'>,
+  context: Pick<RuntimePluginLoaderContext, 'logger' | 'projectHomeDir'>,
 ): Promise<void> {
   const pluginsDir = join(context.projectHomeDir, 'plugins');
   if (!existsSync(pluginsDir)) return;
 
-  const { scanPromptDir } = await import('../services/prompt-scanner.js');
   const { PromptService } = await import('../services/prompt-service.js');
   const promptService = new PromptService();
 
@@ -29,16 +31,32 @@ export async function loadRuntimePluginPrompts(
       continue;
     }
     try {
-      const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+      const manifest = readPluginManifestFileSync(manifestPath);
       if (!manifest.prompts?.source) {
         continue;
       }
       const promptsDir = join(pluginsDir, name, manifest.prompts.source);
-      const scannedPrompts = scanPromptDir(promptsDir, name);
-      if (scannedPrompts.length > 0) {
-        promptService.registerPluginPrompts(scannedPrompts);
+      const scannedPrompts = scanPromptDirDetailed(promptsDir, name);
+      if (scannedPrompts.blockedFiles.length > 0) {
+        context.logger.warn('Skipped unsafe plugin prompt files', {
+          blockedFiles: scannedPrompts.blockedFiles.map((entry) => entry.file),
+          plugin: name,
+        });
       }
-    } catch {}
+      if (scannedPrompts.prompts.length > 0) {
+        promptService.registerPluginPrompts(scannedPrompts.prompts);
+      }
+    } catch (error) {
+      if (isContextSafetyError(error)) {
+        context.logger.warn(
+          'Skipped unsafe plugin manifest during prompt load',
+          {
+            error: error.message,
+            plugin: name,
+          },
+        );
+      }
+    }
   }
 }
 
@@ -50,7 +68,7 @@ export async function loadRuntimePluginProviders(
 
   const { resolvePluginProviders } = await import('../providers/resolver.js');
   const {
-    clearAll,
+    clearPluginProviders,
     registerProvider,
     registerBrandingProvider,
     registerSettingsProvider,
@@ -62,7 +80,7 @@ export async function loadRuntimePluginProviders(
     registerPluginRegistryProvider,
   } = await import('../providers/registry.js');
 
-  clearAll();
+  clearPluginProviders();
   const overrides = await context.loadPluginOverrides();
   const { resolved, conflicts } = resolvePluginProviders(pluginsDir, overrides);
 

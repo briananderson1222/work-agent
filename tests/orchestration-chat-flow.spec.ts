@@ -4,11 +4,11 @@ import {
   installMockOrchestrationEventSource,
   seedActiveChats,
   seedOrchestrationRoutes,
+  waitForMockOrchestrationEventSource,
 } from './helpers/orchestration';
 
 test.describe('Orchestration Chat Flow', () => {
   test.beforeEach(async ({ page }) => {
-    await installMockOrchestrationEventSource(page);
     await seedActiveChats(page, [
       {
         sessionId: 'session-1',
@@ -25,6 +25,7 @@ test.describe('Orchestration Chat Flow', () => {
         inputHistory: [],
       },
     ]);
+    await installMockOrchestrationEventSource(page);
     await seedOrchestrationRoutes(page);
   });
 
@@ -32,6 +33,40 @@ test.describe('Orchestration Chat Flow', () => {
     page,
   }) => {
     const commandBodies: any[] = [];
+    await page.route('**/api/system/status', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ready: true,
+          bedrock: {
+            credentialsFound: false,
+            verified: null,
+            region: 'us-east-1',
+          },
+          acp: { connected: false, connections: [] },
+          clis: {},
+          prerequisites: [],
+          providers: {
+            configured: [
+              {
+                id: 'codex-runtime',
+                type: 'codex',
+                enabled: true,
+                capabilities: ['llm'],
+              },
+            ],
+            detected: { ollama: false, bedrock: false },
+          },
+          capabilities: {
+            chat: {
+              ready: true,
+              source: 'codex-runtime',
+            },
+          },
+        }),
+      });
+    });
     await page.route('**/api/orchestration/commands', async (route) => {
       const payload = route.request().postDataJSON();
       commandBodies.push(payload);
@@ -43,11 +78,30 @@ test.describe('Orchestration Chat Flow', () => {
     });
 
     await page.goto('/projects/dev/layouts/code?chat=conv-1');
+    await page.evaluate(() => {
+      sessionStorage.setItem(
+        'activeChats',
+        JSON.stringify([
+          {
+            sessionId: 'session-1',
+            conversationId: 'conv-1',
+            agentSlug: 'dev-agent',
+            model: 'claude-sonnet',
+            provider: 'codex',
+            providerOptions: {
+              reasoningEffort: 'high',
+              fastMode: false,
+            },
+            orchestrationSessionStarted: false,
+            ephemeralMessages: [],
+            inputHistory: [],
+          },
+        ]),
+      );
+    });
+    await page.reload();
     await page.getByRole('button', { name: 'Expand', exact: true }).click();
-    await page.getByPlaceholder('Type a message...').fill('Inspect the repo');
-    await page.getByRole('button', { name: 'Send' }).click();
-
-    await expect.poll(() => commandBodies.length).toBe(2);
+    await waitForMockOrchestrationEventSource(page);
 
     await emitMockOrchestrationEvent(page, 'orchestration:event', {
       event: {
@@ -102,6 +156,8 @@ test.describe('Orchestration Chat Flow', () => {
         message: 'listing files',
       },
     });
+    await expect(page.getByText('listing files')).toBeVisible();
+    await expect(page.getByText('shell exec')).toBeVisible();
     await emitMockOrchestrationEvent(page, 'orchestration:event', {
       event: {
         provider: 'codex',
@@ -119,11 +175,15 @@ test.describe('Orchestration Chat Flow', () => {
     });
 
     await expect(page.getByText('Tool Approval Request')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Allow Once' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Allow Once' }),
+    ).toBeVisible();
     await page.getByRole('button', { name: 'Allow Once' }).click();
 
     await expect
-      .poll(() => commandBodies.some((body) => body.type === 'respondToRequest'))
+      .poll(() =>
+        commandBodies.some((body) => body.type === 'respondToRequest'),
+      )
       .toBe(true);
 
     await emitMockOrchestrationEvent(page, 'orchestration:event', {
@@ -153,6 +213,7 @@ test.describe('Orchestration Chat Flow', () => {
         },
       },
     });
+    await expect(page.getByText('listing files')).not.toBeVisible();
     await emitMockOrchestrationEvent(page, 'orchestration:event', {
       event: {
         provider: 'codex',
@@ -178,6 +239,8 @@ test.describe('Orchestration Chat Flow', () => {
 
     await expect(page.getByText('Repo looks healthy.')).toBeVisible();
     await expect(page.getByText('shell_exec')).toBeVisible();
-    await expect(page.getByText('Awaiting tool approval (1)')).not.toBeVisible();
+    await expect(
+      page.getByText('Awaiting tool approval (1)'),
+    ).not.toBeVisible();
   });
 });

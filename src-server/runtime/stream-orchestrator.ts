@@ -87,7 +87,20 @@ export function createElicitationCallback(
       } as unknown as any);
 
       // Wait for user approval
-      return approvalRegistry.register(approvalId);
+      return approvalRegistry.register(approvalId, {
+        metadata: {
+          agentName: agentSpec.name,
+          description:
+            typeof request.toolDescription === 'string'
+              ? request.toolDescription
+              : undefined,
+          server,
+          source: 'runtime',
+          title: toolMapping?.original || toolName,
+          tool,
+          toolName,
+        },
+      });
     }
     return false;
   };

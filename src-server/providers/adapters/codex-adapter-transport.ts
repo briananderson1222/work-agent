@@ -84,8 +84,15 @@ export function createCodexSessionRecord(options: {
   resumeCursor?: unknown;
   nowIso: () => string;
 }): CodexSessionRecord {
-  const { externalThreadId, process, provider, threadId, model, resumeCursor, nowIso } =
-    options;
+  const {
+    externalThreadId,
+    process,
+    provider,
+    threadId,
+    model,
+    resumeCursor,
+    nowIso,
+  } = options;
   return {
     externalThreadId,
     codexThreadId: '',

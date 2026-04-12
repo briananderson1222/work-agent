@@ -5,14 +5,14 @@ import {
   useContext,
   useSyncExternalStore,
 } from 'react';
+import { usePruneActiveChats } from '../hooks/useActiveChatSessions';
 import {
-  activeChatsStore,
   type ActiveChatMetadata,
   type ActiveChatsMap,
+  activeChatsStore,
   type ChatUIState,
 } from './active-chats-store';
 import { conversationsStore } from './ConversationsContext';
-import { usePruneActiveChats } from '../hooks/useActiveChatSessions';
 
 type ActiveChatsContextType = {
   initChat: (sessionId: string, metadata?: ActiveChatMetadata) => void;
@@ -102,9 +102,12 @@ export function ActiveChatsProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  const removeQueuedMessage = useCallback((sessionId: string, index: number) => {
-    activeChatsStore.removeQueuedMessage(sessionId, index);
-  }, []);
+  const removeQueuedMessage = useCallback(
+    (sessionId: string, index: number) => {
+      activeChatsStore.removeQueuedMessage(sessionId, index);
+    },
+    [],
+  );
 
   const editQueuedMessage = useCallback(
     (sessionId: string, index: number, newContent: string) => {
@@ -190,5 +193,5 @@ export function useAllActiveChats(): ActiveChatsMap {
   );
 }
 
-export { activeChatsStore };
 export type { ChatUIState };
+export { activeChatsStore };

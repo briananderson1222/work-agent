@@ -1,3 +1,4 @@
+import { useTrackPlaybookRunMutation } from '@stallion-ai/sdk';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback } from 'react';
 import {
@@ -9,13 +10,14 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { getAllCommands, getCommand } from '../slashCommands/registry';
 import '../slashCommands/builtins';
 import '../slashCommands/tools';
-import { promptSlug } from '../slashCommands/utils';
+import { findMatchingPlaybookCommand } from '../utils/playbook-commands';
 
 export function useSlashCommandHandler() {
   const { apiBase } = useApiBase();
   const { updateChat, addEphemeralMessage } = useActiveChatActions();
   const agents = useAgents();
   const queryClient = useQueryClient();
+  const trackPlaybookRunMutation = useTrackPlaybookRunMutation();
 
   return useCallback(
     async (
@@ -72,9 +74,18 @@ export function useSlashCommandHandler() {
 
       // 2. Check global prompts
       {
-        const cached = queryClient.getQueryData<any[]>(['prompts']);
-        const match = cached?.find((p: any) => promptSlug(p.name) === cmd);
+        const cached =
+          queryClient.getQueryData<any[]>(['playbooks']) ??
+          queryClient.getQueryData<any[]>(['prompts']);
+        const match = findMatchingPlaybookCommand(
+          cached,
+          cmd,
+          chatState.agentSlug,
+        );
         if (match) {
+          void trackPlaybookRunMutation
+            .mutateAsync(match.id)
+            .catch(() => undefined);
           cleanup();
           return match.content;
         }
@@ -116,6 +127,13 @@ export function useSlashCommandHandler() {
       cleanup();
       return true;
     },
-    [apiBase, agents, updateChat, addEphemeralMessage, queryClient],
+    [
+      apiBase,
+      agents,
+      updateChat,
+      addEphemeralMessage,
+      queryClient,
+      trackPlaybookRunMutation,
+    ],
   );
 }

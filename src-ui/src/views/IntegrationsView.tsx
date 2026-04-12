@@ -183,15 +183,15 @@ export function IntegrationsView() {
               setRawJson(value);
               setRawError(null);
             }}
-            onUpdate={(updater) => setEditForm((form) => (form ? updater(form) : form))}
+            onUpdate={(updater) =>
+              setEditForm((form) => (form ? updater(form) : form))
+            }
             onUnlock={() => setIsLocked(false)}
           />
         )}
       </SplitPaneLayout>
 
-      {showRegistry && (
-        <RegistryModal onClose={() => setShowRegistry(false)} />
-      )}
+      {showRegistry && <RegistryModal onClose={() => setShowRegistry(false)} />}
 
       {deleteConfirm && (
         <DeleteIntegrationModal

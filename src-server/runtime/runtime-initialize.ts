@@ -1,46 +1,49 @@
-import { Agent, VoltAgent } from '@voltagent/core';
-import { honoServer } from '@voltagent/server-hono';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import type { AppConfig } from '@stallion-ai/contracts/config';
+import { Agent, VoltAgent } from '@voltagent/core';
+import { honoServer } from '@voltagent/server-hono';
 import type { UsageAggregator } from '../analytics/usage-aggregator.js';
 import { DEFAULT_SYSTEM_PROMPT } from '../domain/config-loader.js';
 import type { FileStorageAdapter } from '../domain/file-storage-adapter.js';
+import type { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
+import type { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
+import type { CodexAdapter } from '../providers/adapters/codex-adapter.js';
+import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
 import {
   createProviderAdapterRegistry,
   registerAgentRegistryProvider,
   registerIntegrationRegistryProvider,
-  registerProviderAdapter,
+  registerProviderAdapters,
   registerSkillRegistryProvider,
 } from '../providers/registry.js';
-import type { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
-import type { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
-import type { CodexAdapter } from '../providers/adapters/codex-adapter.js';
-import { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import { attachVoiceWebSocket } from '../routes/voice.js';
 import type { ACPManager } from '../services/acp-bridge.js';
 import { EventBus } from '../services/event-bus.js';
 import { EventStore } from '../services/event-store.js';
 import type { FeedbackService } from '../services/feedback-service.js';
 import { OrchestrationService } from '../services/orchestration-service.js';
-import { attachVoiceWebSocket } from '../routes/voice.js';
 import { registerObservableGauges } from '../telemetry/metrics.js';
 import type { Logger } from '../utils/logger.js';
 import type { VoiceSessionService } from '../voice/voice-session.js';
-import { createRuntimeFrameworkModel } from './runtime-provider-resolution.js';
-import { loadRuntimePluginAssets } from './runtime-plugin-assets.js';
+import * as MCPManager from './mcp-manager.js';
+import { initializeRuntimeAgents } from './runtime-agent-registry.js';
 import {
   scheduleRuntimeDailyReload,
   scheduleRuntimePluginUpdateCheck,
   startRuntimeACPConnections,
 } from './runtime-background-tasks.js';
-import { bootstrapRuntimeDefaultAgent } from './runtime-default-agent.js';
 import { SC_READ_ONLY_TOOLS } from './runtime-control-tools.js';
-import { initializeRuntimeAgents } from './runtime-agent-registry.js';
-import { prepareRuntimeStartup } from './runtime-startup.js';
+import { bootstrapRuntimeDefaultAgent } from './runtime-default-agent.js';
 import type { RuntimeEventLog } from './runtime-event-log.js';
+import { loadRuntimePluginAssets } from './runtime-plugin-assets.js';
+import { createRuntimeFrameworkModel } from './runtime-provider-resolution.js';
+import {
+  checkOllamaAvailability,
+  prepareRuntimeStartup,
+} from './runtime-startup.js';
 import { StrandsFramework } from './strands-adapter.js';
 import { VoltAgentFramework } from './voltagent-adapter.js';
-import * as MCPManager from './mcp-manager.js';
 
 type RuntimeFramework = VoltAgentFramework | StrandsFramework;
 
@@ -102,7 +105,9 @@ interface InitializeRuntimeResult {
   voiceWsAttached: boolean;
 }
 
-export async function initializeRuntime(deps: InitializeRuntimeDeps): Promise<InitializeRuntimeResult> {
+export async function initializeRuntime(
+  deps: InitializeRuntimeDeps,
+): Promise<InitializeRuntimeResult> {
   const {
     port,
     logger,
@@ -163,9 +168,7 @@ export async function initializeRuntime(deps: InitializeRuntimeDeps): Promise<In
     (logger as any).level = appConfig.logLevel;
   }
 
-  registerProviderAdapter(bedrockAdapter);
-  registerProviderAdapter(claudeAdapter);
-  registerProviderAdapter(codexAdapter);
+  registerProviderAdapters([bedrockAdapter, claudeAdapter, codexAdapter]);
 
   const orchestrationService = new OrchestrationService({
     adapterRegistry: createProviderAdapterRegistry(),
@@ -187,7 +190,7 @@ export async function initializeRuntime(deps: InitializeRuntimeDeps): Promise<In
     });
   }
 
-  const modelCatalog = new BedrockModelCatalog(appConfig.region);
+  const modelCatalog = new BedrockModelCatalog(appConfig.region || 'us-east-1');
   logger.debug('Bedrock model catalog initialized');
 
   await loadRuntimePluginAssets({
@@ -204,11 +207,10 @@ export async function initializeRuntime(deps: InitializeRuntimeDeps): Promise<In
     skillService,
     logger,
     timers,
-    createUsageAggregator: usageAggregator
-      ? () => usageAggregator
-      : undefined,
+    createUsageAggregator: usageAggregator ? () => usageAggregator : undefined,
     runStartupMigrations,
     checkBedrockCredentials,
+    checkOllamaAvailability,
     registerSkillRegistryProvider,
     createDefaultSkillRegistryProvider,
   });
@@ -232,7 +234,7 @@ export async function initializeRuntime(deps: InitializeRuntimeDeps): Promise<In
         defaultSystemPrompt: DEFAULT_SYSTEM_PROMPT,
         autoApproveTools: SC_READ_ONLY_TOOLS,
         replaceTemplateVariables,
-        createBedrockModel: async (spec) =>
+        createModel: async (spec) =>
           createRuntimeFrameworkModel(spec, {
             framework,
             appConfig,

@@ -143,7 +143,8 @@ export const knowledgeQueries = {
     filters: Record<string, any>,
   ) => ({
     queryKey: ['knowledge', 'filtered', projectSlug, namespace, filters],
-    queryFn: async () => fetchKnowledgeFiltered(projectSlug, namespace, filters),
+    queryFn: async () =>
+      fetchKnowledgeFiltered(projectSlug, namespace, filters),
     staleTime: 2 * 60 * 1000,
   }),
 };

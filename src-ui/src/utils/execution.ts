@@ -1,5 +1,5 @@
-import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import type { AgentExecutionConfig } from '@stallion-ai/contracts/agent';
+import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import type {
   ConnectionConfig,
   ConnectionStatus,
@@ -112,10 +112,42 @@ type SessionExecutionActivity = SessionExecutionSummary & {
 
 export function runtimeConnectionIdToProviderKind(
   runtimeConnectionId?: string | null,
-): ProviderKind {
+): ProviderKind | undefined {
+  if (!runtimeConnectionId || runtimeConnectionId === 'acp') {
+    return undefined;
+  }
   if (runtimeConnectionId === 'claude-runtime') return 'claude';
   if (runtimeConnectionId === 'codex-runtime') return 'codex';
-  return 'bedrock';
+  if (runtimeConnectionId === 'bedrock-runtime') return 'bedrock';
+  if (runtimeConnectionId.endsWith('-runtime')) {
+    return runtimeConnectionId.slice(0, -'-runtime'.length);
+  }
+  return undefined;
+}
+
+export function isManagedRuntimeConnectionId(
+  runtimeConnectionId?: string | null,
+): boolean {
+  return runtimeConnectionId === 'bedrock-runtime';
+}
+
+export function preferredConnectedRuntime(
+  runtimeConnections: ConnectionConfig[],
+): ConnectionConfig | null {
+  const connected = runtimeConnections.filter(
+    (connection) =>
+      connection.kind === 'runtime' &&
+      connection.enabled &&
+      connection.type !== 'acp' &&
+      !isManagedRuntimeConnectionId(connection.id) &&
+      connection.capabilities.includes('agent-runtime'),
+  );
+  const preferredIds = ['claude-runtime', 'codex-runtime'];
+  for (const id of preferredIds) {
+    const match = connected.find((connection) => connection.id === id);
+    if (match) return match;
+  }
+  return connected[0] ?? null;
 }
 
 export function runtimeConnectionLabel(
@@ -176,7 +208,8 @@ export function resolveAgentExecution(agent: AgentWithExecution): {
     agent.execution?.runtimeConnectionId || 'bedrock-runtime';
   return {
     runtimeConnectionId,
-    provider: runtimeConnectionIdToProviderKind(runtimeConnectionId),
+    provider:
+      runtimeConnectionIdToProviderKind(runtimeConnectionId) ?? 'bedrock',
     model: agent.execution?.modelId || agent.model || undefined,
     providerOptions: buildProviderOptions(
       runtimeConnectionId,

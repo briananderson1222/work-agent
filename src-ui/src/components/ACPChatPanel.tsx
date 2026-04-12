@@ -3,9 +3,9 @@ import {
   useActiveChatActions,
   useActiveChatState,
 } from '../contexts/ActiveChatsContext';
-import { useCreateChatSession } from '../hooks/useActiveChatSessions';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useCreateChatSession } from '../hooks/useActiveChatSessions';
 import { useChatInput } from '../hooks/useChatInput';
 import { ChatInputArea } from './ChatInputArea';
 import { ChatMessageList } from './chat/ChatMessageList';

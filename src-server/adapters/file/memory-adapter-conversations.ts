@@ -46,16 +46,18 @@ export function applyConversationQueryOptions(
 }
 
 export interface MemoryConversationStore {
-  loadConversationFromDisk(conversationId: string): Promise<Conversation | null>;
+  loadConversationFromDisk(
+    conversationId: string,
+  ): Promise<Conversation | null>;
   persistConversation(conversation: Conversation): Promise<void>;
   touchConversation(conversationId: string): Promise<void>;
-  resolveResourceId(
-    conversationId?: string,
-    userId?: string,
-  ): Promise<string>;
+  resolveResourceId(conversationId?: string, userId?: string): Promise<string>;
   listAgentConversations(resourceId: string): Promise<Conversation[]>;
   loadAllConversations(): Promise<Conversation[]>;
-  deleteConversationAssets(resourceId: string, conversationId: string): Promise<void>;
+  deleteConversationAssets(
+    resourceId: string,
+    conversationId: string,
+  ): Promise<void>;
 }
 
 export function createMemoryConversationStore(options: {
@@ -230,7 +232,10 @@ export function createMemoryConversationStore(options: {
     resourceId: string,
     conversationId: string,
   ): Promise<void> {
-    const conversationPath = paths.getConversationPath(resourceId, conversationId);
+    const conversationPath = paths.getConversationPath(
+      resourceId,
+      conversationId,
+    );
     if (existsSync(conversationPath)) {
       await unlink(conversationPath);
     }

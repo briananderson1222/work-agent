@@ -1,6 +1,4 @@
-import {
-  useConversationsQuery,
-} from '@stallion-ai/sdk';
+import { useConversationsQuery } from '@stallion-ai/sdk';
 import {
   useCallback,
   useContext,
@@ -9,17 +7,19 @@ import {
 } from 'react';
 import { log } from '@/utils/logger';
 import { ConversationsContext } from './conversation-context';
-import { conversationsStore } from './conversations-store';
 import type {
   ConversationData,
   ConversationStatus,
   MessageData,
 } from './conversation-types';
+import { conversationsStore } from './conversations-store';
 
 function useConversationsContext() {
   const context = useContext(ConversationsContext);
   if (!context) {
-    throw new Error('Conversation hooks must be used within ConversationsProvider');
+    throw new Error(
+      'Conversation hooks must be used within ConversationsProvider',
+    );
   }
   return context;
 }

@@ -1,4 +1,4 @@
-import { existsSync, statSync, watch as fsWatch } from 'node:fs';
+import { existsSync, watch as fsWatch, statSync } from 'node:fs';
 import { extname, join } from 'node:path';
 import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 

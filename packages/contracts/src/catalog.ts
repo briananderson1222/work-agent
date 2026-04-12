@@ -1,3 +1,25 @@
+export interface PlaybookSourceContext {
+  kind: 'agent' | 'plugin' | 'user';
+  agentSlug?: string;
+  conversationId?: string;
+}
+
+export interface PlaybookProvenance {
+  createdFrom?: PlaybookSourceContext;
+  updatedFrom?: PlaybookSourceContext;
+}
+
+export interface PlaybookStats {
+  runs: number;
+  successes: number;
+  failures: number;
+  qualityScore: number | null;
+  lastRunAt?: string;
+  lastOutcomeAt?: string;
+}
+
+export type PlaybookOutcome = 'success' | 'failure';
+
 export interface Playbook {
   id: string;
   name: string;
@@ -10,6 +32,8 @@ export interface Playbook {
   source?: string;
   requires?: string[];
   icon?: string;
+  provenance?: PlaybookProvenance;
+  stats?: PlaybookStats;
   createdAt: string;
   updatedAt: string;
 }
@@ -21,6 +45,7 @@ export interface RegistryItem {
   displayName?: string;
   description?: string;
   version?: string;
+  source?: string;
   status?: string;
   tags?: string[];
   installed: boolean;

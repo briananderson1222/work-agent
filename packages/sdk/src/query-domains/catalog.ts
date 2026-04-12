@@ -1,4 +1,9 @@
-import type { InstallResult, Playbook, RegistryItem } from '@stallion-ai/contracts/catalog';
+import type {
+  InstallResult,
+  Playbook,
+  PlaybookOutcome,
+  RegistryItem,
+} from '@stallion-ai/contracts/catalog';
 import type { ToolDef } from '@stallion-ai/contracts/tool';
 import { _getApiBase } from '../api';
 import {
@@ -21,6 +26,11 @@ interface PlaybookMutationInput {
 interface PlaybookImportResult {
   count: number;
   failed: number;
+}
+
+interface PlaybookOutcomeInput {
+  id: string;
+  outcome: PlaybookOutcome;
 }
 
 interface IntegrationRegistryActionInput {
@@ -68,6 +78,23 @@ async function requestPlaybook<T>(
   return result.data as T;
 }
 
+export async function requestPlaybookRun(id: string): Promise<Playbook> {
+  return requestPlaybook<Playbook>(`/${encodeURIComponent(id)}/run`, {
+    method: 'POST',
+  });
+}
+
+export async function requestPlaybookOutcome({
+  id,
+  outcome,
+}: PlaybookOutcomeInput): Promise<Playbook> {
+  return requestPlaybook<Playbook>(`/${encodeURIComponent(id)}/outcome`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ outcome }),
+  });
+}
+
 async function requestIntegration<T>(
   path: string,
   init?: RequestInit,
@@ -106,9 +133,13 @@ export function useRegistryItemsQuery<T = any>(
   tab: RegistryCatalogTab,
   config?: QueryConfig<T[]>,
 ) {
-  return useApiQuery(['registry', tab], () => fetchRegistryItems<T>(tab, false), {
-    ...config,
-  });
+  return useApiQuery(
+    ['registry', tab],
+    () => fetchRegistryItems<T>(tab, false),
+    {
+      ...config,
+    },
+  );
 }
 
 export function useInstalledRegistryItemsQuery<T = any>(
@@ -175,6 +206,29 @@ export function useDeletePlaybookMutation(
   );
 }
 
+export function useTrackPlaybookRunMutation(
+  options?: MutationOptions<Playbook, string>,
+) {
+  return useApiMutation((id: string) => requestPlaybookRun(id), {
+    invalidateKeys: [['playbooks']],
+    onSuccess: options?.onSuccess,
+    onError: options?.onError,
+  });
+}
+
+export function useRecordPlaybookOutcomeMutation(
+  options?: MutationOptions<Playbook, PlaybookOutcomeInput>,
+) {
+  return useApiMutation(
+    (input: PlaybookOutcomeInput) => requestPlaybookOutcome(input),
+    {
+      invalidateKeys: [['playbooks']],
+      onSuccess: options?.onSuccess,
+      onError: options?.onError,
+    },
+  );
+}
+
 export function useImportPlaybooksMutation(
   options?: MutationOptions<
     PlaybookImportResult,
@@ -187,9 +241,11 @@ export function useImportPlaybooksMutation(
 ) {
   return useApiMutation(
     async (
-      items: Array<Pick<PlaybookMutationInput, 'name' | 'content'> & {
-        description?: string;
-      }>,
+      items: Array<
+        Pick<PlaybookMutationInput, 'name' | 'content'> & {
+          description?: string;
+        }
+      >,
     ) => {
       const results = await Promise.allSettled(
         items.map((item) =>
@@ -200,8 +256,9 @@ export function useImportPlaybooksMutation(
           }),
         ),
       );
-      const count = results.filter((result) => result.status === 'fulfilled')
-        .length;
+      const count = results.filter(
+        (result) => result.status === 'fulfilled',
+      ).length;
       const failed = results.length - count;
       if (failed > 0 && count === 0) {
         throw new Error('All imports failed');
@@ -232,7 +289,8 @@ export function useIntegrationQuery(
 ) {
   return useApiQuery(
     id ? ['integrations', id] : ['integrations'],
-    () => requestIntegration<IntegrationViewModel>(`/${encodeURIComponent(id!)}`),
+    () =>
+      requestIntegration<IntegrationViewModel>(`/${encodeURIComponent(id!)}`),
     { ...config, enabled: !!id && (config?.enabled ?? true) },
   );
 }
@@ -246,11 +304,14 @@ export function useSaveIntegrationMutation(
       isNew,
       ...data
     }: IntegrationViewModel & { isNew: boolean }) => {
-      await requestIntegration<void>(isNew ? '' : `/${encodeURIComponent(id)}`, {
-        method: isNew ? 'POST' : 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(isNew ? { id, ...data } : data),
-      });
+      await requestIntegration<void>(
+        isNew ? '' : `/${encodeURIComponent(id)}`,
+        {
+          method: isNew ? 'POST' : 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(isNew ? { id, ...data } : data),
+        },
+      );
     },
     {
       invalidateKeys: [['integrations']],

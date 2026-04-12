@@ -7,6 +7,7 @@ import type { ProviderAdapterShape } from '../adapter-shape.js';
 import { BedrockAdapter } from '../adapters/bedrock-adapter.js';
 import {
   clearAll,
+  clearPluginProviders,
   createProviderAdapterRegistry,
   getBrandingProvider,
   getProvider,
@@ -218,6 +219,51 @@ describe('Provider System', () => {
 
       expect(registry.get('bedrock')).toBe(adapter);
       expect(registry.list()).toEqual([adapter]);
+    });
+
+    it('preserves built-in adapters when clearing plugin providers', () => {
+      const builtInAdapter = new BedrockAdapter();
+      const pluginAdapter = {
+        provider: 'custom-runtime',
+        metadata: {
+          displayName: 'Custom Runtime',
+          description: 'Plugin runtime',
+          capabilities: ['agent-runtime'],
+          runtimeId: 'custom-runtime',
+          builtin: false,
+        },
+        startSession: async () => {
+          throw new Error('not implemented');
+        },
+        sendTurn: async () => {
+          throw new Error('not implemented');
+        },
+        interruptTurn: async () => undefined,
+        respondToRequest: async () => undefined,
+        stopSession: async () => undefined,
+        listSessions: async () => [],
+        hasSession: async () => false,
+        stopAll: async () => undefined,
+        streamEvents: async function* () {},
+      } satisfies ProviderAdapterShape;
+
+      registerProviderAdapter(builtInAdapter);
+      registerProviderAdapter(pluginAdapter);
+
+      clearPluginProviders();
+
+      expect(getProviderAdapters()).toEqual([builtInAdapter]);
+    });
+
+    it('re-registering a provider adapter replaces the existing entry instead of duplicating it', () => {
+      const first = new BedrockAdapter();
+      const second = new BedrockAdapter();
+
+      registerProviderAdapter(first);
+      registerProviderAdapter(second);
+
+      expect(getProviderAdapters()).toEqual([second]);
+      expect(getProviderAdapter('bedrock')).toBe(second);
     });
 
     it('clearAll resets both stores', () => {

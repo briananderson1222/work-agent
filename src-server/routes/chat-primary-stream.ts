@@ -1,4 +1,5 @@
 import { SpanStatusCode } from '@opentelemetry/api';
+import type { AgentDelegationContext } from '@stallion-ai/contracts/agent';
 import type { Context } from 'hono';
 import { stream } from 'hono/streaming';
 import * as StreamOrchestrator from '../runtime/stream-orchestrator.js';
@@ -15,12 +16,12 @@ import {
   ensureChatAgentStatsInitialized,
   finalizeChatRequest,
 } from './chat-lifecycle.js';
-import type { ChatMessage } from './chat-request-preparation.js';
 import {
   createChatConversationId,
   createChatTraceId,
   ensureChatConversation,
 } from './chat-persistence.js';
+import type { ChatMessage } from './chat-request-preparation.js';
 import { errorMessage } from './schemas.js';
 
 type ChatOperationContext = Record<string, unknown> & {
@@ -29,6 +30,7 @@ type ChatOperationContext = Record<string, unknown> & {
   title?: string;
   traceId?: string;
   abortSignal?: AbortSignal;
+  delegation?: AgentDelegationContext;
 };
 
 interface StreamPrimaryAgentChatArgs {
@@ -67,7 +69,9 @@ export function logDebugChatImages(
       }
       logger.info('[DEBUG Image] Received file part', {
         mediaType:
-          typeof filePart.mediaType === 'string' ? filePart.mediaType : undefined,
+          typeof filePart.mediaType === 'string'
+            ? filePart.mediaType
+            : undefined,
         urlLength: dataUrl.length,
         urlStart: dataUrl.substring(0, 50),
         urlEnd: dataUrl.substring(dataUrl.length - 50),
@@ -171,6 +175,11 @@ export function streamPrimaryAgentChat({
       memoryAdapter = ctx.memoryAdapters.get(slug);
       const isFileBackedAgent = ctx.agentSpecs.has(slug);
       const conversationStorage = isFileBackedAgent ? memory : memoryAdapter;
+      const requestedDelegation =
+        operationContext.delegation &&
+        typeof operationContext.delegation === 'object'
+          ? operationContext.delegation
+          : undefined;
       await ensureChatConversation({
         conversationStorage,
         conversationId: operationContext.conversationId,
@@ -178,7 +187,21 @@ export function streamPrimaryAgentChat({
         slug,
         input,
         title: operationContext.title,
+        metadata: requestedDelegation
+          ? { delegation: requestedDelegation }
+          : undefined,
       });
+      const persistedConversation =
+        conversationStorage && operationContext.conversationId
+          ? await conversationStorage.getConversation(
+              operationContext.conversationId,
+            )
+          : null;
+      const persistedDelegation = persistedConversation?.metadata?.delegation;
+      if (persistedDelegation && typeof persistedDelegation === 'object') {
+        operationContext.delegation =
+          persistedDelegation as AgentDelegationContext;
+      }
 
       const traceId = createChatTraceId(operationContext.conversationId!);
       operationContext.traceId = traceId;
@@ -215,7 +238,10 @@ export function streamPrimaryAgentChat({
       result.finishReason?.catch(suppressAbortError);
 
       const saveCancellationMessage = async () => {
-        await StreamOrchestrator.saveCancellationMessage(agent, operationContext);
+        await StreamOrchestrator.saveCancellationMessage(
+          agent,
+          operationContext,
+        );
       };
 
       ctx.logger.info('Agent stream started', {
@@ -301,7 +327,9 @@ export function streamPrimaryAgentChat({
       chatSpan.recordException(
         error instanceof Error ? error : new Error(errorMessage(error)),
       );
-      const agentModelForError = agent.model as { modelId?: string } | undefined;
+      const agentModelForError = agent.model as
+        | { modelId?: string }
+        | undefined;
       ctx.logger.error('Stream error occurred', {
         agentId: slug,
         modelName: agentModelForError?.modelId,

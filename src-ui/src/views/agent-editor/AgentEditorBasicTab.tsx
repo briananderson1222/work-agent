@@ -1,7 +1,17 @@
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
+import { useRuntimeConnectionsQuery } from '@stallion-ai/sdk';
 import { AgentIcon } from '../../components/AgentIcon';
 import { ModelSelector } from '../../components/ModelSelector';
-import { buildDescriptionPrompt, buildSystemPromptPrompt, slugify } from './utils';
+import {
+  isManagedRuntimeConnectionId,
+  preferredConnectedRuntime,
+} from '../../utils/execution';
 import type { AgentEditorFormProps, AgentType } from './types';
+import {
+  buildDescriptionPrompt,
+  buildSystemPromptPrompt,
+  slugify,
+} from './utils';
 
 export function AgentEditorBasicTab({
   form,
@@ -26,9 +36,65 @@ export function AgentEditorBasicTab({
 > & {
   agentType: AgentType;
 }) {
+  const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery();
+  const preferredConnected = preferredConnectedRuntime(
+    runtimeConnections as ConnectionConfig[],
+  );
+
   return (
     <>
       <div className="agent-editor__section">
+        {agentType !== 'acp' && (
+          <div className="editor-field">
+            <label className="editor-label" htmlFor="ae-agent-type">
+              Agent Type
+            </label>
+            <select
+              id="ae-agent-type"
+              className="editor-input"
+              value={agentType}
+              disabled={locked}
+              onChange={(event) => {
+                const nextType = event.target.value as AgentType;
+                setForm((current) => ({
+                  ...current,
+                  execution: {
+                    ...current.execution,
+                    runtimeConnectionId:
+                      nextType === 'connected'
+                        ? preferredConnected?.id ||
+                          current.execution.runtimeConnectionId
+                        : 'bedrock-runtime',
+                    modelConnectionId:
+                      nextType === 'connected'
+                        ? ''
+                        : current.execution.modelConnectionId,
+                    runtimeOptions:
+                      nextType === 'connected' &&
+                      isManagedRuntimeConnectionId(
+                        current.execution.runtimeConnectionId,
+                      )
+                        ? {}
+                        : current.execution.runtimeOptions,
+                  },
+                }));
+              }}
+            >
+              <option value="managed">Managed</option>
+              <option value="connected" disabled={!preferredConnected}>
+                Connected
+              </option>
+            </select>
+            <span className="editor-hint">
+              Managed agents use Stallion&apos;s built-in runtime and editor
+              tabs. Connected agents run through Claude, Codex, or another
+              runtime connection.
+              {!preferredConnected &&
+                ' Add a connected runtime in Connections before switching this agent.'}
+            </span>
+          </div>
+        )}
+
         <div className="editor-field">
           <label className="editor-label" htmlFor="ae-name">
             Name <span className="editor-required">*</span>
@@ -173,7 +239,10 @@ export function AgentEditorBasicTab({
               name="prompt"
               value={form.prompt}
               onChange={(event) =>
-                setForm((current) => ({ ...current, prompt: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  prompt: event.target.value,
+                }))
               }
               placeholder="You are a helpful assistant..."
               disabled={locked}
@@ -189,12 +258,15 @@ export function AgentEditorBasicTab({
         <div className="agent-editor__section">
           <div className="editor-field">
             <label className="editor-label">
-              Model <span className="editor-hint">— leave empty to use default</span>
+              Model{' '}
+              <span className="editor-hint">— leave empty to use default</span>
             </label>
             <div className={locked ? 'agent-editor__locked-field' : undefined}>
               <ModelSelector
                 value={form.modelId}
-                onChange={(modelId) => setForm((current) => ({ ...current, modelId }))}
+                onChange={(modelId) =>
+                  setForm((current) => ({ ...current, modelId }))
+                }
                 placeholder="Select a model..."
                 defaultModel={appConfig?.defaultModel}
               />

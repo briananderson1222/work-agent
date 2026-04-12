@@ -34,6 +34,16 @@ describe('PromptService', () => {
     expect(p.id).toBeDefined();
     expect(p.name).toBe('Test');
     expect(p.source).toBe('local');
+    expect(p.provenance).toEqual({
+      createdFrom: { kind: 'user' },
+      updatedFrom: { kind: 'user' },
+    });
+    expect(p.stats).toEqual({
+      runs: 0,
+      successes: 0,
+      failures: 0,
+      qualityScore: null,
+    });
   });
 
   test('getPrompt finds by id', async () => {
@@ -47,9 +57,22 @@ describe('PromptService', () => {
 
   test('updatePrompt modifies fields', async () => {
     const p = await svc.addPrompt({ name: 'Old', content: 'x' });
-    const updated = await svc.updatePrompt(p.id, { name: 'New' });
+    const updated = await svc.updatePrompt(
+      p.id,
+      { name: 'New' },
+      {
+        kind: 'agent',
+        agentSlug: 'planner',
+        conversationId: 'conv-1',
+      },
+    );
     expect(updated.name).toBe('New');
     expect(updated.id).toBe(p.id);
+    expect(updated.provenance?.updatedFrom).toEqual({
+      kind: 'agent',
+      agentSlug: 'planner',
+      conversationId: 'conv-1',
+    });
   });
 
   test('updatePrompt throws for missing', () => {
@@ -90,5 +113,70 @@ describe('PromptService', () => {
     const all = await svc.listPrompts();
     expect(all).toHaveLength(2);
     expect(all.find((p) => p.name === 'Plugin')).toBeDefined();
+  });
+
+  test('trackPromptRun increments usage stats', async () => {
+    const prompt = await svc.addPrompt({ name: 'Runner', content: 'x' });
+
+    const updated = await svc.trackPromptRun(prompt.id);
+
+    expect(updated.stats).toMatchObject({
+      runs: 1,
+      successes: 0,
+      failures: 0,
+      qualityScore: null,
+    });
+    expect(updated.stats?.lastRunAt).toBeDefined();
+  });
+
+  test('recordPromptOutcome tracks successes and quality score', async () => {
+    const prompt = await svc.addPrompt({ name: 'Quality', content: 'x' });
+
+    await svc.recordPromptOutcome(prompt.id, 'success');
+    const failed = await svc.recordPromptOutcome(prompt.id, 'failure');
+
+    expect(failed.stats).toMatchObject({
+      runs: 0,
+      successes: 1,
+      failures: 1,
+      qualityScore: 50,
+    });
+    expect(failed.stats?.lastOutcomeAt).toBeDefined();
+  });
+
+  test('registerPluginPrompts preserves quality stats for existing plugin prompts', async () => {
+    svc.registerPluginPrompts([
+      {
+        id: 'plugin:test:starter',
+        name: 'Plugin Starter',
+        content: 'first',
+        source: 'plugin:test',
+        createdAt: '',
+        updatedAt: '',
+      } as any,
+    ]);
+
+    await svc.trackPromptRun('plugin:test:starter');
+    await svc.recordPromptOutcome('plugin:test:starter', 'success');
+
+    svc.registerPluginPrompts([
+      {
+        id: 'plugin:test:starter',
+        name: 'Plugin Starter',
+        content: 'updated',
+        source: 'plugin:test',
+        createdAt: '',
+        updatedAt: '',
+      } as any,
+    ]);
+
+    const prompt = await svc.getPrompt('plugin:test:starter');
+    expect(prompt?.content).toBe('updated');
+    expect(prompt?.stats).toMatchObject({
+      runs: 1,
+      successes: 1,
+      failures: 0,
+      qualityScore: 100,
+    });
   });
 });

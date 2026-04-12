@@ -1,5 +1,5 @@
-import type { CanonicalRuntimeEvent } from '@stallion-ai/contracts/runtime-events';
 import type { SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { CanonicalRuntimeEvent } from '@stallion-ai/contracts/runtime-events';
 
 interface Deferred<T> {
   promise: Promise<T>;

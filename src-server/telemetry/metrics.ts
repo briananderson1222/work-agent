@@ -66,6 +66,19 @@ export const pluginSettingsUpdates = meter.createCounter(
     description: 'Plugin settings update events',
   },
 );
+export const pluginServerRequests = meter.createCounter(
+  'stallion.plugin.server_requests',
+  {
+    description: 'Plugin server-module request events',
+  },
+);
+export const pluginServerRequestDuration = meter.createHistogram(
+  'stallion.plugin.server_request_duration',
+  {
+    description: 'Plugin server-module request duration in milliseconds',
+    unit: 'ms',
+  },
+);
 
 // ── CRUD operations ──
 export const agentOps = meter.createCounter('stallion.agent.operations', {
@@ -129,6 +142,33 @@ export const notificationOps = meter.createCounter(
   'stallion.notification.operations',
   {
     description: 'Notification schedule/deliver/dismiss events',
+  },
+);
+export const approvalInboxOps = meter.createCounter(
+  'stallion.approval_inbox.operations',
+  {
+    description: 'Approval inbox open/resolve/action events',
+  },
+);
+export const approvalGuardianOps = meter.createCounter(
+  'stallion.approval_guardian.operations',
+  {
+    description:
+      'Guardian review requests and decisions for approval-bound tools',
+  },
+);
+
+// ── Context Safety ──
+export const contextSafetyScans = meter.createCounter(
+  'stallion.context_safety.scans',
+  {
+    description: 'Context safety scan operations',
+  },
+);
+export const contextSafetyFindings = meter.createCounter(
+  'stallion.context_safety.findings',
+  {
+    description: 'Context safety findings by rule and severity',
   },
 );
 

@@ -32,7 +32,12 @@ describe('runtime-provider-resolution', () => {
       listProviderConnections: () =>
         [
           { enabled: true, capabilities: ['llm'] },
-          { enabled: true, capabilities: ['vectordb'], type: 'lancedb', config: {} },
+          {
+            enabled: true,
+            capabilities: ['vectordb'],
+            type: 'lancedb',
+            config: {},
+          },
         ] as any,
     } as any);
 

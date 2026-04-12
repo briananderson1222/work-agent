@@ -1,9 +1,5 @@
+import { _getApiBase, _resolveAgent, getPluginHeaders } from './api-core';
 import { telemetry } from './telemetry';
-import {
-  _getApiBase,
-  _resolveAgent,
-  getPluginHeaders,
-} from './api-core';
 
 export interface SendMessageOptions {
   model?: string;

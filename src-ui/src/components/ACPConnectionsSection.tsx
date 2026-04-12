@@ -10,9 +10,9 @@ import {
   useACPConnections,
 } from '../hooks/useACPConnections';
 import type { AgentSummary } from '../types';
+import { ACPAddConnectionModal } from './acp-connections/ACPAddConnectionModal';
 import { ACPConnectionCard } from './acp-connections/ACPConnectionCard';
 import { ACPConnectionDetailModal } from './acp-connections/ACPConnectionDetailModal';
-import { ACPAddConnectionModal } from './acp-connections/ACPAddConnectionModal';
 import { ConnectionIcon } from './acp-connections/ConnectionIcon';
 import type { ACPConnectionDraft } from './acp-connections/types';
 

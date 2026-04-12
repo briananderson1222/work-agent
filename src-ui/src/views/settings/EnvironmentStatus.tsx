@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
 import { useSystemStatusForApiBaseQuery } from '@stallion-ai/sdk';
+import { useEffect, useState } from 'react';
 
 interface Prerequisite {
   id: string;

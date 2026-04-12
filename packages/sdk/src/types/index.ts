@@ -21,12 +21,15 @@ export type {
   UserDetailVM,
   UserIdentity,
 } from '@stallion-ai/contracts/auth';
-export type { KnowledgeDocumentMeta, KnowledgeNamespaceConfig } from '@stallion-ai/contracts/knowledge';
 export type {
-  LayoutPrompt,
-  LayoutTab,
+  KnowledgeDocumentMeta,
+  KnowledgeNamespaceConfig,
+} from '@stallion-ai/contracts/knowledge';
+export type {
   LayoutDefinition,
   LayoutDefinitionMetadata,
+  LayoutPrompt,
+  LayoutTab,
 } from '@stallion-ai/contracts/layout';
 export type { PluginManifest } from '@stallion-ai/contracts/plugin';
 export type {
@@ -37,7 +40,11 @@ export type {
   ToolCallResponse,
   WorkflowMetadata,
 } from '@stallion-ai/contracts/runtime';
-export type { ToolDef, ToolMetadata, ToolPermissions } from '@stallion-ai/contracts/tool';
+export type {
+  ToolDef,
+  ToolMetadata,
+  ToolPermissions,
+} from '@stallion-ai/contracts/tool';
 
 // ── SDK-specific types (React/UI concerns) ─────────────────────────
 
@@ -166,7 +173,9 @@ export interface WindowOptions {
 export interface IKnowledgeProvider {
   listDocs(
     namespace?: string,
-  ): Promise<import('@stallion-ai/contracts/knowledge').KnowledgeDocumentMeta[]>;
+  ): Promise<
+    import('@stallion-ai/contracts/knowledge').KnowledgeDocumentMeta[]
+  >;
   search(query: string, namespace?: string, topK?: number): Promise<any[]>;
   save(
     filename: string,

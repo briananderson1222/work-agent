@@ -37,7 +37,9 @@ describe('acp-connection-queries helpers', () => {
 
     expect(
       getACPConnectionVirtualAgentViews({
-        modes: [{ id: 'dev', name: 'Dev Mode', description: 'Build things' }] as any,
+        modes: [
+          { id: 'dev', name: 'Dev Mode', description: 'Build things' },
+        ] as any,
         prefix: 'kiro',
         config: {
           id: 'kiro',
@@ -106,7 +108,9 @@ describe('acp-connection-queries helpers', () => {
 
     await expect(
       getACPConnectionCommandOptions({
-        connection: { extMethod: vi.fn().mockRejectedValue(new Error('boom')) } as any,
+        connection: {
+          extMethod: vi.fn().mockRejectedValue(new Error('boom')),
+        } as any,
         sessionId: 'session-1',
         partialCommand: '/pl',
         logger,

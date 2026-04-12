@@ -1,3 +1,4 @@
+import { PROVIDER_TYPES } from './providerTypes';
 import type { ProviderConnection } from './types';
 
 export function ProviderConnectionForm({
@@ -44,10 +45,16 @@ export function ProviderConnectionForm({
           value={form.type}
           onChange={(event) => onTypeChange(event.target.value)}
         >
-          <option value="ollama">Ollama</option>
-          <option value="openai-compat">OpenAI-Compatible</option>
-          <option value="bedrock">Bedrock</option>
+          {PROVIDER_TYPES.map((option) => (
+            <option key={option.type} value={option.type}>
+              {option.name}
+            </option>
+          ))}
         </select>
+        <span className="editor-hint">
+          Start with whichever provider Stallion already detected, then add
+          others later.
+        </span>
       </div>
 
       <div className="editor-field">
@@ -94,7 +101,9 @@ export function ProviderConnectionForm({
             type="text"
             value={(form.config.baseUrl as string) ?? ''}
             placeholder="http://localhost:11434"
-            onChange={(event) => onSetConfigField('baseUrl', event.target.value)}
+            onChange={(event) =>
+              onSetConfigField('baseUrl', event.target.value)
+            }
           />
         </div>
       )}

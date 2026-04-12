@@ -66,7 +66,7 @@ describe('active chat state helpers', () => {
     expect(chats['draft:1']).toMatchObject({
       input: '',
       inputHistory: ['/resume'],
-      provider: 'bedrock',
+      provider: undefined,
       ephemeralMessages: [],
     });
 
@@ -216,7 +216,8 @@ describe('active chat state helpers', () => {
         conversationId: 'conv-new',
       }),
     );
-    expect(removeQueuedMessageState({ ...chat, queuedMessages: ['a', 'b'] }, 0))
-      .toEqual(expect.objectContaining({ queuedMessages: ['b'] }));
+    expect(
+      removeQueuedMessageState({ ...chat, queuedMessages: ['a', 'b'] }, 0),
+    ).toEqual(expect.objectContaining({ queuedMessages: ['b'] }));
   });
 });

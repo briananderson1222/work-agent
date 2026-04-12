@@ -1,5 +1,5 @@
-import { jsonSchema } from 'ai';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import { jsonSchema } from 'ai';
 import { Hono } from 'hono';
 import type { ITool, RuntimeContext } from '../runtime/types.js';
 import { chatRequests } from '../telemetry/metrics.js';

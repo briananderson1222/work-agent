@@ -113,6 +113,8 @@ describe('acp-manager-view helpers', () => {
       }),
     ]);
     expect(findACPConfigIdForSlug(probes as any, 'kiro-dev')).toBe('kiro');
-    expect(findACPConfigIdForSlug(probes as any, 'missing-agent')).toBeUndefined();
+    expect(
+      findACPConfigIdForSlug(probes as any, 'missing-agent'),
+    ).toBeUndefined();
   });
 });

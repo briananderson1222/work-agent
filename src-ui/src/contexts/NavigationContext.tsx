@@ -7,6 +7,7 @@ import {
 } from 'react';
 import type { DockMode } from '../types';
 import { navigationStore } from './navigation-store';
+
 export { navigationStore } from './navigation-store';
 
 const NavigationContext = createContext<{

@@ -60,7 +60,7 @@ describe('ActiveChatsStore', () => {
         model: 'sonnet',
         projectSlug: 'proj',
         projectName: undefined,
-        provider: 'bedrock',
+        provider: undefined,
         providerOptions: {},
         orchestrationSessionStarted: false,
         orchestrationProvider: undefined,

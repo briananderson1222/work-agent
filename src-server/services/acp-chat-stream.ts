@@ -343,8 +343,7 @@ export function streamACPChatResponse(
             await deps.getActiveWriter()?.({
               type: 'tool-result',
               toolCallId: part.toolCallId,
-              error:
-                'Tool call interrupted — agent session ended unexpectedly',
+              error: 'Tool call interrupted — agent session ended unexpectedly',
             });
           }
         }

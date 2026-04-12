@@ -1,5 +1,8 @@
+import {
+  usePluginRegistryInstallMutation,
+  useRegistryPluginsQuery,
+} from '@stallion-ai/sdk';
 import { useState } from 'react';
-import { usePluginRegistryInstallMutation, useRegistryPluginsQuery } from '@stallion-ai/sdk';
 
 export function PluginRegistryModal({ onClose }: { onClose: () => void }) {
   const { data: items = [], isLoading: loading } =
@@ -101,7 +104,9 @@ export function PluginRegistryModal({ onClose }: { onClose: () => void }) {
                         className={`plugins__btn ${item.installed ? 'plugins__btn--uninstall' : 'plugins__btn--install'}`}
                         onClick={() => {
                           setMessage(null);
-                          const action = item.installed ? 'uninstall' : 'install';
+                          const action = item.installed
+                            ? 'uninstall'
+                            : 'install';
                           actionMutation.mutate(
                             { id: item.id, action },
                             {
@@ -112,7 +117,10 @@ export function PluginRegistryModal({ onClose }: { onClose: () => void }) {
                                 });
                               },
                               onError: (error) => {
-                                setMessage({ type: 'error', text: error.message });
+                                setMessage({
+                                  type: 'error',
+                                  text: error.message,
+                                });
                               },
                             },
                           );

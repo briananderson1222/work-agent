@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import type { ACPConnectionInfo } from '../hooks/useACPConnections';
 import { buildNewTerminalItems } from '../components/coding-layout/utils';
+import type { ACPConnectionInfo } from '../hooks/useACPConnections';
 
 const connections: ACPConnectionInfo[] = [
   {

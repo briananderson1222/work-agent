@@ -1,4 +1,8 @@
-import { AfterInvocationEvent, AfterToolCallEvent, BeforeToolCallEvent } from '@strands-agents/sdk';
+import {
+  AfterInvocationEvent,
+  AfterToolCallEvent,
+  BeforeToolCallEvent,
+} from '@strands-agents/sdk';
 import { describe, expect, test, vi } from 'vitest';
 import { wireStrandsAgentHooks } from '../strands-agent-hooks.js';
 
@@ -27,8 +31,15 @@ describe('wireStrandsAgentHooks', () => {
         afterToolCall,
       },
       deniedToolUseIds,
-      invocationCtx: { agentSlug: 'agent-a', conversationId: 'conv-1', userId: 'user-1' },
-      memoryAdapter: { getMessages: vi.fn().mockResolvedValue([]), addMessage: vi.fn() } as any,
+      invocationCtx: {
+        agentSlug: 'agent-a',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+      },
+      memoryAdapter: {
+        getMessages: vi.fn().mockResolvedValue([]),
+        addMessage: vi.fn(),
+      } as any,
       logger: { info: vi.fn(), error: vi.fn() },
       resolvedModel: 'anthropic.test',
       getLastStreamUsage: () => null,
@@ -73,7 +84,11 @@ describe('wireStrandsAgentHooks', () => {
       strandsAgent: { hooks: registry.hooks } as any,
       hooks: { afterInvocation },
       deniedToolUseIds: new Set<string>(),
-      invocationCtx: { agentSlug: 'agent-a', conversationId: 'conv-1', userId: 'user-1' },
+      invocationCtx: {
+        agentSlug: 'agent-a',
+        conversationId: 'conv-1',
+        userId: 'user-1',
+      },
       memoryAdapter: memoryAdapter as any,
       logger: { info: vi.fn(), error: vi.fn() },
       resolvedModel: 'anthropic.test',
@@ -81,7 +96,9 @@ describe('wireStrandsAgentHooks', () => {
     });
 
     await registry.callbacks.get(AfterInvocationEvent)({
-      agent: { messages: [{ role: 'assistant', content: [{ text: 'hello' }] }] },
+      agent: {
+        messages: [{ role: 'assistant', content: [{ text: 'hello' }] }],
+      },
     });
 
     expect(memoryAdapter.getMessages).toHaveBeenCalledWith('user-1', 'conv-1');

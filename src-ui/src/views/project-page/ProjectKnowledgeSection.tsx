@@ -1,5 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useRef, useState } from 'react';
 import {
   deleteKnowledgeDoc,
   fetchKnowledgeDocs,
@@ -8,9 +6,11 @@ import {
   useKnowledgeBulkDeleteMutation,
   useKnowledgeDeleteMutation,
   useKnowledgeDocContentQuery,
-  useKnowledgeSearchQuery,
   useKnowledgeScanMutation,
+  useKnowledgeSearchQuery,
 } from '@stallion-ai/sdk';
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef, useState } from 'react';
 import { ProjectKnowledgeDocGroup } from './ProjectKnowledgeDocGroup';
 import { ProjectKnowledgeNamespaceConfig } from './ProjectKnowledgeNamespaceConfig';
 import { ProjectKnowledgeRulesEditor } from './ProjectKnowledgeRulesEditor';
@@ -170,7 +170,9 @@ export function ProjectKnowledgeSection({
     <div className="project-page__knowledge">
       <div className="project-page__knowledge-header">
         <div className="project-page__knowledge-title-row">
-          <span className="project-page__section-label">Knowledge & Documents</span>
+          <span className="project-page__section-label">
+            Knowledge & Documents
+          </span>
           <div className="project-page__knowledge-actions">
             {selectedDocs.size > 0 && (
               <button
@@ -196,8 +198,8 @@ export function ProjectKnowledgeSection({
         </div>
         {knowledgeStatus && knowledgeStatus.totalChunks > 0 && (
           <div className="project-page__knowledge-stats">
-            {knowledgeStatus.documentCount} documents · {knowledgeStatus.totalChunks}{' '}
-            chunks
+            {knowledgeStatus.documentCount} documents ·{' '}
+            {knowledgeStatus.totalChunks} chunks
             {knowledgeStatus.lastIndexed &&
               ` · updated ${timeAgo(knowledgeStatus.lastIndexed)}`}
           </div>
@@ -238,11 +240,13 @@ export function ProjectKnowledgeSection({
       {selectedNs && selectedNamespace && (
         <ProjectKnowledgeNamespaceConfig
           apiBase={apiBase}
-          namespace={selectedNamespace as KnowledgeNamespace & {
-            storageDir?: string;
-            writeFiles?: boolean;
-            enhance?: { auto?: boolean };
-          }}
+          namespace={
+            selectedNamespace as KnowledgeNamespace & {
+              storageDir?: string;
+              writeFiles?: boolean;
+              enhance?: { auto?: boolean };
+            }
+          }
           storageDirDraft={storageDirDraft}
           onStorageDirChange={setStorageDirDraft}
           onStorageDirBlur={() => {
@@ -327,41 +331,41 @@ export function ProjectKnowledgeSection({
         selectedDocs={selectedDocs}
       >
         <div>
-            <div
-              className={`project-page__dropzone${dragOver ? ' project-page__dropzone--active' : ''}`}
-              onDragOver={(event) => {
-                event.preventDefault();
-                setDragOver(true);
+          <div
+            className={`project-page__dropzone${dragOver ? ' project-page__dropzone--active' : ''}`}
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept=".txt,.md,.json,.csv,.html,.ts,.tsx,.js,.py,.yaml,.yml,.toml,.xml,.sql,.sh,.css"
+              style={{ display: 'none' }}
+              onChange={(event) => {
+                if (event.target.files) uploadFiles(event.target.files);
+                event.target.value = '';
               }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".txt,.md,.json,.csv,.html,.ts,.tsx,.js,.py,.yaml,.yml,.toml,.xml,.sql,.sh,.css"
-                style={{ display: 'none' }}
-                onChange={(event) => {
-                  if (event.target.files) uploadFiles(event.target.files);
-                  event.target.value = '';
-                }}
-              />
-              <span className="project-page__dropzone-icon">
-                {uploading ? '⏳' : '📎'}
-              </span>
-              <span className="project-page__dropzone-text">
-                {uploading
-                  ? 'Uploading…'
-                  : dragOver
-                    ? 'Drop files here'
-                    : 'Drop files here or click to browse'}
-              </span>
-              <span className="project-page__dropzone-hint">
-                .md .txt .json .ts .py .yaml and more
-              </span>
-            </div>
+            />
+            <span className="project-page__dropzone-icon">
+              {uploading ? '⏳' : '📎'}
+            </span>
+            <span className="project-page__dropzone-text">
+              {uploading
+                ? 'Uploading…'
+                : dragOver
+                  ? 'Drop files here'
+                  : 'Drop files here or click to browse'}
+            </span>
+            <span className="project-page__dropzone-hint">
+              .md .txt .json .ts .py .yaml and more
+            </span>
+          </div>
         </div>
       </ProjectKnowledgeDocGroup>
 

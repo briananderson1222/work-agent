@@ -5,6 +5,7 @@ import { FilePartPreview } from '../../FilePartPreview';
 import { markdownCodeComponents } from '../../HighlightedCodeBlock';
 import { ReasoningSection } from '../../ReasoningSection';
 import { ToolCallDisplay } from '../ToolCallDisplay';
+import { UIBlockRenderer } from '../UIBlockRenderer';
 
 type MessageContentPart = NonNullable<ChatMessage['contentParts']>[number];
 
@@ -59,6 +60,9 @@ export function MessageContent({
                 allParts={contentParts}
               />
             );
+          }
+          if (part.type === 'ui-block' && part.uiBlock) {
+            return <UIBlockRenderer key={index} block={part.uiBlock} />;
           }
           if (part.type === 'tool' || part.type?.startsWith('tool-')) {
             return (

@@ -29,6 +29,81 @@
   margin: 6px 0 0;
 }
 
+.connections-hub__summary {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  margin-bottom: 20px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent-primary) 8%, var(--bg-secondary)),
+    var(--bg-secondary)
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--accent-primary) 20%, var(--border-primary));
+  border-radius: 12px;
+}
+
+.connections-hub__summary-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.connections-hub__summary-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.connections-hub__summary-detail {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.connections-hub__summary-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.connections-hub__summary-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.connections-hub__summary-badge--ready {
+  background: color-mix(in srgb, var(--success-text, #22c55e) 15%, transparent);
+  color: var(--success-text, #22c55e);
+}
+
+.connections-hub__summary-badge--pending {
+  background: color-mix(in srgb, var(--warning-text, #f59e0b) 15%, transparent);
+  color: var(--warning-text, #f59e0b);
+}
+
+.connections-hub__summary-action {
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.connections-hub__summary-action:hover {
+  border-color: var(--accent-primary);
+  color: var(--accent-primary);
+}
+
 /* ── Sections ───────────────────────────────────────────────────── */
 
 .connections-hub__section {
@@ -237,6 +312,10 @@
 
   .connections-hub__title {
     font-size: 18px;
+  }
+
+  .connections-hub__summary {
+    flex-direction: column;
   }
 
   .connections-hub__cards {

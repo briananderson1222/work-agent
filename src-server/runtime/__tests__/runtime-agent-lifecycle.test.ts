@@ -23,7 +23,9 @@ describe('reloadRuntimeAgents', () => {
     const agentSpecs = new Map<string, any>([['removed', { slug: 'removed' }]]);
     const agentTools = new Map<string, any[]>([['removed', []]]);
     const memoryAdapters = new Map<string, any>([['removed', {}]]);
-    const mcpConfigs = new Map<string, any>([['removed:server', removedConfig]]);
+    const mcpConfigs = new Map<string, any>([
+      ['removed:server', removedConfig],
+    ]);
     const mcpConnectionStatus = new Map<string, any>([
       ['removed:server', { connected: true }],
     ]);
@@ -33,11 +35,15 @@ describe('reloadRuntimeAgents', () => {
     const registerAgent = vi.fn();
     const logger = { info: vi.fn(), error: vi.fn() };
     const emit = vi.fn();
-    const createVoltAgentInstance = vi.fn(async (slug: string) => createAgent(slug));
+    const createVoltAgentInstance = vi.fn(async (slug: string) =>
+      createAgent(slug),
+    );
 
     const appConfig = await reloadRuntimeAgents({
       configLoader: {
-        listAgents: vi.fn(async () => [{ slug: 'new-agent', name: 'New Agent' }]),
+        listAgents: vi.fn(async () => [
+          { slug: 'new-agent', name: 'New Agent' },
+        ]),
       } as any,
       activeAgents,
       agentMetadataMap,
@@ -51,7 +57,7 @@ describe('reloadRuntimeAgents', () => {
       logger,
       eventBus: { emit },
       createVoltAgentInstance,
-      loadAppConfig: async () => ({ logLevel: 'debug' } as any),
+      loadAppConfig: async () => ({ logLevel: 'debug' }) as any,
       applyLogLevel: vi.fn(),
     });
 
@@ -75,7 +81,9 @@ describe('reloadRuntimeAgents', () => {
 describe('reloadRuntimeSkillsAndAgents', () => {
   test('discovers skills for the active project and rebuilds agents', async () => {
     const discoverSkills = vi.fn(async () => {});
-    const createVoltAgentInstance = vi.fn(async (slug: string) => createAgent(slug));
+    const createVoltAgentInstance = vi.fn(async (slug: string) =>
+      createAgent(slug),
+    );
     const activeAgents = new Map<string, any>();
     const logger = { info: vi.fn(), error: vi.fn() };
 

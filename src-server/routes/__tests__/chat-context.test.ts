@@ -47,9 +47,9 @@ describe('injectConversationFeedbackContext', () => {
 
 describe('applyCombinedContextToInput', () => {
   test('prepends combined context to string input', () => {
-    expect(
-      applyCombinedContextToInput('hello', 'inject', 'rag'),
-    ).toBe('inject\n\nrag\n\nhello');
+    expect(applyCombinedContextToInput('hello', 'inject', 'rag')).toBe(
+      'inject\n\nrag\n\nhello',
+    );
   });
 
   test('prepends combined context to the first user text part without mutating input', () => {

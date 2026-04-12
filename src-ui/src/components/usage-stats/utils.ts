@@ -7,12 +7,10 @@ export function getAverageCostPerMessage(lifetime: {
     : 0;
 }
 
-export function getTotalUsageConversations(
-  lifetime: {
-    totalConversations?: number;
-    totalSessions?: number;
-  },
-): number {
+export function getTotalUsageConversations(lifetime: {
+  totalConversations?: number;
+  totalSessions?: number;
+}): number {
   return lifetime.totalConversations ?? lifetime.totalSessions ?? 0;
 }
 
@@ -25,7 +23,10 @@ export function getTopUsageEntries<T extends Record<string, any>>(
     .slice(0, limit);
 }
 
-export function getUsageModelDisplayName(models: any[], modelId: string): string {
+export function getUsageModelDisplayName(
+  models: any[],
+  modelId: string,
+): string {
   const modelInfo = models.find(
     (model) => model.id === modelId || model.originalId === modelId,
   );

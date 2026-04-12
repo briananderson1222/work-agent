@@ -6,24 +6,24 @@ import {
   usePluginChangelogQuery,
   usePluginInstallMutation,
   usePluginPreviewMutation,
-  usePluginProviderToggleMutation,
   usePluginProvidersQuery,
+  usePluginProviderToggleMutation,
   usePluginRemoveMutation,
   usePluginSettingsMutation,
   usePluginSettingsQuery,
   usePluginsQuery,
-  useReloadPluginsMutation,
   usePluginUpdateMutation,
   usePluginUpdatesQuery,
+  useReloadPluginsMutation,
   waitForAgentHealth,
 } from '@stallion-ai/sdk';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
-import { pluginRegistry } from '../../core/PluginRegistry';
 import { useApiBase } from '../../contexts/ApiBaseContext';
 import { useNavigation } from '../../contexts/NavigationContext';
 import { useProjects } from '../../contexts/ProjectsContext';
 import { usePermissions } from '../../core/PermissionManager';
+import { pluginRegistry } from '../../core/PluginRegistry';
 import { useUrlSelection } from '../../hooks/useUrlSelection';
 import type {
   Plugin,
@@ -110,7 +110,10 @@ export function usePluginManagementViewModel() {
       enabled: !!selectedPlugin && expandedProviders.has(selectedPlugin),
     });
 
-  const filtered = useMemo(() => filterPlugins(plugins, search), [plugins, search]);
+  const filtered = useMemo(
+    () => filterPlugins(plugins, search),
+    [plugins, search],
+  );
   const items = useMemo(() => buildPluginListItems(filtered), [filtered]);
 
   async function reloadClientPluginRegistry() {
@@ -352,13 +355,12 @@ export function usePluginManagementViewModel() {
     setShowFolderPicker,
     setShowInstallModal,
     setShowRegistryModal,
-    settingsData:
-      settingsData
-        ? {
-            schema: settingsData.schema as PluginSettingField[],
-            values: settingsData.values,
-          }
-        : undefined,
+    settingsData: settingsData
+      ? {
+          schema: settingsData.schema as PluginSettingField[],
+          values: settingsData.values,
+        }
+      : undefined,
     showFolderPicker,
     showInstallModal,
     showRegistryModal,

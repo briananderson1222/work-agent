@@ -61,7 +61,9 @@ async function nextEvent(
 
 describe('CodexAdapterTransport', () => {
   test('routes stdout notifications and parses malformed JSON as warnings', async () => {
-    const transport = new CodexAdapterTransport(() => new Date('2026-04-11T00:00:00Z'));
+    const transport = new CodexAdapterTransport(
+      () => new Date('2026-04-11T00:00:00Z'),
+    );
     const processHandle = new FakeCodexProcess();
     const record = createCodexSessionRecord({
       externalThreadId: 'thread-1',
@@ -101,7 +103,9 @@ describe('CodexAdapterTransport', () => {
   });
 
   test('writes JSON-RPC requests and resolves session lookup helpers', async () => {
-    const transport = new CodexAdapterTransport(() => new Date('2026-04-11T00:00:00Z'));
+    const transport = new CodexAdapterTransport(
+      () => new Date('2026-04-11T00:00:00Z'),
+    );
     const processHandle = new FakeCodexProcess();
     const record = createCodexSessionRecord({
       externalThreadId: 'thread-2',
@@ -115,7 +119,9 @@ describe('CodexAdapterTransport', () => {
     transport.registerSession(record);
     expect(transport.hasSession('thread-2')).toBe(true);
     expect(transport.requireSession('thread-2')).toBe(record);
-    const requestPromise = transport.sendRequest(record, 'initialize', { foo: 'bar' });
+    const requestPromise = transport.sendRequest(record, 'initialize', {
+      foo: 'bar',
+    });
     expect(processHandle.stdin.lines[0]).toContain('"method":"initialize"');
     transport.handleStdoutLine(
       record,

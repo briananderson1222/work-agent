@@ -40,6 +40,38 @@ describe('stallion-control shared helpers', () => {
     });
   });
 
+  test('buildChatRequest carries hidden delegation metadata when present', () => {
+    expect(
+      buildChatRequest('hello', 'conv-123', {
+        userId: 'user-1',
+        delegation: {
+          mode: 'isolated-child',
+          depth: 1,
+          maxDepth: 2,
+          parentAgentSlug: 'planner',
+          parentConversationId: 'conv-parent',
+          rootAgentSlug: 'planner',
+          rootConversationId: 'conv-parent',
+        },
+      }),
+    ).toEqual({
+      input: 'hello',
+      options: {
+        conversationId: 'conv-123',
+        userId: 'user-1',
+        delegation: {
+          mode: 'isolated-child',
+          depth: 1,
+          maxDepth: 2,
+          parentAgentSlug: 'planner',
+          parentConversationId: 'conv-parent',
+          rootAgentSlug: 'planner',
+          rootConversationId: 'conv-parent',
+        },
+      },
+    });
+  });
+
   test('buildSentMessageResult returns the MCP text payload shape', () => {
     expect(buildSentMessageResult('writer', 'conv-123')).toEqual({
       content: [

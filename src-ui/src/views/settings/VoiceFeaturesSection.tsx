@@ -239,7 +239,11 @@ export function VoiceFeaturesSection() {
               className="settings__feature-toggle"
               onClick={() => toggleProvider(provider.id)}
             >
-              <Toggle checked={provider.enabled} onChange={() => {}} size="sm" />
+              <Toggle
+                checked={provider.enabled}
+                onChange={() => {}}
+                size="sm"
+              />
               <div>
                 <div className="settings__toggle-name">{provider.name}</div>
                 {provider.description && (
@@ -282,11 +286,7 @@ export function NotificationsSection({ apiBase }: { apiBase: string }) {
     useFeatureSettings();
 
   return (
-    <SettingsSection
-      icon="◉"
-      title="Notifications"
-      id="section-notifications"
-    >
+    <SettingsSection icon="◉" title="Notifications" id="section-notifications">
       <label className="settings__toggle-row">
         <Toggle
           checked={featureSettings.pushNotificationsEnabled}

@@ -1,14 +1,13 @@
 import type { AgentTemplate } from '@stallion-ai/sdk';
-import { useState, type Dispatch, type SetStateAction } from 'react';
+import { type Dispatch, type SetStateAction, useState } from 'react';
 import { ACPConnectionsSection } from '../../components/ACPConnectionsSection';
+import { AgentIcon } from '../../components/AgentIcon';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { DetailHeader } from '../../components/DetailHeader';
-import { AgentIcon } from '../../components/AgentIcon';
 import type { AgentData } from '../../contexts/AgentsContext';
+import type { AgentSummary, NavigationView, Tool } from '../../types';
 import { AgentAddModal } from '../AgentAddModal';
 import { AgentEditorForm, type AgentFormData } from '../AgentEditorForm';
-import type { NavigationView } from '../../types';
-import type { AgentSummary, Tool } from '../../types';
 import {
   AgentEditorLoadingState,
   AgentEditorNotFoundState,
@@ -155,7 +154,11 @@ export function AgentsViewEditorPane({
                     aria-label="Unsaved changes"
                   />
                 )}
-                {isSaving ? 'Saving…' : isCreating ? 'Create Agent' : 'Save Changes'}
+                {isSaving
+                  ? 'Saving…'
+                  : isCreating
+                    ? 'Create Agent'
+                    : 'Save Changes'}
               </button>
             )}
           </DetailHeader>
@@ -169,8 +172,8 @@ export function AgentsViewEditorPane({
           {isPlugin && locked && (
             <div className="editor__lock-banner">
               <span>
-                🔒 This agent is managed by a plugin. Edits will be overwritten on
-                plugin updates.
+                🔒 This agent is managed by a plugin. Edits will be overwritten
+                on plugin updates.
               </span>
               <button
                 type="button"

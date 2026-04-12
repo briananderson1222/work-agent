@@ -1,31 +1,40 @@
-import { useNotificationHistory, useToast } from '../contexts/ToastContext';
+import {
+  useClearNotificationsMutation,
+  useDismissNotificationMutation,
+  useNotificationActionMutation,
+  useNotificationsQuery,
+} from '@stallion-ai/sdk';
+import {
+  formatNotificationTime,
+  isApprovalNotification,
+  notificationDetail,
+  sortNotifications,
+} from '../utils/notifications';
 import './NotificationsPage.css';
 
 export function NotificationsPage() {
-  const history = useNotificationHistory();
-  const { clearHistory } = useToast();
+  const { data: notifications = [], isLoading } = useNotificationsQuery();
+  const clearAllMutation = useClearNotificationsMutation();
+  const dismissMutation = useDismissNotificationMutation();
+  const actionMutation = useNotificationActionMutation();
 
-  const formatTime = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
+  const orderedNotifications = sortNotifications(notifications);
 
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffMins < 1440) return `${Math.floor(diffMins / 60)}h ago`;
-    return `${date.toLocaleDateString()} ${date.toLocaleTimeString()}`;
-  };
+  if (isLoading) {
+    return (
+      <div className="notifications-page__empty">Loading notifications…</div>
+    );
+  }
 
   return (
     <div className="notifications-page">
       <div className="notifications-page__header">
         <h1 className="notifications-page__title">Notifications</h1>
-        {history.length > 0 && (
+        {orderedNotifications.length > 0 && (
           <button
             onClick={() => {
-              if (confirm('Clear all notification history?')) {
-                clearHistory();
+              if (confirm('Clear all notifications?')) {
+                clearAllMutation.mutate();
               }
             }}
             className="notifications-page__clear-btn"
@@ -35,7 +44,7 @@ export function NotificationsPage() {
         )}
       </div>
 
-      {history.length === 0 ? (
+      {orderedNotifications.length === 0 ? (
         <div className="notifications-page__empty">
           <svg
             width="48"
@@ -55,33 +64,80 @@ export function NotificationsPage() {
         </div>
       ) : (
         <div className="notifications-page__list">
-          {history.map((notification) => (
-            <div
-              key={notification.id}
-              className={`notification-card ${notification.dismissed ? 'notification-card--dismissed' : ''}`}
-            >
-              <div className="notification-card__header">
-                <div className="notification-card__content">
-                  {notification.type === 'tool-approval' && (
-                    <div className="notification-card__type">
-                      Tool Approval Request
+          {orderedNotifications.map((notification) => {
+            const detail = notificationDetail(notification);
+            return (
+              <div
+                key={notification.id}
+                className={`notification-card notification-card--${notification.status}`}
+              >
+                <div className="notification-card__header">
+                  <div className="notification-card__content">
+                    {isApprovalNotification(notification) && (
+                      <div className="notification-card__type">
+                        Approval Request
+                      </div>
+                    )}
+                    <div className="notification-card__message">
+                      {notification.title}
                     </div>
-                  )}
-                  <div className="notification-card__message">
-                    {notification.message}
+                    {notification.body ? (
+                      <div className="notification-card__detail">
+                        {notification.body}
+                      </div>
+                    ) : null}
+                    {detail ? (
+                      <div className="notification-card__detail">{detail}</div>
+                    ) : null}
                   </div>
-                  {notification.sessionId && (
-                    <div className="notification-card__detail">
-                      Session: {notification.sessionId.slice(0, 8)}...
+                  <div className="notification-card__time">
+                    {formatNotificationTime(notification.updatedAt)}
+                  </div>
+                </div>
+
+                {(notification.actions?.length || notification.status) && (
+                  <div className="notification-card__footer">
+                    <div className="notification-card__status">
+                      {notification.status.replace('-', ' ')}
                     </div>
-                  )}
-                </div>
-                <div className="notification-card__time">
-                  {formatTime(notification.timestamp)}
-                </div>
+                    <div className="notification-card__actions">
+                      {notification.actions?.map((action) => (
+                        <button
+                          key={action.id}
+                          type="button"
+                          className={`notification-card__action notification-card__action--${action.variant ?? 'secondary'}`}
+                          onClick={() =>
+                            actionMutation.mutate({
+                              actionId: action.id,
+                              id: notification.id,
+                            })
+                          }
+                          disabled={
+                            actionMutation.isPending ||
+                            notification.status !== 'delivered'
+                          }
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                      {notification.status === 'delivered' && (
+                        <button
+                          type="button"
+                          className="notification-card__action notification-card__action--ghost"
+                          onClick={() =>
+                            dismissMutation.mutate(notification.id)
+                          }
+                          disabled={dismissMutation.isPending}
+                        >
+                          Dismiss
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

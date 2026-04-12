@@ -35,6 +35,46 @@ describe('chat persistence helpers', () => {
     });
   });
 
+  test('persists delegation metadata on new child conversations', async () => {
+    const conversationStorage = {
+      getConversation: vi.fn().mockResolvedValue(null),
+      createConversation: vi.fn().mockResolvedValue(undefined),
+    };
+
+    await ensureChatConversation({
+      conversationStorage,
+      conversationId: 'conv-child',
+      userId: 'user-1',
+      slug: 'agent-a',
+      input: 'A short title',
+      metadata: {
+        delegation: {
+          mode: 'isolated-child',
+          depth: 1,
+          maxDepth: 2,
+          parentAgentSlug: 'planner',
+          rootAgentSlug: 'planner',
+        },
+      },
+    });
+
+    expect(conversationStorage.createConversation).toHaveBeenCalledWith({
+      id: 'conv-child',
+      resourceId: 'agent-a',
+      userId: 'user-1',
+      title: 'A short title',
+      metadata: {
+        delegation: {
+          mode: 'isolated-child',
+          depth: 1,
+          maxDepth: 2,
+          parentAgentSlug: 'planner',
+          rootAgentSlug: 'planner',
+        },
+      },
+    });
+  });
+
   test('persists user and assistant messages for temp agents', async () => {
     const memoryAdapter = {
       addMessage: vi.fn().mockResolvedValue(undefined),

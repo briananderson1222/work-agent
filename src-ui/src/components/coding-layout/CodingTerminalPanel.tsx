@@ -156,9 +156,7 @@ export function CodingTerminalPanel({
                 display: tab.id === activeTabId ? 'contents' : 'none',
               }}
             >
-              {tab.type === 'agent' &&
-              tab.mode === 'chat' &&
-              tab.agentSlug ? (
+              {tab.type === 'agent' && tab.mode === 'chat' && tab.agentSlug ? (
                 <ACPChatPanel
                   projectSlug={projectSlug}
                   agentSlug={tab.agentSlug}

@@ -2,8 +2,10 @@
  * Agent Service - handles agent CRUD and lifecycle operations
  */
 
-import type { AgentExecutionConfig } from '@stallion-ai/contracts/agent';
-import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import type {
+  AgentExecutionConfig,
+  AgentSpec,
+} from '@stallion-ai/contracts/agent';
 
 type Agent = any;
 

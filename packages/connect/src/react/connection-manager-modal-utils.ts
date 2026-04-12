@@ -4,7 +4,9 @@ export type ConnectionHealthValue = boolean | null | undefined;
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'error';
 
-export function getConnectionManagerTitle(panel: ConnectionManagerPanel): string {
+export function getConnectionManagerTitle(
+  panel: ConnectionManagerPanel,
+): string {
   switch (panel) {
     case 'list':
       return 'Connections';

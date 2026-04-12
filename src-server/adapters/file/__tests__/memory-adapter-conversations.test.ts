@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
 import type { Conversation } from '@voltagent/core';
+import { describe, expect, test } from 'vitest';
 import { applyConversationQueryOptions } from '../memory-adapter-conversations.js';
 
 const conversations: Conversation[] = [

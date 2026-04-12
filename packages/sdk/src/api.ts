@@ -5,6 +5,6 @@
  * callers keep a stable entrypoint while transport ownership stays explicit.
  */
 
-export * from './api-core';
 export * from './api-agent-runtime';
+export * from './api-core';
 export * from './api-knowledge';

@@ -1,10 +1,10 @@
 import { join } from 'node:path';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
-import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { AppConfig } from '@stallion-ai/contracts/config';
+import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
+import type { UsageAggregator } from '../analytics/usage-aggregator.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { Logger } from '../utils/logger.js';
-import type { UsageAggregator } from '../analytics/usage-aggregator.js';
 import type { IAgentFramework } from './types.js';
 
 interface RuntimeDefaultAgentContext {
@@ -17,7 +17,7 @@ interface RuntimeDefaultAgentContext {
   defaultSystemPrompt: string;
   autoApproveTools: string[];
   replaceTemplateVariables: (text: string) => string;
-  createBedrockModel: (spec: AgentSpec) => Promise<any>;
+  createModel: (spec: AgentSpec) => Promise<any>;
   loadAgentTools: (slug: string, spec: AgentSpec) => Promise<any[]>;
   activeAgents: Map<string, any>;
   agentTools: Map<string, any[]>;
@@ -57,7 +57,10 @@ export async function bootstrapRuntimeDefaultAgent(
   const { selfIntegrationId, selfIntegration } = createRuntimeSelfIntegration(
     context.port,
   );
-  await context.configLoader.saveIntegration(selfIntegrationId, selfIntegration);
+  await context.configLoader.saveIntegration(
+    selfIntegrationId,
+    selfIntegration,
+  );
 
   const defaultSpec = {
     model: context.appConfig.defaultModel,
@@ -67,7 +70,7 @@ export async function bootstrapRuntimeDefaultAgent(
     },
   } as AgentSpec;
 
-  const defaultModel = await context.createBedrockModel(defaultSpec);
+  const defaultModel = await context.createModel(defaultSpec);
   let defaultTools: any[] = [];
 
   try {
@@ -85,7 +88,9 @@ export async function bootstrapRuntimeDefaultAgent(
   const defaultAgent = await context.framework.createTempAgent({
     name: 'default',
     instructions: () =>
-      context.replaceTemplateVariables(context.appConfig.systemPrompt || context.defaultSystemPrompt),
+      context.replaceTemplateVariables(
+        context.appConfig.systemPrompt || context.defaultSystemPrompt,
+      ),
     model: defaultModel,
     tools: defaultTools,
   });

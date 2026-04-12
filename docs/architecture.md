@@ -2,7 +2,7 @@
 
 ## System Overview
 
-Stallion is a local-first AI agent system built on Amazon Bedrock. It runs as a self-hosted server that users deploy alongside their own plugins — the core is a generic foundation, and plugins are the product.
+Stallion is a local-first AI agent system built around pluggable providers and runtimes. It runs as a self-hosted server that users deploy alongside their own plugins — the core is a generic foundation, and plugins are the product.
 
 **Core/plugin boundary:**
 - The core server (`src-server/`) provides the runtime, HTTP API, streaming pipeline, MCP lifecycle, and provider registry. It has no domain-specific logic.
@@ -130,6 +130,40 @@ graph TB
 | `InjectableStream` | `src-server/runtime/streaming/InjectableStream.ts` | Wraps `fullStream` to allow out-of-band event injection (e.g. approval requests) |
 | Framework Adapter | `src-server/runtime/voltagent-adapter.ts` or `strands-adapter.ts` | Pluggable adapter layer between the runtime and the underlying AI SDK |
 | Provider Registry | `src-server/providers/registry.ts` | Singleton registry for all plugin-provided implementations |
+
+---
+
+## Self-Configuring Loop
+
+`stallion-control` makes Stallion self-managing rather than just chat-driven. A managed agent can use the same platform APIs the UI uses to reshape the workspace while it works.
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Agent
+    participant Control as stallion-control MCP
+    participant Runtime as Stallion Runtime
+    participant UI as Web UI
+
+    User->>Agent: "Set up a code review workspace for this repo"
+    Agent->>Control: inspect projects, agents, playbooks, integrations
+    Control->>Runtime: call /api/* control routes
+    Runtime-->>Control: current workspace state
+    Agent->>Control: create/update playbooks, send work to another agent
+    Control->>Runtime: persist config changes
+    Runtime-->>UI: SSE + cache invalidation
+    UI-->>User: updated workspace, notifications, structured results
+```
+
+Key pieces in the loop:
+
+- `src-server/tools/stallion-control-*.ts` exposes management tools over MCP.
+- `src-server/runtime/mcp-manager.ts` injects delegation metadata for child-agent sends and internal provenance for agent-authored playbook changes.
+- `src-server/runtime/delegation.ts` enforces isolated child sessions with depth limits, blocked tools, and approval denial for delegated children.
+- `src-server/services/approval-inbox.ts` and `src-server/services/approval-guardian.ts` turn approval-bound tool calls into inbox items and optional guardian-reviewed decisions.
+- `src-server/services/prompt-service.ts` tracks playbook provenance plus run/outcome quality so agents can refine their own playbooks over time.
+
+This is the architectural difference between “chatting with an agent” and “letting agents shape the system they run inside.”
 
 ---
 

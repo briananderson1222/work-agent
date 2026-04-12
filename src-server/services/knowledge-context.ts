@@ -2,7 +2,10 @@ import type {
   KnowledgeDocumentMeta,
   KnowledgeNamespaceConfig,
 } from '@stallion-ai/contracts/knowledge';
-import { knowledgeVectorNamespace, loadKnowledgeMeta } from './knowledge-storage.js';
+import {
+  knowledgeVectorNamespace,
+  loadKnowledgeMeta,
+} from './knowledge-storage.js';
 
 export function buildKnowledgeRagContext(
   results: Array<{
@@ -70,7 +73,9 @@ export async function buildKnowledgeInjectContext({
     const totalChunks = docs.reduce((sum, doc) => sum + doc.chunkCount, 0);
     if (totalChunks === 0) continue;
 
-    const [queryVector] = await embeddingProvider.embed([namespaceConfig.label]);
+    const [queryVector] = await embeddingProvider.embed([
+      namespaceConfig.label,
+    ]);
     const results = await vectorDb.search(namespace, queryVector, totalChunks);
     if (results.length === 0) continue;
 
@@ -124,7 +129,9 @@ export function findKnowledgeDocumentNamespace({
       projectSlug,
       namespace.id,
     );
-    if (metadata.some((document: KnowledgeDocumentMeta) => document.id === docId)) {
+    if (
+      metadata.some((document: KnowledgeDocumentMeta) => document.id === docId)
+    ) {
       return namespace.id;
     }
   }

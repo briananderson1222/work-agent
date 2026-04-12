@@ -10,9 +10,9 @@ import {
 
 describe('usage-stats utils', () => {
   test('getAverageCostPerMessage and getTotalUsageConversations handle fallback values', () => {
-    expect(
-      getAverageCostPerMessage({ totalCost: 12, totalMessages: 3 }),
-    ).toBe(4);
+    expect(getAverageCostPerMessage({ totalCost: 12, totalMessages: 3 })).toBe(
+      4,
+    );
     expect(getTotalUsageConversations({ totalSessions: 9 })).toBe(9);
   });
 

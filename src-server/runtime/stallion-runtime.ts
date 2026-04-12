@@ -192,7 +192,9 @@ export class StallionRuntime {
     });
     this.eventLog = new RuntimeEventLog(this.eventLogPath, this.logger);
 
-    this.approvalRegistry = new ApprovalRegistry(this.logger);
+    this.approvalRegistry = new ApprovalRegistry(this.logger, {
+      eventBus: this.eventBus,
+    });
     const services = createRuntimeServiceBundle({
       projectHomeDir,
       port: this.port,
@@ -378,6 +380,7 @@ export class StallionRuntime {
       app,
       logger: this.logger,
       eventBus: this.eventBus,
+      approvalRegistry: this.approvalRegistry,
       appConfig: this.appConfig,
       port: this.port,
       usageAggregator: this.usageAggregator,

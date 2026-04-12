@@ -73,7 +73,9 @@ async function requestFileSystemBrowse(
 
 export async function fetchPromptById(id: string): Promise<Playbook | null> {
   const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/api/prompts/${encodeURIComponent(id)}`);
+  const response = await fetch(
+    `${apiBase}/api/prompts/${encodeURIComponent(id)}`,
+  );
   const result = (await response.json()) as {
     success: boolean;
     data?: Playbook;
@@ -252,11 +254,10 @@ export function usePromptQuery(
   id: string | null | undefined,
   config?: QueryConfig<Playbook | null>,
 ) {
-  return useApiQuery(
-    ['prompt', id ?? 'unknown'],
-    () => fetchPromptById(id!),
-    { ...config, enabled: !!id && (config?.enabled ?? true) },
-  );
+  return useApiQuery(['prompt', id ?? 'unknown'], () => fetchPromptById(id!), {
+    ...config,
+    enabled: !!id && (config?.enabled ?? true),
+  });
 }
 
 export function useAcpCommandsQuery(

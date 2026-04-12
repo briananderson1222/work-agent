@@ -1,9 +1,9 @@
-import { RELATIVE_TIME_OPTIONS } from './monitoring-utils';
 import {
   getMonitoringTimeLabel,
   getMonitoringTimeSublabel,
   type MonitoringTimeMode,
 } from './monitoring-time-range';
+import { RELATIVE_TIME_OPTIONS } from './monitoring-utils';
 
 interface MonitoringTimeControlsProps {
   clearTime: Date | null;
@@ -16,7 +16,9 @@ interface MonitoringTimeControlsProps {
   showTimeControls: boolean;
   onToggleControls: () => void;
   onTimeModeChange: (mode: MonitoringTimeMode) => void;
-  onRelativeSelect: (value: (typeof RELATIVE_TIME_OPTIONS)[number]['value']) => void;
+  onRelativeSelect: (
+    value: (typeof RELATIVE_TIME_OPTIONS)[number]['value'],
+  ) => void;
   onAbsoluteStartChange: (value: string) => void;
   onAbsoluteEndChange: (value: string) => void;
   onAbsoluteEndNow: () => void;
@@ -25,9 +27,7 @@ interface MonitoringTimeControlsProps {
   onClearAll: () => void;
 }
 
-export function MonitoringTimeControls(
-  props: MonitoringTimeControlsProps,
-) {
+export function MonitoringTimeControls(props: MonitoringTimeControlsProps) {
   const timeLabel = getMonitoringTimeLabel({
     clearTime: props.clearTime,
     timeMode: props.timeMode,
@@ -48,10 +48,7 @@ export function MonitoringTimeControls(
   return (
     <>
       <div className="time-filter-wrapper">
-        <button
-          onClick={props.onToggleControls}
-          className="time-filter-button"
-        >
+        <button onClick={props.onToggleControls} className="time-filter-button">
           <svg
             width="14"
             height="14"
@@ -116,7 +113,9 @@ export function MonitoringTimeControls(
                   <input
                     type="datetime-local"
                     value={props.absoluteStart}
-                    onChange={(e) => props.onAbsoluteStartChange(e.target.value)}
+                    onChange={(e) =>
+                      props.onAbsoluteStartChange(e.target.value)
+                    }
                   />
                 </label>
                 <label>
@@ -125,7 +124,9 @@ export function MonitoringTimeControls(
                     <input
                       type="datetime-local"
                       value={props.absoluteEnd}
-                      onChange={(e) => props.onAbsoluteEndChange(e.target.value)}
+                      onChange={(e) =>
+                        props.onAbsoluteEndChange(e.target.value)
+                      }
                       disabled={props.isLiveMode}
                       placeholder="Leave empty for now"
                       className={
@@ -142,7 +143,10 @@ export function MonitoringTimeControls(
                     </button>
                   </div>
                 </label>
-                <button className="apply-button" onClick={props.onApplyAbsolute}>
+                <button
+                  className="apply-button"
+                  onClick={props.onApplyAbsolute}
+                >
                   Apply
                 </button>
               </div>

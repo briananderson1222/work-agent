@@ -47,7 +47,9 @@ describe('acp-connection-event-controller', () => {
     controller.flushTextPart();
 
     expect(getState().responseAccumulator).toBe('');
-    expect(getState().responseParts).toEqual([{ type: 'text', text: 'hello world' }]);
+    expect(getState().responseParts).toEqual([
+      { type: 'text', text: 'hello world' },
+    ]);
   });
 
   test('updateToolResult syncs invocation output back into state', () => {
@@ -84,7 +86,12 @@ describe('acp-connection-event-controller', () => {
         commands: [{ name: '/plan', description: 'Plan mode' }],
       },
       {
-        logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        logger: {
+          debug: vi.fn(),
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+        },
         controller,
       },
     );
@@ -101,7 +108,12 @@ describe('acp-connection-event-controller', () => {
       '_kiro.dev/commands/options',
       {},
       {
-        logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        logger: {
+          debug: vi.fn(),
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+        },
         controller,
       },
     );
@@ -121,7 +133,12 @@ describe('acp-connection-event-controller', () => {
         },
       } as any,
       {
-        logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        logger: {
+          debug: vi.fn(),
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+        },
         controller,
       },
     );
@@ -147,7 +164,12 @@ describe('acp-connection-event-controller', () => {
         },
       } as any,
       {
-        logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        logger: {
+          debug: vi.fn(),
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+        },
         controller,
       },
     );
@@ -199,7 +221,12 @@ describe('acp-connection-event-controller', () => {
         },
       } as any,
       {
-        logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        logger: {
+          debug: vi.fn(),
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+        },
         controller,
       },
     );

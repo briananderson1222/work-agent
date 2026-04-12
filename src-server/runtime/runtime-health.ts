@@ -113,7 +113,9 @@ export async function runRuntimeHealthChecks(
 
 export function startRuntimeHealthChecks(context: {
   timers: NodeJS.Timeout[];
-  logger: { debug: (message: string, metadata?: Record<string, unknown>) => void };
+  logger: {
+    debug: (message: string, metadata?: Record<string, unknown>) => void;
+  };
   interval?: number;
   runHealthChecks: () => Promise<void>;
 }): void {

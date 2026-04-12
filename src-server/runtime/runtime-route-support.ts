@@ -1,5 +1,9 @@
 import { ACPStatus } from '@stallion-ai/contracts/acp';
 import { getNotificationProviders } from '../providers/registry.js';
+import {
+  ApprovalInboxNotificationProvider,
+  wireApprovalInboxNotifications,
+} from '../services/approval-inbox.js';
 import { NotificationService } from '../services/notification-service.js';
 import { SchedulerService } from '../services/scheduler-service.js';
 import type { ConfigureRuntimeRoutesContext } from './runtime-routes.js';
@@ -55,9 +59,20 @@ export function configureRuntimeSupportServices(
     context.configLoader.getProjectHomeDir(),
     60_000,
   );
+  const approvalInboxProvider = new ApprovalInboxNotificationProvider({
+    approvalRegistry: context.approvalRegistry,
+    orchestrationService: context.orchestrationService,
+  });
+  notificationService.addProvider(approvalInboxProvider);
   for (const { provider } of getNotificationProviders()) {
     notificationService.addProvider(provider);
   }
+  wireApprovalInboxNotifications(
+    context.eventBus,
+    approvalInboxProvider,
+    notificationService,
+    context.logger,
+  );
   notificationService.start();
   schedulerService.setNotificationService(notificationService);
 

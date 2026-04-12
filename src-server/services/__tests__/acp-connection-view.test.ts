@@ -9,11 +9,15 @@ import {
 describe('acp-connection-view helpers', () => {
   test('matches agent slugs for a connection prefix', () => {
     expect(
-      hasACPConnectionAgent([{ id: 'dev' }, { id: 'plan' }], 'kiro', 'kiro-dev'),
+      hasACPConnectionAgent(
+        [{ id: 'dev' }, { id: 'plan' }],
+        'kiro',
+        'kiro-dev',
+      ),
     ).toBe(true);
-    expect(
-      hasACPConnectionAgent([{ id: 'dev' }], 'kiro', 'claude-dev'),
-    ).toBe(false);
+    expect(hasACPConnectionAgent([{ id: 'dev' }], 'kiro', 'claude-dev')).toBe(
+      false,
+    );
   });
 
   test('prefers model config options over detected CLI model names', () => {

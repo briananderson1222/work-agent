@@ -1,5 +1,5 @@
-import { LoadingState } from '@stallion-ai/sdk';
 import type { SchedulerJob } from '@stallion-ai/contracts/scheduler';
+import { LoadingState } from '@stallion-ai/sdk';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { JobFormModal } from '../components/scheduler';
@@ -217,7 +217,9 @@ export function ScheduleView() {
               onEdit={setEditingJob}
               onExpand={setExpanded}
               onFilterChange={setFilterText}
-              onOpenArtifact={(artifactPath) => openArtifact.mutate(artifactPath)}
+              onOpenArtifact={(artifactPath) =>
+                openArtifact.mutate(artifactPath)
+              }
               onToggle={(job, running) => {
                 if (running) {
                   setConfirmAction({

@@ -1,24 +1,21 @@
 import { execFile as execFileCb } from 'node:child_process';
-import { existsSync, rmSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { copyPluginIntegrations } from '@stallion-ai/shared/parsers';
 import type { PluginManifest } from '@stallion-ai/contracts/plugin';
+import { copyPluginIntegrations } from '@stallion-ai/shared/parsers';
 import { Hono } from 'hono';
+import { getAgentRegistryProvider } from '../providers/registry.js';
+import { isContextSafetyError } from '../services/context-safety.js';
 import {
-  getAgentRegistryProvider,
-} from '../providers/registry.js';
-import {
-  revokeAllGrants,
-} from '../services/plugin-permissions.js';
-import {
-  pluginUninstalls,
-  pluginUpdates,
-} from '../telemetry/metrics.js';
+  readPluginManifestFile,
+  readPluginManifestFileSync,
+} from '../services/plugin-manifest-loader.js';
+import { pluginUpdates } from '../telemetry/metrics.js';
 import type { Logger } from '../utils/logger.js';
-import { errorMessage, param } from './schemas.js';
+import { uninstallInstalledPlugin } from './plugin-install-shared.js';
 import { loadPluginProviders } from './plugin-loader.js';
+import { errorMessage, param } from './schemas.js';
 
 const execFile = promisify(execFileCb);
 
@@ -35,8 +32,14 @@ export function registerPluginLifecycleRoutes(
   app: Hono,
   deps: PluginLifecycleRouteDeps,
 ): void {
-  const { agentsDir, buildPlugin, eventBus, logger, pluginsDir, projectHomeDir } =
-    deps;
+  const {
+    agentsDir,
+    buildPlugin,
+    eventBus,
+    logger,
+    pluginsDir,
+    projectHomeDir,
+  } = deps;
 
   app.get('/check-updates', async (c) => {
     const updates: Array<{
@@ -48,7 +51,7 @@ export function registerPluginLifecycleRoutes(
 
     try {
       if (existsSync(pluginsDir)) {
-        const { readdirSync, readFileSync } = await import('node:fs');
+        const { readdirSync } = await import('node:fs');
         const entries = readdirSync(pluginsDir, { withFileTypes: true });
         for (const entry of entries) {
           if (!entry.isDirectory()) continue;
@@ -69,7 +72,7 @@ export function registerPluginLifecycleRoutes(
               { cwd: dir, encoding: 'utf-8', windowsHide: true },
             );
             if (parseInt(behind.trim(), 10) > 0) {
-              const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
+              const manifest = readPluginManifestFileSync(manifestPath);
               const commitsBehind = behind.trim();
               updates.push({
                 name: entry.name,
@@ -118,7 +121,9 @@ export function registerPluginLifecycleRoutes(
 
       return c.json({ updates });
     } catch (error: unknown) {
-      logger.error('Failed to check for updates', { error: errorMessage(error) });
+      logger.error('Failed to check for updates', {
+        error: errorMessage(error),
+      });
       return c.json({ updates: [] });
     }
   });
@@ -148,7 +153,7 @@ export function registerPluginLifecycleRoutes(
       }
 
       const manifestPath = join(pluginDir, 'plugin.json');
-      const manifest = JSON.parse(await readFile(manifestPath, 'utf-8'));
+      const manifest = await readPluginManifestFile(manifestPath);
 
       await buildPlugin(pluginDir, name);
       copyPluginIntegrations(pluginDir, join(projectHomeDir, 'integrations'));
@@ -173,6 +178,9 @@ export function registerPluginLifecycleRoutes(
         },
       });
     } catch (error: unknown) {
+      if (isContextSafetyError(error)) {
+        return c.json({ success: false, error: error.message }, 400);
+      }
       logger.error('Plugin update failed', {
         plugin: name,
         error: errorMessage(error),
@@ -190,25 +198,19 @@ export function registerPluginLifecycleRoutes(
     }
 
     try {
-      const manifest = JSON.parse(
-        await readFile(join(pluginDir, 'plugin.json'), 'utf-8'),
-      ) as PluginManifest;
-
-      if (manifest.agents) {
-        for (const agent of manifest.agents) {
-          const agentJson = join(agentsDir, `${name}:${agent.slug}`, 'agent.json');
-          if (existsSync(agentJson)) {
-            rmSync(agentJson);
-          }
-        }
-      }
-
-      revokeAllGrants(projectHomeDir, name);
-      rmSync(pluginDir, { recursive: true });
-      pluginUninstalls.add(1, { plugin: name });
-
+      await uninstallInstalledPlugin(name, {
+        agentsDir,
+        buildPlugin,
+        eventBus,
+        logger,
+        pluginsDir,
+        projectHomeDir,
+      });
       return c.json({ success: true });
     } catch (error: unknown) {
+      if (isContextSafetyError(error)) {
+        return c.json({ success: false, error: error.message }, 400);
+      }
       return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
@@ -219,15 +221,20 @@ export function registerPluginLifecycleRoutes(
         return c.json({ success: true, loaded: 0 });
       }
 
-      const { clearAll } = await import('../providers/registry.js');
-      const { resolvePluginProviders } = await import('../providers/resolver.js');
+      const { clearPluginProviders } = await import('../providers/registry.js');
+      const { resolvePluginProviders } = await import(
+        '../providers/resolver.js'
+      );
       const { ConfigLoader } = await import('../domain/config-loader.js');
 
       const configLoader = new ConfigLoader({ projectHomeDir });
       const overrides = await configLoader.loadPluginOverrides();
 
-      clearAll();
-      const { resolved, conflicts } = resolvePluginProviders(pluginsDir, overrides);
+      clearPluginProviders();
+      const { resolved, conflicts } = resolvePluginProviders(
+        pluginsDir,
+        overrides,
+      );
 
       for (const conflict of conflicts) {
         logger.warn('Provider conflict on reload', {

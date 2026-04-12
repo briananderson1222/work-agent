@@ -1,8 +1,7 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
-import { existsSync } from 'node:fs';
 import { createMemoryConversationStore } from '../memory-adapter-conversations.js';
 import { MemoryAdapterPaths } from '../memory-adapter-paths.js';
 
@@ -37,15 +36,20 @@ describe('memory conversation store', () => {
 
     await store.persistConversation(conversation as any);
 
-    expect(
-      await store.loadConversationFromDisk(conversation.id),
-    ).toEqual(conversation);
+    expect(await store.loadConversationFromDisk(conversation.id)).toEqual(
+      conversation,
+    );
     expect(await store.resolveResourceId(conversation.id)).toBe('agent-1');
 
-    await store.deleteConversationAssets(conversation.resourceId, conversation.id);
+    await store.deleteConversationAssets(
+      conversation.resourceId,
+      conversation.id,
+    );
 
     expect(
-      existsSync(paths.getConversationPath(conversation.resourceId, conversation.id)),
+      existsSync(
+        paths.getConversationPath(conversation.resourceId, conversation.id),
+      ),
     ).toBe(false);
     expect(await store.loadConversationFromDisk(conversation.id)).toBeNull();
   });
@@ -62,7 +66,9 @@ describe('memory conversation store', () => {
 
     await store.persistConversation(conversation as any);
 
-    expect(await store.listAgentConversations('agent-2')).toEqual([conversation]);
+    expect(await store.listAgentConversations('agent-2')).toEqual([
+      conversation,
+    ]);
     expect(await store.loadAllConversations()).toEqual([conversation]);
   });
 });

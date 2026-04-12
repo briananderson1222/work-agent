@@ -31,7 +31,11 @@ export function ProjectSidebarHeader({
           }
         }}
         title={
-          isMobile ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'
+          isMobile
+            ? 'Close menu'
+            : collapsed
+              ? 'Expand sidebar'
+              : 'Collapse sidebar'
         }
       >
         {isMobile ? (

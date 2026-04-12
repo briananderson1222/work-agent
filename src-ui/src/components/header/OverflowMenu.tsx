@@ -22,7 +22,10 @@ export function OverflowMenu({
 
   return (
     <>
-      <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={onClose} />
+      <div
+        style={{ position: 'fixed', inset: 0, zIndex: 99 }}
+        onClick={onClose}
+      />
       <div className="app-toolbar__overflow-menu">
         <button
           onClick={() => {

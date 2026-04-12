@@ -1,10 +1,10 @@
+import type { AgentExecutionConfig } from '@stallion-ai/contracts/agent';
 import {
   useAgentsQuery,
   useCreateAgentMutation,
   useDeleteAgentMutation,
   useUpdateAgentMutation,
 } from '@stallion-ai/sdk';
-import type { AgentExecutionConfig } from '@stallion-ai/contracts/agent';
 import { log } from '@/utils/logger';
 
 export type AgentData = {

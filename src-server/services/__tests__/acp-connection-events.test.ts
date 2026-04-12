@@ -20,7 +20,10 @@ describe('acp-connection-events helpers', () => {
 
     const state = buildACPConnectionEventState(fields);
     state.responseAccumulator = '';
-    state.responseParts = [...state.responseParts, { type: 'text', text: 'there' }];
+    state.responseParts = [
+      ...state.responseParts,
+      { type: 'text', text: 'there' },
+    ];
     state.currentModeId = 'plan';
 
     applyACPConnectionEventState(fields, state);
@@ -51,7 +54,12 @@ describe('acp-connection-events helpers', () => {
         commands: [{ name: '/plan', description: 'Plan mode' }],
       },
       {
-        logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        logger: {
+          debug: vi.fn(),
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+        },
         fields,
         applyFields: (nextFields) => {
           applied.current = nextFields as any;
@@ -80,7 +88,12 @@ describe('acp-connection-events helpers', () => {
       '_kiro.dev/commands/options',
       {},
       {
-        logger: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+        logger: {
+          debug: vi.fn(),
+          info: vi.fn(),
+          warn: vi.fn(),
+          error: vi.fn(),
+        },
         fields,
         applyFields: (nextFields) => {
           applied.current = nextFields as any;

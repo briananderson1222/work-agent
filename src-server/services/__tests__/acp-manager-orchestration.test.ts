@@ -120,12 +120,23 @@ describe('acp-manager-orchestration helpers', () => {
   test('getOrCreateACPManagerSession reuses existing sessions and creates new ones with context cwd', () => {
     const existingSession = createSession({ id: 'kiro' });
     const sessions = new Map([['conv-1', existingSession]]);
-    const createSessionFn = vi.fn().mockImplementation(({ config, conversationId, cwd }) => ({
-      ...createSession({ id: config.id }),
-      meta: { conversationId, cwd },
-    }));
+    const createSessionFn = vi
+      .fn()
+      .mockImplementation(({ config, conversationId, cwd }) => ({
+        ...createSession({ id: config.id }),
+        meta: { conversationId, cwd },
+      }));
     const configs = new Map([
-      ['kiro', { id: 'kiro', name: 'Kiro', command: 'kiro', args: ['acp'], enabled: true }],
+      [
+        'kiro',
+        {
+          id: 'kiro',
+          name: 'Kiro',
+          command: 'kiro',
+          args: ['acp'],
+          enabled: true,
+        },
+      ],
     ]);
 
     const existing = getOrCreateACPManagerSession({
@@ -178,7 +189,16 @@ describe('acp-manager-orchestration helpers', () => {
       sessions,
       probes: new Map([['kiro', { probe: vi.fn() }]]),
       configs: new Map([
-        ['kiro', { id: 'kiro', name: 'Kiro', command: 'kiro', args: ['acp'], enabled: true }],
+        [
+          'kiro',
+          {
+            id: 'kiro',
+            name: 'Kiro',
+            command: 'kiro',
+            args: ['acp'],
+            enabled: true,
+          },
+        ],
       ]),
     });
 

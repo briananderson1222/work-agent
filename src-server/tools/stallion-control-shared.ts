@@ -1,7 +1,13 @@
-export function resolveControlApiBase(
-  env: NodeJS.ProcessEnv = process.env,
-) {
-  return env.STALLION_API_BASE || `http://127.0.0.1:${env.STALLION_PORT || 3141}`;
+import type { AgentDelegationContext } from '@stallion-ai/contracts/agent';
+import {
+  getInternalApiToken,
+  INTERNAL_API_TOKEN_HEADER,
+} from '../utils/internal-api-token.js';
+
+export function resolveControlApiBase(env: NodeJS.ProcessEnv = process.env) {
+  return (
+    env.STALLION_API_BASE || `http://127.0.0.1:${env.STALLION_PORT || 3141}`
+  );
 }
 
 export const API = resolveControlApiBase();
@@ -9,13 +15,19 @@ export const API = resolveControlApiBase();
 export async function api(path: string, opts?: RequestInit) {
   const res = await fetch(`${API}${path}`, {
     ...opts,
-    headers: { 'Content-Type': 'application/json', ...opts?.headers },
+    headers: {
+      'Content-Type': 'application/json',
+      [INTERNAL_API_TOKEN_HEADER]: getInternalApiToken(),
+      ...opts?.headers,
+    },
   });
   return res.json() as Promise<any>;
 }
 
 export function jsonToolResult(data: unknown) {
-  return { content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }] };
+  return {
+    content: [{ type: 'text' as const, text: JSON.stringify(data, null, 2) }],
+  };
 }
 
 export function buildAnalyticsUsagePath(from?: string, to?: string) {
@@ -30,10 +42,21 @@ export function buildAnalyticsUsagePath(from?: string, to?: string) {
   return `/api/analytics/usage${query ? `?${query}` : ''}`;
 }
 
-export function buildChatRequest(message: string, conversationId: string) {
+export function buildChatRequest(
+  message: string,
+  conversationId: string,
+  options?: {
+    delegation?: AgentDelegationContext;
+    userId?: string;
+  },
+) {
   return {
     input: message,
-    options: { conversationId },
+    options: {
+      conversationId,
+      ...(options?.delegation ? { delegation: options.delegation } : {}),
+      ...(options?.userId ? { userId: options.userId } : {}),
+    },
   };
 }
 
@@ -54,11 +77,15 @@ export async function dispatchAgentMessage(
   agent: string,
   message: string,
   conversationId: string,
+  options?: {
+    delegation?: AgentDelegationContext;
+    userId?: string;
+  },
 ) {
   fetch(`${API}/api/agents/${agent}/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(buildChatRequest(message, conversationId)),
+    body: JSON.stringify(buildChatRequest(message, conversationId, options)),
   }).catch(() => {});
   await new Promise((resolve) => setTimeout(resolve, 500));
 }

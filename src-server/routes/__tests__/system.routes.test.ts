@@ -14,10 +14,13 @@ vi.mock('../../services/skill-service.js', () => ({
 }));
 
 const { createSystemRoutes } = await import('../system.js');
+const { checkBedrockCredentials } = await import('../../providers/bedrock.js');
 
 function createMockDeps() {
   return {
     getACPStatus: () => ({ connected: false, connections: [] }),
+    listProviderConnections: () => [],
+    checkOllamaAvailability: async () => false,
     getAppConfig: () => ({
       region: 'us-east-1',
       defaultModel: 'claude-3',
@@ -48,7 +51,89 @@ describe('System Routes', () => {
     const body = await json(await app.request('/status'));
     expect(body.bedrock).toBeDefined();
     expect(body.acp).toBeDefined();
+    expect(body.capabilities.chat.ready).toBe(true);
+    expect(body.recommendation).toEqual(
+      expect.objectContaining({
+        type: 'providers',
+      }),
+    );
+    expect(body.clis).toEqual(
+      expect.objectContaining({
+        codex: expect.any(Boolean),
+        claude: expect.any(Boolean),
+      }),
+    );
     expect(body.ready).toBe(true);
+  });
+
+  test('GET /status is ready when a configured provider exists without bedrock credentials', async () => {
+    const app = createSystemRoutes(
+      {
+        ...createMockDeps(),
+        getACPStatus: () => ({ connected: false, connections: [] }),
+        listProviderConnections: () => [
+          {
+            id: 'ollama-local',
+            type: 'ollama',
+            enabled: true,
+            capabilities: ['llm'],
+          },
+        ],
+        getAppConfig: () => ({
+          defaultModel: 'claude-3',
+          runtime: 'voltagent',
+        }),
+      } as any,
+      mockLogger,
+    );
+    const body = await json(await app.request('/status'));
+    expect(body.ready).toBe(true);
+    expect(body.capabilities.chat.source).toBe('ollama');
+    expect(body.recommendation.title).toContain('already configured');
+    expect(body.providers.configured).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'ollama',
+          enabled: true,
+          capabilities: ['llm'],
+        }),
+      ]),
+    );
+  });
+
+  test('GET /status stays not ready when only non-llm providers are configured', async () => {
+    vi.mocked(checkBedrockCredentials).mockResolvedValueOnce(false);
+
+    const app = createSystemRoutes(
+      {
+        ...createMockDeps(),
+        listProviderConnections: () => [
+          {
+            id: 'lancedb-builtin',
+            type: 'lancedb',
+            enabled: true,
+            capabilities: ['vectordb'],
+          },
+        ],
+        getAppConfig: () => ({
+          defaultModel: 'claude-3',
+          runtime: 'voltagent',
+        }),
+      } as any,
+      mockLogger,
+    );
+    const body = await json(await app.request('/status'));
+    expect(body.ready).toBe(false);
+    expect(body.capabilities.chat.ready).toBe(false);
+    expect(['connections', 'runtimes']).toContain(body.recommendation.type);
+    expect(body.providers.configured).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'lancedb',
+          capabilities: ['vectordb'],
+        }),
+      ]),
+    );
   });
 
   test('GET /capabilities returns manifest', async () => {

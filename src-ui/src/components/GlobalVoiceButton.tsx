@@ -9,8 +9,8 @@
  */
 import React, { useCallback, useEffect, useRef } from 'react';
 import { useAllActiveChats } from '../contexts/ActiveChatsContext';
-import { useSendMessage } from '../hooks/useActiveChatSessions';
 import { useApiBase } from '../contexts/ApiBaseContext';
+import { useSendMessage } from '../hooks/useActiveChatSessions';
 import { useSTT } from '../hooks/useSTT';
 import './GlobalVoiceButton.css';
 

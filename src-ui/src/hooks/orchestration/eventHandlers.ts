@@ -1,9 +1,13 @@
 import { activeChatsStore } from '../../contexts/active-chats-store';
-import type { OrchestrationEvent } from './types';
 import {
   handleRequestOpenedEvent,
   handleRequestResolvedEvent,
 } from './approvalHandlers';
+import {
+  handleSessionExitedEvent,
+  handleSessionLifecycleEvent,
+  handleSessionStateChangedEvent,
+} from './sessionHandlers';
 import {
   handleReasoningDeltaEvent,
   handleTextDeltaEvent,
@@ -18,11 +22,7 @@ import {
   handleTurnCompletedEvent,
   handleTurnStartedEvent,
 } from './turnHandlers';
-import {
-  handleSessionExitedEvent,
-  handleSessionLifecycleEvent,
-  handleSessionStateChangedEvent,
-} from './sessionHandlers';
+import type { OrchestrationEvent } from './types';
 
 export function handleOrchestrationEvent(
   apiBase: string,

@@ -17,12 +17,12 @@ import {
   type WaitForTerminalExitResponse,
   type WriteTextFileRequest,
 } from '@agentclientprotocol/sdk';
-import { ApprovalRegistry } from './approval-registry.js';
 import type {
   ExtendedCreateTerminalRequest,
   ExtendedRequestPermissionRequest,
   ManagedTerminal,
 } from './acp-bridge-types.js';
+import { ApprovalRegistry } from './approval-registry.js';
 
 type ACPStreamWriter = (chunk: any) => Promise<void>;
 
@@ -33,19 +33,14 @@ interface ACPBridgeClientContext {
   getActiveWriter: () => ACPStreamWriter | null;
   nextTerminalId: () => string;
   onSessionUpdate: (params: SessionNotification) => Promise<void>;
-  onExtNotification: (
-    method: string,
-    params: Record<string, unknown>,
-  ) => void;
+  onExtNotification: (method: string, params: Record<string, unknown>) => void;
   onExtMethod: (
     method: string,
     params: Record<string, unknown>,
   ) => Record<string, unknown>;
 }
 
-export function createACPBridgeClient(
-  context: ACPBridgeClientContext,
-): Client {
+export function createACPBridgeClient(context: ACPBridgeClientContext): Client {
   return {
     sessionUpdate: async (params: SessionNotification) => {
       await context.onSessionUpdate(params);
@@ -161,9 +156,20 @@ export async function handleACPBridgePermissionRequest(
     });
   }
 
-  const approved = await context.approvalRegistry.register(approvalId);
-  const allowOption = params.options.find((option) => option.kind === 'allow_once');
-  const rejectOption = params.options.find((option) => option.kind === 'reject_once');
+  const approved = await context.approvalRegistry.register(approvalId, {
+    metadata: {
+      source: 'acp',
+      title: toolTitle,
+      tool: toolTitle,
+      toolName: toolTitle,
+    },
+  });
+  const allowOption = params.options.find(
+    (option) => option.kind === 'allow_once',
+  );
+  const rejectOption = params.options.find(
+    (option) => option.kind === 'reject_once',
+  );
   const selectedId = approved
     ? allowOption?.optionId || params.options[0]?.optionId || 'allow'
     : rejectOption?.optionId ||
@@ -189,7 +195,9 @@ export async function handleACPBridgeCreateTerminal(
     env: {
       ...process.env,
       ...(params.env
-        ? Object.fromEntries(params.env.map((entry) => [entry.name, entry.value]))
+        ? Object.fromEntries(
+            params.env.map((entry) => [entry.name, entry.value]),
+          )
         : {}),
     },
     windowsHide: true,

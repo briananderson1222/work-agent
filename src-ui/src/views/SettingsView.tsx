@@ -1,8 +1,6 @@
 import './SettingsView.css';
 import './page-layout.css';
-import {
-  useInvalidateQuery,
-} from '@stallion-ai/sdk';
+import { useInvalidateQuery } from '@stallion-ai/sdk';
 import { useMutation } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -298,9 +296,7 @@ export function SettingsView({
             }}
             onResetApiBase={resetToDefault}
             onTestConnection={() => testConnection.mutate()}
-            onRegionChange={(value) =>
-              setConfig({ ...config, region: value })
-            }
+            onRegionChange={(value) => setConfig({ ...config, region: value })}
           />
         )}
 

@@ -20,7 +20,11 @@ export class RuntimeEventLog {
     return this.eventLogPath;
   }
 
-  async queryEvents(start: number, end: number, userId: string): Promise<any[]> {
+  async queryEvents(
+    start: number,
+    end: number,
+    userId: string,
+  ): Promise<any[]> {
     const events: any[] = [];
 
     try {
@@ -80,7 +84,9 @@ export class RuntimeEventLog {
 
       const files = await readdir(this.eventLogPath);
       const eventFiles = files
-        .filter((file) => file.startsWith('events-') && file.endsWith('.ndjson'))
+        .filter(
+          (file) => file.startsWith('events-') && file.endsWith('.ndjson'),
+        )
         .sort()
         .reverse()
         .slice(0, 2);

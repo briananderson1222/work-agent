@@ -167,7 +167,9 @@ export class FeedbackService {
       return '';
     }
 
-    const reinforce = summary.reinforce.map((behavior) => `- ${behavior}`).join('\n');
+    const reinforce = summary.reinforce
+      .map((behavior) => `- ${behavior}`)
+      .join('\n');
     const avoid = summary.avoid.map((behavior) => `- ${behavior}`).join('\n');
 
     return `<feedback_profile>

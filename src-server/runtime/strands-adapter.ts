@@ -13,13 +13,13 @@
  *   modelMetadataEvent                                                        → (usage tracking)
  */
 
+import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import {
   type AgentResult,
   BedrockModel,
   type McpClient,
   Agent as StrandsAgent,
 } from '@strands-agents/sdk';
-import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import { wireStrandsAgentHooks } from './strands-agent-hooks.js';
 import { mapStrandsStreamEvent } from './strands-stream-events.js';
 import {
@@ -124,6 +124,8 @@ class StrandsAgentWrapper implements IAgent {
       if (_options.conversationId)
         this._invocationCtx.conversationId = _options.conversationId;
       if (_options.userId) this._invocationCtx.userId = _options.userId;
+      if (_options.delegation)
+        this._invocationCtx.delegation = _options.delegation;
     }
     const agent = this.strandsAgent;
     let resolveUsage: (u: any) => void;
@@ -365,7 +367,7 @@ export class StrandsFramework {
       : modelId;
     return new BedrockModel({
       modelId: resolvedModel,
-      region: spec.region || config.appConfig.region,
+      region: spec.region || config.appConfig.region || 'us-east-1',
       maxTokens:
         spec.guardrails?.maxTokens ?? config.appConfig.defaultMaxOutputTokens,
       temperature: spec.guardrails?.temperature,

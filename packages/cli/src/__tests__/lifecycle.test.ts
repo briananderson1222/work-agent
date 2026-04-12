@@ -29,6 +29,7 @@ const TEST_PIDFILE = join(TEST_CWD, '.stallion.pids');
 let isRunning: () => boolean;
 let stop: () => void;
 let clean: (force?: boolean) => Promise<void>;
+let collectDoctorReport: typeof import('../commands/lifecycle.js').collectDoctorReport;
 let platformModule: typeof import('../commands/platform.js');
 
 beforeAll(async () => {
@@ -54,6 +55,7 @@ beforeAll(async () => {
   isRunning = mod.isRunning;
   stop = mod.stop;
   clean = mod.clean;
+  collectDoctorReport = mod.collectDoctorReport;
 
   // Importing platform.js now hits the same cached fresh instance
   platformModule = await import('../commands/platform.js');
@@ -227,5 +229,81 @@ describe('clean', () => {
     } finally {
       promptSpy.mockRestore();
     }
+  });
+});
+
+describe('collectDoctorReport', () => {
+  it('reports a first-run-ready path when Ollama is reachable locally', async () => {
+    const report = await collectDoctorReport({
+      exec: (command) => {
+        if (command === 'node -v') return 'v22.0.0';
+        if (command === 'npm -v') return '10.0.0';
+        if (command === 'git --version') return 'git version 2.42.0';
+        if (command === 'tsx --version') return 'tsx v4.0.0';
+        return null;
+      },
+      checkOllama: async () => true,
+      exists: () => false,
+      readJson: (_path, fallback) => fallback,
+      env: {},
+    });
+
+    expect(report.chatReady).toBe(true);
+    expect(report.runtimeReady).toBe(false);
+    expect(report.recommendation).toContain('Ollama is reachable');
+    expect(report.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Ollama',
+          status: 'pass',
+        }),
+      ]),
+    );
+  });
+
+  it('prefers configured chat providers over hard-coded defaults', async () => {
+    const report = await collectDoctorReport({
+      exec: (command) => {
+        if (command === 'node -v') return 'v22.0.0';
+        if (command === 'npm -v') return '10.0.0';
+        if (command === 'git --version') return 'git version 2.42.0';
+        if (command === 'tsx --version') return 'tsx v4.0.0';
+        if (command === 'codex --version') return 'codex 1.0.0';
+        return null;
+      },
+      checkOllama: async () => false,
+      exists: (path) =>
+        path.endsWith('app.json') || path.endsWith('providers.json'),
+      readJson: (path, fallback) => {
+        if (path.endsWith('app.json')) {
+          return {
+            defaultModel: 'llama3.2',
+            runtimeConnections: {},
+          } as typeof fallback;
+        }
+        if (path.endsWith('providers.json')) {
+          return [
+            {
+              id: 'ollama-local',
+              enabled: true,
+              capabilities: ['llm'],
+            },
+          ] as typeof fallback;
+        }
+        return fallback;
+      },
+      env: {},
+    });
+
+    expect(report.chatReady).toBe(true);
+    expect(report.runtimeReady).toBe(true);
+    expect(report.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          label: 'Configured chat providers',
+          status: 'pass',
+        }),
+      ]),
+    );
   });
 });

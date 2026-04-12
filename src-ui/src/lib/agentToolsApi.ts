@@ -1,4 +1,4 @@
-import { apiRequest, type ApiEnvelope, unwrapApiData } from './apiClient';
+import { type ApiEnvelope, apiRequest, unwrapApiData } from './apiClient';
 
 export interface AgentToolConfig {
   tools: string[];
@@ -39,11 +39,15 @@ export async function fetchToolManagementData(
   apiBase: string,
   agentSlug: string,
 ): Promise<ToolManagementData> {
-  const [toolsEnvelope, agentsEnvelope, agentToolsEnvelope] = await Promise.all([
-    apiRequest<ApiEnvelope<ToolDef[]>>(`${apiBase}/tools`),
-    apiRequest<ApiEnvelope<EnrichedAgent[]>>(`${apiBase}/agents`),
-    apiRequest<ApiEnvelope<AgentToolDetails[]>>(`${apiBase}/agents/${encodeURIComponent(agentSlug)}/tools`),
-  ]);
+  const [toolsEnvelope, agentsEnvelope, agentToolsEnvelope] = await Promise.all(
+    [
+      apiRequest<ApiEnvelope<ToolDef[]>>(`${apiBase}/tools`),
+      apiRequest<ApiEnvelope<EnrichedAgent[]>>(`${apiBase}/agents`),
+      apiRequest<ApiEnvelope<AgentToolDetails[]>>(
+        `${apiBase}/agents/${encodeURIComponent(agentSlug)}/tools`,
+      ),
+    ],
+  );
 
   const tools = unwrapApiData(toolsEnvelope, 'Failed to load tools');
   const agents = unwrapApiData(agentsEnvelope, 'Failed to load agents');

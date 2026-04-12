@@ -1,7 +1,7 @@
-import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { applyInstalledPluginLayout } from '../commands/install-layout.js';
 
@@ -9,9 +9,9 @@ const cleanupDirs: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    cleanupDirs.splice(0, cleanupDirs.length).map((dir) =>
-      rm(dir, { recursive: true, force: true }),
-    ),
+    cleanupDirs
+      .splice(0, cleanupDirs.length)
+      .map((dir) => rm(dir, { recursive: true, force: true })),
   );
 });
 
@@ -29,7 +29,10 @@ describe('applyInstalledPluginLayout', () => {
 
     mkdirSync(pluginDir, { recursive: true });
     mkdirSync(projectDir, { recursive: true });
-    writeFileSync(join(projectDir, 'project.json'), JSON.stringify({ slug: 'demo' }));
+    writeFileSync(
+      join(projectDir, 'project.json'),
+      JSON.stringify({ slug: 'demo' }),
+    );
     writeFileSync(
       join(pluginDir, 'layout.json'),
       JSON.stringify({
@@ -55,10 +58,7 @@ describe('applyInstalledPluginLayout', () => {
     });
 
     const saved = JSON.parse(
-      readFileSync(
-        join(projectDir, 'layouts', 'example-layout.json'),
-        'utf-8',
-      ),
+      readFileSync(join(projectDir, 'layouts', 'example-layout.json'), 'utf-8'),
     );
     expect(saved.slug).toBe('example-layout');
     expect(saved.projectSlug).toBe('demo');
@@ -75,7 +75,10 @@ describe('applyInstalledPluginLayout', () => {
 
     mkdirSync(pluginDir, { recursive: true });
     mkdirSync(layoutsDir, { recursive: true });
-    writeFileSync(join(projectDir, 'project.json'), JSON.stringify({ slug: 'demo' }));
+    writeFileSync(
+      join(projectDir, 'project.json'),
+      JSON.stringify({ slug: 'demo' }),
+    );
     writeFileSync(
       join(pluginDir, 'layout.json'),
       JSON.stringify({
@@ -102,7 +105,9 @@ describe('applyInstalledPluginLayout', () => {
       projectArgv: ['stallion', 'install', '--project=demo'],
     });
 
-    const files = [readFileSync(join(layoutsDir, 'example-layout.json'), 'utf-8')];
+    const files = [
+      readFileSync(join(layoutsDir, 'example-layout.json'), 'utf-8'),
+    ];
     expect(files).toHaveLength(1);
 
     log.mockRestore();

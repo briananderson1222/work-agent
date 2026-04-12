@@ -49,10 +49,12 @@ describe('builtin-scheduler-storage', () => {
       ],
     });
 
-    expect(storage.getStoredJobView(storage.readStoredJobs()[0])).toMatchObject({
-      name: 'nightly',
-      lastRun: '2026-01-01T01:00:00.000Z',
-    });
+    expect(storage.getStoredJobView(storage.readStoredJobs()[0])).toMatchObject(
+      {
+        name: 'nightly',
+        lastRun: '2026-01-01T01:00:00.000Z',
+      },
+    );
   });
 
   test('guards run file reads to the scheduler logs directory', () => {

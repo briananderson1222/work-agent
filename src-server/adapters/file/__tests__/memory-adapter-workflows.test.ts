@@ -1,5 +1,5 @@
-import { describe, expect, test } from 'vitest';
 import type { WorkflowStateEntry } from '@voltagent/core';
+import { describe, expect, test } from 'vitest';
 import {
   deserializeWorkflowState,
   serializeWorkflowState,
@@ -33,7 +33,9 @@ describe('memory-adapter workflow helpers', () => {
   });
 
   test('deserializeWorkflowState restores dates', () => {
-    const state = deserializeWorkflowState(serializeWorkflowState(buildWorkflowState()));
+    const state = deserializeWorkflowState(
+      serializeWorkflowState(buildWorkflowState()),
+    );
 
     expect(state).toEqual(buildWorkflowState());
   });

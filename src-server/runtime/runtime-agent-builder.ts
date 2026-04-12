@@ -1,9 +1,10 @@
-import { Agent, type Tool } from '@voltagent/core';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import type { AppConfig } from '@stallion-ai/contracts/config';
+import { Agent, type Tool } from '@voltagent/core';
 import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import { ApprovalGuardianService } from '../services/approval-guardian.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import type { SkillService } from '../services/skill-service.js';
 import type { Logger } from '../utils/logger.js';
@@ -74,6 +75,14 @@ export async function buildRuntimeAgentInstance(
     agentFixedTokens: context.agentFixedTokens,
     memoryAdapters: context.memoryAdapters,
     approvalRegistry: context.approvalRegistry,
+    approvalGuardian: new ApprovalGuardianService({
+      appConfig: context.appConfig,
+      framework: context.framework,
+      logger: context.logger,
+      modelCatalog: context.modelCatalog,
+      projectHomeDir: context.configLoader.getProjectHomeDir(),
+    }),
+    toolNameMapping: context.toolNameMapping,
     logger: context.logger,
   });
 
@@ -111,7 +120,8 @@ export async function buildRuntimeAgentInstance(
     runtime: context.appConfig.runtime || 'voltagent',
     ...bundle.fixedTokens,
     totalFixedTokens:
-      bundle.fixedTokens.systemPromptTokens + bundle.fixedTokens.mcpServerTokens,
+      bundle.fixedTokens.systemPromptTokens +
+      bundle.fixedTokens.mcpServerTokens,
   });
 
   return (bundle.agent as any).raw || bundle.agent;

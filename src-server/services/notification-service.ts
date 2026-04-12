@@ -78,8 +78,13 @@ export class NotificationService {
       );
       if (existing) {
         Object.assign(existing, {
-          title: opts.title,
+          actions: opts.actions,
           body: opts.body,
+          metadata: { ...opts.metadata, dedupeTag: opts.dedupeTag },
+          priority: opts.priority ?? existing.priority,
+          scheduledAt: opts.scheduledAt ?? existing.scheduledAt,
+          ttl: opts.ttl ?? existing.ttl,
+          title: opts.title,
           updatedAt: now,
         });
         this.store.write(all);
@@ -127,14 +132,27 @@ export class NotificationService {
   }
 
   dismiss(id: string): void {
+    this.dismissWithOptions(id, { notifyProvider: true });
+  }
+
+  markStatus(id: string, status: Notification['status']): void {
+    this.updateStatus(id, status);
+    this.clearTimer(id);
+    this.eventBus.emit('notification:updated', { id, status });
+  }
+
+  private dismissWithOptions(
+    id: string,
+    options: { notifyProvider: boolean },
+  ): void {
     notificationOps.add(1, { op: 'dismiss' });
     this.updateStatus(id, 'dismissed');
     this.clearTimer(id);
     this.eventBus.emit('notification:dismissed', { id });
-    const n = this.store.read().find((n) => n.id === id);
-    if (n) {
+    const n = this.store.read().find((notification) => notification.id === id);
+    if (n && options.notifyProvider) {
       const provider = this.providers.get(n.source);
-      provider?.handleDismiss?.(id);
+      void provider?.handleDismiss?.(id)?.catch(() => undefined);
     }
   }
 
@@ -172,6 +190,10 @@ export class NotificationService {
   }
 
   clearAll(): void {
+    for (const notification of this.store.read()) {
+      const provider = this.providers.get(notification.source);
+      void provider?.handleDismiss?.(notification.id)?.catch(() => undefined);
+    }
     for (const t of this.timers.values()) clearTimeout(t);
     this.timers.clear();
     this.store.write([]);

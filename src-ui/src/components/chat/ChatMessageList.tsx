@@ -99,11 +99,11 @@ export function ChatMessageList({
         style={{ fontSize: `${fontSize}px` }}
         onScroll={handleScroll}
       >
-        {messages.length === 0 ? (
+        {messages.length === 0 && !isStreaming ? (
           (emptyState ?? <ChatEmptyState agentName={activeSession.agentName} />)
         ) : (
           <>
-            {messages.map(renderMessage)}
+            {messages.length > 0 && messages.map(renderMessage)}
             {isStreaming && (
               <StreamingMessage
                 sessionId={activeSession.id}

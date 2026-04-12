@@ -63,7 +63,9 @@ export function InstallPluginModal({
             <button
               className="plugins__install-btn"
               onClick={onInstall}
-              disabled={installPending || previewPending || !installSource.trim()}
+              disabled={
+                installPending || previewPending || !installSource.trim()
+              }
             >
               {installPending
                 ? 'Installing...'

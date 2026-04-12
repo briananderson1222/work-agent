@@ -6,8 +6,8 @@ describe('createRuntimeInitializationDeps', () => {
     const createVoltAgentInstance = vi.fn(async (slug: string) => ({ slug }));
     const configureRoutes = vi.fn();
     const reloadAgents = vi.fn(async () => {});
-    const replaceTemplateVariables = vi.fn((text: string, agentName?: string) =>
-      `${text}:${agentName ?? ''}`,
+    const replaceTemplateVariables = vi.fn(
+      (text: string, agentName?: string) => `${text}:${agentName ?? ''}`,
     );
     const checkBedrockCredentials = vi.fn(async () => true);
     const createDefaultSkillRegistryProvider = vi.fn(async () => ({
@@ -43,7 +43,10 @@ describe('createRuntimeInitializationDeps', () => {
       mcpConnectionStatus: new Map([['server:tool', { connected: true }]]),
       integrationMetadata: new Map([['server:tool', { type: 'mcp' }]]),
       toolNameMapping: new Map([
-        ['tool', { original: 'tool', normalized: 'tool', server: null, tool: 'tool' }],
+        [
+          'tool',
+          { original: 'tool', normalized: 'tool', server: null, tool: 'tool' },
+        ],
       ]),
       toolNameReverseMapping: new Map([['tool', 'tool']]),
       eventLog: { persist: vi.fn(async () => {}) } as any,

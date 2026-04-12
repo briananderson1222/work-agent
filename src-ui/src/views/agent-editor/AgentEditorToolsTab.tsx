@@ -80,7 +80,9 @@ export function AgentEditorToolsTab({
               const isExpanded = expandedIntegrations[integration.id] || false;
               const tools = integrationTools[integration.id] || [];
               const prefix = `${integration.id}_`;
-              const hasAutoApprove = form.tools.autoApprove.includes(`${prefix}*`);
+              const hasAutoApprove = form.tools.autoApprove.includes(
+                `${prefix}*`,
+              );
               const hasExplicitAvailable = form.tools.available.some((entry) =>
                 entry.startsWith(prefix),
               );
@@ -145,9 +147,13 @@ export function AgentEditorToolsTab({
                   {isExpanded && tools.length > 0 && (
                     <div className="editor__tools-list">
                       {tools.map((tool) => {
-                        const toolKey = getIntegrationToolKey(integration.id, tool);
+                        const toolKey = getIntegrationToolKey(
+                          integration.id,
+                          tool,
+                        );
                         const toolEnabled =
-                          allToolsActive || form.tools.available.includes(toolKey);
+                          allToolsActive ||
+                          form.tools.available.includes(toolKey);
                         const toolAutoApprove =
                           toolEnabled &&
                           (form.tools.autoApprove.includes(`${prefix}*`) ||

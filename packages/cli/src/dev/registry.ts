@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { LayoutDefinition } from '@stallion-ai/contracts/layout';
 import type { PluginManifest } from '@stallion-ai/contracts/plugin';
@@ -90,7 +90,10 @@ function loadAgentEntries(baseDir: string, manifest: PluginManifest) {
         prompt: agentSpec.prompt,
         mcpServers: agentSpec.tools?.mcpServers || [],
         guardrails: agentSpec.guardrails,
-        _source: baseDir === process.cwd() ? agent.source : join(baseDir, agent.source),
+        _source:
+          baseDir === process.cwd()
+            ? agent.source
+            : join(baseDir, agent.source),
       };
     } catch {
       return { slug: agent.slug, name: agent.slug };
@@ -162,7 +165,9 @@ function loadDependencyRegistries(
       continue;
     }
     try {
-      const depManifest = JSON.parse(readFileSync(depManifestPath, 'utf-8')) as PluginManifest;
+      const depManifest = JSON.parse(
+        readFileSync(depManifestPath, 'utf-8'),
+      ) as PluginManifest;
       const { layout, layouts } = loadLayoutEntry(depDir, depManifest);
       depRegistries[dependency.id] = {
         name: depManifest.displayName || depManifest.name,
@@ -170,7 +175,10 @@ function loadDependencyRegistries(
         agents: loadAgentEntries(depDir, depManifest),
         integrations: loadIntegrations(depDir),
         prompts: depManifest.prompts?.source
-          ? loadPromptEntries(join(depDir, depManifest.prompts.source), join(depDir, depManifest.prompts.source))
+          ? loadPromptEntries(
+              join(depDir, depManifest.prompts.source),
+              join(depDir, depManifest.prompts.source),
+            )
           : [],
         actions: (layout as any)?.actions || [],
         layouts,
@@ -207,7 +215,10 @@ export function regenerateDevHTML({
 
   const agents = loadAgentEntries(cwd, manifest);
   const promptEntries = manifest.prompts?.source
-    ? loadPromptEntries(join(cwd, manifest.prompts.source), manifest.prompts.source)
+    ? loadPromptEntries(
+        join(cwd, manifest.prompts.source),
+        manifest.prompts.source,
+      )
     : [];
   const integrations = loadIntegrations(cwd);
   const depRegistries = loadDependencyRegistries(pluginsDir, manifest);

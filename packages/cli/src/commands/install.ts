@@ -1,15 +1,9 @@
 import { execSync } from 'node:child_process';
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  rmSync,
-} from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 import { buildPlugin } from '@stallion-ai/shared/build';
 import { copyPluginIntegrations } from '@stallion-ai/shared/parsers';
-import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 import {
   AGENTS_DIR,
   extractPluginName,
@@ -20,12 +14,12 @@ import {
 } from './helpers.js';
 import { applyInstalledPluginLayout } from './install-layout.js';
 import { previewPlugin } from './install-preview.js';
+import { showOrSaveRegistry } from './install-registry.js';
 import {
   canonicalizePluginDirectory,
   installPluginPackageDependencies,
   preparePluginSource,
 } from './install-source.js';
-import { showOrSaveRegistry } from './install-registry.js';
 
 export function preview(source: string): void {
   previewPlugin(source);
@@ -34,7 +28,7 @@ export function preview(source: string): void {
 export async function install(
   source: string,
   skipList: string[] = [],
-): Promise<void> {
+): Promise<{ pluginName: string; version: string }> {
   console.log(`📦 Installing plugin from ${source}...`);
   const skipSet = new Set(skipList);
   const pluginName = extractPluginName(source);
@@ -120,6 +114,8 @@ export async function install(
       `   Providers: ${manifest.providers.map((provider) => provider.type).join(', ')}`,
     );
   }
+
+  return { pluginName: manifest.name, version: manifest.version };
 }
 
 export function list(): void {
@@ -203,7 +199,9 @@ export function info(name: string): void {
     process.exit(1);
   }
   const manifest = readManifest(pluginDir);
-  console.log(`\n${manifest.displayName} (${manifest.name}@${manifest.version})`);
+  console.log(
+    `\n${manifest.displayName} (${manifest.name}@${manifest.version})`,
+  );
   if (manifest.agents) {
     console.log(`Agents (${manifest.agents.length}):`);
     manifest.agents.forEach((agent) =>

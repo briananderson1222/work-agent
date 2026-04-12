@@ -7,8 +7,8 @@ import {
 } from '../services/llm-router.js';
 import { getCachedUser } from './auth.js';
 import {
-  extractChatUserText,
   type ChatMessage,
+  extractChatUserText,
 } from './chat-request-preparation.js';
 import { errorMessage } from './schemas.js';
 
@@ -36,7 +36,9 @@ export async function buildAlternateProviderMessages({
   const agentPrompt = agentSpec?.prompt
     ? ctx.replaceTemplateVariables(agentSpec.prompt)
     : '';
-  const combinedPrompt = [globalPrompt, agentPrompt].filter(Boolean).join('\n\n');
+  const combinedPrompt = [globalPrompt, agentPrompt]
+    .filter(Boolean)
+    .join('\n\n');
   const systemPrompt = [injectContext, ragContext, combinedPrompt]
     .filter(Boolean)
     .join('\n\n');
@@ -49,11 +51,16 @@ export async function buildAlternateProviderMessages({
       const adapter = ctx.memoryAdapters.get(slug);
       if (adapter) {
         const userId = options.userId || getCachedUser().alias;
-        const history = await adapter.getMessages(userId, options.conversationId);
+        const history = await adapter.getMessages(
+          userId,
+          options.conversationId,
+        );
         if (history) {
           for (const message of history) {
             const content = (message.parts || [])
-              .filter((part: { type: string; text?: string }) => part.type === 'text')
+              .filter(
+                (part: { type: string; text?: string }) => part.type === 'text',
+              )
               .map((part: { type: string; text?: string }) => part.text)
               .join('\n');
             if (content) {
@@ -88,7 +95,11 @@ export function streamAlternateProviderChat({
   ctx: RuntimeContext;
   slug: string;
   input: string | ChatMessage[];
-  options: Record<string, any> & { conversationId?: string; userId?: string; model?: string };
+  options: Record<string, any> & {
+    conversationId?: string;
+    userId?: string;
+    model?: string;
+  };
   injectContext: string | null;
   ragContext: string | null;
   resolvedProviderConn: any;
@@ -101,36 +112,39 @@ export function streamAlternateProviderChat({
   c.header('Connection', 'keep-alive');
   c.header('X-Accel-Buffering', 'no');
 
-  return stream(c, async (streamWriter: { write(data: string): Promise<unknown> }) => {
-    const conversationId = options.conversationId || `${slug}:${Date.now()}`;
-    const messages = await buildAlternateProviderMessages({
-      ctx,
-      slug,
-      input,
-      options,
-      injectContext,
-      ragContext,
-    });
+  return stream(
+    c,
+    async (streamWriter: { write(data: string): Promise<unknown> }) => {
+      const conversationId = options.conversationId || `${slug}:${Date.now()}`;
+      const messages = await buildAlternateProviderMessages({
+        ctx,
+        slug,
+        input,
+        options,
+        injectContext,
+        ragContext,
+      });
 
-    try {
-      await streamWithProvider(
-        llmProvider,
-        options.model ||
-          (resolvedProviderConn.config?.defaultModel as string) ||
-          'default',
-        messages,
-        {
-          write: async (data: string) => {
-            await streamWriter.write(data);
+      try {
+        await streamWithProvider(
+          llmProvider,
+          options.model ||
+            (resolvedProviderConn.config?.defaultModel as string) ||
+            'default',
+          messages,
+          {
+            write: async (data: string) => {
+              await streamWriter.write(data);
+            },
           },
-        },
-        conversationId,
-        c.req.raw.signal,
-      );
-    } catch (error: unknown) {
-      await streamWriter.write(
-        `data: ${JSON.stringify({ type: 'error', error: errorMessage(error) })}\n\n`,
-      );
-    }
-  });
+          conversationId,
+          c.req.raw.signal,
+        );
+      } catch (error: unknown) {
+        await streamWriter.write(
+          `data: ${JSON.stringify({ type: 'error', error: errorMessage(error) })}\n\n`,
+        );
+      }
+    },
+  );
 }

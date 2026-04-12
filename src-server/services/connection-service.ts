@@ -1,11 +1,11 @@
+import type { ACPConnectionConfig } from '@stallion-ai/contracts/acp';
+import type { AppConfig } from '@stallion-ai/contracts/config';
 import type {
-  ConnectionStatus,
   ConnectionConfig,
+  ConnectionStatus,
   Prerequisite,
   ProviderConnectionConfig,
 } from '@stallion-ai/contracts/tool';
-import type { ACPConnectionConfig } from '@stallion-ai/contracts/acp';
-import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { ProviderAdapterShape } from '../providers/adapter-shape.js';
 import {
   createEmbeddingProvider,

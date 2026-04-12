@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { AuthStatus, UserIdentity } from '@stallion-ai/contracts/auth';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { _getApiBase } from '../api';
 import {
   type MutationOptions,
@@ -22,13 +22,38 @@ export interface SystemStatus {
   bedrock: {
     credentialsFound: boolean;
     verified: boolean | null;
-    region: string;
+    region: string | null;
   };
   acp: {
     connected: boolean;
     connections: Array<{ id: string; status: string }>;
   };
+  providers?: {
+    configured: Array<{
+      id: string;
+      type: string;
+      enabled: boolean;
+      capabilities?: string[];
+    }>;
+    detected: {
+      ollama: boolean;
+      bedrock: boolean;
+    };
+  };
   clis: Record<string, boolean>;
+  capabilities?: Record<
+    string,
+    {
+      ready: boolean;
+      source: string | null;
+    }
+  >;
+  recommendation?: {
+    type: 'providers' | 'runtimes' | 'connections';
+    actionLabel: string;
+    title: string;
+    detail: string;
+  };
   ready: boolean;
 }
 
@@ -108,7 +133,10 @@ export async function fetchAuthStatus(): Promise<AuthStatusData> {
   return (await response.json()) as AuthStatusData;
 }
 
-export async function renewAuth(): Promise<{ success: boolean; error?: string }> {
+export async function renewAuth(): Promise<{
+  success: boolean;
+  error?: string;
+}> {
   const apiBase = await _getApiBase();
   const response = await fetch(`${apiBase}/api/auth/renew`, { method: 'POST' });
   if (!response.ok) {
@@ -129,7 +157,9 @@ export async function verifyBedrockConnection(
   return (await response.json()) as { verified: boolean; error?: string };
 }
 
-async function requestSystemStatus(apiBaseOverride?: string): Promise<SystemStatus> {
+async function requestSystemStatus(
+  apiBaseOverride?: string,
+): Promise<SystemStatus> {
   const apiBase = apiBaseOverride ?? (await _getApiBase());
   const response = await fetch(`${apiBase}/api/system/status`);
   if (!response.ok) {

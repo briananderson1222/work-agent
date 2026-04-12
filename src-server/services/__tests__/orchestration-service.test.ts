@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { OrchestrationCommand } from '@stallion-ai/contracts/orchestration';
 import type { CanonicalRuntimeEvent } from '@stallion-ai/contracts/runtime-events';
+import type { Prerequisite } from '@stallion-ai/contracts/tool';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import type {
   ProviderAdapterShape,
@@ -11,7 +12,6 @@ import type {
   ProviderSessionStartInput,
   ProviderTurnStartResult,
 } from '../../providers/adapter-shape.js';
-import type { Prerequisite } from '@stallion-ai/contracts/tool';
 import type { IProviderAdapterRegistry } from '../../providers/provider-interfaces.js';
 import { EventBus } from '../event-bus.js';
 import { EventStore } from '../event-store.js';
@@ -79,6 +79,7 @@ class AsyncQueue<T> implements AsyncIterable<T> {
 }
 
 class FakeAdapter implements ProviderAdapterShape {
+  readonly metadata;
   readonly sessions = new Map<string, ProviderSession>();
   readonly events = new AsyncQueue<CanonicalRuntimeEvent>();
   readonly prerequisites: Prerequisite[];
@@ -102,6 +103,13 @@ class FakeAdapter implements ProviderAdapterShape {
     readonly provider: 'bedrock' | 'claude' | 'codex',
     prerequisites: Prerequisite[] = [],
   ) {
+    this.metadata = {
+      displayName: `${provider} Runtime`,
+      description: `${provider} adapter for tests`,
+      capabilities: ['agent-runtime'],
+      runtimeId: `${provider}-runtime`,
+      builtin: true,
+    };
     this.prerequisites = prerequisites;
     this.startSession.mockImplementation(async (input) => {
       const now = new Date().toISOString();

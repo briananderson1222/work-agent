@@ -48,6 +48,26 @@ export interface AgentExecutionConfig {
   modelOptions?: Record<string, unknown>;
 }
 
+export interface AgentDelegationPolicy {
+  maxDepth?: number;
+  allowedTools?: string[];
+  blockedTools?: string[];
+  denyApprovals?: boolean;
+}
+
+export interface AgentDelegationContext {
+  mode: 'isolated-child';
+  depth: number;
+  maxDepth: number;
+  parentAgentSlug: string;
+  parentConversationId?: string;
+  rootAgentSlug: string;
+  rootConversationId?: string;
+  allowedTools?: string[];
+  blockedTools?: string[];
+  denyApprovals?: boolean;
+}
+
 export interface AgentSpec {
   name: string;
   prompt: string;
@@ -55,6 +75,7 @@ export interface AgentSpec {
   icon?: string;
   model?: string;
   execution?: AgentExecutionConfig;
+  delegation?: AgentDelegationPolicy;
   region?: string;
   maxSteps?: number;
   guardrails?: AgentGuardrails;

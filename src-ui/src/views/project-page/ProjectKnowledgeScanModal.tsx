@@ -19,14 +19,19 @@ export function ProjectKnowledgeScanModal({
 }: ProjectKnowledgeScanModalProps) {
   return (
     <div className="project-page__modal-overlay" onClick={onClose}>
-      <div className="project-page__modal" onClick={(event) => event.stopPropagation()}>
+      <div
+        className="project-page__modal"
+        onClick={(event) => event.stopPropagation()}
+      >
         <h3 className="project-page__modal-title">Index Working Directory</h3>
         <div className="project-page__scan-warning">
           ⚠ This will scan and index files from your working directory into the
-          project&apos;s vector database. Files are chunked and embedded for semantic
-          search.
+          project&apos;s vector database. Files are chunked and embedded for
+          semantic search.
         </div>
-        <div className="project-page__scan-path">📁 {projectWorkingDirectory}</div>
+        <div className="project-page__scan-path">
+          📁 {projectWorkingDirectory}
+        </div>
         <div className="project-page__scan-fields">
           <label className="project-page__scan-label">
             Include patterns

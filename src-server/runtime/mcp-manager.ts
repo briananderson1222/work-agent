@@ -8,12 +8,13 @@ import type { ToolDef } from '@stallion-ai/contracts/tool';
 import { MCPConfiguration, type Tool } from '@voltagent/core';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import { mcpLifecycle } from '../telemetry/metrics.js';
+import { createChildDelegationContext } from './delegation.js';
 import {
-  getNormalizedToolName as resolveNormalizedToolName,
-  getOriginalToolName as resolveOriginalToolName,
+  type MCPToolNameMappingEntry,
   matchesToolPattern as matchMCPToolPattern,
   normalizeLoadedMCPTools,
-  type MCPToolNameMappingEntry,
+  getNormalizedToolName as resolveNormalizedToolName,
+  getOriginalToolName as resolveOriginalToolName,
 } from './mcp-tool-names.js';
 
 /**
@@ -111,10 +112,7 @@ export async function createMCPTools(
     string,
     { type: string; transport?: string; toolCount?: number }
   >,
-  toolNameMapping: Map<
-    string,
-    MCPToolNameMappingEntry
-  >,
+  toolNameMapping: Map<string, MCPToolNameMappingEntry>,
   toolNameReverseMapping: Map<string, string>,
   logger: any,
   resolvedEnv?: Record<string, string>,
@@ -229,10 +227,7 @@ export async function createMCPTools(
 export function matchesToolPattern(
   toolName: string,
   patterns: string[],
-  toolNameMapping: Map<
-    string,
-    MCPToolNameMappingEntry
-  >,
+  toolNameMapping: Map<string, MCPToolNameMappingEntry>,
 ): boolean {
   return matchMCPToolPattern(toolName, patterns, toolNameMapping);
 }
@@ -250,10 +245,7 @@ export async function loadAgentTools(
     string,
     { type: string; transport?: string; toolCount?: number }
   >,
-  toolNameMapping: Map<
-    string,
-    MCPToolNameMappingEntry
-  >,
+  toolNameMapping: Map<string, MCPToolNameMappingEntry>,
   toolNameReverseMapping: Map<string, string>,
   logger: any,
 ): Promise<Tool<any>[]> {
@@ -282,7 +274,13 @@ export async function loadAgentTools(
           logger,
           toolDef.env,
         );
-        tools.push(...mcpTools);
+        tools.push(
+          ...wrapDelegationAwareTools(mcpTools, {
+            agentSlug,
+            spec,
+            toolId,
+          }),
+        );
       } else if (toolDef.kind === 'builtin') {
         const builtinTool = createBuiltinTool(toolDef, logger);
         if (builtinTool) {
@@ -342,10 +340,7 @@ export function createBuiltinTool(
  */
 export function getOriginalToolName(
   normalizedName: string,
-  toolNameMapping: Map<
-    string,
-    MCPToolNameMappingEntry
-  >,
+  toolNameMapping: Map<string, MCPToolNameMappingEntry>,
 ): string {
   return resolveOriginalToolName(normalizedName, toolNameMapping);
 }
@@ -358,4 +353,71 @@ export function getNormalizedToolName(
   toolNameReverseMapping: Map<string, string>,
 ): string {
   return resolveNormalizedToolName(originalName, toolNameReverseMapping);
+}
+
+export function wrapDelegationAwareTools(
+  tools: Tool<any>[],
+  options: {
+    agentSlug: string;
+    spec: AgentSpec;
+    toolId: string;
+  },
+): Tool<any>[] {
+  if (options.toolId !== 'stallion-control') {
+    return tools;
+  }
+
+  return tools.map((tool) => {
+    if (
+      tool.name !== 'stallion-control_send_message' &&
+      tool.name !== 'stallion-control_create_prompt' &&
+      tool.name !== 'stallion-control_update_prompt'
+    ) {
+      return tool;
+    }
+
+    return {
+      ...tool,
+      execute: async (args: Record<string, unknown>, execOptions?: any) => {
+        const nextArgs = { ...args };
+        const parentConversationId =
+          typeof execOptions?.conversationId === 'string'
+            ? execOptions.conversationId
+            : undefined;
+        if (tool.name === 'stallion-control_send_message') {
+          const hasConversationId =
+            typeof nextArgs.conversationId === 'string' &&
+            nextArgs.conversationId.length > 0;
+          if (!hasConversationId && execOptions?.userId) {
+            nextArgs._userId = execOptions.userId;
+          }
+          if (parentConversationId) {
+            nextArgs._delegation = createChildDelegationContext({
+              agentSlug: options.agentSlug,
+              conversationId: parentConversationId,
+              spec: options.spec,
+              current: execOptions?.delegation,
+            });
+          }
+        }
+        if (
+          (tool.name === 'stallion-control_create_prompt' ||
+            tool.name === 'stallion-control_update_prompt') &&
+          !nextArgs._sourceContext
+        ) {
+          nextArgs._sourceContext = {
+            kind: 'agent',
+            agentSlug: options.agentSlug,
+            ...(parentConversationId
+              ? { conversationId: parentConversationId }
+              : {}),
+          };
+        }
+        if (!tool.execute) {
+          throw new Error(`Tool ${tool.name} does not have an execute method`);
+        }
+        return tool.execute(nextArgs, execOptions);
+      },
+    };
+  });
 }

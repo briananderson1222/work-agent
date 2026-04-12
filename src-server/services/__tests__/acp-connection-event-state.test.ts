@@ -1,10 +1,10 @@
 import { describe, expect, test } from 'vitest';
 import {
+  type ACPConnectionEventState,
   applyACPConnectionEventStateFields,
   flushACPConnectionTextPart,
   getACPConnectionEventStateFields,
   updateACPConnectionToolResult,
-  type ACPConnectionEventState,
 } from '../acp-connection-event-state.js';
 
 function createState(

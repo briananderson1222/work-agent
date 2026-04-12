@@ -3,8 +3,8 @@ import type { AgentData } from '../../contexts/AgentsContext';
 import { useModelSupportsAttachments } from '../../contexts/ModelCapabilitiesContext';
 import { useProject } from '../../contexts/ProjectsContext';
 import { useGitStatus } from '../../hooks/useGitStatus';
-import { resolveSessionExecutionSummary } from '../../utils/execution';
 import type { ChatSession } from '../../types';
+import { resolveSessionExecutionSummary } from '../../utils/execution';
 
 type ModelOption = { id: string; name: string };
 
@@ -43,8 +43,8 @@ export function useChatDockViewModel({
     sessionProjectSlug ?? '',
     { enabled: !!sessionProjectSlug },
   );
-  const sessionCodingLayout = sessionLayouts.find((layout: any) =>
-    layout.type === 'coding',
+  const sessionCodingLayout = sessionLayouts.find(
+    (layout: any) => layout.type === 'coding',
   );
 
   const effectiveModels = agentForHook?.modelOptions || availableModels;
@@ -57,7 +57,8 @@ export function useChatDockViewModel({
   const modelSupportsAttachments =
     bedrockModelSupportsAttachments ||
     (agents.find((agent) => agent.slug === activeSession?.agentSlug)
-      ?.supportsAttachments ?? false);
+      ?.supportsAttachments ??
+      false);
   const unreadCount = sessions.filter((session) => session.hasUnread).length;
   const executionSummary = resolveSessionExecutionSummary(activeSession);
 

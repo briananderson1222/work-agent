@@ -25,30 +25,6 @@ export const MODEL_CAPABILITY_SET = new Set<ConnectionCapability>([
   'vectordb',
 ]);
 
-export const RUNTIME_CAPABILITY_MAP: Record<
-  ProviderKind,
-  ConnectionCapability[]
-> = {
-  bedrock: ['agent-runtime', 'session-lifecycle', 'tool-calls', 'interrupt'],
-  claude: [
-    'agent-runtime',
-    'session-lifecycle',
-    'tool-calls',
-    'interrupt',
-    'approvals',
-    'reasoning-events',
-  ],
-  codex: [
-    'agent-runtime',
-    'session-lifecycle',
-    'tool-calls',
-    'interrupt',
-    'approvals',
-    'resume',
-    'external-process',
-  ],
-};
-
 export function hasRequiredMissing(prerequisites: Prerequisite[]): boolean {
   return prerequisites.some(
     (prerequisite) =>
@@ -96,24 +72,12 @@ export function runtimeIdForProvider(provider: ProviderKind): string {
   return `${provider}-runtime`;
 }
 
-export function runtimeNameForProvider(provider: ProviderKind): string {
-  if (provider === 'bedrock') {
-    return 'Bedrock Runtime';
-  }
-  if (provider === 'claude') {
-    return 'Claude Runtime';
-  }
-  return 'Codex Runtime';
+export function runtimeIdForAdapter(adapter: ProviderAdapterShape): string {
+  return adapter.metadata.runtimeId ?? runtimeIdForProvider(adapter.provider);
 }
 
-export function runtimeDescriptionForProvider(provider: ProviderKind): string {
-  if (provider === 'bedrock') {
-    return 'Built-in Stallion runtime backed by VoltAgent/Strands.';
-  }
-  if (provider === 'claude') {
-    return 'Claude Agent SDK runtime with approvals and reasoning events.';
-  }
-  return 'Codex app-server runtime over the local Codex CLI.';
+export function providerLabelForAdapter(adapter: ProviderAdapterShape): string {
+  return adapter.metadata.displayName.replace(/\s+Runtime$/, '');
 }
 
 export function runtimeSettingsFor(
@@ -168,19 +132,22 @@ export async function listRuntimeConnectionsForAdapters(options: {
   const runtimeConnections: ConnectionConfig[] = await Promise.all(
     options.adapters.map(async (adapter) => {
       const prerequisites = (await adapter.getPrerequisites?.()) ?? [];
-      const id = runtimeIdForProvider(adapter.provider);
+      const id = runtimeIdForAdapter(adapter);
       const settings = runtimeSettingsFor(options.appConfig, id);
       const enabled = settings.enabled ?? true;
       return {
         id,
         kind: 'runtime',
-        type: runtimeIdForProvider(adapter.provider),
-        name:
-          settings.name?.trim() || runtimeNameForProvider(adapter.provider),
+        type: id,
+        name: settings.name?.trim() || adapter.metadata.displayName,
         enabled,
-        description: runtimeDescriptionForProvider(adapter.provider),
-        capabilities: RUNTIME_CAPABILITY_MAP[adapter.provider],
-        config: mergeRuntimeConfig(id, options.appConfig, settings),
+        description: adapter.metadata.description,
+        capabilities: [...adapter.metadata.capabilities],
+        config: {
+          ...mergeRuntimeConfig(id, options.appConfig, settings),
+          provider: adapter.provider,
+          providerLabel: providerLabelForAdapter(adapter),
+        },
         prerequisites,
         status: statusFromPrerequisites(enabled, prerequisites),
         lastCheckedAt: null,

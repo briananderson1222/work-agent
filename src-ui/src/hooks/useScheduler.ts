@@ -17,6 +17,7 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
 
+export type { SchedulerEvent } from '@stallion-ai/contracts/scheduler';
 // Re-export SDK hooks so existing imports from '../hooks/useScheduler' keep working
 export {
   useAddJob,
@@ -33,7 +34,6 @@ export {
   useSchedulerStatus,
   useToggleJob,
 } from '@stallion-ai/sdk';
-export type { SchedulerEvent } from '@stallion-ai/contracts/scheduler';
 
 /** Aggregated stats shape returned by GET /scheduler/stats */
 export interface SchedulerStatsResponse {

@@ -1,4 +1,5 @@
 import { describe, expect, test, vi } from 'vitest';
+import { registerConnectionFactory } from '../../providers/connection-factories.js';
 
 vi.mock('../telemetry/metrics.js', () => ({
   providerOps: { add: vi.fn() },
@@ -33,5 +34,19 @@ describe('createLLMProviderFromConfig', () => {
 
   test('returns null for unknown type', () => {
     expect(createLLMProviderFromConfig({ type: 'unknown' } as any)).toBeNull();
+  });
+
+  test('routes custom registered provider types via the connection factory registry', () => {
+    const provider = { createStream: vi.fn() };
+    registerConnectionFactory('custom-llm-test', {
+      createLLM: () => provider as any,
+    });
+
+    expect(
+      createLLMProviderFromConfig({
+        type: 'custom-llm-test',
+        config: {},
+      } as any),
+    ).toBe(provider);
   });
 });

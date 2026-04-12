@@ -1,13 +1,10 @@
 import type { ClientSideConnection } from '@agentclientprotocol/sdk';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
+import type { ConfigOption, ConversationMessage } from './acp-bridge-types.js';
 import {
   createACPConversationTitle,
   resolveACPChatSession,
 } from './acp-chat-session.js';
-import type {
-  ConfigOption,
-  ConversationMessage,
-} from './acp-bridge-types.js';
 
 interface ACPChatPreparationLogger {
   warn: (message: string, meta?: Record<string, unknown>) => void;
@@ -41,7 +38,10 @@ interface PreparedACPChatTurn {
   userId: string;
 }
 
-export function resolveACPRequestedModeId(prefix: string, slug: string): string {
+export function resolveACPRequestedModeId(
+  prefix: string,
+  slug: string,
+): string {
   return slug.replace(`${prefix}-`, '');
 }
 
@@ -53,10 +53,14 @@ export function findACPModelConfigToUpdate(
     return null;
   }
 
-  const modelConfig = configOptions.find((option: any) => option.category === 'model') as
-    | (ConfigOption & { id?: string })
-    | undefined;
-  if (!modelConfig || modelConfig.currentValue === requestedModel || !modelConfig.id) {
+  const modelConfig = configOptions.find(
+    (option: any) => option.category === 'model',
+  ) as (ConfigOption & { id?: string }) | undefined;
+  if (
+    !modelConfig ||
+    modelConfig.currentValue === requestedModel ||
+    !modelConfig.id
+  ) {
     return null;
   }
 

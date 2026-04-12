@@ -4,7 +4,7 @@
   "title": "App Configuration",
   "description": "Global application configuration for Stallion",
   "type": "object",
-  "required": ["region", "defaultModel", "invokeModel", "structureModel"],
+  "required": ["defaultModel", "invokeModel", "structureModel"],
   "properties": {
     "region": {
       "type": "string",
@@ -109,6 +109,29 @@
       "enum": ["voltagent", "strands"],
       "description": "Agent framework runtime. Default: voltagent",
       "default": "voltagent"
+    },
+    "approvalGuardian": {
+      "type": "object",
+      "description": "Optional AI review layer for approval-bound tool calls",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable guardian review before human approval"
+        },
+        "mode": {
+          "type": "string",
+          "enum": ["review", "enforce"],
+          "description": "Review mode defers denials to a human; enforce mode can hard-deny"
+        },
+        "model": {
+          "type": "string",
+          "description": "Optional model override for guardian review"
+        },
+        "instructions": {
+          "type": "string",
+          "description": "Optional custom guardian system prompt"
+        }
+      }
     }
   },
   "additionalProperties": true

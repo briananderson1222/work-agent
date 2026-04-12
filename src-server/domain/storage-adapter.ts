@@ -3,7 +3,10 @@ import type {
   LayoutMetadata,
   LayoutTemplate,
 } from '@stallion-ai/contracts/layout';
-import type { ProjectConfig, ProjectMetadata } from '@stallion-ai/contracts/project';
+import type {
+  ProjectConfig,
+  ProjectMetadata,
+} from '@stallion-ai/contracts/project';
 import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 
 export interface ConversationRecord {

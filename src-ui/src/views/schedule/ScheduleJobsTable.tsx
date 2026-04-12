@@ -284,7 +284,10 @@ export function ScheduleJobsTable({
                     </td>
                   </tr>
                   {isExpanded && (
-                    <tr key={`${job.id}-detail`} className="schedule__detail-row">
+                    <tr
+                      key={`${job.id}-detail`}
+                      className="schedule__detail-row"
+                    >
                       <td colSpan={7}>
                         <div className="schedule__detail">
                           <div className="schedule__detail-header">
@@ -292,7 +295,9 @@ export function ScheduleJobsTable({
                             <div className="schedule__detail-actions">
                               {job.openArtifact && (
                                 <button
-                                  onClick={() => onOpenArtifact(job.openArtifact!)}
+                                  onClick={() =>
+                                    onOpenArtifact(job.openArtifact!)
+                                  }
                                   className="page__btn-primary schedule__detail-artifact-btn"
                                 >
                                   Open Latest Artifact
@@ -300,34 +305,53 @@ export function ScheduleJobsTable({
                               )}
                             </div>
                           </div>
-                          {(job.description || job.prompt || job.command || job.agent) && (
+                          {(job.description ||
+                            job.prompt ||
+                            job.command ||
+                            job.agent) && (
                             <div className="schedule__detail-meta">
                               {job.description && (
-                                <div className="schedule__detail-desc">{job.description}</div>
+                                <div className="schedule__detail-desc">
+                                  {job.description}
+                                </div>
                               )}
                               {job.agent && (
                                 <div className="schedule__detail-field">
-                                  <span className="schedule__detail-label">Agent</span>
-                                  <span className="schedule__detail-value">{job.agent}</span>
+                                  <span className="schedule__detail-label">
+                                    Agent
+                                  </span>
+                                  <span className="schedule__detail-value">
+                                    {job.agent}
+                                  </span>
                                 </div>
                               )}
                               {job.prompt && (
                                 <div className="schedule__detail-field">
-                                  <span className="schedule__detail-label">Prompt</span>
-                                  <span className="schedule__detail-value">{job.prompt}</span>
+                                  <span className="schedule__detail-label">
+                                    Prompt
+                                  </span>
+                                  <span className="schedule__detail-value">
+                                    {job.prompt}
+                                  </span>
                                 </div>
                               )}
                               {job.command && (
                                 <div className="schedule__detail-field">
-                                  <span className="schedule__detail-label">Command</span>
-                                  <code className="schedule__detail-code">{job.command}</code>
+                                  <span className="schedule__detail-label">
+                                    Command
+                                  </span>
+                                  <code className="schedule__detail-code">
+                                    {job.command}
+                                  </code>
                                 </div>
                               )}
                             </div>
                           )}
                           <JobDetail
                             name={job.name}
-                            autoOpenRun={expanded === job.name ? autoOpenRun : null}
+                            autoOpenRun={
+                              expanded === job.name ? autoOpenRun : null
+                            }
                           />
                         </div>
                       </td>

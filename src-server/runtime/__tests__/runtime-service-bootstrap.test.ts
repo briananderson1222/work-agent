@@ -8,8 +8,13 @@ describe('createRuntimeServiceBundle', () => {
     const usageAggregatorRef = { get: vi.fn(() => ({ id: 'usage' })) };
     const createAgentService = vi.fn(() => ({ kind: 'agent-service' }));
     const createProviderService = vi.fn(() => ({ kind: 'provider-service' }));
-    const createConnectionService = vi.fn(() => ({ kind: 'connection-service' }));
-    const createACPManager = vi.fn(() => ({ kind: 'acp-bridge', getStatus: () => ({}) }));
+    const createConnectionService = vi.fn(() => ({
+      kind: 'connection-service',
+    }));
+    const createACPManager = vi.fn(() => ({
+      kind: 'acp-bridge',
+      getStatus: () => ({}),
+    }));
 
     const bundle = createRuntimeServiceBundle(
       {

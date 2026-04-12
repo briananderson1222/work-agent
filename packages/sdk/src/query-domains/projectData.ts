@@ -268,12 +268,7 @@ export function useKnowledgeUpdateMutation(
       content?: string;
       metadata?: Record<string, any>;
     }) =>
-      updateKnowledgeDoc(
-        projectSlug,
-        docId,
-        { content, metadata },
-        namespace,
-      ),
+      updateKnowledgeDoc(projectSlug, docId, { content, metadata }, namespace),
     onSuccess: () => {
       queryClient.invalidateQueries({
         queryKey: ['knowledge', 'docs', projectSlug],

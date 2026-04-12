@@ -1,16 +1,10 @@
 import { execFile as execFileCb } from 'node:child_process';
-import {
-  cpSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  rmSync,
-} from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 import type { IAgentRegistryProvider } from '../providers/provider-interfaces.js';
+import { readPluginManifestFileSync } from '../services/plugin-manifest-loader.js';
 import type { Logger } from '../utils/logger.js';
 import { errorMessage } from './schemas.js';
 
@@ -166,8 +160,8 @@ export function detectPluginConflicts(
   for (const entry of readdirSync(pluginsDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     try {
-      const installedManifest = JSON.parse(
-        readFileSync(join(pluginsDir, entry.name, 'plugin.json'), 'utf-8'),
+      const installedManifest = readPluginManifestFileSync(
+        join(pluginsDir, entry.name, 'plugin.json'),
       ) as PluginManifest;
       if (
         installedManifest.name !== manifest.name &&
@@ -212,8 +206,8 @@ export async function resolvePluginDependencies(
     if (existsSync(join(dependencyDir, 'plugin.json'))) {
       status = 'installed';
       try {
-        depManifest = JSON.parse(
-          readFileSync(join(dependencyDir, 'plugin.json'), 'utf-8'),
+        depManifest = readPluginManifestFileSync(
+          join(dependencyDir, 'plugin.json'),
         );
       } catch (error) {
         logger.debug('Failed to read installed dependency manifest', {
@@ -224,11 +218,15 @@ export async function resolvePluginDependencies(
       depGit = await getPluginGitInfo(dependencyDir, logger);
     } else if (dependency.source) {
       status = 'will-install';
-      const result = await fetchPluginSource(dependency.source, pluginsDir, logger);
+      const result = await fetchPluginSource(
+        dependency.source,
+        pluginsDir,
+        logger,
+      );
       if (!('error' in result)) {
         try {
-          depManifest = JSON.parse(
-            readFileSync(join(result.tempDir, 'plugin.json'), 'utf-8'),
+          depManifest = readPluginManifestFileSync(
+            join(result.tempDir, 'plugin.json'),
           );
         } catch (error) {
           logger.debug('Failed to read fetched dependency manifest', {
@@ -305,7 +303,11 @@ export async function installPluginDependency(
   }
 
   if (dependency.source) {
-    const result = await fetchPluginSource(dependency.source, pluginsDir, logger);
+    const result = await fetchPluginSource(
+      dependency.source,
+      pluginsDir,
+      logger,
+    );
     if ('error' in result) return { success: false, error: result.error };
     const { tempDir } = result;
     const targetDir = join(pluginsDir, dependency.id);
@@ -314,8 +316,8 @@ export async function installPluginDependency(
     rmSync(tempDir, { recursive: true, force: true });
     await buildPlugin(targetDir, dependency.id);
     try {
-      const depManifest = JSON.parse(
-        readFileSync(join(targetDir, 'plugin.json'), 'utf-8'),
+      const depManifest = readPluginManifestFileSync(
+        join(targetDir, 'plugin.json'),
       ) as PluginManifest;
       for (const transitive of depManifest.dependencies || []) {
         await installPluginDependency(
@@ -336,15 +338,17 @@ export async function installPluginDependency(
   }
 
   try {
-    const registryResult = await getAgentRegistryProvider().install(dependency.id);
+    const registryResult = await getAgentRegistryProvider().install(
+      dependency.id,
+    );
     if (!registryResult.success) {
       return { success: false, error: registryResult.message };
     }
     const dependencyDir = join(pluginsDir, dependency.id);
     if (existsSync(join(dependencyDir, 'plugin.json'))) {
       try {
-        const depManifest = JSON.parse(
-          readFileSync(join(dependencyDir, 'plugin.json'), 'utf-8'),
+        const depManifest = readPluginManifestFileSync(
+          join(dependencyDir, 'plugin.json'),
         ) as PluginManifest;
         for (const transitive of depManifest.dependencies || []) {
           await installPluginDependency(

@@ -7,25 +7,51 @@
 import { ConnectionManagerModal, useConnections } from '@stallion-ai/connect';
 import { FullScreenError, FullScreenLoader } from '@stallion-ai/sdk';
 import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { useNavigation } from '../contexts/NavigationContext';
 import { useSystemStatus } from '../hooks/useSystemStatus';
 import { checkServerHealth } from '../lib/serverHealth';
+import {
+  buildSetupBannerContent,
+  setupBannerVariant,
+  shouldShowSetupBanner,
+} from './onboardingGateUtils';
+import './OnboardingGate.css';
 
 export function OnboardingGate({ children }: { children: ReactNode }) {
   const { data: status, isLoading, isError } = useSystemStatus();
   const { apiBase, activeConnection } = useConnections();
+  const { navigate } = useNavigation();
   const [showModal, setShowModal] = useState(false);
   const [dismissedSetupBanner, setDismissedSetupBanner] = useState(false);
 
   const wasConnected = useRef(false);
   const hasShownError = useRef(false);
+  const lastSetupBannerVariant = useRef<string>('hidden');
 
   useEffect(() => {
     if (status?.ready) {
       wasConnected.current = true;
       hasShownError.current = false;
+    }
+
+    if (!status) {
+      return;
+    }
+
+    const currentVariant = setupBannerVariant(status);
+    const previousVariant = lastSetupBannerVariant.current;
+
+    if (currentVariant === 'hidden') {
+      setDismissedSetupBanner(false);
+    } else if (
+      previousVariant !== 'hidden' &&
+      previousVariant !== currentVariant
+    ) {
       setDismissedSetupBanner(false);
     }
-  }, [status?.ready]);
+
+    lastSetupBannerVariant.current = currentVariant;
+  }, [status]);
 
   if (isLoading && !hasShownError.current) {
     return <FullScreenLoader label="loading" />;
@@ -68,11 +94,25 @@ export function OnboardingGate({ children }: { children: ReactNode }) {
     );
   }
 
+  const setupBannerVisible =
+    !!status && shouldShowSetupBanner(status) && !dismissedSetupBanner;
+  const setupBannerContent = status ? buildSetupBannerContent(status) : null;
+
   return (
     <>
-      {!status.ready && !dismissedSetupBanner && (
-        <SetupBanner
-          onManage={() => setShowModal(true)}
+      {setupBannerVisible && setupBannerContent && (
+        <SetupLauncher
+          content={setupBannerContent}
+          onOpenTarget={() =>
+            navigate(
+              setupBannerContent.actionTarget === 'runtimes'
+                ? '/connections/runtimes'
+                : setupBannerContent.actionTarget === 'providers'
+                  ? '/connections/providers'
+                  : '/connections',
+            )
+          }
+          onOpenAllConnections={() => navigate('/connections')}
           onDismiss={() => setDismissedSetupBanner(true)}
         />
       )}
@@ -94,23 +134,7 @@ function ReconnectBanner({
   onManage: () => void;
 }) {
   return (
-    <div
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 9000,
-        background: '#7c2d12',
-        color: '#fed7aa',
-        padding: '6px 16px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        fontSize: 13,
-        gap: 8,
-      }}
-    >
+    <div className="onboarding-reconnect-banner">
       <span>
         Lost connection to <strong>{serverName}</strong>. The app is still
         usable; changes may not save.
@@ -122,100 +146,115 @@ function ReconnectBanner({
   );
 }
 
-function SetupBanner({
-  onManage,
+function SetupLauncher({
+  content,
+  onOpenTarget,
+  onOpenAllConnections,
   onDismiss,
 }: {
-  onManage: () => void;
+  content: ReturnType<typeof buildSetupBannerContent>;
+  onOpenTarget: () => void;
+  onOpenAllConnections: () => void;
   onDismiss: () => void;
 }) {
   return (
-    <div
-      style={{
-        position: 'fixed',
-        right: 20,
-        bottom: 20,
-        zIndex: 9000,
-        width: 'min(420px, calc(100vw - 32px))',
-        borderRadius: 14,
-        border: '1px solid rgba(59, 130, 246, 0.22)',
-        background:
-          'linear-gradient(180deg, rgba(10,18,34,0.97), rgba(9,13,24,0.97))',
-        color: '#e5eefc',
-        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.35)',
-        padding: 16,
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'flex-start',
-          justifyContent: 'space-between',
-          gap: 12,
-        }}
-      >
-        <div>
-          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 6 }}>
-            No AI connection configured yet
+    <div className="onboarding-setup-launcher" data-testid="setup-launcher">
+      <div className="onboarding-setup-launcher__backdrop" />
+      <div className="onboarding-setup-launcher__panel">
+        <div className="onboarding-setup-launcher__eyebrow">First run</div>
+        <div className="onboarding-setup-launcher__header">
+          <div>
+            <div className="onboarding-setup-launcher__title">
+              {content.title}
+            </div>
+            <div className="onboarding-setup-launcher__description">
+              {content.description}
+            </div>
           </div>
-          <div
-            style={{
-              fontSize: 13,
-              lineHeight: 1.5,
-              color: 'rgba(229, 238, 252, 0.78)',
-            }}
+          <button
+            type="button"
+            aria-label="Dismiss setup launcher"
+            onClick={onDismiss}
+            className="onboarding-setup-launcher__dismiss"
           >
-            You can use the app now. When you're ready, open Connections to set
-            up Bedrock, Claude, Codex, or ACP.
+            ×
+          </button>
+        </div>
+
+        {content.badges.length > 0 && (
+          <div className="onboarding-setup-launcher__badges">
+            {content.badges.map((badge) => (
+              <span key={badge} className="onboarding-setup-launcher__badge">
+                {badge}
+              </span>
+            ))}
+          </div>
+        )}
+
+        <div className="onboarding-setup-launcher__steps">
+          <div className="onboarding-setup-launcher__step">
+            <span className="onboarding-setup-launcher__step-index">1</span>
+            <div>
+              <div className="onboarding-setup-launcher__step-title">
+                Open the recommended setup screen
+              </div>
+              <div className="onboarding-setup-launcher__step-desc">
+                Stallion already checked what is configured and what is
+                detectable on this machine.
+              </div>
+            </div>
+          </div>
+          <div className="onboarding-setup-launcher__step">
+            <span className="onboarding-setup-launcher__step-index">2</span>
+            <div>
+              <div className="onboarding-setup-launcher__step-title">
+                Save one chat-capable connection
+              </div>
+              <div className="onboarding-setup-launcher__step-desc">
+                One working model path is enough to get through first run.
+              </div>
+            </div>
+          </div>
+          <div className="onboarding-setup-launcher__step">
+            <span className="onboarding-setup-launcher__step-index">3</span>
+            <div>
+              <div className="onboarding-setup-launcher__step-title">
+                Come back and start chatting
+              </div>
+              <div className="onboarding-setup-launcher__step-desc">
+                This setup launcher disappears automatically once chat is ready.
+              </div>
+            </div>
           </div>
         </div>
+
         <button
           type="button"
-          aria-label="Dismiss setup banner"
-          onClick={onDismiss}
-          style={{
-            border: 'none',
-            background: 'transparent',
-            color: 'rgba(229, 238, 252, 0.7)',
-            cursor: 'pointer',
-            fontSize: 18,
-            lineHeight: 1,
-            padding: 0,
-          }}
+          className="onboarding-setup-launcher__primary"
+          onClick={onOpenTarget}
         >
-          ×
+          {content.actionLabel}
         </button>
-      </div>
-
-      <div
-        style={{
-          display: 'flex',
-          gap: 10,
-          marginTop: 14,
-          flexWrap: 'wrap',
-        }}
-      >
-        <button type="button" onClick={onManage} style={primaryButtonStyle}>
-          Manage Connections
-        </button>
-        <button type="button" onClick={onDismiss} style={secondaryButtonStyle}>
-          Dismiss
-        </button>
+        <div className="onboarding-setup-launcher__actions">
+          <button
+            type="button"
+            onClick={onOpenAllConnections}
+            style={secondaryButtonStyle}
+          >
+            View All Connections
+          </button>
+          <button
+            type="button"
+            onClick={onDismiss}
+            style={secondaryButtonStyle}
+          >
+            Continue Without Setup
+          </button>
+        </div>
       </div>
     </div>
   );
 }
-
-const primaryButtonStyle: React.CSSProperties = {
-  border: 'none',
-  borderRadius: 8,
-  background: '#2563eb',
-  color: 'white',
-  cursor: 'pointer',
-  fontSize: 13,
-  fontWeight: 600,
-  padding: '9px 12px',
-};
 
 const secondaryButtonStyle: React.CSSProperties = {
   border: '1px solid rgba(255,255,255,0.22)',

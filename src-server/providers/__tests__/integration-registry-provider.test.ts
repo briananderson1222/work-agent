@@ -1,7 +1,7 @@
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   createIntegrationRegistryProvider,
@@ -13,9 +13,9 @@ const cleanupDirs: string[] = [];
 
 afterEach(async () => {
   await Promise.all(
-    cleanupDirs.splice(0, cleanupDirs.length).map((dir) =>
-      rm(dir, { recursive: true, force: true }),
-    ),
+    cleanupDirs
+      .splice(0, cleanupDirs.length)
+      .map((dir) => rm(dir, { recursive: true, force: true })),
   );
 });
 
@@ -79,9 +79,11 @@ describe('integration-registry-provider helpers', () => {
     );
 
     const provider = {
-      listAvailable: vi.fn().mockResolvedValue([
-        { id: 'provider-tool', displayName: 'Provider Tool' },
-      ]),
+      listAvailable: vi
+        .fn()
+        .mockResolvedValue([
+          { id: 'provider-tool', displayName: 'Provider Tool' },
+        ]),
       listInstalled: vi.fn().mockResolvedValue([]),
       install: vi.fn().mockResolvedValue({ success: true }),
       uninstall: vi.fn().mockResolvedValue({ success: true }),

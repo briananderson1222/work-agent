@@ -1,7 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { buildPlugin as buildPluginBundle } from '@stallion-ai/shared/build';
 import type { PluginManifest } from '@stallion-ai/contracts/plugin';
+import { buildPlugin as buildPluginBundle } from '@stallion-ai/shared/build';
 import type { Logger } from '../utils/logger.js';
 import { errorMessage } from './schemas.js';
 

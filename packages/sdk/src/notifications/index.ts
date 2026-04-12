@@ -29,7 +29,15 @@ export class NotificationsAPI {
     );
     if (!res.ok)
       throw new Error(`Failed to list notifications: ${res.statusText}`);
-    return res.json();
+    const result = (await res.json()) as {
+      success: boolean;
+      data?: Notification[];
+      error?: string;
+    };
+    if (!result.success) {
+      throw new Error(result.error || 'Failed to list notifications');
+    }
+    return result.data ?? [];
   }
 
   async schedule(opts: ScheduleNotificationOpts): Promise<Notification> {
@@ -40,7 +48,15 @@ export class NotificationsAPI {
     });
     if (!res.ok)
       throw new Error(`Failed to schedule notification: ${res.statusText}`);
-    return res.json();
+    const result = (await res.json()) as {
+      success: boolean;
+      data?: Notification;
+      error?: string;
+    };
+    if (!result.success || !result.data) {
+      throw new Error(result.error || 'Failed to schedule notification');
+    }
+    return result.data;
   }
 
   async dismiss(id: string): Promise<void> {

@@ -15,6 +15,9 @@ type EventHandler = (data: Record<string, unknown>) => void;
 /** Handlers that receive event data (for side-effects beyond query invalidation) */
 const DATA_HANDLERS: Record<string, (data: Record<string, unknown>) => void> = {
   'notification:delivered': (data) => {
+    if (data.category === 'approval-request') {
+      return;
+    }
     const title = data.title as string | undefined;
     if (title) {
       const body = data.body as string | undefined;

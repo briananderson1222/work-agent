@@ -1,8 +1,16 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from 'node:fs/promises';
 import { basename, extname, join } from 'node:path';
 import type { AgentMetadata, AgentSpec } from '@stallion-ai/contracts/agent';
 import type { WorkflowMetadata } from '@stallion-ai/contracts/runtime';
+import { assertSafeContextText } from '../services/context-safety.js';
 import { createLogger } from '../utils/logger.js';
 import { validator } from './validator.js';
 
@@ -23,6 +31,7 @@ export async function loadAgentConfig(
   const content = await readFile(path, 'utf-8');
   const data = JSON.parse(content);
   validator.validateAgentSpec(data);
+  assertSafeAgentSpec(slug, data);
   return data;
 }
 
@@ -32,6 +41,7 @@ export async function saveAgentConfig(
   spec: AgentSpec,
 ): Promise<void> {
   validator.validateAgentSpec(spec);
+  assertSafeAgentSpec(slug, spec);
 
   const agentDir = join(projectHomeDir, 'agents', slug);
   await mkdir(agentDir, { recursive: true });
@@ -63,7 +73,9 @@ export async function createAgentConfig(
     throw new Error(`Agent with slug '${slug}' already exists`);
   }
 
-  const { slug: _ignored, ...cleanSpec } = spec as AgentSpec & { slug?: string };
+  const { slug: _ignored, ...cleanSpec } = spec as AgentSpec & {
+    slug?: string;
+  };
   await saveAgentConfig(projectHomeDir, slug, cleanSpec);
   return { slug, spec: cleanSpec };
 }
@@ -208,9 +220,7 @@ export async function createAgentWorkflow(
 ): Promise<void> {
   const ext = extname(filename).toLowerCase();
   if (!WORKFLOW_EXTENSIONS.includes(ext)) {
-    throw new Error(
-      'Workflow filename must end with .ts, .js, .mjs, or .cjs',
-    );
+    throw new Error('Workflow filename must end with .ts, .js, .mjs, or .cjs');
   }
 
   const workflowsDir = join(projectHomeDir, 'agents', slug, 'workflows');
@@ -221,6 +231,9 @@ export async function createAgentWorkflow(
     throw new Error(`Workflow '${filename}' already exists`);
   }
 
+  assertSafeContextText(content, {
+    source: `workflow '${filename}' for agent '${slug}'`,
+  });
   await writeFile(path, content, 'utf-8');
 }
 
@@ -235,7 +248,11 @@ export async function readAgentWorkflow(
     throw new Error(`Workflow '${workflowId}' not found`);
   }
 
-  return readFile(path, 'utf-8');
+  const content = await readFile(path, 'utf-8');
+  assertSafeContextText(content, {
+    source: `workflow '${workflowId}' for agent '${slug}'`,
+  });
+  return content;
 }
 
 export async function updateAgentWorkflow(
@@ -250,6 +267,9 @@ export async function updateAgentWorkflow(
     throw new Error(`Workflow '${workflowId}' not found`);
   }
 
+  assertSafeContextText(content, {
+    source: `workflow '${workflowId}' for agent '${slug}'`,
+  });
   await writeFile(path, content, 'utf-8');
 }
 
@@ -307,6 +327,27 @@ function deriveWorkflowLabel(filename: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function assertSafeAgentSpec(slug: string, spec: AgentSpec): void {
+  if (typeof spec.prompt === 'string' && spec.prompt.length > 0) {
+    assertSafeContextText(spec.prompt, {
+      source: `agent '${slug}' prompt`,
+    });
+  }
+
+  for (const quickPrompt of spec.ui?.quickPrompts || []) {
+    if (
+      typeof quickPrompt.prompt !== 'string' ||
+      quickPrompt.prompt.length === 0
+    ) {
+      continue;
+    }
+
+    assertSafeContextText(quickPrompt.prompt, {
+      source: `agent '${slug}' quick prompt '${quickPrompt.id}'`,
+    });
+  }
+}
+
 async function validateWorkflowShortcuts(
   projectHomeDir: string,
   slug: string,
@@ -322,10 +363,13 @@ async function validateWorkflowShortcuts(
     const missing = shortcuts.filter((id) => !knownIds.has(id));
 
     if (missing.length > 0) {
-      logger.warn('Agent references missing workflows in ui.workflowShortcuts', {
-        agent: slug,
-        missing: missing.join(', '),
-      });
+      logger.warn(
+        'Agent references missing workflows in ui.workflowShortcuts',
+        {
+          agent: slug,
+          missing: missing.join(', '),
+        },
+      );
     }
 
     return missing;

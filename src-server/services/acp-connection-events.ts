@@ -1,7 +1,4 @@
-import type {
-  Client,
-  SessionNotification,
-} from '@agentclientprotocol/sdk';
+import type { Client, SessionNotification } from '@agentclientprotocol/sdk';
 import { createACPBridgeClient } from './acp-bridge-client.js';
 import {
   type ACPBridgeEventState,
@@ -9,15 +6,12 @@ import {
   handleACPBridgeExtensionNotification,
   handleACPBridgeSessionUpdate,
 } from './acp-bridge-events.js';
+import type { ACPSlashCommand, ManagedTerminal } from './acp-bridge-types.js';
 import {
   flushACPTextPart,
   syncACPEventState,
   updateACPToolResultState,
 } from './acp-connection-state.js';
-import type {
-  ACPSlashCommand,
-  ManagedTerminal,
-} from './acp-bridge-types.js';
 
 export interface ACPConnectionEventFields {
   activeWriter: ((chunk: any) => Promise<void>) | null;

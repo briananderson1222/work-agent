@@ -122,8 +122,11 @@ export function buildEnrichedSchedulerJobs({
     const jobStats = statsMap.get(job.name);
     return {
       ...job,
-      successRate:
-        jobStats ? (jobStats.total > 0 ? jobStats.success_rate : -1) : -1,
+      successRate: jobStats
+        ? jobStats.total > 0
+          ? jobStats.success_rate
+          : -1
+        : -1,
     };
   });
 }

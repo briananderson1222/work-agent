@@ -29,6 +29,7 @@ export interface PluginManifest {
   displayName?: string;
   description?: string;
   entrypoint?: string;
+  serverModule?: string;
   build?: string;
   capabilities?: string[];
   permissions?: string[];

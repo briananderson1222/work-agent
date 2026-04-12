@@ -115,9 +115,9 @@ pluginRegistry.initialize().then(() => {
         <ApiBaseProvider>
           <SyntaxHighlighterProvider>
             <AuthProvider>
-              <OnboardingGate>
-                <PermissionManager>
-                  <NavigationProvider>
+              <NavigationProvider>
+                <OnboardingGate>
+                  <PermissionManager>
                     <KeyboardShortcutsProvider>
                       <ToastProvider>
                         <ConversationsProvider>
@@ -138,9 +138,9 @@ pluginRegistry.initialize().then(() => {
                         </ConversationsProvider>
                       </ToastProvider>
                     </KeyboardShortcutsProvider>
-                  </NavigationProvider>
-                </PermissionManager>
-              </OnboardingGate>
+                  </PermissionManager>
+                </OnboardingGate>
+              </NavigationProvider>
             </AuthProvider>
           </SyntaxHighlighterProvider>
         </ApiBaseProvider>

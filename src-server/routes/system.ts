@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { createSystemStatusRoutes } from './system-status-routes.js';
 import type { SystemStatusDeps } from './system-route-types.js';
+import { createSystemStatusRoutes } from './system-status-routes.js';
 import { createSystemUpdateRoutes } from './system-update-routes.js';
 
 export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {

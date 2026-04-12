@@ -15,11 +15,7 @@ async function schedulerFetch<T>(path: string): Promise<T> {
   return result.data;
 }
 
-async function schedulerMutate(
-  path: string,
-  method: string,
-  body?: unknown,
-) {
+async function schedulerMutate(path: string, method: string, body?: unknown) {
   const apiBase = await _getApiBase();
   const options: RequestInit = { method };
   if (body) {

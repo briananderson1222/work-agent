@@ -9,8 +9,9 @@ import { CONFIG_DEFAULTS, useConfig } from '../contexts/ConfigContext';
 import { useModels } from '../contexts/ModelsContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useProjects } from '../contexts/ProjectsContext';
-import { useActiveProject } from '../hooks/useActiveProject';
+import { ensureOrchestrationEventStream } from '../hooks/orchestration/ensureOrchestrationEventStream';
 import { useRehydrateSessions } from '../hooks/useActiveChatSessions';
+import { useActiveProject } from '../hooks/useActiveProject';
 import { useChatDockActions } from '../hooks/useChatDockActions';
 import { useChatDockKeyboardShortcuts } from '../hooks/useChatDockKeyboardShortcuts';
 import { useChatDockState } from '../hooks/useChatDockState';
@@ -187,6 +188,10 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
 
   const isRight = dockMode === 'right';
 
+  useEffect(() => {
+    ensureOrchestrationEventStream(apiBase);
+  }, [apiBase]);
+
   return (
     <>
       <div
@@ -242,7 +247,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
               setShowNewChatModal={setShowNewChatModal}
             />
 
-            {activeSession?.projectSlug &&
+            {activeSession?.projectSlug && (
               <ChatDockProjectContext
                 selectedProjectSlug={selectedProject}
                 projectSlug={activeSession.projectSlug}
@@ -254,7 +259,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
                 onOpenLayout={(projectSlug, layoutSlug) =>
                   setLayout(projectSlug, layoutSlug)
                 }
-              />}
+              />
+            )}
             <ChatDockContentArea
               activeSession={activeSession}
               activeSessionId={activeSessionId}

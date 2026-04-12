@@ -1,6 +1,6 @@
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { FunctionTool, McpClient } from '@strands-agents/sdk';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import { FunctionTool, McpClient } from '@strands-agents/sdk';
 import {
   normalizeToolName,
   parseToolName,
@@ -88,10 +88,10 @@ export async function loadStrandsTools(options: {
         continue;
       }
       if (toolDef.transport !== 'stdio' && toolDef.transport !== 'process') {
-        opts.logger.warn(
-          'Strands adapter only supports stdio MCP transport',
-          { toolId, transport: toolDef.transport },
-        );
+        opts.logger.warn('Strands adapter only supports stdio MCP transport', {
+          toolId,
+          transport: toolDef.transport,
+        });
         continue;
       }
 

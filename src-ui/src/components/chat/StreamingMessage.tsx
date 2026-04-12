@@ -1,13 +1,17 @@
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useStreamingContent } from '../../hooks/useStreamingContent';
+import { deriveToolProgressSummary } from '../../utils/chat-progress';
 import { markdownCodeComponents } from '../HighlightedCodeBlock';
 import { LoadingDots } from '../LoadingDots';
+import { ToolProgressIndicator } from './ToolProgressIndicator';
+import { UIBlockRenderer } from './UIBlockRenderer';
 
 type ContentPart = {
-  type: 'text' | 'tool' | 'reasoning';
+  type: 'text' | 'tool' | 'reasoning' | 'ui-block';
   content?: string;
   tool?: any;
+  uiBlock?: any;
 };
 
 type Props = {
@@ -34,6 +38,7 @@ export function StreamingMessage({
 }: Props) {
   const { streamingText, hasContent, contentParts } =
     useStreamingContent(sessionId);
+  const progressSummary = deriveToolProgressSummary(contentParts);
 
   return (
     <div className="streaming-message">
@@ -58,6 +63,9 @@ export function StreamingMessage({
               </ReactMarkdown>
             );
           }
+          if (part.type === 'ui-block' && part.uiBlock) {
+            return <UIBlockRenderer key={i} block={part.uiBlock} />;
+          }
           if (
             (part.type === 'tool' ||
               (part as ContentPart & { type: string }).type?.startsWith(
@@ -79,6 +87,8 @@ export function StreamingMessage({
             {streamingText}
           </ReactMarkdown>
         )}
+
+        {progressSummary && <ToolProgressIndicator summary={progressSummary} />}
 
         {/* Loading indicator */}
         {hasContent ? (

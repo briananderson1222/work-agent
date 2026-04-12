@@ -4,7 +4,11 @@ import { DetailHeader } from '../../components/DetailHeader';
 import { Toggle } from '../../components/Toggle';
 import { useAIEnrich } from '../../hooks/useAIEnrich';
 import type { PlaybookForm } from './utils';
-import { extractTemplateVariables } from './utils';
+import {
+  extractTemplateVariables,
+  formatPlaybookProvenanceSummary,
+  formatPlaybookStatsSummary,
+} from './utils';
 
 interface PlaybooksEditorProps {
   agents: { slug: string; name: string }[];
@@ -58,6 +62,12 @@ export function PlaybooksEditor({
     () => extractTemplateVariables(form.content),
     [form.content],
   );
+  const statsSummary = selectedPrompt
+    ? formatPlaybookStatsSummary(selectedPrompt)
+    : null;
+  const provenanceSummary = selectedPrompt
+    ? formatPlaybookProvenanceSummary(selectedPrompt)
+    : null;
 
   return (
     <div className="prompt-editor">
@@ -275,6 +285,10 @@ export function PlaybooksEditor({
       <div className="editor__footer">
         {selectedPrompt && (
           <div className="prompt-editor__timestamps">
+            {statsSummary && <span>{statsSummary}</span>}
+            {statsSummary && <span>·</span>}
+            {provenanceSummary && <span>{provenanceSummary}</span>}
+            {provenanceSummary && <span>·</span>}
             <span>
               created {new Date(selectedPrompt.createdAt).toLocaleDateString()}
             </span>

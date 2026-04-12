@@ -18,7 +18,9 @@ export async function setupDevMcpManager({
   const mcpManager = new MCPManager({
     onStatus: (id, status, error) => {
       console.log(
-        status === 'connected' ? `   ✓ MCP: ${id}` : `   ✗ MCP: ${id} — ${error}`,
+        status === 'connected'
+          ? `   ✓ MCP: ${id}`
+          : `   ✗ MCP: ${id} — ${error}`,
       );
     },
   });

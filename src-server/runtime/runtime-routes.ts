@@ -53,6 +53,7 @@ import { createUICommandRoutes } from '../routes/ui-commands.js';
 import { createVoiceRoutes } from '../routes/voice.js';
 import type { ACPManager } from '../services/acp-bridge.js';
 import type { AgentService } from '../services/agent-service.js';
+import type { ApprovalRegistry } from '../services/approval-registry.js';
 import type { ConnectionService } from '../services/connection-service.js';
 import type { EventBus } from '../services/event-bus.js';
 import type { FeedbackService } from '../services/feedback-service.js';
@@ -81,6 +82,7 @@ export interface ConfigureRuntimeRoutesContext {
   app: HonoApp;
   logger: Logger;
   eventBus: EventBus;
+  approvalRegistry: ApprovalRegistry;
   appConfig: AppConfig;
   port: number;
   usageAggregator?: any;
@@ -177,6 +179,10 @@ export function configureRuntimeRoutes(
       },
       context.reloadSkillsAndAgents,
       context.skillService,
+      {
+        eventBus: context.eventBus,
+        logger: context.logger,
+      },
     ),
   );
 

@@ -74,6 +74,18 @@ export interface BedrockAdapterCallbacks {
 
 export class BedrockAdapter implements ProviderAdapterShape {
   readonly provider: ProviderKind = 'bedrock';
+  readonly metadata = {
+    displayName: 'Bedrock Runtime',
+    description: 'Built-in Stallion runtime backed by VoltAgent/Strands.',
+    capabilities: [
+      'agent-runtime',
+      'session-lifecycle',
+      'tool-calls',
+      'interrupt',
+    ],
+    runtimeId: 'bedrock-runtime',
+    builtin: true,
+  } as const;
 
   private sessions = new Map<string, ProviderSession>();
   private readonly events = new AsyncEventQueue();

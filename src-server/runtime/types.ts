@@ -13,7 +13,10 @@
  * those hooks into its native lifecycle system. Adding a new framework means
  * implementing the hook wiring, not reimplementing business logic.
  */
-import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import type {
+  AgentDelegationContext,
+  AgentSpec,
+} from '@stallion-ai/contracts/agent';
 import type { AppConfig } from '@stallion-ai/contracts/config';
 
 // ── Stream Events ──────────────────────────────────────
@@ -126,6 +129,7 @@ export interface InvocationContext {
   conversationId?: string;
   userId?: string;
   traceId?: string;
+  delegation?: AgentDelegationContext;
 }
 
 export interface IAgentHooks {

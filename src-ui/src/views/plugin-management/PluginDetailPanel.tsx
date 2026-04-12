@@ -5,11 +5,7 @@ import type {
 import { DetailHeader } from '../../components/DetailHeader';
 import { Toggle } from '../../components/Toggle';
 import { PluginSettingFieldRow } from './PluginSettingFieldRow';
-import type {
-  Plugin,
-  PluginMessage,
-  PluginUpdateSummary,
-} from './types';
+import type { Plugin, PluginMessage, PluginUpdateSummary } from './types';
 
 export function PluginDetailPanel({
   selected,
@@ -165,7 +161,10 @@ export function PluginDetailPanel({
                 providerDetails && (
                   <div className="plugins__providers-list">
                     {providerDetails.map((provider: PluginProviderDetail) => (
-                      <div key={provider.type} className="plugins__provider-row">
+                      <div
+                        key={provider.type}
+                        className="plugins__provider-row"
+                      >
                         <span className="plugins__cap plugins__cap--provider">
                           {provider.type}
                         </span>
@@ -205,7 +204,9 @@ export function PluginDetailPanel({
                   key={field.key}
                   field={field}
                   value={settingsData.values[field.key]}
-                  onChange={(value) => onSaveSetting(selected.name, field.key, value)}
+                  onChange={(value) =>
+                    onSaveSetting(selected.name, field.key, value)
+                  }
                 />
               ))}
             </div>
@@ -229,7 +230,9 @@ export function PluginDetailPanel({
               <div className="plugins__changelog-list">
                 {changelogData.entries.map((entry) => (
                   <div key={entry.hash} className="plugins__changelog-entry">
-                    <code className="plugins__changelog-hash">{entry.short}</code>
+                    <code className="plugins__changelog-hash">
+                      {entry.short}
+                    </code>
                     <span className="plugins__changelog-subject">
                       {entry.subject}
                     </span>
@@ -244,7 +247,8 @@ export function PluginDetailPanel({
           </div>
         ) : null}
 
-        {selected.permissions?.missing && selected.permissions.missing.length > 0 ? (
+        {selected.permissions?.missing &&
+        selected.permissions.missing.length > 0 ? (
           <button
             className="plugins__btn plugins__btn--permissions"
             onClick={onReviewPermissions}

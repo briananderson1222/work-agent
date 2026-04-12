@@ -3,9 +3,9 @@ import { ConnectionStatusDot } from '../ConnectionStatusDot';
 import type { ConnectionStatus } from '../connection-manager-modal-utils';
 import {
   iconBtnStyle,
-  secondaryBtnStyle,
   inputStyle,
   primaryBtnStyle,
+  secondaryBtnStyle,
 } from './styles';
 
 interface ConnectionListPanelProps {
@@ -99,7 +99,11 @@ export function ConnectionListPanel({
                 style={inputStyle}
               />
               <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" onClick={onSaveEdit} style={primaryBtnStyle}>
+                <button
+                  type="button"
+                  onClick={onSaveEdit}
+                  style={primaryBtnStyle}
+                >
                   Save
                 </button>
                 <button

@@ -15,12 +15,18 @@ export async function searchKnowledgeDocuments({
   namespace?: string;
   vectorDb: {
     namespaceExists: (namespace: string) => Promise<boolean>;
-    search: (namespace: string, queryVector: number[], topK: number) => Promise<any[]>;
+    search: (
+      namespace: string,
+      queryVector: number[],
+      topK: number,
+    ) => Promise<any[]>;
   } | null;
   embeddingProvider: {
     embed: (texts: string[]) => Promise<number[][]>;
   } | null;
-  listNamespaces: (projectSlug: string) => Array<{ id: string; behavior?: string }>;
+  listNamespaces: (
+    projectSlug: string,
+  ) => Array<{ id: string; behavior?: string }>;
 }): Promise<any[]> {
   if (!vectorDb || !embeddingProvider) {
     return [];
@@ -41,7 +47,10 @@ export async function searchKnowledgeDocuments({
   );
   const allResults: any[] = [];
   for (const namespaceConfig of namespaces) {
-    const vectorNamespace = knowledgeVectorNamespace(projectSlug, namespaceConfig.id);
+    const vectorNamespace = knowledgeVectorNamespace(
+      projectSlug,
+      namespaceConfig.id,
+    );
     if (!(await vectorDb.namespaceExists(vectorNamespace))) {
       continue;
     }

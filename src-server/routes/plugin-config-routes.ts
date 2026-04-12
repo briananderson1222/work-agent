@@ -1,12 +1,20 @@
 import { execFile as execFileCb } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 import { Hono } from 'hono';
+import { isContextSafetyError } from '../services/context-safety.js';
+import { readPluginManifestFileSync } from '../services/plugin-manifest-loader.js';
 import { pluginSettingsUpdates } from '../telemetry/metrics.js';
-import { errorMessage, getBody, param, pluginOverridesSchema, pluginSettingsSchema, validate } from './schemas.js';
+import {
+  errorMessage,
+  getBody,
+  param,
+  pluginOverridesSchema,
+  pluginSettingsSchema,
+  validate,
+} from './schemas.js';
 
 const execFile = promisify(execFileCb);
 
@@ -29,20 +37,27 @@ export function registerPluginConfigRoutes(
       return c.json({ error: 'Plugin not found' }, 404);
     }
 
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8'));
-    const schema = manifest.settings || [];
+    try {
+      const manifest = readPluginManifestFileSync(manifestPath);
+      const schema = manifest.settings || [];
 
-    const { ConfigLoader } = await import('../domain/config-loader.js');
-    const configLoader = new ConfigLoader({ projectHomeDir });
-    const overrides = await configLoader.loadPluginOverrides();
-    const values = overrides[manifest.name || name]?.settings || {};
+      const { ConfigLoader } = await import('../domain/config-loader.js');
+      const configLoader = new ConfigLoader({ projectHomeDir });
+      const overrides = await configLoader.loadPluginOverrides();
+      const values = overrides[manifest.name || name]?.settings || {};
 
-    const merged: Record<string, unknown> = {};
-    for (const field of schema) {
-      merged[field.key] = values[field.key] ?? field.default ?? null;
+      const merged: Record<string, unknown> = {};
+      for (const field of schema) {
+        merged[field.key] = values[field.key] ?? field.default ?? null;
+      }
+
+      return c.json({ schema, values: merged });
+    } catch (error: unknown) {
+      if (isContextSafetyError(error)) {
+        return c.json({ error: error.message }, 400);
+      }
+      return c.json({ error: errorMessage(error) }, 500);
     }
-
-    return c.json({ schema, values: merged });
   });
 
   app.put('/:name/settings', validate(pluginSettingsSchema), async (c) => {
@@ -82,7 +97,13 @@ export function registerPluginConfigRoutes(
     try {
       const { stdout } = await execFile(
         'git',
-        ['log', '--oneline', '--no-decorate', '-20', '--format=%H|%h|%s|%an|%aI'],
+        [
+          'log',
+          '--oneline',
+          '--no-decorate',
+          '-20',
+          '--format=%H|%h|%s|%an|%aI',
+        ],
         { cwd: pluginDir, encoding: 'utf-8', windowsHide: true },
       );
 
@@ -114,20 +135,27 @@ export function registerPluginConfigRoutes(
       return c.json({ error: 'Plugin not found' }, 404);
     }
 
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf-8')) as PluginManifest;
-    const { ConfigLoader } = await import('../domain/config-loader.js');
-    const configLoader = new ConfigLoader({ projectHomeDir });
-    const overrides = await configLoader.loadPluginOverrides();
-    const disabled = overrides[manifest.name || name]?.disabled ?? [];
+    try {
+      const manifest = readPluginManifestFileSync(manifestPath);
+      const { ConfigLoader } = await import('../domain/config-loader.js');
+      const configLoader = new ConfigLoader({ projectHomeDir });
+      const overrides = await configLoader.loadPluginOverrides();
+      const disabled = overrides[manifest.name || name]?.disabled ?? [];
 
-    const providers = (manifest.providers || []).map((provider) => ({
-      type: provider.type,
-      module: provider.module,
-      layout: provider.layout ?? null,
-      enabled: !disabled.includes(provider.type),
-    }));
+      const providers = (manifest.providers || []).map((provider) => ({
+        type: provider.type,
+        module: provider.module,
+        layout: provider.layout ?? null,
+        enabled: !disabled.includes(provider.type),
+      }));
 
-    return c.json({ providers });
+      return c.json({ providers });
+    } catch (error: unknown) {
+      if (isContextSafetyError(error)) {
+        return c.json({ error: error.message }, 400);
+      }
+      return c.json({ error: errorMessage(error) }, 500);
+    }
   });
 
   app.get('/:name/overrides', async (c) => {

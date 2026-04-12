@@ -1,5 +1,5 @@
-import type { AgentFormData } from './types';
 import type { Tool } from '../../types';
+import type { AgentFormData } from './types';
 
 type AgentLike = {
   slug?: string;

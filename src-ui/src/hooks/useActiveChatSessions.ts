@@ -5,4 +5,7 @@ export {
   usePruneActiveChats,
   useRehydrateSessions,
 } from './useActiveChatSessionLifecycle';
-export { useCancelMessage, useSendMessage } from './useActiveChatSessionMessaging';
+export {
+  useCancelMessage,
+  useSendMessage,
+} from './useActiveChatSessionMessaging';

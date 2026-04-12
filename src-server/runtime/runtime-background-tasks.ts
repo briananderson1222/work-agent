@@ -26,11 +26,15 @@ export function mergeRuntimeACPConnections(
   const providerConnections = providerEntries.flatMap(
     (entry) => entry.provider.getConnections?.() || [],
   );
-  const configIds = new Set(acpConnections.map((connection: any) => connection.id));
+  const configIds = new Set(
+    acpConnections.map((connection: any) => connection.id),
+  );
 
   return [
     ...acpConnections,
-    ...providerConnections.filter((connection: any) => !configIds.has(connection.id)),
+    ...providerConnections.filter(
+      (connection: any) => !configIds.has(connection.id),
+    ),
   ];
 }
 
@@ -63,14 +67,12 @@ export function scheduleRuntimeDailyReload(
   scheduleNextReload();
 }
 
-export function startRuntimeACPConnections(
-  context: {
-    loadACPConfig: () => Promise<{ connections: any[] }>;
-    acpBridge: ACPBridgeLike;
-    logger: RuntimeLogger;
-    listProvidersFn?: typeof listProviders;
-  },
-): void {
+export function startRuntimeACPConnections(context: {
+  loadACPConfig: () => Promise<{ connections: any[] }>;
+  acpBridge: ACPBridgeLike;
+  logger: RuntimeLogger;
+  listProvidersFn?: typeof listProviders;
+}): void {
   const listProvidersFn = context.listProvidersFn || listProviders;
 
   context

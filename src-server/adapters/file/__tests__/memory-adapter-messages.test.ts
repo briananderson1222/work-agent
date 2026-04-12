@@ -1,8 +1,8 @@
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, test, vi } from 'vitest';
 import type { UIMessage } from 'ai';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 import {
   addStoredMessage,
   addStoredMessages,

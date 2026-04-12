@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 
 type ContentPart = {
-  type: 'text' | 'tool' | 'reasoning';
+  type: 'text' | 'tool' | 'reasoning' | 'ui-block';
   content?: string;
   tool?: any;
+  uiBlock?: any;
 };
 
 type StreamingState = {

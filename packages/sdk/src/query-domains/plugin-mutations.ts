@@ -3,7 +3,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { _getApiBase, addProjectLayoutFromPlugin } from '../api';
 import type { MutationOptions } from '../query-core';
 
-function invalidatePluginQueries(queryClient: ReturnType<typeof useQueryClient>) {
+function invalidatePluginQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
   queryClient.invalidateQueries({ queryKey: ['plugins'] });
   queryClient.invalidateQueries({ queryKey: ['plugin-updates'] });
 }
@@ -202,6 +204,31 @@ export function useReloadPluginsMutation(
   });
 }
 
+export async function requestPluginRegistryInstallAction(
+  id: string,
+  action: 'install' | 'uninstall',
+): Promise<InstallResult> {
+  const apiBase = await _getApiBase();
+  const response =
+    action === 'install'
+      ? await fetch(`${apiBase}/api/registry/plugins/install`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        })
+      : await fetch(
+          `${apiBase}/api/registry/plugins/${encodeURIComponent(id)}`,
+          {
+            method: 'DELETE',
+          },
+        );
+  const result = await response.json();
+  if (!result.success) {
+    throw new Error(result.error || result.message || `${action} failed`);
+  }
+  return result as InstallResult;
+}
+
 export function usePluginRegistryInstallMutation() {
   const queryClient = useQueryClient();
   return useMutation<
@@ -209,24 +236,13 @@ export function usePluginRegistryInstallMutation() {
     Error,
     { id: string; action: 'install' | 'uninstall' }
   >({
-    mutationFn: async ({ id, action }) => {
-      const apiBase = await _getApiBase();
-      const response =
-        action === 'install'
-          ? await fetch(`${apiBase}/api/registry/plugins/install`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id }),
-            })
-          : await fetch(
-              `${apiBase}/api/registry/plugins/${encodeURIComponent(id)}`,
-              { method: 'DELETE' },
-            );
-      const result = await response.json();
-      if (!result.success) throw new Error(result.error || `${action} failed`);
-      return result as InstallResult;
-    },
+    mutationFn: async ({ id, action }) =>
+      requestPluginRegistryInstallAction(id, action),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['registry', 'plugins'] });
+      queryClient.invalidateQueries({
+        queryKey: ['registry', 'plugins', 'installed'],
+      });
       queryClient.invalidateQueries({ queryKey: ['registry-plugins'] });
       queryClient.invalidateQueries({ queryKey: ['plugins'] });
     },

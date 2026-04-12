@@ -30,8 +30,6 @@ describe('project-settings utils', () => {
     expect(getKnowledgeTimeAgo('2026-01-01T11:59:30.000Z', now)).toBe(
       'just now',
     );
-    expect(getKnowledgeTimeAgo('2026-01-01T11:00:00.000Z', now)).toBe(
-      '1h ago',
-    );
+    expect(getKnowledgeTimeAgo('2026-01-01T11:00:00.000Z', now)).toBe('1h ago');
   });
 });

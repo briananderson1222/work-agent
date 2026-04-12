@@ -1,6 +1,6 @@
-import type { Agent } from '@voltagent/core';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import type { AppConfig } from '@stallion-ai/contracts/config';
+import type { Agent } from '@voltagent/core';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import { getActiveRuntimeProjectSlug } from './runtime-startup.js';
@@ -30,7 +30,10 @@ export async function reloadRuntimeAgents({
   memoryAdapters: Map<string, any>;
   mcpConfigs: Map<string, { disconnect(): Promise<void> }>;
   mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>;
-  integrationMetadata: Map<string, { type: string; transport?: string; toolCount?: number }>;
+  integrationMetadata: Map<
+    string,
+    { type: string; transport?: string; toolCount?: number }
+  >;
   voltAgent?: { registerAgent(agent: Agent): void };
   logger: any;
   eventBus: { emit(event: string, data?: Record<string, unknown>): void };
@@ -42,7 +45,9 @@ export async function reloadRuntimeAgents({
   applyLogLevel(appConfig);
 
   const agentMetadataList = await configLoader.listAgents();
-  const currentSlugs = new Set(agentMetadataList.map((metadata) => metadata.slug));
+  const currentSlugs = new Set(
+    agentMetadataList.map((metadata) => metadata.slug),
+  );
 
   for (const slug of activeAgents.keys()) {
     if (slug === 'default') continue;
@@ -99,7 +104,10 @@ export async function reloadRuntimeSkillsAndAgents({
   createVoltAgentInstance,
 }: {
   skillService: {
-    discoverSkills(projectHomeDir: string, activeProject?: string): Promise<void>;
+    discoverSkills(
+      projectHomeDir: string,
+      activeProject?: string,
+    ): Promise<void>;
   };
   configLoader: ConfigLoader;
   storageAdapter: FileStorageAdapter;

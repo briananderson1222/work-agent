@@ -58,9 +58,7 @@ describe('runtime-health', () => {
         ],
       ]),
       memoryAdapters: new Map([['default', {}]]),
-      mcpConnectionStatus: new Map([
-        ['default:docs', { connected: true }],
-      ]),
+      mcpConnectionStatus: new Map([['default:docs', { connected: true }]]),
       integrationMetadata: new Map([
         ['default:docs', { type: 'mcp', transport: 'stdio', toolCount: 3 }],
       ]),

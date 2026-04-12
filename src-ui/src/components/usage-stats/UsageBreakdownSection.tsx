@@ -34,7 +34,8 @@ function ModelRow({
     modelOriginalId: modelInfo?.originalId,
   });
   const isAcpOnly =
-    usingAgents.length > 0 && usingAgents.every((agent) => agent.source === 'acp');
+    usingAgents.length > 0 &&
+    usingAgents.every((agent) => agent.source === 'acp');
 
   const tooltipLines = [
     `Model: ${displayName}`,
@@ -93,7 +94,10 @@ function ModelRow({
         >
           {usingAgents
             .slice(0, 3)
-            .map((agent) => agent.name || agent.slug.split(':').pop() || agent.slug)
+            .map(
+              (agent) =>
+                agent.name || agent.slug.split(':').pop() || agent.slug,
+            )
             .join(', ')}
           {usingAgents.length > 3 && ` +${usingAgents.length - 3} more`}
         </div>
@@ -165,7 +169,8 @@ function AgentRow({
                 (event.currentTarget.style.textDecoration = 'none')
               }
             >
-              {agentConfig.planLabel || agentConfig.connectionName || 'ACP'} plan ↗
+              {agentConfig.planLabel || agentConfig.connectionName || 'ACP'}{' '}
+              plan ↗
             </a>
           ) : (
             `$${(stats.cost ?? 0).toFixed(2)}`

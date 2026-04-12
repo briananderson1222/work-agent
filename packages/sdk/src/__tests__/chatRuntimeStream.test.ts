@@ -65,9 +65,7 @@ describe('chatRuntimeStream', () => {
         title: 'My Chat',
         model: 'test-model',
         projectSlug: 'project-a',
-        attachments: [
-          { data: 'data:image/png;base64,abc', type: 'image/png' },
-        ],
+        attachments: [{ data: 'data:image/png;base64,abc', type: 'image/png' }],
       }),
     ).toEqual({
       input: [

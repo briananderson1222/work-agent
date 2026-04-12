@@ -21,9 +21,7 @@ export function AIModelsSection({
         </label>
         <ModelSelector
           value={config.defaultModel || ''}
-          onChange={(modelId) =>
-            onChange({ ...config, defaultModel: modelId })
-          }
+          onChange={(modelId) => onChange({ ...config, defaultModel: modelId })}
           placeholder="Select a model…"
         />
         <span className="settings__field-hint">

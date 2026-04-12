@@ -35,7 +35,9 @@ describe('bootstrapRuntimeVoiceAgent', () => {
       info: vi.fn(),
       warn: vi.fn(),
     };
-    const agentTools = new Map([['stallion-voice', [{ name: 'tool-1' }] as any]]);
+    const agentTools = new Map([
+      ['stallion-voice', [{ name: 'tool-1' }] as any],
+    ]);
 
     await bootstrapRuntimeVoiceAgent({
       agentSpecs: [{ tools: { mcpServers: ['github'] } } as any],

@@ -80,6 +80,22 @@ describe('NotificationService', () => {
     expect(svc.list()).toHaveLength(0);
   });
 
+  test('clearAll notifies providers before removing notifications', () => {
+    const handleDismiss = vi.fn();
+    svc.addProvider({
+      id: 'mock',
+      displayName: 'Mock',
+      categories: ['test'],
+      handleDismiss,
+    } as any);
+
+    svc.schedule('mock', { title: 'A', body: '', category: 'a' });
+    svc.schedule('mock', { title: 'B', body: '', category: 'b' });
+    svc.clearAll();
+
+    expect(handleDismiss).toHaveBeenCalledTimes(2);
+  });
+
   test('dedupeTag updates existing instead of creating new', () => {
     svc.schedule('test', {
       title: 'V1',

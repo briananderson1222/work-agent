@@ -114,11 +114,7 @@ export class MCPService {
     const agent = await this.configLoader.loadAgent(slug);
     const tools = agent.tools || { mcpServers: [], available: ['*'] };
 
-    if (
-      !tools.mcpServers.some(
-        (e) => e === toolId,
-      )
-    ) {
+    if (!tools.mcpServers.some((e) => e === toolId)) {
       tools.mcpServers.push(toolId);
     }
 

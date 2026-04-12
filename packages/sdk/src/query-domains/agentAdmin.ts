@@ -43,11 +43,14 @@ export async function updateAgent(
   agent: Record<string, unknown>,
 ): Promise<unknown> {
   const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/agents/${encodeURIComponent(slug)}`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(agent),
-  });
+  const response = await fetch(
+    `${apiBase}/agents/${encodeURIComponent(slug)}`,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(agent),
+    },
+  );
   const result = (await response.json()) as {
     success: boolean;
     data?: unknown;
@@ -61,9 +64,12 @@ export async function updateAgent(
 
 export async function deleteAgent(slug: string): Promise<unknown> {
   const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/agents/${encodeURIComponent(slug)}`, {
-    method: 'DELETE',
-  });
+  const response = await fetch(
+    `${apiBase}/agents/${encodeURIComponent(slug)}`,
+    {
+      method: 'DELETE',
+    },
+  );
   const result = (await response.json()) as {
     success: boolean;
     data?: unknown;
@@ -199,9 +205,7 @@ export function useAgentQuery(
   });
 }
 
-export function useAgentTemplatesQuery(
-  config?: QueryConfig<AgentTemplate[]>,
-) {
+export function useAgentTemplatesQuery(config?: QueryConfig<AgentTemplate[]>) {
   return useWorkspaceTemplatesQuery<AgentTemplate>('agent', config);
 }
 

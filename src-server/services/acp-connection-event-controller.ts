@@ -1,16 +1,16 @@
 import type { SessionNotification } from '@agentclientprotocol/sdk';
 import {
+  type ACPConnectionEventState,
   applyACPConnectionEventStateFields,
   flushACPConnectionTextPart,
   getACPConnectionEventStateFields,
   updateACPConnectionToolResult,
-  type ACPConnectionEventState,
 } from './acp-connection-event-state.js';
 import {
+  type ACPConnectionEventFields,
   handleACPConnectionExtensionMethod,
   handleACPConnectionExtensionNotification,
   handleACPConnectionSessionUpdate,
-  type ACPConnectionEventFields,
 } from './acp-connection-events.js';
 
 export interface ACPConnectionEventController {

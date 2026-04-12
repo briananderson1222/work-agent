@@ -2,7 +2,10 @@
  * Template Service — built-in + plugin-contributed templates for agents and layouts.
  */
 
-import type { ITemplateProvider, Template } from '../providers/provider-interfaces.js';
+import type {
+  ITemplateProvider,
+  Template,
+} from '../providers/provider-interfaces.js';
 import { templateOps } from '../telemetry/metrics.js';
 
 const BUILTIN_AGENT_TEMPLATES: Template[] = [

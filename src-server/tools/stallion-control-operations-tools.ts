@@ -39,7 +39,9 @@ export function registerOperationsTools(server: McpServer) {
     'Run a job immediately',
     { name: z.string() },
     async ({ name }) =>
-      jsonToolResult(await api(`/scheduler/jobs/${name}/run`, { method: 'POST' })),
+      jsonToolResult(
+        await api(`/scheduler/jobs/${name}/run`, { method: 'POST' }),
+      ),
   );
 
   server.tool('system_status', 'Get system health and status', {}, async () =>
@@ -96,10 +98,35 @@ export function registerOperationsTools(server: McpServer) {
         .boolean()
         .optional()
         .describe('Navigate the UI to show this conversation'),
+      _delegation: z
+        .object({
+          mode: z.literal('isolated-child'),
+          depth: z.number().int().nonnegative(),
+          maxDepth: z.number().int().positive(),
+          parentAgentSlug: z.string(),
+          parentConversationId: z.string().optional(),
+          rootAgentSlug: z.string(),
+          rootConversationId: z.string().optional(),
+          allowedTools: z.array(z.string()).optional(),
+          blockedTools: z.array(z.string()).optional(),
+          denyApprovals: z.boolean().optional(),
+        })
+        .optional(),
+      _userId: z.string().optional(),
     },
-    async ({ agent, message, conversationId, navigate: shouldNavigate }) => {
+    async ({
+      agent,
+      message,
+      conversationId,
+      navigate: shouldNavigate,
+      _delegation,
+      _userId,
+    }) => {
       const nextConversationId = createConversationId(agent, conversationId);
-      await dispatchAgentMessage(agent, message, nextConversationId);
+      await dispatchAgentMessage(agent, message, nextConversationId, {
+        delegation: _delegation,
+        userId: _userId,
+      });
       if (shouldNavigate) {
         await navigateTo(`/agents/${agent}`);
       }

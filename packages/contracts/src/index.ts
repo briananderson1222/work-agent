@@ -14,3 +14,4 @@ export * from './runtime.js';
 export * from './runtime-events.js';
 export * from './scheduler.js';
 export * from './tool.js';
+export * from './ui-block.js';

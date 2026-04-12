@@ -44,7 +44,9 @@ describe('createStrandsFunctionTools', () => {
     const execute = vi.fn();
     const deniedToolUseIds = new Set(['tool-1']);
     const [tool] = createStrandsFunctionTools(
-      [{ name: 'read_file', description: 'Read', parameters: {}, execute }] as any,
+      [
+        { name: 'read_file', description: 'Read', parameters: {}, execute },
+      ] as any,
       deniedToolUseIds,
     ) as any[];
 

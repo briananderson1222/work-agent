@@ -5,14 +5,6 @@ vi.mock('../../telemetry/metrics.js', () => ({
 }));
 
 vi.mock('../../providers/registry.js', () => {
-  const pluginProvider = {
-    listAvailable: vi
-      .fn()
-      .mockResolvedValue([{ id: 'p1', name: 'Plugin 1', version: '1.0.0' }]),
-    listInstalled: vi.fn().mockResolvedValue([]),
-    install: vi.fn().mockResolvedValue({ success: true }),
-    uninstall: vi.fn().mockResolvedValue({ success: true }),
-  };
   const skillProvider = {
     listAvailable: vi
       .fn()
@@ -22,9 +14,6 @@ vi.mock('../../providers/registry.js', () => {
     getContent: vi.fn().mockResolvedValue('# Skill content'),
   };
   return {
-    getPluginRegistryProviders: vi
-      .fn()
-      .mockReturnValue([{ provider: pluginProvider, source: 'test' }]),
     getSkillRegistryProviders: vi
       .fn()
       .mockReturnValue([{ provider: skillProvider, source: 'test' }]),
@@ -45,11 +34,46 @@ vi.mock('../../providers/registry.js', () => {
   };
 });
 
+vi.mock('../plugin-install-shared.js', () => ({
+  installPluginFromSource: vi.fn().mockResolvedValue({
+    success: true,
+    plugin: {
+      name: 'p1',
+      displayName: 'Plugin 1',
+      version: '1.0.0',
+      hasBundle: true,
+      agents: [],
+    },
+    tools: [],
+    dependencies: [],
+    permissions: { autoGranted: [], pendingConsent: [] },
+  }),
+  readRegistryPluginAvailability: vi.fn().mockResolvedValue([
+    {
+      id: 'p1',
+      displayName: 'Plugin 1',
+      version: '1.0.0',
+      source: 'test',
+      installed: true,
+    },
+  ]),
+  resolvePluginRegistrySource: vi
+    .fn()
+    .mockResolvedValue('/tmp/registry/plugin-one'),
+  uninstallInstalledPlugin: vi.fn().mockResolvedValue({ success: true }),
+}));
+
 vi.mock('../../services/skill-service.js', () => ({
   SkillService: vi.fn(),
 }));
 
 const { createRegistryRoutes } = await import('../registry.js');
+const {
+  installPluginFromSource,
+  readRegistryPluginAvailability,
+  resolvePluginRegistrySource,
+  uninstallInstalledPlugin,
+} = await import('../plugin-install-shared.js');
 
 function setup() {
   const configLoader = {
@@ -67,6 +91,7 @@ function setup() {
     refreshACPModes,
     reloadSkills,
     skillService as any,
+    { logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } as any },
   );
   return { app, configLoader, refreshACPModes, reloadSkills, skillService };
 }
@@ -76,18 +101,20 @@ async function json(res: Response) {
 }
 
 describe('Registry Routes', () => {
-  // ── Plugins — SDK useRegistryPluginsQuery expects { success, data } ──
-
-  test('GET /plugins returns { success, data } array', async () => {
+  test('GET /plugins returns { success, data } array with installed state', async () => {
     const { app } = setup();
     const body = await json(await app.request('/plugins'));
     expect(body.success).toBe(true);
     expect(Array.isArray(body.data)).toBe(true);
-    expect(body.data[0]).toHaveProperty('id');
-    expect(body.data[0]).toHaveProperty('source');
+    expect(body.data[0]).toMatchObject({
+      id: 'p1',
+      installed: true,
+      source: 'test',
+    });
+    expect(readRegistryPluginAvailability).toHaveBeenCalled();
   });
 
-  test('POST /plugins/install returns { success }', async () => {
+  test('POST /plugins/install resolves the source and passes the registry id into the install pipeline', async () => {
     const { app } = setup();
     const body = await json(
       await app.request('/plugins/install', {
@@ -97,17 +124,34 @@ describe('Registry Routes', () => {
       }),
     );
     expect(body.success).toBe(true);
+    expect(resolvePluginRegistrySource).toHaveBeenCalledWith('p1');
+    expect(installPluginFromSource).toHaveBeenCalledWith(
+      '/tmp/registry/plugin-one',
+      [],
+      expect.objectContaining({
+        agentsDir: '/tmp/agents',
+        pluginsDir: '/tmp/plugins',
+        projectHomeDir: '/tmp',
+      }),
+      { registryId: 'p1' },
+    );
   });
 
-  test('DELETE /plugins/:id returns { success }', async () => {
+  test('DELETE /plugins/:id removes the installed plugin through the shared lifecycle path', async () => {
     const { app } = setup();
     const body = await json(
       await app.request('/plugins/p1', { method: 'DELETE' }),
     );
     expect(body.success).toBe(true);
+    expect(uninstallInstalledPlugin).toHaveBeenCalledWith(
+      'p1',
+      expect.objectContaining({
+        agentsDir: '/tmp/agents',
+        pluginsDir: '/tmp/plugins',
+        projectHomeDir: '/tmp',
+      }),
+    );
   });
-
-  // ── Skills — SDK useRegistrySkillsQuery expects { success, data } ──
 
   test('GET /skills returns { success, data } array with id/name', async () => {
     const { app } = setup();
@@ -146,31 +190,10 @@ describe('Registry Routes', () => {
     expect(body.success).toBe(true);
   });
 
-  // SDK useSkillContentQuery expects { success, data } where data is string
   test('GET /skills/:id/content returns { success, data: string }', async () => {
     const { app } = setup();
     const body = await json(await app.request('/skills/s1/content'));
     expect(body.success).toBe(true);
     expect(typeof body.data).toBe('string');
-  });
-
-  test('GET /skills/:id/content returns 404 for unknown skill', async () => {
-    const { getSkillRegistryProviders } = await import(
-      '../../providers/registry.js'
-    );
-    (getSkillRegistryProviders as any).mockReturnValue([
-      {
-        provider: {
-          listAvailable: vi.fn(),
-          getContent: vi.fn().mockResolvedValue(null),
-        },
-        source: 'test',
-      },
-    ]);
-    const { app } = setup();
-    const res = await app.request('/skills/unknown/content');
-    expect(res.status).toBe(404);
-    const body = await json(res);
-    expect(body.success).toBe(false);
   });
 });

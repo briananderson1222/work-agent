@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { UsageAggregator } from '../analytics/usage-aggregator.js';
 
+const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434';
+
 interface RuntimeStartupLogger {
   info: (message: string, meta?: Record<string, unknown>) => void;
   debug: (message: string, meta?: Record<string, unknown>) => void;
@@ -24,7 +26,7 @@ interface RuntimeStartupContext {
   projectHomeDir: string;
   appConfig: {
     disableDefaultSkillRegistries?: boolean;
-    region: string;
+    region?: string;
   };
   storageAdapter: RuntimeStartupStorageAdapter;
   configLoader: RuntimeStartupConfigLoader;
@@ -35,8 +37,18 @@ interface RuntimeStartupContext {
   setIntervalImpl?: typeof setInterval;
   runStartupMigrations?: (projectHomeDir: string) => Promise<void>;
   checkBedrockCredentials?: () => Promise<boolean>;
+  checkOllamaAvailability?: () => Promise<boolean>;
   registerSkillRegistryProvider?: (provider: any) => void;
   createDefaultSkillRegistryProvider?: () => Promise<any>;
+}
+
+export async function checkOllamaAvailability(): Promise<boolean> {
+  try {
+    const response = await fetch(`${DEFAULT_OLLAMA_BASE_URL}/api/tags`);
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
 export function getActiveRuntimeProjectSlug(
@@ -67,9 +79,12 @@ export function initializeRuntimeUsageAggregator(
   logger.debug('Usage aggregator initialized');
   usageAggregator.fullRescan().catch(() => {});
   timers.push(
-    setIntervalImpl(() => {
-      usageAggregator.fullRescan().catch(() => {});
-    }, 30 * 60 * 1000),
+    setIntervalImpl(
+      () => {
+        usageAggregator.fullRescan().catch(() => {});
+      },
+      30 * 60 * 1000,
+    ),
   );
   return usageAggregator;
 }
@@ -80,10 +95,36 @@ export async function seedRuntimeDefaultProviderConnection(
     'storageAdapter' | 'appConfig' | 'logger'
   > & {
     checkBedrockCredentials?: () => Promise<boolean>;
+    checkOllamaAvailability?: () => Promise<boolean>;
   },
 ): Promise<void> {
-  if (context.storageAdapter.listProviderConnections().length > 0) {
+  const existingProviders = context.storageAdapter.listProviderConnections();
+  if (
+    existingProviders.some((connection) =>
+      connection.capabilities?.includes?.('llm'),
+    )
+  ) {
     return;
+  }
+
+  try {
+    const hasOllama = await (context.checkOllamaAvailability?.() ?? false);
+    if (hasOllama) {
+      context.storageAdapter.saveProviderConnection({
+        id: randomUUID(),
+        type: 'ollama',
+        name: 'Ollama',
+        config: { baseUrl: DEFAULT_OLLAMA_BASE_URL },
+        enabled: true,
+        capabilities: ['llm', 'embedding'],
+      });
+      context.logger.info('Seeded default Ollama provider connection');
+      return;
+    }
+  } catch (error) {
+    context.logger.debug('Failed to check Ollama availability for seeding', {
+      error,
+    });
   }
 
   try {
@@ -96,7 +137,9 @@ export async function seedRuntimeDefaultProviderConnection(
       id: randomUUID(),
       type: 'bedrock',
       name: 'Amazon Bedrock',
-      config: { region: context.appConfig.region },
+      config: context.appConfig.region
+        ? { region: context.appConfig.region }
+        : {},
       enabled: true,
       capabilities: ['llm'],
     });

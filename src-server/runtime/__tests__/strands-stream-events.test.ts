@@ -20,7 +20,11 @@ describe('mapStrandsStreamEvent', () => {
         type: 'modelStreamUpdateEvent',
         event: {
           type: 'modelContentBlockStartEvent',
-          start: { type: 'toolUseStart', name: 'read_file', toolUseId: 'tool-1' },
+          start: {
+            type: 'toolUseStart',
+            name: 'read_file',
+            toolUseId: 'tool-1',
+          },
         },
       } as any),
     ).toEqual({

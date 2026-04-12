@@ -1,6 +1,6 @@
 import {
-  ACPStatus,
   type ACPConnectionConfig,
+  ACPStatus,
   type ACPStatusValue,
 } from '@stallion-ai/contracts/acp';
 
@@ -29,7 +29,9 @@ export function getACPManagerVirtualAgents(
   return Array.from(probes.entries()).flatMap(([id, probe]) => {
     const config = configs.get(id);
     const configOptions = probe.getConfigOptions();
-    const modelConfig = configOptions.find((option) => option.category === 'model');
+    const modelConfig = configOptions.find(
+      (option) => option.category === 'model',
+    );
     const modelOptions =
       modelConfig?.options?.map((option) => ({
         id: option.value ?? option,
@@ -60,14 +62,14 @@ export function getACPManagerStatus(
   configs: Map<string, ACPConnectionConfig>,
   activeSessions: number,
 ): {
-    connections: Array<{
-      id: string;
-      name: string;
-      icon?: string;
-      status: ACPStatusValue;
-      modes: string[];
-      sessionId: null;
-      mcpServers: string[];
+  connections: Array<{
+    id: string;
+    name: string;
+    icon?: string;
+    status: ACPStatusValue;
+    modes: string[];
+    sessionId: null;
+    mcpServers: string[];
     configOptions: any[];
     currentModel: string | null;
   }>;
@@ -77,7 +79,9 @@ export function getACPManagerStatus(
     connections: Array.from(probes.entries()).map(([id, probe]) => {
       const config = configs.get(id);
       const configOptions = probe.getConfigOptions();
-      const modelConfig = configOptions.find((option) => option.category === 'model');
+      const modelConfig = configOptions.find(
+        (option) => option.category === 'model',
+      );
 
       return {
         id,

@@ -105,7 +105,9 @@ export function PluginManagementView() {
             isLoading={isLoading}
             search={search}
             message={message}
-            onUpdateAll={() => updates.forEach((update) => updatePlugin(update.name))}
+            onUpdateAll={() =>
+              updates.forEach((update) => updatePlugin(update.name))
+            }
             onInstall={() => {
               setInstallMessage(null);
               setShowInstallModal(true);

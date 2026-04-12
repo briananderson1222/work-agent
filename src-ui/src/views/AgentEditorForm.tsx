@@ -28,9 +28,7 @@ export function AgentEditorForm(props: AgentEditorFormProps) {
     Record<string, boolean>
   >({});
 
-  const agentType = getAgentType(
-    form.execution.runtimeConnectionId || 'bedrock-runtime',
-  );
+  const agentType = getAgentType(form.execution.runtimeConnectionId);
   const tabs = getEditorTabs(agentType);
   const [activeTab, setActiveTab] = useState(tabs[0].key);
 
@@ -93,8 +91,8 @@ export function AgentEditorForm(props: AgentEditorFormProps) {
       {activeTab === 'commands' && (
         <div className="agent-editor__section">
           <p className="agent-editor__section-desc">
-            Slash commands for this agent. Commands are defined in the agent&apos;s
-            configuration.
+            Slash commands for this agent. Commands are defined in the
+            agent&apos;s configuration.
           </p>
         </div>
       )}

@@ -1,8 +1,8 @@
-import { useState } from 'react';
 import {
   useApplyCoreUpdateMutation,
   useCoreUpdateStatusQuery,
 } from '@stallion-ai/sdk';
+import { useState } from 'react';
 import { checkServerHealth } from '../../lib/serverHealth';
 
 export function CoreUpdateCheck({ apiBase }: { apiBase: string }) {

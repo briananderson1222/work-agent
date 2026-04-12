@@ -16,10 +16,10 @@ export function FileContentViewer({
 }) {
   const { apiBase } = useApiBase();
   const highlighter = useSyntaxHighlighter();
-  const {
-    data: content = '',
-    isLoading: loading,
-  } = useCodingFileContentQuery(filePath, apiBase);
+  const { data: content = '', isLoading: loading } = useCodingFileContentQuery(
+    filePath,
+    apiBase,
+  );
 
   const highlighted = useMemo(() => {
     if (!content || !highlighter.ready) {

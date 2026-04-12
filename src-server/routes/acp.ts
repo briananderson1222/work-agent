@@ -1,5 +1,5 @@
-import { Hono } from 'hono';
 import { ACPStatus } from '@stallion-ai/contracts/acp';
+import { Hono } from 'hono';
 import { listProviders } from '../providers/registry.js';
 import type { RuntimeContext } from '../runtime/types.js';
 import { acpOps } from '../telemetry/metrics.js';

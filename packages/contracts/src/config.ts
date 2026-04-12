@@ -1,7 +1,14 @@
 import type { RuntimeConnectionSettings } from './tool.js';
 
+export interface ApprovalGuardianConfig {
+  enabled?: boolean;
+  mode?: 'review' | 'enforce';
+  model?: string;
+  instructions?: string;
+}
+
 export interface AppConfig {
-  region: string;
+  region?: string;
   defaultModel: string;
   invokeModel: string;
   structureModel: string;
@@ -21,6 +28,7 @@ export interface AppConfig {
   runtimeConnections?: Record<string, RuntimeConnectionSettings>;
   terminalShell?: string;
   disableDefaultSkillRegistries?: boolean;
+  approvalGuardian?: ApprovalGuardianConfig;
 }
 
 export interface TemplateVariable {

@@ -1,6 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { BUILTIN_KNOWLEDGE_NAMESPACES } from '@stallion-ai/contracts/knowledge';
-import type { ProjectConfig, ProjectMetadata } from '@stallion-ai/contracts/project';
+import type {
+  ProjectConfig,
+  ProjectMetadata,
+} from '@stallion-ai/contracts/project';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import { projectOps } from '../telemetry/metrics.js';
 

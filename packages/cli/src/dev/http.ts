@@ -56,7 +56,9 @@ export function parseToolCallResponse(raw: any) {
   return response;
 }
 
-export function readBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+export function readBody(
+  req: IncomingMessage,
+): Promise<Record<string, unknown>> {
   return new Promise((resolve) => {
     let data = '';
     req.on('data', (chunk: string) => {
@@ -98,7 +100,10 @@ export function createDevHttpServer({
       const relPath = params.get('path');
       if (relPath) {
         const absPath = relPath.startsWith('/') ? relPath : join(cwd, relPath);
-        if (isAllowedOpenFilePath(absPath, cwd, pluginsDir) && existsSync(absPath)) {
+        if (
+          isAllowedOpenFilePath(absPath, cwd, pluginsDir) &&
+          existsSync(absPath)
+        ) {
           res.writeHead(200, {
             'Content-Type': getOpenFileMime(relPath),
             'Cache-Control': 'no-cache',
@@ -267,7 +272,9 @@ export function createDevHttpServer({
         'Content-Type': 'text/css',
         'Cache-Control': 'no-cache',
       });
-      res.end(readFileSync(existsSync(bundleCss) ? bundleCss : bundleCssFallback));
+      res.end(
+        readFileSync(existsSync(bundleCss) ? bundleCss : bundleCssFallback),
+      );
       return;
     }
 

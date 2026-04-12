@@ -1,5 +1,26 @@
 # Agent Notes
 
+## Strategy & Goals
+
+Read `docs/strategy/` before starting feature work. Key documents:
+
+- **[docs/strategy/constitution.md](docs/strategy/constitution.md)** — Project identity and non-negotiables
+- **[docs/strategy/differentiators.md](docs/strategy/differentiators.md)** — What makes Stallion different (tiered assessment)
+- **[docs/strategy/roadmap.md](docs/strategy/roadmap.md)** — Phased execution plan with tasks
+- **[docs/strategy/execution-pattern.md](docs/strategy/execution-pattern.md)** — How to pick up and progress work
+- **[docs/strategy/competitive-landscape.md](docs/strategy/competitive-landscape.md)** — Competitor analysis and steal list
+
+### Available Workflows
+
+These workflows are defined in `.claude/commands/` (Claude Code picks them up as slash commands). Any AI agent can read and follow the instructions in those files directly.
+
+| Workflow | File | Purpose |
+|----------|------|---------|
+| Ideate | `.claude/commands/ideate.md` | Pull inspiration from competitor repos, suggest improvements |
+| Competitive Scan | `.claude/commands/competitive-scan.md` | Scan landscape for new tools and features |
+| Differentiation Check | `.claude/commands/differentiation-check.md` | Audit codebase against differentiators.md |
+| Adoption Blockers | `.claude/commands/adoption-blockers.md` | Walk through first-run experience, find friction |
+
 ## Active Work
 
 The **Entity Hierarchy & Navigation Restructure** is the current initiative.

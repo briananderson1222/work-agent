@@ -21,12 +21,12 @@ import {
   isResumeCursor,
   mapApprovalResolutionStatus,
 } from './codex-adapter-events.js';
-import type { CodexModelOptions } from './codex-models.js';
 import {
   CodexAdapterTransport,
   createCodexProcess,
   createCodexSessionRecord,
 } from './codex-adapter-transport.js';
+import type { CodexModelOptions } from './codex-models.js';
 
 interface CodexAdapterOptions {
   processFactory?: () => ReturnType<typeof createCodexProcess>;
@@ -40,13 +40,29 @@ function mapReasoningEffort(options?: CodexModelOptions): string | null {
 
 export class CodexAdapter implements ProviderAdapterShape {
   readonly provider = 'codex' as const;
+  readonly metadata = {
+    displayName: 'Codex Runtime',
+    description: 'Codex app-server runtime over the local Codex CLI.',
+    capabilities: [
+      'agent-runtime',
+      'session-lifecycle',
+      'tool-calls',
+      'interrupt',
+      'approvals',
+      'resume',
+      'external-process',
+    ],
+    runtimeId: 'codex-runtime',
+    builtin: true,
+  } as const;
 
   private readonly transport: CodexAdapterTransport;
   private readonly processFactory: () => ReturnType<typeof createCodexProcess>;
   private readonly now: () => Date;
 
   constructor(options: CodexAdapterOptions = {}) {
-    this.processFactory = options.processFactory ?? (() => createCodexProcess());
+    this.processFactory =
+      options.processFactory ?? (() => createCodexProcess());
     this.now = options.now ?? (() => new Date());
     this.transport = new CodexAdapterTransport(this.now);
   }

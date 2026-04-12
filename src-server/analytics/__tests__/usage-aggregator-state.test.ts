@@ -69,14 +69,30 @@ describe('mergeRescannedUsageStats', () => {
     const existing = createEmptyUsageStats();
     existing.lifetime.totalMessages = 5;
     existing.lifetime.uniqueAgents = ['agent-a'];
-    existing.byDate = { '2026-04-10': { messages: 5, cost: 1, inputTokens: 1, outputTokens: 1, byAgent: { 'agent-a': 5 } } };
+    existing.byDate = {
+      '2026-04-10': {
+        messages: 5,
+        cost: 1,
+        inputTokens: 1,
+        outputTokens: 1,
+        byAgent: { 'agent-a': 5 },
+      },
+    };
 
     const rescanned = createEmptyUsageStats();
     rescanned.lifetime.totalMessages = 3;
     rescanned.lifetime.totalConversations = 2;
     rescanned.lifetime.uniqueAgents = ['agent-b'];
     rescanned.byAgent['agent-b'] = { conversations: 2, messages: 3, cost: 0.2 };
-    rescanned.byDate = { '2026-04-11': { messages: 3, cost: 0.2, inputTokens: 2, outputTokens: 3, byAgent: { 'agent-b': 3 } } };
+    rescanned.byDate = {
+      '2026-04-11': {
+        messages: 3,
+        cost: 0.2,
+        inputTokens: 2,
+        outputTokens: 3,
+        byAgent: { 'agent-b': 3 },
+      },
+    };
 
     const merged = mergeRescannedUsageStats(existing, rescanned);
 
@@ -109,11 +125,36 @@ describe('achievement helpers', () => {
       byAgent: {},
     };
     stats.lifetime.totalMessages = 120;
-    stats.byModel.a = { messages: 100, inputTokens: 1, outputTokens: 1, cost: 0.2 };
-    stats.byModel.b = { messages: 20, inputTokens: 1, outputTokens: 1, cost: 0.2 };
-    stats.byModel.c = { messages: 1, inputTokens: 1, outputTokens: 1, cost: 0.2 };
-    stats.byModel.d = { messages: 1, inputTokens: 1, outputTokens: 1, cost: 0.2 };
-    stats.byModel.e = { messages: 1, inputTokens: 1, outputTokens: 1, cost: 0.2 };
+    stats.byModel.a = {
+      messages: 100,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0.2,
+    };
+    stats.byModel.b = {
+      messages: 20,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0.2,
+    };
+    stats.byModel.c = {
+      messages: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0.2,
+    };
+    stats.byModel.d = {
+      messages: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0.2,
+    };
+    stats.byModel.e = {
+      messages: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      cost: 0.2,
+    };
     stats.lifetime.totalCost = 0.5;
 
     computeStreakStats(stats);

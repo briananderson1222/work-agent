@@ -1,20 +1,20 @@
 import {
-  fetchPromptById,
   FullScreenError,
   FullScreenLoader,
+  fetchPromptById,
   LayoutNavigationProvider,
   useProjectLayoutQuery,
 } from '@stallion-ai/sdk';
 import { useIsFetching, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useState } from 'react';
-import {
-  useCreateChatSession,
-  useSendMessage,
-} from '../hooks/useActiveChatSessions';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import { SDKAdapter } from '../core/SDKAdapter';
+import {
+  useCreateChatSession,
+  useSendMessage,
+} from '../hooks/useActiveChatSessions';
 import { useSlashCommandHandler } from '../hooks/useSlashCommandHandler';
 import { LayoutRenderer } from '../layouts';
 
@@ -26,13 +26,8 @@ export function LayoutView({
   layoutSlug: string;
 }) {
   const { apiBase } = useApiBase();
-  const {
-    activeTab,
-    setDockState,
-    setLayoutTab,
-    setActiveChat,
-    navigate,
-  } = useNavigation();
+  const { activeTab, setDockState, setLayoutTab, setActiveChat, navigate } =
+    useNavigation();
 
   const agents = useAgents();
   const {
@@ -176,7 +171,10 @@ export function LayoutView({
   const layoutErrorMessage =
     layoutQueryError instanceof Error ? layoutQueryError.message : null;
 
-  if (layoutErrorMessage?.toLowerCase().includes('not found') && !layoutLoading) {
+  if (
+    layoutErrorMessage?.toLowerCase().includes('not found') &&
+    !layoutLoading
+  ) {
     try {
       localStorage.removeItem('lastProjectLayout');
     } catch {}

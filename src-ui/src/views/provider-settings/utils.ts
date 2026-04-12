@@ -4,11 +4,7 @@ import type { ProviderConnection } from './types';
 export function capabilitiesForType(
   type: string,
 ): Array<'llm' | 'embedding' | 'vectordb'> {
-  if (
-    type === 'bedrock' ||
-    type === 'ollama' ||
-    type === 'openai-compat'
-  ) {
+  if (type === 'bedrock' || type === 'ollama' || type === 'openai-compat') {
     return ['llm', 'embedding'];
   }
   return ['llm'];

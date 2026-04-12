@@ -40,7 +40,9 @@ export function IntegrationEditorPanel({
   onSwitchToForm: () => void;
   onSwitchToRaw: () => void;
   onRawJsonChange: (value: string) => void;
-  onUpdate: (updater: (form: IntegrationViewModel) => IntegrationViewModel) => void;
+  onUpdate: (
+    updater: (form: IntegrationViewModel) => IntegrationViewModel,
+  ) => void;
   onUnlock: () => void;
 }) {
   return (
@@ -127,7 +129,9 @@ export function IntegrationEditorPanel({
               spellCheck={false}
               disabled={locked}
             />
-            {rawError && <div className="integration__raw-error">{rawError}</div>}
+            {rawError && (
+              <div className="integration__raw-error">{rawError}</div>
+            )}
           </div>
         ) : (
           <>

@@ -3,15 +3,18 @@ import type { Tool } from '@voltagent/core';
 
 interface RuntimeVoiceAgentConfigLoader {
   agentExists(slug: string): Promise<boolean>;
-  updateAgent(slug: string, spec: {
-    name: string;
-    prompt: string;
-    tools: {
-      mcpServers: string[];
-      autoApprove: string[];
-      available: string[];
-    };
-  }): Promise<unknown>;
+  updateAgent(
+    slug: string,
+    spec: {
+      name: string;
+      prompt: string;
+      tools: {
+        mcpServers: string[];
+        autoApprove: string[];
+        available: string[];
+      };
+    },
+  ): Promise<unknown>;
   createAgent(spec: {
     name: string;
     prompt: string;

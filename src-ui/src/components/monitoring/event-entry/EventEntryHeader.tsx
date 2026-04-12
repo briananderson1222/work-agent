@@ -30,7 +30,9 @@ export function EventEntryHeader({
     <div className="log-row">
       <div className="log-timestamp-col">
         <div className="log-timestamp" title={buildEventTimestampTitle(event)}>
-          {event.timestamp ? new Date(event.timestamp).toLocaleTimeString() : '-'}
+          {event.timestamp
+            ? new Date(event.timestamp).toLocaleTimeString()
+            : '-'}
           {!!event[K.TIMESTAMP_MS] && (
             <span className="timestamp-ms">
               .{String(event[K.TIMESTAMP_MS] % 1000).padStart(3, '0')}

@@ -48,21 +48,45 @@ describe('mcp-tool-names', () => {
       ],
     ]);
 
-    expect(matchesToolPattern('server_tool', ['server_tool'], toolNameMapping)).toBe(true);
-    expect(matchesToolPattern('server_tool', ['server_*'], toolNameMapping)).toBe(true);
-    expect(matchesToolPattern('server_tool', ['server/*'], toolNameMapping)).toBe(true);
-    expect(matchesToolPattern('server_tool', ['other_*'], toolNameMapping)).toBe(false);
+    expect(
+      matchesToolPattern('server_tool', ['server_tool'], toolNameMapping),
+    ).toBe(true);
+    expect(
+      matchesToolPattern('server_tool', ['server_*'], toolNameMapping),
+    ).toBe(true);
+    expect(
+      matchesToolPattern('server_tool', ['server/*'], toolNameMapping),
+    ).toBe(true);
+    expect(
+      matchesToolPattern('server_tool', ['other_*'], toolNameMapping),
+    ).toBe(false);
   });
 
   test('getOriginalToolName and getNormalizedToolName fall back cleanly', () => {
     const toolNameMapping = new Map([
-      ['server_tool', { original: 'server/tool', normalized: 'server_tool', server: 'server', tool: 'tool' }],
+      [
+        'server_tool',
+        {
+          original: 'server/tool',
+          normalized: 'server_tool',
+          server: 'server',
+          tool: 'tool',
+        },
+      ],
     ]);
     const toolNameReverseMapping = new Map([['server/tool', 'server_tool']]);
 
-    expect(getOriginalToolName('server_tool', toolNameMapping)).toBe('server/tool');
-    expect(getOriginalToolName('plain_tool', toolNameMapping)).toBe('plain_tool');
-    expect(getNormalizedToolName('server/tool', toolNameReverseMapping)).toBe('server_tool');
-    expect(getNormalizedToolName('plain_tool', toolNameReverseMapping)).toBe('plain_tool');
+    expect(getOriginalToolName('server_tool', toolNameMapping)).toBe(
+      'server/tool',
+    );
+    expect(getOriginalToolName('plain_tool', toolNameMapping)).toBe(
+      'plain_tool',
+    );
+    expect(getNormalizedToolName('server/tool', toolNameReverseMapping)).toBe(
+      'server_tool',
+    );
+    expect(getNormalizedToolName('plain_tool', toolNameReverseMapping)).toBe(
+      'plain_tool',
+    );
   });
 });

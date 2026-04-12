@@ -2,6 +2,7 @@ import {
   useDeleteConnectionMutation,
   useModelConnectionsQuery,
   useSaveConnectionMutation,
+  useSystemStatusQuery,
   useTestConnectionMutation,
 } from '@stallion-ai/sdk';
 import { useEffect, useState } from 'react';
@@ -39,7 +40,14 @@ export function ProviderSettingsView({
   const [error, setError] = useState<string | null>(null);
 
   const { data: providers = [], isLoading } = useModelConnectionsQuery();
+  const { data: systemStatus } = useSystemStatusQuery();
   const modelProviders = providers as ProviderConnection[];
+  const hasOllamaProvider = modelProviders.some(
+    (provider) => provider.type === 'ollama',
+  );
+  const hasBedrockProvider = modelProviders.some(
+    (provider) => provider.type === 'bedrock',
+  );
 
   // Sync form state when selectedProviderId changes to an existing provider
   useEffect(() => {
@@ -179,6 +187,30 @@ export function ProviderSettingsView({
     ),
   }));
 
+  const detectedActions = [
+    systemStatus?.providers?.detected.ollama && !hasOllamaProvider
+      ? {
+          type: 'ollama',
+          name: 'Local Ollama',
+          label: 'Add detected Ollama',
+          detail: 'A local Ollama server is reachable right now.',
+        }
+      : null,
+    systemStatus?.providers?.detected.bedrock && !hasBedrockProvider
+      ? {
+          type: 'bedrock',
+          name: 'Amazon Bedrock',
+          label: 'Add detected Bedrock',
+          detail: 'AWS credentials are available for Bedrock.',
+        }
+      : null,
+  ].filter(Boolean) as Array<{
+    type: string;
+    name: string;
+    label: string;
+    detail: string;
+  }>;
+
   return (
     <SplitPaneLayout
       label={
@@ -210,15 +242,65 @@ export function ProviderSettingsView({
       }}
       addLabel="+ Add Model Connection"
       emptyContent={
-        showTypePicker ? (
-          <ProviderTypePicker onAdd={handleAddWithType} />
-        ) : (
-          <ProviderStackOverview
-            providers={llmEmbeddingProviders}
-            onSelect={handleSelect}
-            onAdd={handleAddWithType}
-          />
-        )
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          {detectedActions.length > 0 && (
+            <div
+              style={{
+                padding: '16px',
+                borderRadius: '10px',
+                border: '1px solid var(--border-primary)',
+                background: 'var(--bg-secondary)',
+              }}
+            >
+              <div
+                style={{
+                  fontSize: '11px',
+                  fontWeight: 700,
+                  letterSpacing: '0.06em',
+                  textTransform: 'uppercase',
+                  color: 'var(--text-muted)',
+                  marginBottom: '8px',
+                }}
+              >
+                Detected Providers
+              </div>
+              <div
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                }}
+              >
+                {detectedActions.map((action) => (
+                  <button
+                    key={action.type}
+                    className="provider-overview__quickstart-btn"
+                    onClick={() => handleAddWithType(action.type, action.name)}
+                  >
+                    <div>
+                      <div className="provider-overview__quickstart-name">
+                        {action.label}
+                      </div>
+                      <div className="provider-overview__quickstart-meta">
+                        {action.detail}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {showTypePicker ? (
+            <ProviderTypePicker onAdd={handleAddWithType} />
+          ) : (
+            <ProviderStackOverview
+              providers={llmEmbeddingProviders}
+              onSelect={handleSelect}
+              onAdd={handleAddWithType}
+            />
+          )}
+        </div>
       }
     >
       {form && (

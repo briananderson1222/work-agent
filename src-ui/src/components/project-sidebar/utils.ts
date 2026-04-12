@@ -11,7 +11,9 @@ export function buildSidebarClassName(options: {
 }): string {
   const { isMobile, mobileOpen, collapsed } = options;
   if (isMobile) {
-    return mobileOpen ? 'sidebar sidebar--expanded' : 'sidebar sidebar--collapsed';
+    return mobileOpen
+      ? 'sidebar sidebar--expanded'
+      : 'sidebar sidebar--collapsed';
   }
   return collapsed ? 'sidebar sidebar--collapsed' : 'sidebar';
 }

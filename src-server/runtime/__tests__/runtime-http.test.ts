@@ -32,7 +32,8 @@ describe('resolveRuntimeCorsOrigin', () => {
   });
 
   test('allows configured origins and rejects everything else', () => {
-    process.env.ALLOWED_ORIGINS = 'https://app.example.com,https://ops.example.com';
+    process.env.ALLOWED_ORIGINS =
+      'https://app.example.com,https://ops.example.com';
 
     expect(resolveRuntimeCorsOrigin('https://app.example.com')).toBe(
       'https://app.example.com',

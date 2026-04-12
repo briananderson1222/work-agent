@@ -31,9 +31,7 @@ export function ChatDockProjectContext({
       <span
         className={`chat-dock__project-badge${isCurrentProject ? '' : ' chat-dock__project-badge--link'}`}
         onClick={
-          isCurrentProject
-            ? undefined
-            : () => onSelectProject(projectSlug)
+          isCurrentProject ? undefined : () => onSelectProject(projectSlug)
         }
       >
         {projectName || projectSlug}

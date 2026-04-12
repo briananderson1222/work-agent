@@ -8,8 +8,8 @@ export function slugify(name: string): string {
     .replace(/^-|-$/g, '');
 }
 
-export function getAgentType(runtimeConnectionId: string): AgentType {
-  if (runtimeConnectionId === 'bedrock-runtime') {
+export function getAgentType(runtimeConnectionId?: string): AgentType {
+  if (!runtimeConnectionId || runtimeConnectionId === 'bedrock-runtime') {
     return 'managed';
   }
   if (runtimeConnectionId === 'acp') {
@@ -68,7 +68,9 @@ export function removeIntegration(
     tools: {
       ...form.tools,
       mcpServers: [...servers],
-      available: form.tools.available.filter((entry) => !entry.startsWith(prefix)),
+      available: form.tools.available.filter(
+        (entry) => !entry.startsWith(prefix),
+      ),
       autoApprove: form.tools.autoApprove.filter(
         (entry) => !entry.startsWith(prefix),
       ),

@@ -1,7 +1,11 @@
 import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { _getApiBase } from '../api';
-import { type MutationOptions, type QueryConfig, useApiQuery } from '../query-core';
+import {
+  type MutationOptions,
+  type QueryConfig,
+  useApiQuery,
+} from '../query-core';
 
 export interface GlobalKnowledgeStatus {
   vectorDb: { id: string; name: string; type: string; enabled: boolean } | null;

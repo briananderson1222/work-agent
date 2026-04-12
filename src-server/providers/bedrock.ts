@@ -19,7 +19,7 @@ export function createBedrockProvider(options: BedrockProviderOptions) {
   const { appConfig, agentSpec } = options;
 
   const model = agentSpec?.model || appConfig.defaultModel;
-  const region = agentSpec?.region || appConfig.region;
+  const region = agentSpec?.region || appConfig.region || 'us-east-1';
 
   const provider = createAmazonBedrock({
     region,

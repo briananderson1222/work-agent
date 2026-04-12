@@ -48,9 +48,9 @@ describe('knowledge namespaces helpers', () => {
       { id: 'default', label: 'Default', behavior: 'rag' },
       { id: 'docs', label: 'Docs', behavior: 'inject' },
     ]);
-    expect(
-      getKnowledgeNamespaceConfig('test', 'docs', storage as any),
-    ).toEqual({ id: 'docs', label: 'Docs', behavior: 'inject' });
+    expect(getKnowledgeNamespaceConfig('test', 'docs', storage as any)).toEqual(
+      { id: 'docs', label: 'Docs', behavior: 'inject' },
+    );
     expect(
       resolveKnowledgeStorageDir('test', 'docs', '/tmp/data', storage as any),
     ).toContain('/tmp/data/projects/test/knowledge/docs');
@@ -66,7 +66,9 @@ describe('knowledge namespaces helpers', () => {
     );
     expect(storage.saveProject).toHaveBeenCalledWith(
       expect.objectContaining({
-        knowledgeNamespaces: [{ id: 'docs', label: 'Docs', behavior: 'inject' }],
+        knowledgeNamespaces: [
+          { id: 'docs', label: 'Docs', behavior: 'inject' },
+        ],
       }),
     );
 

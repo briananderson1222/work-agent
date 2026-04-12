@@ -1,20 +1,20 @@
-import type { Agent } from '@voltagent/core';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import type { AppConfig } from '@stallion-ai/contracts/config';
+import type { Agent } from '@voltagent/core';
 import type { UsageAggregator } from '../analytics/usage-aggregator.js';
 import type { FileStorageAdapter } from '../domain/file-storage-adapter.js';
+import type { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
+import type { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
+import type { CodexAdapter } from '../providers/adapters/codex-adapter.js';
+import type { ACPManager } from '../services/acp-bridge.js';
 import type { EventBus } from '../services/event-bus.js';
 import type { EventStore } from '../services/event-store.js';
 import type { FeedbackService } from '../services/feedback-service.js';
 import type { SkillService } from '../services/skill-service.js';
+import type { Logger } from '../utils/logger.js';
 import type { VoiceSessionService } from '../voice/voice-session.js';
-import type { ACPManager } from '../services/acp-bridge.js';
-import type { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
-import type { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
-import type { CodexAdapter } from '../providers/adapters/codex-adapter.js';
 import type { RuntimeEventLog } from './runtime-event-log.js';
 import type { InitializeRuntimeDeps } from './runtime-initialize.js';
-import type { Logger } from '../utils/logger.js';
 
 type RuntimeIntegrationMetadata = Map<
   string,

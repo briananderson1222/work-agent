@@ -177,10 +177,16 @@ export function applyMessageToUsageStats(
   const date = timestamp
     ? new Date(timestamp).toISOString().split('T')[0]
     : new Date().toISOString().split('T')[0];
-  if (!stats.lifetime.firstMessageDate || date < stats.lifetime.firstMessageDate) {
+  if (
+    !stats.lifetime.firstMessageDate ||
+    date < stats.lifetime.firstMessageDate
+  ) {
     stats.lifetime.firstMessageDate = date;
   }
-  if (!stats.lifetime.lastMessageDate || date > stats.lifetime.lastMessageDate) {
+  if (
+    !stats.lifetime.lastMessageDate ||
+    date > stats.lifetime.lastMessageDate
+  ) {
     stats.lifetime.lastMessageDate = date;
   }
   updateDailyUsage(stats, date, agentSlug, usage);

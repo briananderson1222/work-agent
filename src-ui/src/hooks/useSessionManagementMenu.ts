@@ -77,7 +77,9 @@ export function useSessionManagementMenu({
           conversationId: conv.id,
           title: newTitle.trim(),
         });
-        const activeSession = sessions.find((s) => s.conversationId === conv.id);
+        const activeSession = sessions.find(
+          (s) => s.conversationId === conv.id,
+        );
         if (activeSession) {
           onTitleUpdate(activeSession.id, newTitle.trim());
         }
@@ -111,7 +113,13 @@ export function useSessionManagementMenu({
       log.api('Failed to delete conversation:', error);
       showToast('Failed to delete conversation. Check console for details.');
     }
-  }, [deleteConfirm, deleteConversationMutation, sessions, onDelete, showToast]);
+  }, [
+    deleteConfirm,
+    deleteConversationMutation,
+    sessions,
+    onDelete,
+    showToast,
+  ]);
 
   const clearAll = useCallback(
     async (conversations: Conversation[]) => {

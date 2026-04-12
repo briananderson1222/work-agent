@@ -47,7 +47,10 @@ export function AgentEditorAdvancedSection({
               name="region"
               value={form.region}
               onChange={(event) =>
-                setForm((current) => ({ ...current, region: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  region: event.target.value,
+                }))
               }
               placeholder={appConfig?.region || 'us-east-1'}
             />

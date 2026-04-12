@@ -116,18 +116,19 @@ export function InstallPreviewModal({
                             : '⚠ missing'}
                       </span>
                     </div>
-                    {dependency.components && dependency.components.length > 0 && (
-                      <div className="plugins__preview-dep-components">
-                        {dependency.components.map((component) => (
-                          <span
-                            key={`${component.type}:${component.id}`}
-                            className={`plugins__cap plugins__cap--sm plugins__cap--${component.type === 'agent' ? 'agent' : component.type === 'workspace' ? 'workspace' : 'provider'}`}
-                          >
-                            {component.type}:{component.id}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+                    {dependency.components &&
+                      dependency.components.length > 0 && (
+                        <div className="plugins__preview-dep-components">
+                          {dependency.components.map((component) => (
+                            <span
+                              key={`${component.type}:${component.id}`}
+                              className={`plugins__cap plugins__cap--sm plugins__cap--${component.type === 'agent' ? 'agent' : component.type === 'workspace' ? 'workspace' : 'provider'}`}
+                            >
+                              {component.type}:{component.id}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                   </div>
                 ))}
               </div>

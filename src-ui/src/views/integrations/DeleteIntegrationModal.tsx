@@ -14,9 +14,7 @@ export function DeleteIntegrationModal({
         onClick={(event) => event.stopPropagation()}
       >
         <h3>Delete Integration</h3>
-        <p>
-          Remove &ldquo;{integrationName}&rdquo;? This cannot be undone.
-        </p>
+        <p>Remove &ldquo;{integrationName}&rdquo;? This cannot be undone.</p>
         <div className="plugins__confirm-actions">
           <button className="plugins__confirm-cancel" onClick={onCancel}>
             Cancel

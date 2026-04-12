@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
-import type { Context } from 'hono';
 import type { ACPConnectionConfig } from '@stallion-ai/contracts/acp';
+import type { Context } from 'hono';
 import { ACPProbe } from './acp-probe.js';
 
 type EventBus = {
@@ -159,7 +159,9 @@ export async function shutdownACPManager({
     clearInterval(cullTimer);
   }
 
-  await Promise.all(Array.from(sessions.values()).map((session) => session.shutdown()));
+  await Promise.all(
+    Array.from(sessions.values()).map((session) => session.shutdown()),
+  );
   sessions.clear();
   probes.clear();
   configs.clear();
@@ -183,7 +185,11 @@ export function getOrCreateACPManagerSession({
   sessions: Map<string, ACPConnectionLike>;
   options: { conversationId?: string };
   context?: { cwd?: string; conversationId?: string };
-  createSession: (args: { config: ACPConnectionConfig; conversationId: string; cwd: string }) => ACPConnectionLike;
+  createSession: (args: {
+    config: ACPConnectionConfig;
+    conversationId: string;
+    cwd: string;
+  }) => ACPConnectionLike;
 }): { conversationId: string; session: ACPConnectionLike } {
   const conversationId =
     context?.conversationId ||

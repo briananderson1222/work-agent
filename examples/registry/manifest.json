@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "plugins": [
+    {
+      "id": "minimal-layout",
+      "displayName": "Minimal Layout",
+      "description": "Getting-started layout plugin with the smallest useful UI surface.",
+      "version": "1.0.0",
+      "source": "../minimal-layout"
+    },
+    {
+      "id": "demo-layout",
+      "displayName": "Demo Layout",
+      "description": "Starter workspace plugin that demonstrates layout tabs, chat launch, and local state.",
+      "version": "1.0.0",
+      "source": "../demo-layout"
+    },
+    {
+      "id": "enterprise-layout",
+      "displayName": "Enterprise Layout",
+      "description": "Knowledge-rich multi-provider workspace example with calendar, CRM, notes, and provider contracts.",
+      "version": "1.0.0",
+      "source": "../enterprise-layout"
+    }
+  ],
+  "tools": []
+}

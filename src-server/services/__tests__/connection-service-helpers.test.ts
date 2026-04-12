@@ -3,9 +3,7 @@ import {
   hasRequiredMissing,
   listRuntimeConnectionsForAdapters,
   mergeRuntimeConfig,
-  runtimeDescriptionForProvider,
   runtimeIdForProvider,
-  runtimeNameForProvider,
   sanitizeRuntimeConfig,
   statusFromPrerequisites,
 } from '../connection-service-helpers.js';
@@ -27,9 +25,9 @@ describe('connection-service helpers', () => {
 
   test('computes runtime naming and config helpers', () => {
     expect(runtimeIdForProvider('codex')).toBe('codex-runtime');
-    expect(runtimeNameForProvider('claude')).toBe('Claude Runtime');
-    expect(runtimeDescriptionForProvider('bedrock')).toContain('VoltAgent/Strands');
-    expect(sanitizeRuntimeConfig('codex-runtime', { defaultModel: '  x  ' })).toEqual({
+    expect(
+      sanitizeRuntimeConfig('codex-runtime', { defaultModel: '  x  ' }),
+    ).toEqual({
       defaultModel: 'x',
     });
     expect(sanitizeRuntimeConfig('acp', { defaultModel: 'x' })).toEqual({});
@@ -47,6 +45,13 @@ describe('connection-service helpers', () => {
       adapters: [
         {
           provider: 'codex',
+          metadata: {
+            displayName: 'Codex Runtime',
+            description: 'Codex app-server runtime over the local Codex CLI.',
+            capabilities: ['agent-runtime', 'resume'],
+            runtimeId: 'codex-runtime',
+            builtin: true,
+          },
           getPrerequisites: async () => [],
         },
       ] as any,
@@ -66,6 +71,13 @@ describe('connection-service helpers', () => {
         id: 'codex-runtime',
         name: 'Custom Codex',
         status: 'ready',
+        description: 'Codex app-server runtime over the local Codex CLI.',
+        capabilities: ['agent-runtime', 'resume'],
+        config: expect.objectContaining({
+          defaultModel: 'claude-3-7',
+          provider: 'codex',
+          providerLabel: 'Codex',
+        }),
       }),
       expect.objectContaining({
         id: 'acp',

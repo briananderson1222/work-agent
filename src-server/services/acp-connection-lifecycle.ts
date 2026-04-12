@@ -1,12 +1,12 @@
-import { execSync, spawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, execSync, spawn } from 'node:child_process';
 import { Readable, Writable } from 'node:stream';
+import type { Client } from '@agentclientprotocol/sdk';
 import {
   ClientSideConnection,
   ndJsonStream,
   PROTOCOL_VERSION,
 } from '@agentclientprotocol/sdk';
 import type { ACPConnectionConfig } from '@stallion-ai/contracts/acp';
-import type { Client } from '@agentclientprotocol/sdk';
 import type {
   ACPMode,
   InitializeResult,
@@ -149,8 +149,7 @@ export async function initializeACPConnectionProcess(
     modes,
     currentModeId,
     configOptions,
-    promptCapabilities:
-      initResult.agentCapabilities?.promptCapabilities || {},
+    promptCapabilities: initResult.agentCapabilities?.promptCapabilities || {},
     detectedModel,
     protocolVersion: initResult.protocolVersion,
     agentName: initResult.agentInfo?.name,

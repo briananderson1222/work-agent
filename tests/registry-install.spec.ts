@@ -1,0 +1,64 @@
+import { expect, test } from '@playwright/test';
+
+test.describe('Registry plugin install flow', () => {
+  test('installs and removes a plugin from the registry page', async ({
+    page,
+  }) => {
+    let installed = false;
+
+    await page.route('**/api/registry/plugins/installed', (route) =>
+      route.fulfill({
+        json: {
+          success: true,
+          data: installed
+            ? [{ id: 'demo-layout', displayName: 'Demo Layout' }]
+            : [],
+        },
+      }),
+    );
+    await page.route('**/api/registry/plugins/install', async (route) => {
+      installed = true;
+      await route.fulfill({
+        json: { success: true, action: 'install', id: 'demo-layout' },
+      });
+    });
+    await page.route('**/api/registry/plugins/demo-layout', async (route) => {
+      installed = false;
+      await route.fulfill({
+        json: { success: true, action: 'uninstall', id: 'demo-layout' },
+      });
+    });
+    await page.route('**/api/registry/plugins', (route) =>
+      route.fulfill({
+        json: {
+          success: true,
+          data: [
+            {
+              id: 'demo-layout',
+              displayName: 'Demo Layout',
+              description: 'Starter workspace plugin',
+              version: '1.0.0',
+              source: '../demo-layout',
+              installed,
+            },
+          ],
+        },
+      }),
+    );
+
+    await page.goto('/registry');
+    await page.waitForSelector('.page__tab', { timeout: 15_000 });
+    await page.locator('.page__tab', { hasText: 'Plugins' }).click();
+
+    await expect(page.getByRole('button', { name: 'Install' })).toBeVisible();
+    await page.getByRole('button', { name: 'Install' }).click();
+
+    await expect(page.getByText('Installed Demo Layout')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Remove' }).click();
+
+    await expect(page.getByText('Removed Demo Layout')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Install' })).toBeVisible();
+  });
+});

@@ -77,7 +77,10 @@ export function handleCodexNotification(
       const itemId = extractString(notification.params.itemId);
       const delta = extractString(notification.params.delta);
       if (!turnId || !itemId || !delta) return;
-      record.turnOutput.set(turnId, `${record.turnOutput.get(turnId) ?? ''}${delta}`);
+      record.turnOutput.set(
+        turnId,
+        `${record.turnOutput.get(turnId) ?? ''}${delta}`,
+      );
       publish({
         eventId: crypto.randomUUID(),
         provider: 'codex',

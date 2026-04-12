@@ -16,5 +16,10 @@ export function ConnectionManagerModal({
   checkHealth,
 }: ConnectionManagerModalProps) {
   if (!isOpen) return null;
-  return <ConnectionManagerModalContent onClose={onClose} checkHealth={checkHealth} />;
+  return (
+    <ConnectionManagerModalContent
+      onClose={onClose}
+      checkHealth={checkHealth}
+    />
+  );
 }

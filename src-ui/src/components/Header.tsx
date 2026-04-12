@@ -1,7 +1,7 @@
 import { useAgents } from '../contexts/AgentsContext';
 import type { NavigationView } from '../types';
-import { useHeaderViewModel } from './header/useHeaderViewModel';
 import { HeaderActions } from './header/HeaderActions';
+import { useHeaderViewModel } from './header/useHeaderViewModel';
 import './chat.css';
 
 interface HeaderProps {

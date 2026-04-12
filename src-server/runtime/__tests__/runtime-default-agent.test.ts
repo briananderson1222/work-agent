@@ -6,9 +6,8 @@ import {
 
 describe('createRuntimeSelfIntegration', () => {
   test('builds the stallion-control integration payload', () => {
-    const { selfIntegrationId, selfIntegration } = createRuntimeSelfIntegration(
-      4111,
-    );
+    const { selfIntegrationId, selfIntegration } =
+      createRuntimeSelfIntegration(4111);
 
     expect(selfIntegrationId).toBe('stallion-control');
     expect(selfIntegration).toEqual(
@@ -40,7 +39,7 @@ describe('bootstrapRuntimeDefaultAgent', () => {
       warn: vi.fn(),
     } as any;
     const loadAgentTools = vi.fn(async () => [{ name: 'tool-1' }]);
-    const createBedrockModel = vi.fn(async () => ({ id: 'model-1' }));
+    const createModel = vi.fn(async () => ({ id: 'model-1' }));
     const activeAgents = new Map();
     const agentTools = new Map();
     const memoryAdapters = new Map();
@@ -60,7 +59,7 @@ describe('bootstrapRuntimeDefaultAgent', () => {
       defaultSystemPrompt: 'default prompt',
       autoApproveTools: ['stallion-control_read'],
       replaceTemplateVariables: (text) => text,
-      createBedrockModel,
+      createModel,
       loadAgentTools,
       activeAgents,
       agentTools,
@@ -74,7 +73,7 @@ describe('bootstrapRuntimeDefaultAgent', () => {
         id: 'stallion-control',
       }),
     );
-    expect(createBedrockModel).toHaveBeenCalled();
+    expect(createModel).toHaveBeenCalled();
     expect(loadAgentTools).toHaveBeenCalledWith(
       'default',
       expect.objectContaining({

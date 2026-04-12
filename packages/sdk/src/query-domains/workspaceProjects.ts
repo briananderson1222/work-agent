@@ -1,6 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { _getApiBase, fetchAvailableLayouts } from '../api';
-import { type MutationOptions, type QueryConfig, useApiMutation, useApiQuery } from '../query-core';
+import {
+  type MutationOptions,
+  type QueryConfig,
+  useApiMutation,
+  useApiQuery,
+} from '../query-core';
 
 export interface AvailableProjectLayout {
   source: string;
@@ -214,7 +219,13 @@ export function useUpdateProjectMutation(
 ) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: async ({ slug, ...data }: { slug: string; [key: string]: any }) => {
+    mutationFn: async ({
+      slug,
+      ...data
+    }: {
+      slug: string;
+      [key: string]: any;
+    }) => {
       const apiBase = await _getApiBase();
       const response = await fetch(`${apiBase}/api/projects/${slug}`, {
         method: 'PUT',
