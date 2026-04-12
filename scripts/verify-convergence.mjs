@@ -2905,6 +2905,7 @@ const domainConfigLoader = readFileSync(
 for (const requiredImport of [
   '@stallion-ai/contracts/config',
   '@stallion-ai/contracts/tool',
+  './config-loader-app.js',
   './config-loader-agents.js',
   './config-loader-storage.js',
 ]) {
@@ -2922,6 +2923,7 @@ for (const retiredInlineConfigLoaderSnippet of [
   'const agentDir = join(this.projectHomeDir, \'agents\', slug);',
   'const integrationsDir = join(this.projectHomeDir, \'integrations\');',
   'const dir = join(this.projectHomeDir, \'skills\');',
+  "const path = join(this.projectHomeDir, 'config', 'app.json');",
   "const path = join(this.projectHomeDir, 'config', 'acp.json');",
 ]) {
   if (domainConfigLoader.includes(retiredInlineConfigLoaderSnippet)) {
@@ -2946,6 +2948,22 @@ for (const requiredHelper of [
 ]) {
   if (!domainConfigLoaderAgents.includes(requiredHelper)) {
     errors.push(`src-server/domain/config-loader-agents.ts must include ${requiredHelper}.`);
+  }
+}
+
+const domainConfigLoaderApp = readFileSync(
+  new URL('../src-server/domain/config-loader-app.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export const DEFAULT_SYSTEM_PROMPT',
+  'export async function loadAppConfigFile',
+  'export async function saveAppConfigFile',
+  'export async function updateAppConfigFile',
+  'export function assertSafeAppConfig',
+]) {
+  if (!domainConfigLoaderApp.includes(requiredHelper)) {
+    errors.push(`src-server/domain/config-loader-app.ts must include ${requiredHelper}.`);
   }
 }
 

@@ -3,11 +3,7 @@
  */
 
 import { existsSync } from 'node:fs';
-import {
-  mkdir,
-  readFile,
-  writeFile,
-} from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { ACPConfig } from '@stallion-ai/contracts/acp';
 import type { AppConfig } from '@stallion-ai/contracts/config';
@@ -32,6 +28,11 @@ import {
   updateAgentWorkflow,
 } from './config-loader-agents.js';
 import {
+  loadAppConfigFile,
+  saveAppConfigFile,
+  updateAppConfigFile,
+} from './config-loader-app.js';
+import {
   deleteIntegrationConfig,
   deleteSkillConfig,
   listIntegrationMetadata,
@@ -39,29 +40,16 @@ import {
   loadACPConfigFile,
   loadIntegrationConfig,
   loadSkillConfig,
+  type SkillConfigRecord,
   saveACPConfigFile,
   saveIntegrationConfig,
   saveSkillConfig,
   skillConfigExists,
-  type SkillConfigRecord,
 } from './config-loader-storage.js';
 import { validator } from './validator.js';
 
 const logger = createLogger({ name: 'config-loader' });
-
-export const DEFAULT_SYSTEM_PROMPT = [
-  'You are {{AGENT_NAME}}, a helpful AI assistant.',
-  '',
-  'Be concise and direct. When you lack information, say so rather than guessing.',
-  '',
-  '## Environment',
-  'Date: {{date}}',
-  'Time: {{time}}',
-].join('\n');
-
-const DEFAULT_TEMPLATE_VARIABLES = [
-  { key: 'AGENT_NAME', type: 'static' as const, value: 'Stallion' },
-];
+export { DEFAULT_SYSTEM_PROMPT } from './config-loader-app.js';
 
 export interface ConfigLoaderOptions {
   projectHomeDir?: string;
@@ -95,53 +83,14 @@ export class ConfigLoader {
    * Load application configuration
    */
   async loadAppConfig(): Promise<AppConfig> {
-    const path = join(this.projectHomeDir, 'config', 'app.json');
-
-    if (!existsSync(path)) {
-      // Create default config on first run
-      const defaultConfig: AppConfig = {
-        region: 'us-east-1',
-        defaultModel: 'us.anthropic.claude-sonnet-4-6',
-        invokeModel: 'us.amazon.nova-2-lite-v1:0',
-        structureModel: 'us.amazon.nova-micro-v1:0',
-        systemPrompt: DEFAULT_SYSTEM_PROMPT,
-        templateVariables: [...DEFAULT_TEMPLATE_VARIABLES],
-      };
-
-      await this.saveAppConfig(defaultConfig);
-      return defaultConfig;
-    }
-
-    const content = await readFile(path, 'utf-8');
-    const data = JSON.parse(content);
-
-    // Migrate: add defaults for new required fields
-    if (!data.invokeModel) data.invokeModel = 'us.amazon.nova-2-lite-v1:0';
-    if (!data.structureModel) data.structureModel = 'us.amazon.nova-micro-v1:0';
-    if (!data.systemPrompt) {
-      data.systemPrompt = DEFAULT_SYSTEM_PROMPT;
-      if (!data.templateVariables?.some((v: any) => v.key === 'AGENT_NAME')) {
-        data.templateVariables = [
-          ...(data.templateVariables || []),
-          ...DEFAULT_TEMPLATE_VARIABLES,
-        ];
-      }
-      await this.saveAppConfig(data);
-    }
-
-    validator.validateAppConfig(data);
-    return data;
+    return loadAppConfigFile(this.projectHomeDir);
   }
 
   /**
    * Save application configuration
    */
   async saveAppConfig(config: AppConfig): Promise<void> {
-    validator.validateAppConfig(config);
-
-    const path = join(this.projectHomeDir, 'config', 'app.json');
-    await mkdir(join(this.projectHomeDir, 'config'), { recursive: true });
-    await writeFile(path, JSON.stringify(config, null, 2), 'utf-8');
+    await saveAppConfigFile(this.projectHomeDir, config);
   }
 
   /**
@@ -171,10 +120,7 @@ export class ConfigLoader {
    * Update application configuration (alias for saveAppConfig)
    */
   async updateAppConfig(updates: Partial<AppConfig>): Promise<AppConfig> {
-    const existing = await this.loadAppConfig();
-    const updated = { ...existing, ...updates };
-    await this.saveAppConfig(updated);
-    return updated;
+    return updateAppConfigFile(this.projectHomeDir, updates);
   }
 
   /**
@@ -211,7 +157,10 @@ export class ConfigLoader {
   /**
    * Save agent specification
    */
-  async saveAgent(slug: string, spec: Parameters<typeof saveAgentConfig>[2]): Promise<void> {
+  async saveAgent(
+    slug: string,
+    spec: Parameters<typeof saveAgentConfig>[2],
+  ): Promise<void> {
     await saveAgentConfig(this.projectHomeDir, slug, spec);
   }
 
