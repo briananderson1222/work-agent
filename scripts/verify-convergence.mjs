@@ -90,6 +90,7 @@ const allowedSharedImportFiles = new Map([
   ['packages/cli/src/dev/mcp.ts', ['@stallion-ai/shared/mcp', '@stallion-ai/shared/parsers']],
   ['src-server/routes/plugin-bundles.ts', ['@stallion-ai/shared/build']],
   ['src-server/routes/plugin-install-routes.ts', ['@stallion-ai/shared/parsers']],
+  ['src-server/routes/plugin-install-shared.ts', ['@stallion-ai/shared/parsers']],
   ['src-server/routes/plugin-lifecycle-routes.ts', ['@stallion-ai/shared/parsers']],
   ['src-server/routes/system-update-routes.ts', ['@stallion-ai/shared/git']],
 ]);
@@ -1579,6 +1580,9 @@ const toolExecutor = readFileSync(
 if (!toolExecutor.includes("./tool-approval.js")) {
   errors.push('tool-executor.ts must delegate approval matching and elicitation wrapping to tool-approval.ts.');
 }
+if (!toolExecutor.includes("./tool-execution-usage.js")) {
+  errors.push('tool-executor.ts must delegate conversation usage persistence to tool-execution-usage.ts.');
+}
 if (!toolExecutor.includes("./usage-stats.js")) {
   errors.push('tool-executor.ts must delegate shared usage math to usage-stats.ts.');
 }
@@ -1587,6 +1591,11 @@ for (const retiredInlineUsageSnippet of [
   'export function calculateContextWindowPercentage(',
   'export function isAutoApproved(',
   'export function wrapToolWithElicitation(',
+  "logger.info('[Usage Stats]'",
+  "logger.info('[Token Breakdown]'",
+  'await memory.updateConversation(',
+  'otelContextTokens.add(',
+  "logger.error('Failed to enrich message with model metadata'",
 ]) {
   if (toolExecutor.includes(retiredInlineUsageSnippet)) {
     errors.push(`tool-executor.ts must not inline shared usage helper ${retiredInlineUsageSnippet}.`);
@@ -1605,6 +1614,23 @@ for (const requiredHelper of [
 ]) {
   if (!toolApproval.includes(requiredHelper)) {
     errors.push(`tool-approval.ts must include ${requiredHelper}.`);
+  }
+}
+
+const toolExecutionUsage = readFileSync(
+  new URL('../src-server/runtime/tool-execution-usage.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export async function recordToolExecutionUsage',
+  "logger.info('[Usage Stats]'",
+  "logger.info('[Token Breakdown]'",
+  'await memory.updateConversation(',
+  'otelContextTokens.add(',
+  "logger.error('Failed to enrich message with model metadata'",
+]) {
+  if (!toolExecutionUsage.includes(requiredHelper)) {
+    errors.push(`tool-execution-usage.ts must include ${requiredHelper}.`);
   }
 }
 
@@ -4949,7 +4975,7 @@ for (const requiredHelper of [
   "app.get('/',",
   "app.post('/preview'",
   "app.post('/install'",
-  "./plugin-loader.js",
+  "./plugin-install-shared.js",
   "./plugin-source.js",
   "./plugin-bundles.js",
 ]) {
