@@ -1,4 +1,4 @@
-import { readFileSync, rmSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 import { executeSchedulerJobAttempt } from '../builtin-scheduler-execution.js';
@@ -14,6 +14,7 @@ describe('executeSchedulerJobAttempt', () => {
   });
 
   test('records a successful run and completion broadcast', async () => {
+    mkdirSync(join(tempDir, 'scheduler', 'logs'), { recursive: true });
     const broadcast = vi.fn();
     const result = await executeSchedulerJobAttempt({
       job: {
@@ -43,6 +44,7 @@ describe('executeSchedulerJobAttempt', () => {
   });
 
   test('records a failed run and schedules notification when not retrying', async () => {
+    mkdirSync(join(tempDir, 'scheduler', 'logs'), { recursive: true });
     const notificationService = { schedule: vi.fn() };
     const broadcast = vi.fn();
     const result = await executeSchedulerJobAttempt({

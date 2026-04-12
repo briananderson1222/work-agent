@@ -180,6 +180,57 @@ for (const requiredTerminalHelper of [
   }
 }
 
+const systemRuntimePath = new URL(
+  '../packages/sdk/src/query-domains/systemRuntime.ts',
+  import.meta.url,
+);
+const systemRuntime = readFileSync(systemRuntimePath, 'utf8');
+if (!systemRuntime.includes("./systemRuntimeRequests")) {
+  errors.push('systemRuntime.ts must import request helpers from systemRuntimeRequests.ts.');
+}
+if (systemRuntime.includes('fetch(')) {
+  errors.push('systemRuntime.ts must not inline HTTP transport after extracting systemRuntimeRequests.ts.');
+}
+for (const retiredInlineSystemRuntimeSnippet of [
+  'async function requestSystemStatus(',
+  'async function requestCoreUpdateStatus(',
+  'export async function fetchAuthStatus(',
+  'export async function renewAuth(',
+  'export async function verifyBedrockConnection(',
+  'export async function fetchMonitoringStats(',
+  'export async function fetchMonitoringMetrics(',
+  'export async function fetchMonitoringEvents(',
+  'export async function fetchBranding(',
+  'export async function fetchServerCapabilities(',
+  'mutationFn: async () => {',
+]) {
+  if (systemRuntime.includes(retiredInlineSystemRuntimeSnippet)) {
+    errors.push(`systemRuntime.ts must not inline extracted transport helper ${retiredInlineSystemRuntimeSnippet}.`);
+  }
+}
+
+const systemRuntimeRequests = readFileSync(
+  new URL('../packages/sdk/src/query-domains/systemRuntimeRequests.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredSystemRuntimeHelper of [
+  'export async function fetchAuthStatus',
+  'export async function renewAuth',
+  'export async function verifyBedrockConnection',
+  'export async function requestSystemStatus',
+  'export async function fetchMonitoringStats',
+  'export async function fetchMonitoringMetrics',
+  'export async function fetchMonitoringEvents',
+  'export async function fetchBranding',
+  'export async function requestCoreUpdateStatus',
+  'export async function applyCoreUpdate',
+  'export async function fetchServerCapabilities',
+]) {
+  if (!systemRuntimeRequests.includes(requiredSystemRuntimeHelper)) {
+    errors.push(`systemRuntimeRequests.ts must include ${requiredSystemRuntimeHelper}.`);
+  }
+}
+
 const toolManagementView = readFileSync(
   new URL('../src-ui/src/views/ToolManagementView.tsx', import.meta.url),
   'utf8',
@@ -2383,7 +2434,6 @@ const builtinScheduler = readFileSync(
 for (const requiredHelper of [
   "from './builtin-scheduler-storage.js'",
   "from './builtin-scheduler-execution.js'",
-  'appendSchedulerJobLog',
   'getStoredJobStats',
   'readStoredJobs',
   'executeSchedulerJobAttempt',
