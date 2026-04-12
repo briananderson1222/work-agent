@@ -14,6 +14,7 @@ import {
   removeQueuedMessageState,
   serializeActiveChats,
 } from '../contexts/active-chats-state';
+import type { PlanArtifact } from '../utils/planArtifacts';
 
 describe('active chat state helpers', () => {
   test('creates default chat state with metadata merged in', () => {
@@ -48,6 +49,15 @@ describe('active chat state helpers', () => {
   });
 
   test('hydrates and serializes only conversation-backed sessions', () => {
+    const planArtifact: PlanArtifact = {
+      source: 'reasoning',
+      rawText: '✅ First\n🔄 Second',
+      steps: [
+        { content: 'First', status: 'completed' },
+        { content: 'Second', status: 'in_progress' },
+      ],
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
     const chats = hydrateActiveChats([
       {
         sessionId: 'draft:1',
@@ -55,6 +65,8 @@ describe('active chat state helpers', () => {
         agentSlug: 'planner',
         inputHistory: ['/resume'],
         ephemeralMessages: [],
+        currentModeId: 'plan',
+        planArtifact,
       },
       {
         sessionId: 'ephemeral:1',
@@ -68,6 +80,8 @@ describe('active chat state helpers', () => {
       inputHistory: ['/resume'],
       provider: undefined,
       ephemeralMessages: [],
+      currentModeId: 'plan',
+      planArtifact,
     });
 
     expect(
@@ -84,6 +98,8 @@ describe('active chat state helpers', () => {
         conversationId: 'conv-draft',
         agentSlug: 'planner',
         model: 'sonnet',
+        currentModeId: 'plan',
+        planArtifact,
       }),
     ]);
   });
@@ -147,6 +163,34 @@ describe('active chat state helpers', () => {
         historyIndex: -1,
       }),
       shouldPersist: false,
+    });
+  });
+
+  test('persists plan artifact updates', () => {
+    const planArtifact: PlanArtifact = {
+      source: 'assistant',
+      rawText: '- First\n- Second',
+      steps: [
+        { content: 'First', status: 'pending' },
+        { content: 'Second', status: 'pending' },
+      ],
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    };
+
+    const result = mergeChatUpdates(
+      {
+        input: '',
+        attachments: [],
+        queuedMessages: [],
+        inputHistory: [],
+        hasUnread: false,
+      },
+      { planArtifact },
+    );
+
+    expect(result).toEqual({
+      chat: expect.objectContaining({ planArtifact }),
+      shouldPersist: true,
     });
   });
 

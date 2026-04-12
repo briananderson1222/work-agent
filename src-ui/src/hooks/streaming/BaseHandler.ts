@@ -9,6 +9,7 @@ import type {
   StreamEvent,
   StreamState,
 } from './types';
+import { derivePlanArtifactFromStreamingState } from '../../utils/planArtifacts';
 
 export abstract class StreamEventHandler {
   protected context: HandlerContext;
@@ -31,6 +32,17 @@ export abstract class StreamEventHandler {
    * Helper to update chat UI
    */
   protected updateChat(updates: any): void {
+    if (updates?.streamingMessage && this.context.activeChatsStore) {
+      const chat =
+        this.context.activeChatsStore.getSnapshot()[this.context.sessionId];
+      updates = {
+        ...updates,
+        planArtifact: derivePlanArtifactFromStreamingState({
+          streamingMessage: updates.streamingMessage,
+          planArtifact: chat?.planArtifact,
+        }),
+      };
+    }
     this.context.updateChat(this.context.sessionId, updates);
   }
 
