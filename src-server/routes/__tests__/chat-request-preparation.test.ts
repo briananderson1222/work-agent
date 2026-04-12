@@ -118,6 +118,50 @@ describe('chat-request-preparation', () => {
     });
   });
 
+  test('prepareChatRequest honors explicit provider-managed binding from chat options', async () => {
+    const resolveProvider = vi.fn(async () => ({
+      model: 'llama3.2',
+      providerId: 'ollama-local',
+    }));
+    const result = await prepareChatRequest({
+      ctx: {
+        providerService: {
+          resolveProvider,
+          listProviderConnections: vi.fn(() => [
+            { id: 'ollama-local', type: 'ollama' },
+          ]),
+        },
+        knowledgeService: {
+          getInjectContext: vi.fn(async () => null),
+          getRAGContext: vi.fn(async () => null),
+        },
+        feedbackService: {
+          getBehaviorGuidelines: vi.fn(() => null),
+        },
+        storageAdapter: {} as any,
+        logger: {
+          warn: vi.fn(),
+          debug: vi.fn(),
+        },
+      } as any,
+      input: 'hello',
+      options: {
+        providerManagedFallback: true,
+        providerId: 'ollama-local',
+        providerModel: 'llama3.2',
+      },
+    });
+
+    expect(resolveProvider).toHaveBeenCalledWith({
+      conversationProviderId: 'ollama-local',
+      conversationModel: 'llama3.2',
+      projectSlug: undefined,
+    });
+    expect(result.options.model).toBe('llama3.2');
+    expect(result.options.providerId).toBe('ollama-local');
+    expect(result.useAlternateProvider).toBe(true);
+  });
+
   test('prepareChatRequest does not resolve provider fallback without an explicit flag', async () => {
     const result = await prepareChatRequest({
       ctx: {

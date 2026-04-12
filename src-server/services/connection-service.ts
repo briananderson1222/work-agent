@@ -54,12 +54,30 @@ export class ConnectionService {
   async listModelConnections(): Promise<ConnectionConfig[]> {
     const connections = this.providerService.listProviderConnections();
     return Promise.all(
-      connections.map(async (connection) =>
-        toModelConnection(
-          connection,
-          await this.collectModelPrerequisites(connection),
-        ),
-      ),
+      connections.map(async (connection) => {
+        const prerequisites = await this.collectModelPrerequisites(connection);
+        const base = toModelConnection(connection, prerequisites);
+        const llmProvider = createLLMProvider(connection);
+        const modelOptions = llmProvider
+          ? await llmProvider
+              .listModels()
+              .then((models) =>
+                models.map((model) => ({
+                  id: model.id,
+                  name: model.name,
+                  originalId: model.id,
+                })),
+              )
+              .catch(() => [])
+          : [];
+        return {
+          ...base,
+          config:
+            modelOptions.length > 0
+              ? { ...base.config, modelOptions }
+              : base.config,
+        };
+      }),
     );
   }
 

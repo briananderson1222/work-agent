@@ -64,6 +64,7 @@ export function ACPChatPanel({
     agentSlug,
     conversationId: activeSession?.conversationId,
     availableModels: [],
+    modelsAreBindingScoped: false,
   });
 
   if (!activeSession) {

@@ -9,8 +9,20 @@ const { mockBuildCliRuntimePrerequisites } = vi.hoisted(() => ({
   mockBuildCliRuntimePrerequisites: vi.fn(),
 }));
 
+const { mockAnthropicModelsList } = vi.hoisted(() => ({
+  mockAnthropicModelsList: vi.fn(),
+}));
+
 vi.mock('@anthropic-ai/claude-agent-sdk', () => ({
   query: mockQuery,
+}));
+
+vi.mock('@anthropic-ai/sdk', () => ({
+  default: class MockAnthropic {
+    models = {
+      list: mockAnthropicModelsList,
+    };
+  },
 }));
 
 vi.mock('../cli-auth.js', () => ({
@@ -20,6 +32,7 @@ vi.mock('../cli-auth.js', () => ({
 import { ClaudeAdapter } from '../adapters/claude-adapter.js';
 
 const originalAnthropicKey = process.env.ANTHROPIC_API_KEY;
+const originalAnthropicAuthToken = process.env.ANTHROPIC_AUTH_TOKEN;
 
 function createMockQuery(messages: any[]) {
   let closed = false;
@@ -41,10 +54,16 @@ describe('ClaudeAdapter', () => {
   afterEach(() => {
     mockQuery.mockReset();
     mockBuildCliRuntimePrerequisites.mockReset();
+    mockAnthropicModelsList.mockReset();
     if (originalAnthropicKey === undefined) {
       delete process.env.ANTHROPIC_API_KEY;
     } else {
       process.env.ANTHROPIC_API_KEY = originalAnthropicKey;
+    }
+    if (originalAnthropicAuthToken === undefined) {
+      delete process.env.ANTHROPIC_AUTH_TOKEN;
+    } else {
+      process.env.ANTHROPIC_AUTH_TOKEN = originalAnthropicAuthToken;
     }
   });
 
@@ -198,6 +217,47 @@ describe('ClaudeAdapter', () => {
         }),
       ]),
     );
+  });
+
+  test('lists models from the Anthropic models API when explicit auth is available', async () => {
+    process.env.ANTHROPIC_API_KEY = 'test-key';
+    mockAnthropicModelsList.mockResolvedValue({
+      data: [
+        {
+          id: 'claude-sonnet-4-6',
+          display_name: 'Claude Sonnet 4.6',
+        },
+        {
+          id: 'claude-opus-4-6',
+          display_name: 'Claude Opus 4.6',
+        },
+      ],
+    });
+
+    const adapter = new ClaudeAdapter();
+
+    await expect(adapter.listModels?.()).resolves.toEqual([
+      {
+        id: 'claude-sonnet-4-6',
+        name: 'Claude Sonnet 4.6',
+        originalId: 'claude-sonnet-4-6',
+      },
+      {
+        id: 'claude-opus-4-6',
+        name: 'Claude Opus 4.6',
+        originalId: 'claude-opus-4-6',
+      },
+    ]);
+    expect(mockAnthropicModelsList).toHaveBeenCalledWith({ limit: 100 });
+  });
+
+  test('returns an empty dynamic model list when Anthropic auth is unavailable', async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_AUTH_TOKEN;
+    const adapter = new ClaudeAdapter();
+
+    await expect(adapter.listModels?.()).resolves.toEqual([]);
+    expect(mockAnthropicModelsList).not.toHaveBeenCalled();
   });
 
   test('rejects approval responses for unknown requests', async () => {

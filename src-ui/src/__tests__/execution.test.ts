@@ -154,7 +154,16 @@ describe('execution utils', () => {
         name: 'Codex Runtime',
         enabled: true,
         capabilities: ['agent-runtime'],
-        config: { defaultModel: 'gpt-5-codex' },
+        config: {
+          defaultModel: 'gpt-5-codex',
+          modelOptions: [
+            {
+              id: 'gpt-5-codex',
+              name: 'GPT-5 Codex',
+              originalId: 'gpt-5-codex',
+            },
+          ],
+        },
         status: 'ready',
         prerequisites: [],
       },
@@ -168,6 +177,13 @@ describe('execution utils', () => {
         runtimeConnectionId: 'codex-runtime',
         modelId: 'gpt-5-codex',
       },
+      modelOptions: [
+        {
+          id: 'gpt-5-codex',
+          name: 'GPT-5 Codex',
+          originalId: 'gpt-5-codex',
+        },
+      ],
     });
   });
 
@@ -286,6 +302,40 @@ describe('execution utils', () => {
     });
   });
 
+  test('falls back to a provider-supported model when the requested model is invalid for that provider', () => {
+    const resolved = resolveProjectProviderManagedExecution(
+      {
+        defaultProviderId: 'ollama-local',
+        defaultModel: 'claude-sonnet-4-6',
+      },
+      [
+        {
+          id: 'ollama-local',
+          kind: 'model',
+          type: 'ollama',
+          name: 'Local Ollama',
+          enabled: true,
+          capabilities: ['llm'],
+          config: {
+            defaultModel: 'llama3.2',
+            modelOptions: [{ id: 'llama3.2', name: 'Llama 3.2' }],
+          },
+          status: 'ready',
+          prerequisites: [],
+        },
+      ] as any,
+    );
+
+    expect(resolved).toEqual({
+      executionMode: 'provider-managed',
+      executionScope: 'project',
+      provider: 'ollama',
+      providerId: 'ollama-local',
+      model: 'llama3.2',
+      providerOptions: {},
+    });
+  });
+
   test('marks provider-managed bindings as incompatible for agents that require MCP', () => {
     expect(
       supportsProviderManagedBinding({
@@ -348,7 +398,7 @@ describe('execution utils', () => {
           executionMode: 'runtime',
           runtimeConnectionId: 'claude-runtime',
         } as any,
-        hasModelCatalog: true,
+        hasModelCatalog: false,
       }),
     ).toEqual({
       system_prompt: true,
@@ -356,6 +406,27 @@ describe('execution utils', () => {
       tool_execution: false,
       model_catalog: false,
       model_selection: false,
+    });
+
+    expect(
+      resolveEffectiveCapabilityState({
+        agent: {
+          slug: '__runtime:claude-runtime',
+          execution: { runtimeConnectionId: 'claude-runtime' },
+          modelOptions: [{ id: 'claude-sonnet', name: 'Claude Sonnet' }],
+        } as any,
+        chatState: {
+          executionMode: 'runtime',
+          runtimeConnectionId: 'claude-runtime',
+        } as any,
+        hasModelCatalog: true,
+      }),
+    ).toEqual({
+      system_prompt: true,
+      mcp: false,
+      tool_execution: false,
+      model_catalog: true,
+      model_selection: true,
     });
   });
 });

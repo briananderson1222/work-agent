@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { createInterface } from 'node:readline';
 import type { CanonicalRuntimeEvent } from '@stallion-ai/contracts/runtime-events';
 import type { Prerequisite } from '@stallion-ai/contracts/tool';
 import {
@@ -36,6 +37,30 @@ interface CodexAdapterOptions {
 function mapReasoningEffort(options?: CodexModelOptions): string | null {
   if (!options?.reasoningEffort) return null;
   return options.reasoningEffort;
+}
+
+function mapCodexModelCatalogEntry(model: any): {
+  id: string;
+  name: string;
+  originalId: string;
+} | null {
+  const id =
+    typeof model?.model === 'string'
+      ? model.model
+      : typeof model?.id === 'string'
+        ? model.id
+        : null;
+  if (!id) return null;
+  const name =
+    typeof model?.displayName === 'string' &&
+    model.displayName.trim().length > 0
+      ? model.displayName
+      : id;
+  return {
+    id,
+    name,
+    originalId: id,
+  };
 }
 
 export class CodexAdapter implements ProviderAdapterShape {
@@ -76,6 +101,112 @@ export class CodexAdapter implements ProviderAdapterShape {
       installStep: 'Install the Codex CLI and ensure `codex` is on PATH.',
       authStep: 'Run `codex login` before starting Stallion.',
     });
+  }
+
+  async listModels(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      originalId: string;
+    }>
+  > {
+    const processHandle = this.processFactory();
+    const stdout = createInterface({ input: processHandle.stdout });
+    const pending = new Map<
+      string,
+      {
+        resolve(value: unknown): void;
+        reject(error: Error): void;
+      }
+    >();
+    let requestId = 0;
+    const failPending = (error: Error) => {
+      for (const entry of pending.values()) {
+        entry.reject(error);
+      }
+      pending.clear();
+    };
+
+    stdout.on('line', (line) => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      let payload: any;
+      try {
+        payload = JSON.parse(trimmed);
+      } catch {
+        return;
+      }
+      const id =
+        typeof payload?.id === 'string' || typeof payload?.id === 'number'
+          ? String(payload.id)
+          : null;
+      if (!id) return;
+      const pendingRequest = pending.get(id);
+      if (!pendingRequest) return;
+      pending.delete(id);
+      if (payload.error) {
+        pendingRequest.reject(
+          new Error(
+            typeof payload.error?.message === 'string'
+              ? payload.error.message
+              : 'Codex model/list failed',
+          ),
+        );
+        return;
+      }
+      pendingRequest.resolve(payload.result);
+    });
+
+    processHandle.on('exit', (code) => {
+      failPending(
+        new Error(
+          `Codex app-server exited before responding (code: ${code ?? 'unknown'})`,
+        ),
+      );
+    });
+
+    const sendRequest = <T = unknown>(
+      method: string,
+      params?: unknown,
+    ): Promise<T> => {
+      const id = String(++requestId);
+      const payload =
+        params === undefined
+          ? { jsonrpc: '2.0', id, method }
+          : { jsonrpc: '2.0', id, method, params };
+      const response = new Promise<T>((resolve, reject) => {
+        pending.set(id, { resolve, reject });
+      });
+      processHandle.stdin.write(`${JSON.stringify(payload)}\n`);
+      return response;
+    };
+
+    try {
+      await sendRequest('initialize', {
+        clientInfo: {
+          name: 'stallion',
+          title: 'Stallion AI',
+          version: '0.1.0',
+        },
+        capabilities: {
+          experimentalApi: false,
+        },
+      });
+      processHandle.stdin.write(
+        `${JSON.stringify({ jsonrpc: '2.0', method: 'initialized' })}\n`,
+      );
+      const result = await sendRequest<{ data?: Array<any> }>('model/list', {
+        cursor: null,
+        limit: null,
+        includeHidden: false,
+      });
+      return (result.data ?? [])
+        .map(mapCodexModelCatalogEntry)
+        .filter((entry): entry is NonNullable<typeof entry> => !!entry);
+    } finally {
+      stdout.close();
+      processHandle.kill();
+    }
   }
 
   async startSession(

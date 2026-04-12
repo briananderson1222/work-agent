@@ -460,6 +460,65 @@ describe('CodexAdapter', () => {
     );
   });
 
+  test('lists models from Codex app-server model/list', async () => {
+    processHandle = new FakeCodexProcess();
+    const adapter = new CodexAdapter({
+      processFactory: () => processHandle!,
+    });
+
+    const listModelsPromise = adapter.listModels();
+    await flushIo();
+
+    processHandle!.stdout.write(
+      `${JSON.stringify({
+        id: '1',
+        result: {
+          userAgent: 'test',
+          codexHome: '/tmp/.codex',
+          platformFamily: 'unix',
+          platformOs: 'linux',
+        },
+      })}\n`,
+    );
+    await flushIo();
+    processHandle!.stdout.write(
+      `${JSON.stringify({
+        id: '2',
+        result: {
+          data: [
+            {
+              id: 'gpt-5.3-codex',
+              model: 'gpt-5.3-codex',
+              displayName: 'GPT-5.3 Codex',
+            },
+            {
+              model: 'gpt-5.3-codex-spark',
+              displayName: 'GPT-5.3 Codex Spark',
+            },
+          ],
+        },
+      })}\n`,
+    );
+
+    await expect(listModelsPromise).resolves.toEqual([
+      {
+        id: 'gpt-5.3-codex',
+        name: 'GPT-5.3 Codex',
+        originalId: 'gpt-5.3-codex',
+      },
+      {
+        id: 'gpt-5.3-codex-spark',
+        name: 'GPT-5.3 Codex Spark',
+        originalId: 'gpt-5.3-codex-spark',
+      },
+    ]);
+
+    const writtenMethods = processHandle.stdin.lines.map(
+      (line) => parseLine(line).method,
+    );
+    expect(writtenMethods).toEqual(['initialize', 'initialized', 'model/list']);
+  });
+
   test('publishes a warning for malformed JSON-RPC payloads', async () => {
     processHandle = new FakeCodexProcess();
     const adapter = new CodexAdapter({

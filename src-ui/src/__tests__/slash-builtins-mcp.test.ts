@@ -181,7 +181,7 @@ describe('default-agent slash commands', () => {
     expect(context.autocomplete.openModel).not.toHaveBeenCalled();
   });
 
-  test('/model stays available for connected runtime chats when a model catalog exists', async () => {
+  test('/model stays unavailable for connected runtime chats when only a global catalog exists', async () => {
     const { getCommand } = await import('../slashCommands/registry');
     const handler = getCommand('model');
     const context = baseContext({
@@ -218,6 +218,40 @@ describe('default-agent slash commands', () => {
       }),
     );
     expect(context.autocomplete.openModel).not.toHaveBeenCalled();
+  });
+
+  test('/model opens for connected runtime chats when the binding exposes its own model catalog', async () => {
+    const { getCommand } = await import('../slashCommands/registry');
+    const handler = getCommand('model');
+    const context = baseContext({
+      agent: {
+        slug: '__runtime:claude-runtime',
+        name: 'Claude Runtime',
+        toolsConfig: {},
+        execution: { runtimeConnectionId: 'claude-runtime' },
+      },
+      chatState: {
+        agentSlug: '__runtime:claude-runtime',
+        executionMode: 'runtime',
+        runtimeConnectionId: 'claude-runtime',
+      },
+      availableModels: [{ id: 'claude-sonnet', name: 'Claude Sonnet' }],
+      modelsAreBindingScoped: true,
+      queryClient: {
+        getQueryData: vi.fn(() => []),
+      } as any,
+      autocomplete: {
+        openModel: vi.fn(),
+        openNewChat: vi.fn(),
+        closeCommand: vi.fn(),
+        closeAll: vi.fn(),
+      },
+    });
+
+    await handler!(context);
+
+    expect(context.autocomplete.closeCommand).toHaveBeenCalled();
+    expect(context.autocomplete.openModel).toHaveBeenCalled();
   });
 
   test('/prompts lists available prompt commands', async () => {

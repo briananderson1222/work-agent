@@ -186,9 +186,7 @@ test('new chat does not show Stallion for a global provider-managed fallback pat
 
   await page.goto('/?dock=open');
 
-  const newChatBtn = page
-    .locator('.chat-dock__tab-actions .chat-dock__new')
-    .nth(1);
+  const newChatBtn = page.getByTitle(/New Chat/);
   await expect(newChatBtn).toBeVisible({ timeout: 5000 });
   await newChatBtn.dispatchEvent('click');
 
@@ -214,9 +212,7 @@ test('selected project context does not show Stallion when provider-managed fall
 
   await page.goto('/?dock=open');
 
-  const newChatBtn = page
-    .locator('.chat-dock__tab-actions .chat-dock__new')
-    .nth(1);
+  const newChatBtn = page.getByTitle(/New Chat/);
   await expect(newChatBtn).toBeVisible({ timeout: 5000 });
   await newChatBtn.dispatchEvent('click');
 
@@ -238,9 +234,7 @@ test('new chat still shows Stallion when provider-managed fallback matches the a
 
   await page.goto('/?dock=open');
 
-  const newChatBtn = page
-    .locator('.chat-dock__tab-actions .chat-dock__new')
-    .nth(1);
+  const newChatBtn = page.getByTitle(/New Chat/);
   await expect(newChatBtn).toBeVisible({ timeout: 5000 });
   await newChatBtn.dispatchEvent('click');
 

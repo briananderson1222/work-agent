@@ -1,5 +1,9 @@
 import { agentQueries } from '@stallion-ai/sdk';
-import { resolveEffectiveCapabilityState } from '../utils/execution';
+import {
+  bindingHasModelCatalog,
+  bindingUsesGlobalModelCatalog,
+  resolveEffectiveCapabilityState,
+} from '../utils/execution';
 import { registerCommand } from './registry';
 import { promptSlug } from './utils';
 
@@ -119,12 +123,28 @@ registerCommand(
     agent,
     chatState,
     queryClient,
+    availableModels = [],
+    modelsAreBindingScoped = false,
   }) => {
     const models = queryClient.getQueryData<any[]>(['models']) || [];
+    const hasModelCatalog = bindingHasModelCatalog({
+      agent,
+      chatState,
+      globalModelCount:
+        modelsAreBindingScoped ||
+        bindingUsesGlobalModelCatalog({
+          agent,
+          chatState,
+        })
+          ? modelsAreBindingScoped
+            ? availableModels.length
+            : models.length
+          : 0,
+    });
     const support = resolveEffectiveCapabilityState({
       agent,
       chatState,
-      hasModelCatalog: models.length > 0,
+      hasModelCatalog,
     });
 
     if (!support.model_selection) {

@@ -7,6 +7,8 @@ export type SlashCommandContext = {
   agent: any;
   args: string[];
   apiBase: string;
+  availableModels?: Array<{ id: string; name: string; originalId?: string }>;
+  modelsAreBindingScoped?: boolean;
   updateChat: (sessionId: string, updates: any) => void;
   addEphemeralMessage: (
     sessionId: string,

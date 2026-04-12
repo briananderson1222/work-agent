@@ -6,7 +6,11 @@ import {
 import { useAgent } from '../contexts/AgentsContext';
 import { useToast } from '../contexts/ToastContext';
 import type { FileAttachment } from '../types';
-import { resolveEffectiveCapabilityState } from '../utils/execution';
+import {
+  bindingHasModelCatalog,
+  bindingUsesGlobalModelCatalog,
+  resolveEffectiveCapabilityState,
+} from '../utils/execution';
 import { useCancelMessage, useSendMessage } from './useActiveChatSessions';
 import { useAutocompleteState } from './useAutocompleteState';
 import { useSlashCommandHandler } from './useSlashCommandHandler';
@@ -24,6 +28,7 @@ interface UseChatInputOptions {
   agentSlug: string | null;
   conversationId?: string;
   availableModels: Model[];
+  modelsAreBindingScoped?: boolean;
   agentDefaultModel?: string;
   onSessionMigrate?: (newSessionId: string) => void;
   onAuthError?: () => void;
@@ -36,6 +41,7 @@ export function useChatInput({
   agentSlug,
   conversationId,
   availableModels: _availableModels,
+  modelsAreBindingScoped = false,
   agentDefaultModel,
   onSessionMigrate,
   onAuthError,
@@ -76,6 +82,8 @@ export function useChatInput({
   const { commands: slashCommands } = useSlashCommands(
     agentSlug,
     activeChatState,
+    _availableModels,
+    modelsAreBindingScoped,
   );
   const handleSlashCommand = useSlashCommandHandler();
 
@@ -84,6 +92,8 @@ export function useChatInput({
     async (sid: string, command: string) => {
       return handleSlashCommand(sid, command, {
         onInputCleared,
+        availableModels: _availableModels,
+        modelsAreBindingScoped,
         autocomplete: {
           openModel,
           openNewChat: onOpenNewChat || (() => {}),
@@ -99,6 +109,8 @@ export function useChatInput({
       closeCommand,
       closeAll,
       onInputCleared,
+      _availableModels,
+      modelsAreBindingScoped,
     ],
   );
 
@@ -120,10 +132,22 @@ export function useChatInput({
   const input = activeChatState?.input || '';
   const attachments = activeChatState?.attachments || [];
   const currentModel = activeChatState?.model;
+  const hasModelCatalog = bindingHasModelCatalog({
+    agent: currentAgent,
+    chatState: activeChatState,
+    globalModelCount:
+      modelsAreBindingScoped ||
+      bindingUsesGlobalModelCatalog({
+        agent: currentAgent,
+        chatState: activeChatState,
+      })
+        ? _availableModels.length
+        : 0,
+  });
   const support = resolveEffectiveCapabilityState({
     agent: currentAgent,
     chatState: activeChatState,
-    hasModelCatalog: _availableModels.length > 0,
+    hasModelCatalog,
   });
 
   // Handlers

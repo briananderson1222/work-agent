@@ -34,13 +34,26 @@ export async function prepareChatRequest(
   let useAlternateProvider = false;
   let resolvedProviderConn: ProviderConnectionConfig | null = null;
 
-  if (options.providerManagedFallback && !options.model) {
+  if (options.providerManagedFallback) {
     try {
       const resolved = await context.ctx.providerService.resolveProvider({
+        conversationProviderId:
+          typeof options.providerId === 'string'
+            ? options.providerId
+            : undefined,
+        conversationModel:
+          typeof options.providerModel === 'string'
+            ? options.providerModel
+            : typeof options.model === 'string'
+              ? options.model
+              : undefined,
         projectSlug: context.projectSlug,
       });
       if (resolved.model) {
         options.model = resolved.model;
+      }
+      if (resolved.providerId) {
+        options.providerId = resolved.providerId;
       }
       if (resolved.providerId && resolved.providerId !== 'bedrock') {
         const connections =

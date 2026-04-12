@@ -123,6 +123,41 @@ export function mergeRuntimeConfig(
   };
 }
 
+function runtimeModelOptionsForAdapter(
+  adapter: ProviderAdapterShape,
+): Array<{ id: string; name: string; originalId: string }> | undefined {
+  switch (adapter.provider) {
+    case 'claude':
+      return [
+        {
+          id: 'claude-sonnet-4-6',
+          name: 'Claude Sonnet 4.6',
+          originalId: 'claude-sonnet-4-6',
+        },
+        {
+          id: 'claude-opus-4-6',
+          name: 'Claude Opus 4.6',
+          originalId: 'claude-opus-4-6',
+        },
+      ];
+    case 'codex':
+      return [
+        {
+          id: 'gpt-5.3-codex',
+          name: 'GPT-5.3 Codex',
+          originalId: 'gpt-5.3-codex',
+        },
+        {
+          id: 'gpt-5.3-codex-spark',
+          name: 'GPT-5.3 Codex Spark',
+          originalId: 'gpt-5.3-codex-spark',
+        },
+      ];
+    default:
+      return undefined;
+  }
+}
+
 export async function listRuntimeConnectionsForAdapters(options: {
   adapters: ProviderAdapterShape[];
   appConfig: AppConfig;
@@ -135,6 +170,13 @@ export async function listRuntimeConnectionsForAdapters(options: {
       const id = runtimeIdForAdapter(adapter);
       const settings = runtimeSettingsFor(options.appConfig, id);
       const enabled = settings.enabled ?? true;
+      const liveModelOptions = await adapter
+        .listModels?.()
+        .catch(() => undefined);
+      const modelOptions =
+        liveModelOptions && liveModelOptions.length > 0
+          ? liveModelOptions
+          : runtimeModelOptionsForAdapter(adapter);
       return {
         id,
         kind: 'runtime',
@@ -147,6 +189,14 @@ export async function listRuntimeConnectionsForAdapters(options: {
           ...mergeRuntimeConfig(id, options.appConfig, settings),
           provider: adapter.provider,
           providerLabel: providerLabelForAdapter(adapter),
+          ...(modelOptions
+            ? adapter.listModels
+              ? {
+                  modelOptions,
+                  fallbackModelOptions: runtimeModelOptionsForAdapter(adapter),
+                }
+              : { fallbackModelOptions: modelOptions }
+            : {}),
         },
         prerequisites,
         status: statusFromPrerequisites(enabled, prerequisites),

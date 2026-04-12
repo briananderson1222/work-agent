@@ -25,6 +25,12 @@ export function useSlashCommandHandler() {
       command: string,
       context: {
         onInputCleared?: () => void;
+        availableModels?: Array<{
+          id: string;
+          name: string;
+          originalId?: string;
+        }>;
+        modelsAreBindingScoped?: boolean;
         autocomplete: {
           openModel: () => void;
           openNewChat: () => void;
@@ -102,6 +108,8 @@ export function useSlashCommandHandler() {
           agent,
           args,
           apiBase,
+          availableModels: context.availableModels,
+          modelsAreBindingScoped: context.modelsAreBindingScoped,
           updateChat,
           addEphemeralMessage,
           queryClient,

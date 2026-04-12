@@ -110,6 +110,7 @@ export function ChatInputArea({
 }: ChatInputAreaProps) {
   const isOverride = currentModel && currentModel !== agentDefaultModel;
   const modelInfo = availableModels.find((m) => m.id === currentModel);
+  const modelLabel = modelInfo?.name || currentModel || 'Default Model';
   const safeMaxHeight = Math.max(dockHeight - 200, 120);
   const isMobile =
     typeof window !== 'undefined' &&
@@ -271,7 +272,7 @@ export function ChatInputArea({
                 : 'Click to change model'
           }
         >
-          {modelInfo?.name || 'Default Model'}
+          {modelLabel}
         </button>
         {conversationId && (
           <ContextPercentage

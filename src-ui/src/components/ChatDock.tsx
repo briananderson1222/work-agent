@@ -97,6 +97,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     activeSession,
     activeSessionForHook,
     agentDefaultModelId,
+    bindingModelsScoped,
     effectiveModels,
     executionSummary,
     gitStatus,
@@ -119,6 +120,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     agentSlug: activeSessionForHook?.agentSlug || null,
     conversationId: activeSessionForHook?.conversationId,
     availableModels: effectiveModels,
+    modelsAreBindingScoped: bindingModelsScoped,
     agentDefaultModel: agentDefaultModelId,
     onSessionMigrate: (newSessionId) => {
       setActiveSessionId(newSessionId);

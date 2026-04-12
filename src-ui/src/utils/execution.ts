@@ -135,6 +135,52 @@ export function supportsProviderManagedBinding(
   return !agent.toolsConfig?.mcpServers?.length;
 }
 
+export function bindingHasModelCatalog({
+  agent,
+  chatState,
+  globalModelCount,
+}: {
+  agent:
+    | (AgentWithExecution & { modelOptions?: Array<unknown> | null })
+    | null
+    | undefined;
+  chatState?: ChatBindingState | null;
+  globalModelCount: number;
+}): boolean {
+  if ((agent?.modelOptions?.length ?? 0) > 0) {
+    return true;
+  }
+
+  if (chatState?.executionMode === 'provider-managed') {
+    return false;
+  }
+
+  return globalModelCount > 0;
+}
+
+export function bindingUsesGlobalModelCatalog({
+  agent,
+  chatState,
+}: {
+  agent: AgentWithExecution | null | undefined;
+  chatState?: ChatBindingState | null;
+}): boolean {
+  const runtimeConnectionId =
+    chatState?.runtimeConnectionId ??
+    agent?.execution?.runtimeConnectionId ??
+    null;
+  const activeProvider =
+    chatState?.orchestrationProvider ??
+    chatState?.provider ??
+    runtimeConnectionIdToProviderKind(runtimeConnectionId);
+
+  if (chatState?.executionMode === 'provider-managed') {
+    return false;
+  }
+
+  return !activeProvider || activeProvider === 'bedrock';
+}
+
 export function resolveEffectiveCapabilityState({
   agent,
   chatState,
@@ -167,8 +213,8 @@ export function resolveEffectiveCapabilityState({
       system_prompt: true,
       mcp: false,
       tool_execution: false,
-      model_catalog: false,
-      model_selection: false,
+      model_catalog: hasModelCatalog,
+      model_selection: hasModelCatalog,
     };
   }
 
@@ -415,26 +461,44 @@ function resolveProviderManagedExecution(
   },
   modelConnections: ConnectionConfig[],
 ): ChatExecutionMetadata | null {
-  if (!target.defaultModel) {
-    return null;
-  }
   const enabledLlmConnections = modelConnections.filter(
     (connection) =>
       connection.kind === 'model' &&
       connection.enabled &&
+      connection.status === 'ready' &&
       connection.capabilities.includes('llm') &&
       connection.type !== 'bedrock',
   );
+  const explicitProviderConnection = target.defaultProviderId
+    ? enabledLlmConnections.find(
+        (connection) => connection.id === target.defaultProviderId,
+      )
+    : undefined;
   const providerConnection =
-    (target.defaultProviderId
-      ? enabledLlmConnections.find(
-          (connection) => connection.id === target.defaultProviderId,
-        )
-      : undefined) ??
+    explicitProviderConnection ??
     (target.allowSingleProviderFallback && enabledLlmConnections.length === 1
       ? enabledLlmConnections[0]
       : null);
   if (!providerConnection) {
+    return null;
+  }
+  const providerDefaultModel =
+    typeof providerConnection.config.defaultModel === 'string'
+      ? providerConnection.config.defaultModel
+      : null;
+  const providerModelOptions = Array.isArray(
+    providerConnection.config.modelOptions,
+  )
+    ? (providerConnection.config.modelOptions as Array<{ id: string }>)
+    : [];
+  const targetModelIsSupported =
+    !!target.defaultModel &&
+    (providerModelOptions.length === 0 ||
+      providerModelOptions.some((model) => model.id === target.defaultModel));
+  const resolvedModel = targetModelIsSupported
+    ? target.defaultModel
+    : (providerDefaultModel ?? providerModelOptions[0]?.id ?? null);
+  if (!resolvedModel) {
     return null;
   }
   return {
@@ -442,7 +506,7 @@ function resolveProviderManagedExecution(
     executionScope: target.executionScope,
     provider: providerConnection.type,
     providerId: providerConnection.id,
-    model: target.defaultModel,
+    model: resolvedModel,
     providerOptions: {},
   };
 }
@@ -469,6 +533,13 @@ export function buildRuntimeChatAgent(
           ? connection.config.defaultModel
           : null,
     },
+    modelOptions: Array.isArray(connection.config.modelOptions)
+      ? (connection.config.modelOptions as Array<{
+          id: string;
+          name: string;
+          originalId: string;
+        }>)
+      : null,
   };
 }
 

@@ -113,6 +113,7 @@ export function useSendMessage(
               providerManagedFallback: true,
               executionScope: currentState?.executionScope,
               providerId: currentState?.providerId,
+              providerModel: currentState?.model,
             }
           : undefined;
         const provider = isProviderManaged

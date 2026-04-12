@@ -53,4 +53,11 @@ export interface ProviderAdapterShape {
       passthrough: boolean;
     }>
   >;
+  listModels?(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      originalId: string;
+    }>
+  >;
 }

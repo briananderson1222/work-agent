@@ -1,7 +1,16 @@
 import { describe, expect, test, vi } from 'vitest';
 
 vi.mock('../../providers/connection-factories.js', () => ({
-  createLLMProvider: vi.fn(() => null),
+  createLLMProvider: vi.fn((connection: any) =>
+    connection.type === 'openai-compat'
+      ? {
+          listModels: vi.fn(async () => [
+            { id: 'gpt-4.1', name: 'gpt-4.1' },
+            { id: 'gpt-4o-mini', name: 'gpt-4o-mini' },
+          ]),
+        }
+      : null,
+  ),
   createEmbeddingProvider: vi.fn(() => null),
   createVectorDbProvider: vi.fn(() => null),
 }));
@@ -159,6 +168,44 @@ describe('ConnectionService', () => {
     expect(providerService.deleteProviderConnection).toHaveBeenCalledWith(
       'openai-compat',
     );
+  });
+
+  test('lists model connection catalogs when the provider can enumerate models', async () => {
+    const providerService = {
+      listProviderConnections: vi.fn(() => [
+        {
+          id: 'openai-compat',
+          type: 'openai-compat',
+          name: 'OpenAI Compat',
+          config: { baseUrl: 'https://example.com' },
+          enabled: true,
+          capabilities: ['llm'],
+        },
+      ]),
+      saveProviderConnection: vi.fn(),
+      deleteProviderConnection: vi.fn(),
+      checkHealth: vi.fn().mockResolvedValue(true),
+    };
+    const service = new ConnectionService(
+      providerService as any,
+      () => [],
+      async () => [],
+      () => ({ connections: [] }),
+      async () => ({ defaultModel: 'gpt-4.1' }) as any,
+      vi.fn(async (updates: any) => updates),
+    );
+
+    const [connection] = await service.listModelConnections();
+    expect(connection?.config).toMatchObject({
+      modelOptions: [
+        { id: 'gpt-4.1', name: 'gpt-4.1', originalId: 'gpt-4.1' },
+        {
+          id: 'gpt-4o-mini',
+          name: 'gpt-4o-mini',
+          originalId: 'gpt-4o-mini',
+        },
+      ],
+    });
   });
 
   test('saves and resets runtime connection overrides through app config', async () => {

@@ -7,6 +7,7 @@ import {
   query,
   type SDKMessage,
 } from '@anthropic-ai/claude-agent-sdk';
+import Anthropic from '@anthropic-ai/sdk';
 import type { CanonicalRuntimeEvent } from '@stallion-ai/contracts/runtime-events';
 import type { Prerequisite } from '@stallion-ai/contracts/tool';
 import type {
@@ -258,6 +259,31 @@ export class ClaudeAdapter implements ProviderAdapterShape {
       installStep: 'Install the Claude CLI and ensure `claude` is on PATH.',
       authStep: 'Run `claude auth login` before starting Stallion.',
     });
+  }
+
+  async listModels(): Promise<
+    Array<{
+      id: string;
+      name: string;
+      originalId: string;
+    }>
+  > {
+    const apiKey = process.env.ANTHROPIC_API_KEY?.trim() || null;
+    const authToken = process.env.ANTHROPIC_AUTH_TOKEN?.trim() || null;
+    if (!apiKey && !authToken) {
+      return [];
+    }
+
+    const client = new Anthropic({
+      apiKey,
+      authToken,
+    });
+    const page = await client.models.list({ limit: 100 });
+    return (page.data ?? []).map((model) => ({
+      id: model.id,
+      name: model.display_name || model.id,
+      originalId: model.id,
+    }));
   }
 
   async getCommands() {
