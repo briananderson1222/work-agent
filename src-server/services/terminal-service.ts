@@ -1,4 +1,5 @@
-import { execSync } from 'node:child_process';
+import { resolveTerminalShellCandidates } from './terminal-shells.js';
+import { pollTerminalSubprocessActivity } from './terminal-subprocess-state.js';
 import type { IPtyAdapter, IPtyProcess } from '../domain/pty-adapter.js';
 import type { ITerminalHistoryStore } from '../domain/terminal-history-store.js';
 import type {
@@ -17,12 +18,6 @@ type SessionEntry = TerminalSessionState & {
   unsubData: (() => void) | null;
   unsubExit: (() => void) | null;
 };
-
-interface ShellCandidate {
-  shell: string;
-  args?: string[];
-}
-
 export class TerminalService {
   private sessions = new Map<string, SessionEntry>();
   private listeners = new Set<(event: TerminalEvent) => void>();
@@ -76,7 +71,11 @@ export class TerminalService {
     const env = { ...process.env, ...input.env, TERM: 'xterm-256color' };
     const candidates = input.shell
       ? [{ shell: input.shell, args: input.shellArgs }]
-      : this.resolveShell();
+      : resolveTerminalShellCandidates({
+          configuredShell: this.getTerminalShell?.(),
+          platform: process.platform,
+          env: process.env,
+        });
     let proc: IPtyProcess | null = null;
 
     for (const candidate of candidates) {
@@ -227,78 +226,14 @@ export class TerminalService {
     if (entry) await this.historyStore.save(sessionId, entry.history);
   }
 
-  private resolveShell(): ShellCandidate[] {
-    const candidates: ShellCandidate[] = [];
-    const configured = this.getTerminalShell?.();
-    if (configured) candidates.push({ shell: configured });
-    if (process.env.SHELL) candidates.push({ shell: process.env.SHELL });
-    if (process.platform === 'win32') {
-      if (process.env.COMSPEC) candidates.push({ shell: process.env.COMSPEC });
-      candidates.push(
-        { shell: 'C:\\Program Files\\Git\\bin\\bash.exe' },
-        { shell: 'C:\\Program Files (x86)\\Git\\bin\\bash.exe' },
-        { shell: 'C:\\cygwin64\\bin\\bash.exe' },
-        { shell: 'C:\\cygwin\\bin\\bash.exe' },
-        { shell: 'powershell.exe' },
-        { shell: 'cmd.exe' },
-      );
-    } else {
-      candidates.push(
-        { shell: '/bin/zsh', args: ['-o', 'nopromptsp'] },
-        { shell: '/bin/bash' },
-        { shell: '/bin/sh' },
-      );
-    }
-    return candidates;
-  }
 
   private pollSubprocesses(): void {
     for (const [sessionId, entry] of this.sessions) {
-      if (entry.status !== 'running' || entry.pid == null) continue;
-      try {
-        // Skip subprocess polling on Windows to avoid terminal popups
-        // The node-pty adapter already handles child process lifecycle
-        if (process.platform === 'win32') {
-          // On Windows, use PowerShell Get-Process (no visible window)
-          const psResult = execSync(
-            `powershell -NoProfile -Command "Get-Process -Id ${entry.pid} -ErrorAction SilentlyContinue"`,
-            { stdio: 'pipe' },
-          );
-          const hasChildProcess = psResult.toString().trim().length > 0;
-          if (!entry.hasRunningSubprocess && hasChildProcess) {
-            entry.hasRunningSubprocess = true;
-            this.emit({
-              type: 'activity',
-              sessionId,
-              hasRunningSubprocess: true,
-            });
-          }
-        } else {
-          execSync(`pgrep -P ${entry.pid}`, { stdio: 'ignore' });
-          if (!entry.hasRunningSubprocess) {
-            entry.hasRunningSubprocess = true;
-            this.emit({
-              type: 'activity',
-              sessionId,
-              hasRunningSubprocess: true,
-            });
-          }
-        }
-      } catch (e) {
-        console.debug(
-          'Failed to poll subprocesses for terminal session:',
-          sessionId,
-          e,
-        );
-        if (entry.hasRunningSubprocess) {
-          entry.hasRunningSubprocess = false;
-          this.emit({
-            type: 'activity',
-            sessionId,
-            hasRunningSubprocess: false,
-          });
-        }
-      }
+      pollTerminalSubprocessActivity({
+        sessionId,
+        entry,
+        emit: (event) => this.emit(event),
+      });
     }
   }
 }

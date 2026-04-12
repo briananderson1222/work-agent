@@ -128,6 +128,58 @@ for (const relativePath of [
   }
 }
 
+const terminalService = readFileSync(
+  new URL('../src-server/services/terminal-service.ts', import.meta.url),
+  'utf8',
+);
+if (!terminalService.includes('./terminal-shells')) {
+  errors.push('TerminalService must delegate shell resolution to terminal-shells.ts.');
+}
+if (!terminalService.includes('./terminal-subprocess-state')) {
+  errors.push('TerminalService must delegate subprocess polling to terminal-subprocess-state.ts.');
+}
+for (const retiredInlineTerminalSnippet of [
+  'interface ShellCandidate {',
+  'private resolveShell()',
+  "{ shell: '/bin/zsh', args: ['-o', 'nopromptsp'] }",
+  "`powershell -NoProfile -Command \"Get-Process -Id ${entry.pid} -ErrorAction SilentlyContinue\"`",
+  "`pgrep -P ${entry.pid}`",
+]) {
+  if (terminalService.includes(retiredInlineTerminalSnippet)) {
+    errors.push(`TerminalService must not inline terminal shell resolution helper ${retiredInlineTerminalSnippet}.`);
+  }
+}
+
+const terminalShells = readFileSync(
+  new URL('../src-server/services/terminal-shells.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredTerminalShellHelper of [
+  'export interface ShellCandidate',
+  'export function resolveTerminalShellCandidates',
+  "{ shell: '/bin/zsh', args: ['-o', 'nopromptsp'] }",
+]) {
+  if (!terminalShells.includes(requiredTerminalShellHelper)) {
+    errors.push(`terminal-shells.ts must include ${requiredTerminalShellHelper}.`);
+  }
+}
+
+const terminalSubprocessState = readFileSync(
+  new URL('../src-server/services/terminal-subprocess-state.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredTerminalHelper of [
+  'export function pollTerminalSubprocessActivity',
+  'function detectWindowsSubprocesses',
+  'function detectUnixSubprocesses',
+  "Get-Process -Id ${pid}",
+  'pgrep -P ${pid}',
+]) {
+  if (!terminalSubprocessState.includes(requiredTerminalHelper)) {
+    errors.push(`terminal-subprocess-state.ts must include ${requiredTerminalHelper}.`);
+  }
+}
+
 const toolManagementView = readFileSync(
   new URL('../src-ui/src/views/ToolManagementView.tsx', import.meta.url),
   'utf8',
