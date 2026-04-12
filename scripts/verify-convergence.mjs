@@ -4173,6 +4173,36 @@ if (voiceSession.includes('/api/voice/sessions')) {
 if (!voiceSession.includes('createVoiceSession')) {
   errors.push('useVoiceSession must use createVoiceSession.');
 }
+if (!voiceSession.includes('./voiceSessionAudio')) {
+  errors.push('useVoiceSession must delegate audio codec helpers to voiceSessionAudio.ts.');
+}
+for (const retiredVoiceSnippet of [
+  'function float32ToInt16(',
+  'function downsample(',
+  'function int16ToFloat32(',
+  'function base64ToInt16(',
+  'function int16ToBase64(',
+]) {
+  if (voiceSession.includes(retiredVoiceSnippet)) {
+    errors.push(`useVoiceSession must not inline extracted audio helper ${retiredVoiceSnippet}.`);
+  }
+}
+
+const voiceSessionAudio = readFileSync(
+  new URL('../src-ui/src/hooks/voiceSessionAudio.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredVoiceHelper of [
+  'export function float32ToInt16',
+  'export function downsample',
+  'export function int16ToFloat32',
+  'export function base64ToInt16',
+  'export function int16ToBase64',
+]) {
+  if (!voiceSessionAudio.includes(requiredVoiceHelper)) {
+    errors.push(`voiceSessionAudio.ts must include ${requiredVoiceHelper}.`);
+  }
+}
 
 const newChatModal = readFileSync(
   new URL('../src-ui/src/components/NewChatModal.tsx', import.meta.url),
