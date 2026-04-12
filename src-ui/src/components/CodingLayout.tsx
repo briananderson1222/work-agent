@@ -1,15 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   type ACPConnectionInfo,
   useACPConnections,
 } from '../hooks/useACPConnections';
+import { useNavigation } from '../contexts/NavigationContext';
 import { useDockModePreference } from '../hooks/useDockModePreference';
+import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import './CodingLayout.css';
 import { CodingTerminalPanel } from './coding-layout/CodingTerminalPanel';
 import { DiffPanel } from './coding-layout/DiffPanel';
 import { FileContentViewer } from './coding-layout/FileContentViewer';
 import { FileTreePanel } from './coding-layout/FileTreePanel';
 import { NewTerminalModal } from './coding-layout/NewTerminalModal';
+import { WorkflowPlanPanel, deriveWorkflowPlanArtifact } from './WorkflowPlanPanel';
 import type { TerminalTab } from './coding-layout/types';
 
 // ─── CodingLayout ─────────────────────────────────────────────────────────────
@@ -30,6 +33,32 @@ export function CodingLayout({
 }) {
   const workingDir = (config.workingDirectory as string | undefined) ?? '';
   const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const { activeChat } = useNavigation();
+  const projectSessions = useDerivedSessions('', null, _projectSlug);
+
+  const planSession = useMemo(() => {
+    if (projectSessions.length === 0) {
+      return null;
+    }
+
+    const activeSession = projectSessions.find(
+      (session) => session.conversationId && session.conversationId === activeChat,
+    );
+    if (activeSession) {
+      return activeSession;
+    }
+
+    return [...projectSessions].sort((left, right) => {
+      const leftLastMessage = left.messages[left.messages.length - 1]?.timestamp || 0;
+      const rightLastMessage = right.messages[right.messages.length - 1]?.timestamp || 0;
+      return rightLastMessage - leftLastMessage;
+    })[0] || null;
+  }, [activeChat, projectSessions]);
+
+  const planArtifact = useMemo(
+    () => deriveWorkflowPlanArtifact(planSession?.messages || []),
+    [planSession],
+  );
 
   // Dock mode preference — coding layout defaults to right-split
   useDockModePreference('coding', 'right');
@@ -250,15 +279,21 @@ export function CodingLayout({
       </div>
 
       {/* Diff / File Content Panel */}
-      <div className="coding-layout__main">
-        {selectedFile ? (
-          <FileContentViewer
-            filePath={selectedFile}
-            onClose={() => setSelectedFile(null)}
-          />
-        ) : (
-          <DiffPanel workingDir={workingDir} />
-        )}
+      <div className="coding-layout__workspace">
+        <div className="coding-layout__main">
+          {selectedFile ? (
+            <FileContentViewer
+              filePath={selectedFile}
+              onClose={() => setSelectedFile(null)}
+            />
+          ) : (
+            <DiffPanel workingDir={workingDir} />
+          )}
+        </div>
+        <WorkflowPlanPanel
+          artifact={planArtifact}
+          sessionTitle={planSession?.title ?? null}
+        />
       </div>
 
       {/* Terminal */}
