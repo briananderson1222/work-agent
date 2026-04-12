@@ -1,5 +1,6 @@
 import { activeChatsStore } from '../../contexts/active-chats-store';
 import { buildAssistantTurnContent } from './messageParts';
+import { deriveLatestPlanArtifactFromMessages } from '../../utils/planArtifacts';
 
 export function finalizeAssistantTurn(threadId: string, fallbackText?: string) {
   const chat = activeChatsStore.getSnapshot()[threadId];
@@ -26,6 +27,16 @@ export function finalizeAssistantTurn(threadId: string, fallbackText?: string) {
         contentParts: streamingMessage?.contentParts,
       },
     ],
+    planArtifact: deriveLatestPlanArtifactFromMessages(
+      [
+        ...(chat.messages || []),
+        {
+          role: 'assistant',
+          content,
+          contentParts: streamingMessage?.contentParts,
+        },
+      ] as any,
+    ),
     streamingMessage: undefined,
     status: 'idle',
     isProcessingStep: false,

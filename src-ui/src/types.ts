@@ -5,6 +5,7 @@ import type {
 } from '@stallion-ai/contracts/agent';
 import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import type { UIBlock } from '@stallion-ai/contracts/ui-block';
+import type { PlanArtifact } from './utils/planArtifacts';
 
 export type {
   LayoutAction,
@@ -117,6 +118,8 @@ export interface ChatSession {
   executionScope?: 'project' | 'global';
   runtimeConnectionId?: string;
   providerId?: string;
+  currentModeId?: string | null;
+  planArtifact?: PlanArtifact | null;
 }
 
 export interface Tool {

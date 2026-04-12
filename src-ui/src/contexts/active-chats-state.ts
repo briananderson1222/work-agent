@@ -1,6 +1,7 @@
 import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import type { UIBlock } from '@stallion-ai/contracts/ui-block';
 import type { FileAttachment } from '../types';
+import type { PlanArtifact } from '../utils/planArtifacts';
 
 export type ChatRole = 'user' | 'assistant' | 'system';
 
@@ -84,6 +85,8 @@ export type ChatUIState = {
   pendingApprovals?: string[];
   approvalToasts?: Map<string, string>;
   isEditingQueue?: boolean;
+  currentModeId?: string | null;
+  planArtifact?: PlanArtifact | null;
 };
 
 export type ActiveChatsMap = Record<string, ChatUIState>;
@@ -102,6 +105,8 @@ export type ActiveChatMetadata = {
   provider?: ProviderKind;
   model?: string;
   providerOptions?: Record<string, unknown>;
+  currentModeId?: string | null;
+  planArtifact?: PlanArtifact | null;
 };
 
 export type PersistedActiveChat = {
@@ -124,6 +129,8 @@ export type PersistedActiveChat = {
   sessionAutoApprove?: string[];
   ephemeralMessages?: EphemeralMessage[];
   inputHistory?: string[];
+  currentModeId?: string | null;
+  planArtifact?: PlanArtifact | null;
 };
 
 export type BackendTimestampMessage = {
@@ -203,6 +210,8 @@ export function hydrateActiveChats(
       orchestrationStatus: session.orchestrationStatus,
       sessionAutoApprove: session.sessionAutoApprove || [],
       ephemeralMessages: session.ephemeralMessages || [],
+      currentModeId: session.currentModeId,
+      planArtifact: session.planArtifact || null,
     };
   }
   return chats;
@@ -233,6 +242,8 @@ export function serializeActiveChats(
       sessionAutoApprove: chat.sessionAutoApprove || [],
       ephemeralMessages: chat.ephemeralMessages || [],
       inputHistory: chat.inputHistory || [],
+      currentModeId: chat.currentModeId,
+      planArtifact: chat.planArtifact || null,
     }));
 }
 
@@ -259,7 +270,9 @@ export function mergeChatUpdates(
     'providerOptions' in nextUpdates ||
     'orchestrationSessionStarted' in nextUpdates ||
     'sessionAutoApprove' in nextUpdates ||
-    'ephemeralMessages' in nextUpdates;
+    'ephemeralMessages' in nextUpdates ||
+    'currentModeId' in nextUpdates ||
+    'planArtifact' in nextUpdates;
   return { chat, shouldPersist };
 }
 
