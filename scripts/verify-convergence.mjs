@@ -3323,8 +3323,10 @@ const sdkApiKnowledge = readFileSync(
   new URL('../packages/sdk/src/api-knowledge.ts', import.meta.url),
   'utf8',
 );
+if (!sdkApiKnowledge.includes("./api-knowledge-utils")) {
+  errors.push('packages/sdk/src/api-knowledge.ts must delegate shared request helpers to api-knowledge-utils.ts.');
+}
 for (const requiredHelper of [
-  'function knowledgeBase(',
   'export async function fetchKnowledgeNamespaces',
   'export async function fetchKnowledgeDocs',
   'export async function searchKnowledge',
@@ -3344,6 +3346,33 @@ for (const requiredHelper of [
 ]) {
   if (!sdkApiKnowledge.includes(requiredHelper)) {
     errors.push(`packages/sdk/src/api-knowledge.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredInlineKnowledgeApiSnippet of [
+  'function knowledgeBase(',
+  'new URLSearchParams()',
+  "headers: getPluginHeaders({ 'Content-Type': 'application/json' })",
+]) {
+  if (sdkApiKnowledge.includes(retiredInlineKnowledgeApiSnippet)) {
+    errors.push(
+      `packages/sdk/src/api-knowledge.ts must not inline extracted knowledge API helper ${retiredInlineKnowledgeApiSnippet}.`,
+    );
+  }
+}
+
+const sdkApiKnowledgeUtils = readFileSync(
+  new URL('../packages/sdk/src/api-knowledge-utils.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function knowledgeBase',
+  'export async function requestKnowledgeJson',
+  'export function buildKnowledgeFilterQuery',
+  'new URLSearchParams()',
+  "headers: getPluginHeaders(",
+]) {
+  if (!sdkApiKnowledgeUtils.includes(requiredHelper)) {
+    errors.push(`packages/sdk/src/api-knowledge-utils.ts must include ${requiredHelper}.`);
   }
 }
 
