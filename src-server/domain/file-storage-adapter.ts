@@ -18,9 +18,17 @@ import type {
 } from '@stallion-ai/contracts/project';
 import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 import {
-  listProjectSlugs,
+  buildLayoutAgentReferences,
+  deleteProjectScopedRecord,
+  deleteStoredRecord,
+  findStoredRecordAcrossProjects,
+  listSortedConversations,
+  listStoredRecords,
+  saveProjectScopedRecord,
+  saveStoredRecord,
+} from './file-storage-records.js';
+import {
   readJsonFile,
-  resolveProjectSlugById,
   writeJsonFile,
 } from './file-storage-helpers.js';
 import type {
@@ -159,46 +167,12 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   findLayoutsUsingAgent(agentSlug: string): LayoutAgentReference[] {
-    const references: LayoutAgentReference[] = [];
-
-    for (const project of this.listProjects()) {
-      for (const layout of this.listLayouts(project.slug)) {
-        const config = this.getLayout(project.slug, layout.slug).config as {
-          tabs?: Array<{
-            prompts?: Array<{ agent?: string }>;
-            actions?: Array<{ agent?: string }>;
-          }>;
-          globalPrompts?: Array<{ agent?: string }>;
-          actions?: Array<{ agent?: string }>;
-          defaultAgent?: string;
-          availableAgents?: string[];
-        };
-
-        const tabs = config.tabs ?? [];
-        const isReferencedInTabs = tabs.some(
-          (tab) =>
-            (tab.prompts ?? []).some((prompt) => prompt.agent === agentSlug) ||
-            (tab.actions ?? []).some((action) => action.agent === agentSlug),
-        );
-        const isReferencedGlobally =
-          (config.globalPrompts ?? []).some(
-            (prompt) => prompt.agent === agentSlug,
-          ) ||
-          (config.actions ?? []).some((action) => action.agent === agentSlug);
-        const isConfiguredAgent =
-          config.defaultAgent === agentSlug ||
-          (config.availableAgents ?? []).includes(agentSlug);
-
-        if (isReferencedInTabs || isReferencedGlobally || isConfiguredAgent) {
-          references.push({
-            projectSlug: project.slug,
-            layoutSlug: layout.slug,
-          });
-        }
-      }
-    }
-
-    return references;
+    return buildLayoutAgentReferences(
+      this.listProjects(),
+      (projectSlug) => this.listLayouts(projectSlug),
+      (projectSlug, layoutSlug) => this.getLayout(projectSlug, layoutSlug),
+      agentSlug,
+    );
   }
 
   private get providersPath(): string {
@@ -248,64 +222,35 @@ export class FileStorageAdapter implements IStorageAdapter {
     );
   }
 
-  private readConversations(projectSlug: string): ConversationRecord[] {
-    return readJsonFile(this.conversationsFile(projectSlug), []);
-  }
-
-  private writeConversations(
-    projectSlug: string,
-    records: ConversationRecord[],
-  ): void {
-    writeJsonFile(this.conversationsFile(projectSlug), records);
-  }
-
   listConversations(
     projectSlug: string,
     opts?: { limit?: number; offset?: number },
   ): ConversationRecord[] {
-    let records = this.readConversations(projectSlug);
-    records.sort((left, right) =>
-      right.updatedAt.localeCompare(left.updatedAt),
-    );
-    if (opts?.offset) records = records.slice(opts.offset);
-    if (opts?.limit) records = records.slice(0, opts.limit);
-    return records;
+    return listSortedConversations(this.conversationsFile(projectSlug), opts);
   }
 
   getConversation(id: string): ConversationRecord | null {
-    for (const slug of listProjectSlugs(this.projectHomeDir)) {
-      const found = this.readConversations(slug).find(
-        (conversation) => conversation.id === id,
-      );
-      if (found) return found;
-    }
-    return null;
+    return findStoredRecordAcrossProjects(
+      this.projectHomeDir,
+      (projectSlug) => this.conversationsFile(projectSlug),
+      id,
+    );
   }
 
   saveConversation(record: ConversationRecord): void {
-    const projectSlug = resolveProjectSlugById(
+    saveProjectScopedRecord(
       this.projectHomeDir,
-      record.projectId,
+      (projectSlug) => this.conversationsFile(projectSlug),
+      record,
     );
-    const records = this.readConversations(projectSlug);
-    const index = records.findIndex(
-      (conversation) => conversation.id === record.id,
-    );
-    if (index >= 0) records[index] = record;
-    else records.push(record);
-    this.writeConversations(projectSlug, records);
   }
 
   deleteConversation(id: string): void {
-    for (const slug of listProjectSlugs(this.projectHomeDir)) {
-      const records = this.readConversations(slug);
-      const index = records.findIndex((conversation) => conversation.id === id);
-      if (index >= 0) {
-        records.splice(index, 1);
-        this.writeConversations(slug, records);
-        return;
-      }
-    }
+    deleteProjectScopedRecord<ConversationRecord>(
+      this.projectHomeDir,
+      (projectSlug) => this.conversationsFile(projectSlug),
+      id,
+    );
   }
 
   private documentsFile(projectSlug: string): string {
@@ -318,85 +263,55 @@ export class FileStorageAdapter implements IStorageAdapter {
     );
   }
 
-  private readDocuments(projectSlug: string): DocumentRecord[] {
-    return readJsonFile(this.documentsFile(projectSlug), []);
-  }
-
-  private writeDocuments(projectSlug: string, records: DocumentRecord[]): void {
-    writeJsonFile(this.documentsFile(projectSlug), records);
-  }
-
   listDocuments(projectSlug: string): DocumentRecord[] {
-    return this.readDocuments(projectSlug);
+    return listStoredRecords(this.documentsFile(projectSlug), []);
   }
 
   getDocument(id: string): DocumentRecord | null {
-    for (const slug of listProjectSlugs(this.projectHomeDir)) {
-      const found = this.readDocuments(slug).find(
-        (document) => document.id === id,
-      );
-      if (found) return found;
-    }
-    return null;
+    return findStoredRecordAcrossProjects(
+      this.projectHomeDir,
+      (projectSlug) => this.documentsFile(projectSlug),
+      id,
+    );
   }
 
   saveDocument(record: DocumentRecord): void {
-    const projectSlug = resolveProjectSlugById(
+    saveProjectScopedRecord(
       this.projectHomeDir,
-      record.projectId,
+      (projectSlug) => this.documentsFile(projectSlug),
+      record,
     );
-    const records = this.readDocuments(projectSlug);
-    const index = records.findIndex((document) => document.id === record.id);
-    if (index >= 0) records[index] = record;
-    else records.push(record);
-    this.writeDocuments(projectSlug, records);
   }
 
   deleteDocument(id: string): void {
-    for (const slug of listProjectSlugs(this.projectHomeDir)) {
-      const records = this.readDocuments(slug);
-      const index = records.findIndex((document) => document.id === id);
-      if (index >= 0) {
-        records.splice(index, 1);
-        this.writeDocuments(slug, records);
-        return;
-      }
-    }
+    deleteProjectScopedRecord<DocumentRecord>(
+      this.projectHomeDir,
+      (projectSlug) => this.documentsFile(projectSlug),
+      id,
+    );
   }
 
   private get templatesPath(): string {
     return join(this.projectHomeDir, 'config', 'templates.json');
   }
 
-  private readTemplates(): LayoutTemplate[] {
-    return readJsonFile(this.templatesPath, []);
-  }
-
-  private writeTemplates(templates: LayoutTemplate[]): void {
-    writeJsonFile(this.templatesPath, templates);
-  }
-
   listTemplates(): LayoutTemplate[] {
-    return this.readTemplates();
+    return listStoredRecords(this.templatesPath, []);
   }
 
   getTemplate(id: string): LayoutTemplate | null {
-    return this.readTemplates().find((template) => template.id === id) ?? null;
+    return listStoredRecords<LayoutTemplate>(this.templatesPath).find(
+      (template) => template.id === id,
+    ) ?? null;
   }
 
   saveTemplate(template: LayoutTemplate): void {
-    const templates = this.readTemplates();
-    const index = templates.findIndex((entry) => entry.id === template.id);
-    if (index >= 0) templates[index] = template;
-    else templates.push(template);
-    this.writeTemplates(templates);
+    saveStoredRecord(this.templatesPath, template);
   }
 
   deleteTemplate(id: string): void {
-    const templates = this.readTemplates();
-    const index = templates.findIndex((template) => template.id === id);
-    if (index < 0) throw new Error(`Template '${id}' not found`);
-    templates.splice(index, 1);
-    this.writeTemplates(templates);
+    if (!deleteStoredRecord<LayoutTemplate>(this.templatesPath, id)) {
+      throw new Error(`Template '${id}' not found`);
+    }
   }
 }

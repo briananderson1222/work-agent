@@ -3233,10 +3233,16 @@ const fileStorageAdapter = readFileSync(
 if (!fileStorageAdapter.includes("./file-storage-helpers.js")) {
   errors.push('file-storage-adapter.ts must delegate shared filesystem helpers to file-storage-helpers.ts.');
 }
+if (!fileStorageAdapter.includes('./file-storage-records.js')) {
+  errors.push('file-storage-adapter.ts must delegate collection CRUD helpers to file-storage-records.ts.');
+}
 for (const retiredInlineStorageSnippet of [
   'throw new Error(`Project not found for id: ${record.projectId}`);',
   "return JSON.parse(readFileSync(f, 'utf-8'));",
   "writeFileSync(f, JSON.stringify(records, null, 2), 'utf-8');",
+  'records.sort((left, right) =>',
+  'const found = this.readConversations(slug).find(',
+  'const found = this.readDocuments(slug).find(',
 ]) {
   if (fileStorageAdapter.includes(retiredInlineStorageSnippet)) {
     errors.push(`file-storage-adapter.ts must not inline extracted storage helper ${retiredInlineStorageSnippet}.`);
@@ -3255,6 +3261,25 @@ for (const requiredHelper of [
 ]) {
   if (!fileStorageHelpers.includes(requiredHelper)) {
     errors.push(`file-storage-helpers.ts must include ${requiredHelper}.`);
+  }
+}
+
+const fileStorageRecords = readFileSync(
+  new URL('../src-server/domain/file-storage-records.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function listStoredRecords',
+  'export function saveStoredRecord',
+  'export function deleteStoredRecord',
+  'export function findStoredRecordAcrossProjects',
+  'export function saveProjectScopedRecord',
+  'export function deleteProjectScopedRecord',
+  'export function listSortedConversations',
+  'export function buildLayoutAgentReferences',
+]) {
+  if (!fileStorageRecords.includes(requiredHelper)) {
+    errors.push(`file-storage-records.ts must include ${requiredHelper}.`);
   }
 }
 
