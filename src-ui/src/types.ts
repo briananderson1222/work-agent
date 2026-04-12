@@ -113,6 +113,10 @@ export interface ChatSession {
   projectSlug?: string;
   projectName?: string;
   focusDirectoryId?: string;
+  executionMode?: 'runtime' | 'provider-managed';
+  executionScope?: 'project' | 'global';
+  runtimeConnectionId?: string;
+  providerId?: string;
 }
 
 export interface Tool {

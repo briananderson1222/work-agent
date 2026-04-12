@@ -46,7 +46,9 @@ export async function requestKnowledgeJson<T>(
   return json.data as T;
 }
 
-export function buildKnowledgeFilterQuery(filters: Record<string, any>): string {
+export function buildKnowledgeFilterQuery(
+  filters: Record<string, any>,
+): string {
   const params = new URLSearchParams();
   if (filters.tags?.length) params.set('tags', filters.tags.join(','));
   if (filters.after) params.set('after', filters.after);

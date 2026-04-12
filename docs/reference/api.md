@@ -4,6 +4,7 @@ This document describes all REST API endpoints available in Stallion.
 
 **Base URL**: `http://localhost:3141`  
 **In-Use Endpoints**: See [endpoints.md](./endpoints.md) for which endpoints are actively used by the frontend
+**Generated OpenAPI**: See [openapi.json](./openapi.json) for the first-pass machine-readable spec
 
 ## Endpoint Legend
 

@@ -221,7 +221,9 @@ export async function runCli(argv: string[]): Promise<void> {
       const outputArg = args.find((arg) => arg.startsWith('--output='));
       const format = formatArg?.split('=')[1];
       if (!format) {
-        throw new Error('Usage: stallion export --format=<agents-md>');
+        throw new Error(
+          'Usage: stallion export --format=<agents-md|claude-desktop>',
+        );
       }
       exportConfig({
         format: format as 'agents-md' | 'claude-desktop',

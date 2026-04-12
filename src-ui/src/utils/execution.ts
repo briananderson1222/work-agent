@@ -97,6 +97,16 @@ type AgentWithExecution = {
   model?: string;
 };
 
+export type ChatExecutionMetadata = {
+  executionMode: 'runtime' | 'provider-managed';
+  executionScope?: 'project' | 'global';
+  runtimeConnectionId?: string;
+  provider?: ProviderKind;
+  providerId?: string;
+  model?: string;
+  providerOptions: Record<string, unknown>;
+};
+
 type SessionExecutionSummary = {
   provider?: ProviderKind | null;
   model?: string | null;
@@ -198,15 +208,38 @@ export function buildProviderOptions(
   return {};
 }
 
-export function resolveAgentExecution(agent: AgentWithExecution): {
-  runtimeConnectionId: string;
-  provider: ProviderKind;
-  model?: string;
-  providerOptions: Record<string, unknown>;
-} {
+export function resolveAgentExecution(
+  agent: AgentWithExecution,
+): ChatExecutionMetadata {
   const runtimeConnectionId =
     agent.execution?.runtimeConnectionId || 'bedrock-runtime';
+  const runtimeOptions = agent.execution?.runtimeOptions ?? {};
+  if (runtimeOptions.executionMode === 'provider-managed') {
+    return {
+      executionMode: 'provider-managed',
+      executionScope:
+        runtimeOptions.executionScope === 'project' ||
+        runtimeOptions.executionScope === 'global'
+          ? runtimeOptions.executionScope
+          : undefined,
+      runtimeConnectionId,
+      provider:
+        typeof runtimeOptions.providerKind === 'string'
+          ? runtimeOptions.providerKind
+          : undefined,
+      providerId:
+        typeof runtimeOptions.providerId === 'string'
+          ? runtimeOptions.providerId
+          : undefined,
+      model:
+        typeof runtimeOptions.displayModel === 'string'
+          ? runtimeOptions.displayModel
+          : agent.execution?.modelId || agent.model || undefined,
+      providerOptions: {},
+    };
+  }
   return {
+    executionMode: 'runtime',
     runtimeConnectionId,
     provider:
       runtimeConnectionIdToProviderKind(runtimeConnectionId) ?? 'bedrock',
@@ -253,6 +286,89 @@ export function canAgentStartChat(
     (candidate) => candidate.id === runtimeConnectionId,
   );
   return isRuntimeConnectionSelectable(connection);
+}
+
+export function resolveProjectProviderManagedExecution(
+  project:
+    | {
+        defaultProviderId?: string | null;
+        defaultModel?: string | null;
+      }
+    | null
+    | undefined,
+  modelConnections: ConnectionConfig[],
+): ChatExecutionMetadata | null {
+  return resolveProviderManagedExecution(
+    {
+      defaultProviderId: project?.defaultProviderId,
+      defaultModel: project?.defaultModel,
+      executionScope: 'project',
+      allowSingleProviderFallback: false,
+    },
+    modelConnections,
+  );
+}
+
+export function resolveGlobalProviderManagedExecution(
+  appConfig:
+    | {
+        defaultLLMProvider?: string | null;
+        defaultModel?: string | null;
+      }
+    | null
+    | undefined,
+  modelConnections: ConnectionConfig[],
+): ChatExecutionMetadata | null {
+  return resolveProviderManagedExecution(
+    {
+      defaultProviderId: appConfig?.defaultLLMProvider,
+      defaultModel: appConfig?.defaultModel,
+      executionScope: 'global',
+      allowSingleProviderFallback: true,
+    },
+    modelConnections,
+  );
+}
+
+function resolveProviderManagedExecution(
+  target: {
+    defaultProviderId?: string | null;
+    defaultModel?: string | null;
+    executionScope?: 'project' | 'global';
+    allowSingleProviderFallback: boolean;
+  },
+  modelConnections: ConnectionConfig[],
+): ChatExecutionMetadata | null {
+  if (!target.defaultModel) {
+    return null;
+  }
+  const enabledLlmConnections = modelConnections.filter(
+    (connection) =>
+      connection.kind === 'model' &&
+      connection.enabled &&
+      connection.capabilities.includes('llm') &&
+      connection.type !== 'bedrock',
+  );
+  const providerConnection =
+    (target.defaultProviderId
+      ? enabledLlmConnections.find(
+          (connection) => connection.id === target.defaultProviderId,
+        )
+      : undefined) ??
+    (target.allowSingleProviderFallback && enabledLlmConnections.length === 1
+      ? enabledLlmConnections[0]
+      : null);
+  if (!providerConnection) {
+    return null;
+  }
+  return {
+    executionMode: 'provider-managed',
+    executionScope: target.executionScope,
+    provider: providerConnection.type,
+    providerId: providerConnection.id,
+    model: target.defaultModel,
+    providerOptions: {},
+  };
 }
 
 export function buildRuntimeChatAgent(

@@ -17,6 +17,7 @@ import type {
   ProjectMetadata,
 } from '@stallion-ai/contracts/project';
 import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
+import { readJsonFile, writeJsonFile } from './file-storage-helpers.js';
 import {
   buildLayoutAgentReferences,
   deleteProjectScopedRecord,
@@ -27,10 +28,6 @@ import {
   saveProjectScopedRecord,
   saveStoredRecord,
 } from './file-storage-records.js';
-import {
-  readJsonFile,
-  writeJsonFile,
-} from './file-storage-helpers.js';
 import type {
   ConversationRecord,
   DocumentRecord,
@@ -300,9 +297,11 @@ export class FileStorageAdapter implements IStorageAdapter {
   }
 
   getTemplate(id: string): LayoutTemplate | null {
-    return listStoredRecords<LayoutTemplate>(this.templatesPath).find(
-      (template) => template.id === id,
-    ) ?? null;
+    return (
+      listStoredRecords<LayoutTemplate>(this.templatesPath).find(
+        (template) => template.id === id,
+      ) ?? null
+    );
   }
 
   saveTemplate(template: LayoutTemplate): void {

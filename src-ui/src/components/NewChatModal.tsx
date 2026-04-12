@@ -1,5 +1,6 @@
 import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import {
+  useModelConnectionsQuery,
   useProjectLayoutQuery,
   useProjectQuery,
   useRuntimeConnectionsQuery,
@@ -7,12 +8,17 @@ import {
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 import type { AgentData } from '../contexts/AgentsContext';
+import { useConfig } from '../contexts/ConfigContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { ProjectMetadata } from '../contexts/ProjectsContext';
 import {
   getRecentAgentSlugs,
   trackRecentAgent,
 } from '../hooks/useRecentAgents';
+import {
+  resolveGlobalProviderManagedExecution,
+  resolveProjectProviderManagedExecution,
+} from '../utils/execution';
 import { AgentIcon } from './AgentIcon';
 import {
   buildNewChatModalViewModel,
@@ -52,6 +58,7 @@ export function NewChatModal({
 
   const { selectedProject: activeLayoutProject, selectedProjectLayout } =
     useNavigation();
+  const appConfig = useConfig();
   const { data: layout } = useProjectLayoutQuery(
     activeLayoutProject || '',
     selectedProjectLayout || '',
@@ -60,6 +67,9 @@ export function NewChatModal({
     },
   );
   const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery() as {
+    data?: ConnectionConfig[];
+  };
+  const { data: modelConnections = [] } = useModelConnectionsQuery() as {
     data?: ConnectionConfig[];
   };
 
@@ -74,16 +84,64 @@ export function NewChatModal({
   ) as {
     data?: {
       agents?: string[];
+      defaultProviderId?: string;
+      defaultModel?: string;
     };
   };
   const projectAgentFilter = selectedProjectConfig?.agents;
+  const globalProviderManagedExecution = useMemo(
+    () => resolveGlobalProviderManagedExecution(appConfig, modelConnections),
+    [appConfig, modelConnections],
+  );
+  const providerManagedExecution = useMemo(
+    () =>
+      selectedProjectSlug
+        ? (resolveProjectProviderManagedExecution(
+            selectedProjectConfig,
+            modelConnections,
+          ) ?? globalProviderManagedExecution)
+        : globalProviderManagedExecution,
+    [
+      globalProviderManagedExecution,
+      modelConnections,
+      selectedProjectConfig,
+      selectedProjectSlug,
+    ],
+  );
+
+  const modalAgents = useMemo(() => {
+    if (!providerManagedExecution) {
+      return agents;
+    }
+    return agents.map((agent) =>
+      agent.slug === 'default'
+        ? {
+            ...agent,
+            execution: {
+              runtimeConnectionId:
+                agent.execution?.runtimeConnectionId || 'bedrock-runtime',
+              modelId: agent.execution?.modelId ?? null,
+              runtimeOptions: {
+                ...(agent.execution?.runtimeOptions ?? {}),
+                executionMode: 'provider-managed',
+                executionScope: providerManagedExecution.executionScope,
+                providerId: providerManagedExecution.providerId,
+                providerKind: providerManagedExecution.provider,
+                displayModel: providerManagedExecution.model,
+              },
+            },
+            model: providerManagedExecution.model,
+          }
+        : agent,
+    );
+  }, [agents, providerManagedExecution]);
 
   const activeChatsSnapshot = activeChatsStore.getSnapshot();
 
   const viewModel = useMemo(
     () =>
       buildNewChatModalViewModel({
-        agents,
+        agents: modalAgents,
         projects,
         runtimeConnections,
         selectedContext,
@@ -93,6 +151,7 @@ export function NewChatModal({
         layoutAvailableAgents: layout?.availableAgents || [],
         layoutName: layout?.name,
         layoutIcon: layout?.icon,
+        providerManagedAgentSlugs: providerManagedExecution ? ['default'] : [],
         recentSlugs: getRecentAgentSlugsForContext(
           activeChatsSnapshot,
           selectedContext,
@@ -102,13 +161,14 @@ export function NewChatModal({
     [
       activeChatsSnapshot,
       agentSearch,
-      agents,
+      modalAgents,
       contextSearch,
       layout?.availableAgents,
       layout?.icon,
       layout?.name,
       projectAgentFilter,
       projects,
+      providerManagedExecution,
       runtimeConnections,
       selectedContext,
     ],

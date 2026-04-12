@@ -130,14 +130,6 @@ describe('new-chat-modal-utils', () => {
           prerequisites: [],
         } as any,
       ],
-      activeChats: {
-        s1: {
-          agentSlug: 'alpha',
-          messages: [{}],
-          projectSlug: undefined,
-          lastActivity: 1000,
-        },
-      },
       selectedContext: GLOBAL_CONTEXT,
       contextSearch: '',
       agentSearch: '',
@@ -145,6 +137,7 @@ describe('new-chat-modal-utils', () => {
       layoutAvailableAgents: ['layout:beta'],
       layoutName: 'Workspace Layout',
       layoutIcon: '🧩',
+      providerManagedAgentSlugs: [],
       recentSlugs: ['alpha'],
     });
 
@@ -158,15 +151,228 @@ describe('new-chat-modal-utils', () => {
     expect(viewModel.filteredContextOptions).toHaveLength(2);
     expect(viewModel.groups.map((group) => group.label)).toEqual([
       'Recent',
-      'Runtime Chat',
       'Workspace Layout',
+      'Runtime Chat',
       'ACP One',
     ]);
     expect(viewModel.flatList.map((agent) => agent.slug)).toEqual([
       'alpha',
-      '__runtime:bedrock-runtime',
       'layout:beta',
+      '__runtime:bedrock-runtime',
       'acp:gamma',
+    ]);
+  });
+
+  test('dedupes runtime chat agents when agents already include matching runtime entries', () => {
+    const viewModel = buildNewChatModalViewModel({
+      agents: [
+        {
+          slug: '__runtime:claude-runtime',
+          name: 'Claude Runtime',
+          description: 'server-backed claude runtime row',
+          source: 'local',
+          execution: { runtimeConnectionId: 'claude-runtime' },
+        } as any,
+        {
+          slug: '__runtime:codex-runtime',
+          name: 'Codex Runtime',
+          description: 'server-backed codex runtime row',
+          source: 'local',
+          execution: { runtimeConnectionId: 'codex-runtime' },
+        } as any,
+        {
+          slug: 'stallion',
+          name: 'Stallion',
+          source: 'local',
+          execution: { runtimeConnectionId: 'bedrock-runtime' },
+        } as any,
+      ],
+      projects: [],
+      runtimeConnections: [
+        {
+          id: 'claude-runtime',
+          kind: 'runtime',
+          type: 'claude-runtime',
+          name: 'Claude Runtime',
+          description: 'connection-backed claude runtime row',
+          enabled: true,
+          capabilities: ['agent-runtime'],
+          config: {},
+          status: 'ready',
+          prerequisites: [],
+        } as any,
+        {
+          id: 'codex-runtime',
+          kind: 'runtime',
+          type: 'codex-runtime',
+          name: 'Codex Runtime',
+          description: 'connection-backed codex runtime row',
+          enabled: true,
+          capabilities: ['agent-runtime'],
+          config: {},
+          status: 'ready',
+          prerequisites: [],
+        } as any,
+        {
+          id: 'bedrock-runtime',
+          kind: 'runtime',
+          type: 'bedrock-runtime',
+          name: 'Bedrock Runtime',
+          enabled: true,
+          capabilities: ['agent-runtime'],
+          config: {},
+          status: 'ready',
+          prerequisites: [],
+        } as any,
+      ],
+      selectedContext: GLOBAL_CONTEXT,
+      contextSearch: '',
+      agentSearch: '',
+      selectedProjectAgentFilter: undefined,
+      layoutAvailableAgents: [],
+      layoutName: undefined,
+      layoutIcon: undefined,
+      providerManagedAgentSlugs: [],
+      recentSlugs: [],
+    });
+
+    const runtimeGroup = viewModel.groups.find(
+      (group) => group.label === 'Runtime Chat',
+    );
+
+    expect(runtimeGroup?.agents.map((agent) => agent.slug)).toEqual([
+      '__runtime:claude-runtime',
+      '__runtime:codex-runtime',
+      '__runtime:bedrock-runtime',
+    ]);
+    expect(
+      viewModel.flatList.filter(
+        (agent) => agent.slug === '__runtime:claude-runtime',
+      ),
+    ).toHaveLength(1);
+    expect(
+      viewModel.flatList.filter(
+        (agent) => agent.slug === '__runtime:codex-runtime',
+      ),
+    ).toHaveLength(1);
+    expect(
+      runtimeGroup?.agents.find(
+        (agent) => agent.slug === '__runtime:claude-runtime',
+      )?.description,
+    ).toBe('server-backed claude runtime row');
+    expect(
+      runtimeGroup?.agents.find(
+        (agent) => agent.slug === '__runtime:codex-runtime',
+      )?.description,
+    ).toBe('server-backed codex runtime row');
+    expect(
+      viewModel.groups.find((group) => group.label === 'Global')?.agents,
+    ).toEqual([expect.objectContaining({ slug: 'stallion' })]);
+  });
+
+  test('shows provider-managed default agent in project context without runtime readiness', () => {
+    const viewModel = buildNewChatModalViewModel({
+      agents: [
+        {
+          slug: 'default',
+          name: 'Stallion',
+          source: 'local',
+          model: 'llama3.2',
+          execution: {
+            runtimeConnectionId: 'bedrock-runtime',
+            runtimeOptions: {
+              executionMode: 'provider-managed',
+              executionScope: 'project',
+              providerId: 'ollama-local',
+              providerKind: 'ollama',
+              displayModel: 'llama3.2',
+            },
+          },
+        } as any,
+      ],
+      projects: [
+        { slug: 'project-a', name: 'Project A', layoutCount: 0 } as any,
+      ],
+      runtimeConnections: [],
+      selectedContext: 'project-a',
+      contextSearch: '',
+      agentSearch: '',
+      selectedProjectAgentFilter: undefined,
+      layoutAvailableAgents: [],
+      layoutName: undefined,
+      layoutIcon: undefined,
+      providerManagedAgentSlugs: ['default'],
+      recentSlugs: [],
+    });
+
+    expect(viewModel.groups.map((group) => group.label)).toEqual(['Global']);
+    expect(viewModel.flatList.map((agent) => agent.slug)).toEqual(['default']);
+    expect(viewModel.groups[0]?.agents[0]).toEqual(
+      expect.objectContaining({ slug: 'default', name: 'Stallion' }),
+    );
+  });
+
+  test('hides recent runtime agents from the runtime section and keeps runtime chat last', () => {
+    const viewModel = buildNewChatModalViewModel({
+      agents: [
+        {
+          slug: '__runtime:codex-runtime',
+          name: 'Codex Runtime',
+          source: 'local',
+          execution: { runtimeConnectionId: 'codex-runtime' },
+        } as any,
+        {
+          slug: 'default',
+          name: 'Stallion',
+          source: 'local',
+          execution: { runtimeConnectionId: 'bedrock-runtime' },
+        } as any,
+      ],
+      projects: [],
+      runtimeConnections: [
+        {
+          id: 'codex-runtime',
+          kind: 'runtime',
+          type: 'codex-runtime',
+          name: 'Codex Runtime',
+          enabled: true,
+          capabilities: ['agent-runtime'],
+          config: {},
+          status: 'ready',
+          prerequisites: [],
+        } as any,
+        {
+          id: 'claude-runtime',
+          kind: 'runtime',
+          type: 'claude-runtime',
+          name: 'Claude Runtime',
+          enabled: true,
+          capabilities: ['agent-runtime'],
+          config: {},
+          status: 'ready',
+          prerequisites: [],
+        } as any,
+      ],
+      selectedContext: GLOBAL_CONTEXT,
+      contextSearch: '',
+      agentSearch: '',
+      selectedProjectAgentFilter: undefined,
+      layoutAvailableAgents: [],
+      layoutName: undefined,
+      layoutIcon: undefined,
+      providerManagedAgentSlugs: [],
+      recentSlugs: ['__runtime:codex-runtime'],
+    });
+
+    expect(viewModel.groups.map((group) => group.label)).toEqual([
+      'Recent',
+      'Runtime Chat',
+    ]);
+    expect(viewModel.groups[0]?.agents.map((agent) => agent.slug)).toEqual([
+      '__runtime:codex-runtime',
+    ]);
+    expect(viewModel.groups[1]?.agents.map((agent) => agent.slug)).toEqual([
+      '__runtime:claude-runtime',
     ]);
   });
 });

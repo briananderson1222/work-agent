@@ -1,8 +1,8 @@
 import { describe, expect, test, vi } from 'vitest';
 import {
+  type NovaSonicEventState,
   parseNovaSonicRawEvent,
   processNovaSonicStreamEvent,
-  type NovaSonicEventState,
 } from '../providers/nova-sonic-events.js';
 
 function createState(): NovaSonicEventState {

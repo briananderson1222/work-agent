@@ -7,6 +7,11 @@ import {
 } from '../services/llm-router.js';
 import { getCachedUser } from './auth.js';
 import {
+  createChatConversationId,
+  ensureChatConversation,
+  persistTemporaryAgentMessages,
+} from './chat-persistence.js';
+import {
   type ChatMessage,
   extractChatUserText,
 } from './chat-request-preparation.js';
@@ -115,7 +120,9 @@ export function streamAlternateProviderChat({
   return stream(
     c,
     async (streamWriter: { write(data: string): Promise<unknown> }) => {
-      const conversationId = options.conversationId || `${slug}:${Date.now()}`;
+      const userId = options.userId || getCachedUser().alias;
+      const conversationId =
+        options.conversationId || createChatConversationId(userId);
       const messages = await buildAlternateProviderMessages({
         ctx,
         slug,
@@ -123,6 +130,17 @@ export function streamAlternateProviderChat({
         options,
         injectContext,
         ragContext,
+      });
+      const memoryAdapter = ctx.memoryAdapters.get(slug);
+      let accumulatedText = '';
+
+      await ensureChatConversation({
+        conversationStorage: memoryAdapter ?? null,
+        conversationId,
+        userId,
+        slug,
+        input,
+        title: options.title,
       });
 
       try {
@@ -134,12 +152,42 @@ export function streamAlternateProviderChat({
           messages,
           {
             write: async (data: string) => {
+              if (typeof data === 'string' && data.startsWith('data: ')) {
+                const payload = data.slice(6).trim();
+                if (payload) {
+                  try {
+                    const parsed = JSON.parse(payload);
+                    if (
+                      parsed?.type === 'text-delta' &&
+                      typeof parsed.textDelta === 'string'
+                    ) {
+                      accumulatedText += parsed.textDelta;
+                    }
+                  } catch {
+                    // Ignore malformed SSE payloads during persistence capture.
+                  }
+                }
+              }
               await streamWriter.write(data);
             },
           },
           conversationId,
           c.req.raw.signal,
         );
+
+        if (memoryAdapter && accumulatedText.trim()) {
+          await persistTemporaryAgentMessages({
+            memoryAdapter,
+            conversationId,
+            input,
+            accumulatedText,
+            model:
+              options.model ||
+              (resolvedProviderConn.config?.defaultModel as string) ||
+              'default',
+            userId,
+          });
+        }
       } catch (error: unknown) {
         await streamWriter.write(
           `data: ${JSON.stringify({ type: 'error', error: errorMessage(error) })}\n\n`,

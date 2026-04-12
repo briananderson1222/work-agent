@@ -10,7 +10,10 @@ import {
 } from './builtin-scheduler-storage.js';
 import type { NotificationService } from './notification-service.js';
 
-export type SchedulerChatFn = (agentSlug: string, prompt: string) => Promise<string>;
+export type SchedulerChatFn = (
+  agentSlug: string,
+  prompt: string,
+) => Promise<string>;
 
 export interface SchedulerExecutionDeps {
   job: StoredJob;

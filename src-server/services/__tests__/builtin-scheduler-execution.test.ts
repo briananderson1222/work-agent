@@ -38,7 +38,8 @@ describe('executeSchedulerJobAttempt', () => {
     expect(readFileSync(result.outputPath, 'utf-8')).toBe('ok');
     expect(
       broadcast.mock.calls.some(
-        ([event]) => event.event === 'job.completed' && event.job === 'success-job',
+        ([event]) =>
+          event.event === 'job.completed' && event.job === 'success-job',
       ),
     ).toBe(true);
   });
@@ -70,7 +71,8 @@ describe('executeSchedulerJobAttempt', () => {
     expect(readFileSync(result.outputPath, 'utf-8')).toBe('boom');
     expect(
       broadcast.mock.calls.some(
-        ([event]) => event.event === 'job.failed' && event.job === 'failure-job',
+        ([event]) =>
+          event.event === 'job.failed' && event.job === 'failure-job',
       ),
     ).toBe(true);
     expect(notificationService.schedule).toHaveBeenCalledOnce();

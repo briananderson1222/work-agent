@@ -5,20 +5,24 @@ import { promptSlug } from './utils';
 // MCP command
 registerCommand(
   'mcp',
-  async ({ chatState, queryClient, addEphemeralMessage, sessionId }) => {
+  async ({ chatState, queryClient, addEphemeralMessage, sessionId, agent }) => {
     try {
-      const data = await queryClient.fetchQuery(
-        agentQueries.agent(chatState.agentSlug),
+      const tools = await queryClient.fetchQuery(
+        agentQueries.tools(agent?.slug || chatState.agentSlug),
       );
-
-      const tools = data?.tools || [];
 
       const mcpServers = (
         [
           ...new Set(
             tools
               .map((t: any): string | null => {
-                const name = typeof t === 'string' ? t : t.name || t.id || '';
+                if (typeof t !== 'string' && typeof t.server === 'string') {
+                  return t.server;
+                }
+                const name =
+                  typeof t === 'string'
+                    ? t
+                    : t.originalName || t.name || t.id || '';
                 return name.includes('_') ? name.split('_')[0] : null;
               })
               .filter((s: any): s is string => s !== null),

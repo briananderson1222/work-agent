@@ -57,6 +57,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
       model,
       attachments,
       projectSlug,
+      chatOptions,
     ) =>
       conversationsStore.sendMessage(
         apiBase,
@@ -71,6 +72,7 @@ export function ConversationsProvider({ children }: { children: ReactNode }) {
         model,
         attachments,
         projectSlug,
+        chatOptions,
       ),
     [],
   );

@@ -2,7 +2,7 @@
 
 > How any AI agent (Claude Code, Codex, Hermes, or any other) picks up work from the roadmap, implements it, and updates the strategy docs. This document is self-contained -- an agent should be able to follow it without prior conversation context.
 
-*Last updated: 2026-04-11*
+*Last updated: 2026-04-12*
 
 ---
 
@@ -21,7 +21,7 @@ When starting work on Stallion, read these documents in order:
 
 ### Step 1: Find the active phase
 
-Open [roadmap.md](roadmap.md). Look for the phase marked **"Status: In Progress"**. This is where work should focus. Do not start work on a later phase unless all tasks in the active phase are complete or explicitly blocked.
+Open [roadmap.md](roadmap.md). Look for the phase marked **"Status: In Progress"**. This is where work should focus. If the roadmap also calls out an active initiative inside that phase, prefer that initiative first. Do not start work on a later phase unless all tasks in the active phase are complete or explicitly blocked.
 
 ### Step 2: Choose a task
 

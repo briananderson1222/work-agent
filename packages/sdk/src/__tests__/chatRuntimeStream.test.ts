@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   buildConversationTurnPayload,
   mapConversationMessages,
+  streamConversationTurn,
 } from '../query-domains/chatRuntimeStream';
 
 describe('chatRuntimeStream', () => {
@@ -89,5 +90,48 @@ describe('chatRuntimeStream', () => {
       },
       projectSlug: 'project-a',
     });
+  });
+
+  it('accepts conversation-started events when streaming', async () => {
+    const encoder = new TextEncoder();
+    const body = new ReadableStream({
+      start(controller) {
+        controller.enqueue(
+          encoder.encode(
+            'data: {"type":"conversation-started","conversationId":"conv-1","title":"Hello"}\n\n' +
+              'data: {"type":"finish","finishReason":"stop"}\n\n',
+          ),
+        );
+        controller.close();
+      },
+    });
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => ({
+        ok: true,
+        body,
+      })) as any,
+    );
+
+    const onConversationStarted = vi.fn();
+    const onStreamEvent = vi.fn(() => ({
+      currentTextChunk: '',
+      contentParts: [],
+      pendingApprovals: new Map(),
+      reasoningChunks: [],
+      currentReasoningChunk: undefined,
+    }));
+
+    const result = await streamConversationTurn({
+      agentSlug: 'default',
+      content: 'hello',
+      onConversationStarted,
+      onStreamEvent,
+      apiBase: 'http://example.test',
+    });
+
+    expect(result.conversationId).toBe('conv-1');
+    expect(onConversationStarted).toHaveBeenCalledWith('conv-1', 'Hello');
   });
 });

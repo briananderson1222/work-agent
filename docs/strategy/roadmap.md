@@ -2,8 +2,28 @@
 
 > Phased execution plan for Stallion AI. Each phase has scoped tasks, key files, verification criteria, and a definition of done. Tasks within a phase can be parallelized unless marked as blocking. See [execution-pattern.md](execution-pattern.md) for how to pick up work.
 
-*Last updated: 2026-04-11*
-*Active phase: Phase 0 (Foundation Docs)*
+*Last updated: 2026-04-12*
+*Active phase: Phase 1 (Harden & Onboard)*
+*Active initiative: [Entity Hierarchy & Navigation Restructure](../plans/plan-entity-hierarchy.md)*
+
+---
+
+## Reality Check (2026-04-12)
+
+The roadmap had drifted out of sync with the repo: it previously named completed Phase 0 as active, marked multiple later phases in progress at once, and did not surface the current entity-hierarchy initiative.
+
+Use these status labels consistently:
+
+- **Complete** — implementation and phase proof are done
+- **In Progress** — the current active execution phase
+- **Verification Needed** — most implementation appears landed, but the phase definition of done still needs explicit proof or packaging
+- **Queued** — not the active phase, even if some enabling pieces have already landed
+
+We also distinguish three kinds of checklist reality inside a phase:
+
+- **implemented** — clearly landed in code/docs/tests
+- **needs verification** — likely landed, but still needs definition-of-done proof
+- **open** — genuinely unfinished
 
 ---
 
@@ -11,7 +31,7 @@
 
 **Goal:** Establish the project's identity, strategy, and execution infrastructure so any human or AI can pick up work with full context.
 
-**Status: In Progress**
+**Status: Complete**
 
 - [x] Write `docs/strategy/constitution.md`
 - [x] Write `docs/strategy/differentiators.md`
@@ -40,19 +60,19 @@
 
 Make the core runtime provider-agnostic. No AWS credentials required for first run.
 
-- [ ] Change `ProviderKind` from closed literal union (`'bedrock' | 'claude' | 'codex'`) to extensible `string` with well-known constants
-- [ ] Make `AppConfig.region` optional (currently required AWS region)
-- [ ] Remove `BUILTIN_SOURCES` hard-coding in provider registry
-- [ ] Replace `llm-router.ts` switch statement with registry pattern (inspired by Pi-mono's unified LLM API)
-- [ ] Auto-detect available providers on first run (Ollama running? API keys set?)
-- [ ] Update README prerequisites: remove "AWS credentials" as requirement, show multi-provider options
+- [x] Change `ProviderKind` from a closed literal union to an extensible `string`
+- [x] Make `AppConfig.region` optional
+- [x] Replace Bedrock-first model-provider routing with registry/factory-based model connection creation
+- [x] Auto-detect available providers on first run (for example Ollama or Bedrock credentials)
+- [x] Update README prerequisites so AWS credentials are no longer required for first launch
+- [ ] Remove remaining Bedrock-first defaults in runtime/UI execution paths
 
 **Key files:**
 - `packages/contracts/src/provider.ts` -- `ProviderKind` type
 - `packages/contracts/src/config.ts` -- `AppConfig.region`
-- `src-server/providers/registry.ts` -- `BUILTIN_SOURCES`
-- `src-server/providers/llm-router.ts` -- switch statement
-- `src-server/runtime/stallion-runtime.ts` -- adapter wiring
+- `src-server/providers/connection-factories.ts` -- model-provider factory registration
+- `src-server/services/llm-router.ts` -- registry/factory-based provider resolution
+- `src-ui/src/utils/execution.ts` -- residual Bedrock-default fallback to remove
 - `README.md`
 
 **Done when:** `./stallion start` works without `AWS_ACCESS_KEY_ID` set. `./stallion doctor` shows detected providers.
@@ -61,16 +81,17 @@ Make the core runtime provider-agnostic. No AWS credentials required for first r
 
 Allow plugins to register new `ProviderAdapterShape` implementations.
 
-- [ ] Extract adapter registration from `stallion-runtime.ts` into a dynamic adapter registry
-- [ ] Define adapter registration interface in `@stallion-ai/contracts`
-- [ ] Ship Ollama adapter implementing `ProviderAdapterShape`
-- [ ] Verify existing adapters (Bedrock, Claude, Codex) work through the new registry
+- [ ] Extract adapter registration from startup wiring into a plugin-extensible registration path
+- [ ] Define adapter registration interface in a shared contract surface
+- [ ] Ship Ollama runtime adapter implementing `ProviderAdapterShape`
+- [ ] Verify existing adapters (Bedrock, Claude, Codex) work through the shared registry
 - [ ] Document the adapter interface for contributors
 
 **Key files:**
-- `src-server/runtime/stallion-runtime.ts` -- hard-wired adapter selection
+- `src-server/runtime/runtime-initialize.ts` -- current built-in adapter registration
+- `src-server/providers/registry.ts` -- adapter registry facade
 - `src-server/providers/adapters/` -- existing adapters
-- `packages/contracts/src/provider.ts` -- adapter interface
+- `src-server/providers/adapter-shape.ts`
 
 **Done when:** A plugin can register a custom runtime adapter. Ollama adapter works for basic chat.
 
@@ -78,17 +99,19 @@ Allow plugins to register new `ProviderAdapterShape` implementations.
 
 Make the first-run experience intuitive.
 
-- [ ] First-run wizard that detects available providers and walks through setup
-- [ ] Default agent that works immediately with any detected provider
+- [x] First-run setup launcher detects available providers/runtimes and points users to the right configuration screen
+- [x] Default agent path works with detected model connections instead of requiring Bedrock-first setup
 - [ ] Quick-start guide accessible from the UI (not just README)
-- [ ] `./stallion doctor` validates all prerequisites with clear fix instructions
-- [ ] Prompt injection defense for context file loading (inspired by Hermes)
+- [x] `./stallion doctor` validates prerequisites/readiness with clear fix instructions
+- [x] Prompt injection defense for context file loading (inspired by Hermes)
 
 **Done when:** A user with only Ollama installed can go from `git clone` to chatting in under 5 minutes.
 
 ### 1d. Core Flow Hardening
 
 Polish the existing functionality.
+
+**Active initiative:** [Entity Hierarchy & Navigation Restructure](../plans/plan-entity-hierarchy.md)
 
 - [ ] Audit chat flow end-to-end for all 3 agent types (managed, connected, ACP)
 - [ ] Fix any biome/tsc/test failures
@@ -106,20 +129,23 @@ Polish the existing functionality.
 
 **Goal:** It's trivially easy to create a plugin. A curated set exists. A registry is browsable.
 
-**Status: Not Started**
+**Status: Queued**
+
+> Foundations are partially landed here already (create-plugin, tutorial, registry browse flows), but this is not the active phase until Phase 1 proof/hardening is closed.
 
 ### 2a. Frictionless Plugin Creation
 
-- [ ] `stallion create-plugin` CLI command with options (layout-only, provider-only, full)
-- [ ] Template includes working SDK imports, example hooks, manifest, build config
+- [x] `stallion create-plugin` CLI command with options (layout-only, provider-only, full)
+- [x] Template scaffolds include the core manifest/build/source structure for layout, provider, and full plugin paths
 - [ ] `stallion dev` hot-reload experience works reliably
-- [ ] "Build Your First Plugin" tutorial (in `docs/guides/`)
-- [ ] Request-scoped plugin lifecycle hooks with correlation IDs (inspired by Hermes)
+- [x] "Build Your First Plugin" tutorial (in `docs/guides/`)
+- [x] Request-scoped plugin lifecycle hooks with correlation IDs (inspired by Hermes)
 
 **Key files:**
-- `packages/cli/src/cli.ts` -- new `create-plugin` command
+- `packages/cli/src/cli.ts` -- `create-plugin` command
+- `packages/cli/src/commands/init.ts` -- scaffold generation
 - `packages/cli/src/dev/` -- dev server
-- `docs/guides/plugins.md` -- existing plugin docs (extend)
+- `docs/guides/build-your-first-plugin.md`
 
 **Done when:** `stallion create-plugin my-layout` produces a working layout. `stallion dev` shows it in browser with hot reload.
 
@@ -128,21 +154,22 @@ Polish the existing functionality.
 - [ ] "Getting Started" default layout -- works out of box, demos capabilities
 - [ ] Coding layout -- file browser, terminal, diff view, code-focused chat
 - [ ] Knowledge/docs layout -- upload documents, ask questions, manage knowledge
-- [ ] Each plugin demonstrates SDK patterns others can copy
+- [ ] Each plugin demonstrates SDK patterns others can copy as a curated starter set
 
 **Done when:** 3 quality plugins exist in `examples/` (or a separate plugins repo). Each has a README and works out of box.
 
 ### 2c. Plugin Registry
 
 - [ ] Host a registry manifest (GitHub Pages or similar)
-- [ ] Registry UI is browsable in the app
-- [ ] One-click install from registry
-- [ ] `stallion registry` CLI command works end-to-end
+- [x] Registry UI is browsable in the app
+- [ ] One-click install from registry via the UI
+- [x] `stallion registry` CLI command works end-to-end
 - [ ] Smart model routing available as a plugin (inspired by Hermes cheap-vs-strong pattern)
 
 **Key files:**
 - `src-server/providers/json-manifest-registry.ts` -- existing registry provider
-- `src-ui/` -- registry UI views
+- `src-ui/src/views/RegistryView.tsx`
+- `examples/registry/manifest.json`
 
 **Done when:** A user can browse plugins in the UI and install one with a single click.
 
@@ -154,7 +181,9 @@ Polish the existing functionality.
 
 **Goal:** "Agents managing agents" becomes a visible, promoted, documented feature with deeper capabilities.
 
-**Status: Not Started**
+**Status: Verification Needed**
+
+> Core implementation appears landed across docs, examples, delegation safety, prompt scanning, approvals, notifications, and UI-block foundations. This phase should move to **Complete** after explicit definition-of-done proof is recorded.
 
 ### 3a. Documentation & Demos
 
@@ -188,13 +217,15 @@ Polish the existing functionality.
 
 **Goal:** "Define once, use everywhere." Stallion configs are portable to and from other tools.
 
-**Status: Not Started**
+**Status: Verification Needed**
 
-- [ ] `stallion export --format=agents-md` -- produces valid AGENTS.md
-- [ ] `stallion export --format=claude-desktop` -- produces `claude_desktop_config.json` for MCP servers
-- [ ] `stallion import <file>` -- reads configs from AGENTS.md, claude_desktop_config.json
-- [ ] Shared MCP server definitions across all providers (inspired by Happier)
-- [ ] REST API formalized with OpenAPI spec (inspired by Codex app-server protocol)
+> Export/import features, portability tests, and published OpenAPI artifacts appear landed. This phase should move to **Complete** after one explicit proof pass closes the phase definition of done.
+
+- [x] `stallion export --format=agents-md` -- produces valid AGENTS.md
+- [x] `stallion export --format=claude-desktop` -- produces `claude_desktop_config.json` for MCP servers
+- [x] `stallion import <file>` -- reads configs from AGENTS.md, claude_desktop_config.json
+- [x] Shared MCP server definitions across all providers (inspired by Happier)
+- [x] REST API formalized with OpenAPI spec (inspired by Codex app-server protocol)
 
 **Phase 4 Definition of Done:** Round-trip test: export Stallion config, import into Claude Desktop, verify MCP servers work. OpenAPI spec published.
 
@@ -204,12 +235,15 @@ Polish the existing functionality.
 
 **Goal:** Move from message-level AI-UI integration to deep bidirectional interaction.
 
-**Status: Not Started**
+**Status: Queued**
+
+> Initial foundations landed earlier than the full phase: Stallion already has an initial `UIBlock` contract and chat rendering for existing block types. The remaining work here is the primary net-new feature track after roadmap reconciliation and earlier-phase proof are complete.
 
 See [vision/ai-ui-bridge.md](vision/ai-ui-bridge.md) for the full vision.
 
-- [ ] Define `UIBlock` type system (card, table, form, chart, code, image)
-- [ ] Implement chat renderer for UI blocks from agent tool calls
+- [x] Define an initial `UIBlock` type system for card/table responses
+- [x] Implement chat rendering for the existing UI-block tool-output path
+- [ ] Expand `UIBlock` types to form, chart, code, and image
 - [ ] `render_component` MCP tool -- agents mount plugin components dynamically
 - [ ] SDK hooks for capturing UI state as context (selected file, visible diff, terminal output)
 - [ ] Agent-composable layouts -- AI can open/arrange panels via tool calls

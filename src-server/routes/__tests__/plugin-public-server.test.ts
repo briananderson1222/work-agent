@@ -19,7 +19,9 @@ describe('plugin-public-server helpers', () => {
 
   test('buildPluginRequestContext prefers incoming correlation ids', async () => {
     const app = new Hono();
-    app.get('/demo-plugin/ping', (c) => c.json(buildPluginRequestContext(c, 'demo-plugin')));
+    app.get('/demo-plugin/ping', (c) =>
+      c.json(buildPluginRequestContext(c, 'demo-plugin')),
+    );
 
     const response = await app.request('/demo-plugin/ping', {
       headers: { 'x-request-id': 'req-123' },

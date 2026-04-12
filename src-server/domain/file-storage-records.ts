@@ -1,19 +1,16 @@
-import type {
-  ConversationRecord,
-  DocumentRecord,
-  LayoutAgentReference,
-} from './storage-adapter.js';
 import {
   listProjectSlugs,
   readJsonFile,
   resolveProjectSlugById,
   writeJsonFile,
 } from './file-storage-helpers.js';
+import type {
+  ConversationRecord,
+  DocumentRecord,
+  LayoutAgentReference,
+} from './storage-adapter.js';
 
-export function listStoredRecords<T>(
-  path: string,
-  fallback: T[] = [],
-): T[] {
+export function listStoredRecords<T>(path: string, fallback: T[] = []): T[] {
   return readJsonFile(path, fallback);
 }
 
@@ -54,7 +51,9 @@ export function findStoredRecordAcrossProjects<T extends { id: string }>(
   return null;
 }
 
-export function saveProjectScopedRecord<T extends { id: string; projectId: string }>(
+export function saveProjectScopedRecord<
+  T extends { id: string; projectId: string },
+>(
   projectHomeDir: string,
   resolvePath: (projectSlug: string) => string,
   record: T,

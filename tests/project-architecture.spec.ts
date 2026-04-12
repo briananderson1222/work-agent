@@ -182,6 +182,16 @@ function seedRoutes(page: import('@playwright/test').Page) {
         body: JSON.stringify({ success: true, data: [] }),
       }),
     ),
+    page.route('**/api/fs/browse**', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { path: '/tmp/new-project', entries: [] },
+        }),
+      }),
+    ),
   ]);
 }
 
@@ -242,12 +252,72 @@ test.describe('Project Navigation', () => {
   });
 
   test('new project form renders', async ({ page }) => {
-    await page.getByRole('button', { name: /New Project/ }).click();
+    await page
+      .getByRole('button', { name: /New Project/ })
+      .dispatchEvent('click');
     await expect(page).toHaveURL(/\/projects\/new/);
     await expect(page.getByPlaceholder('My Project')).toBeVisible({
       timeout: 5000,
     });
     await expect(page.getByRole('button', { name: /Create/ })).toBeVisible();
+  });
+
+  test('creating a project with Add Coding Layout posts the canonical coding slug', async ({
+    page,
+  }) => {
+    let createdLayoutBody: any = null;
+
+    await page.route('**/api/projects/new-project', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            ...ALPHA_CONFIG,
+            slug: 'new-project',
+            name: 'New Project',
+            workingDirectory: '/tmp/new-project',
+          },
+        }),
+      }),
+    );
+    await page.route('**/api/projects/new-project/layouts', async (route) => {
+      if (route.request().method() === 'POST') {
+        createdLayoutBody = route.request().postDataJSON();
+        return route.fulfill({
+          status: 201,
+          contentType: 'application/json',
+          body: JSON.stringify({ success: true, data: createdLayoutBody }),
+        });
+      }
+
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      });
+    });
+
+    await page
+      .getByRole('button', { name: /New Project/ })
+      .dispatchEvent('click');
+    await page.evaluate(() => {
+      document.querySelector('[data-testid="setup-launcher"]')?.remove();
+    });
+    await page.getByPlaceholder('My Project').fill('New Project');
+    await page.getByPlaceholder('/path/to/project').fill('/tmp/new-project');
+    await page.getByLabel('Add Coding Layout').check();
+    await page.getByRole('button', { name: 'Create' }).click();
+
+    await expect
+      .poll(() => createdLayoutBody)
+      .toMatchObject({
+        type: 'coding',
+        name: 'Coding',
+        slug: 'coding',
+        config: { workingDirectory: '/tmp/new-project' },
+      });
   });
 });
 

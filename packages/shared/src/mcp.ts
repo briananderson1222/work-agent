@@ -10,6 +10,10 @@ import { SSEClientTransport } from '@modelcontextprotocol/sdk/client/sse.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { ToolDef } from './index.js';
+import {
+  type ClaudeDesktopConfig,
+  normalizeMcpToolDef,
+} from './portability.js';
 
 export interface MCPToolInfo {
   name: string; // prefixed: "{serverId}_{toolName}"
@@ -43,7 +47,8 @@ export async function connectMCP(
   def: ToolDef,
   opts?: MCPManagerOptions,
 ): Promise<MCPConnection> {
-  const transport = createTransport(def);
+  const normalized = normalizeTransportConfig(def);
+  const transport = createTransport(normalized);
   const client = new Client(
     { name: 'stallion-dev', version: '0.1.0' },
     { capabilities: {} },
@@ -197,4 +202,29 @@ function createTransport(def: ToolDef) {
         `Tool '${def.id}': cannot determine transport (set 'transport' or 'command')`,
       );
   }
+}
+
+function normalizeTransportConfig(def: ToolDef): ToolDef {
+  const result = normalizeMcpToolDef(def);
+  if (!result.normalized) {
+    throw new Error(
+      result.losses[0]?.message ||
+        `Tool '${def.id}': unsupported MCP configuration for transport`,
+    );
+  }
+
+  const normalized = result.normalized;
+  return {
+    id: normalized.id,
+    kind: 'mcp',
+    displayName: normalized.displayName,
+    description: normalized.description,
+    transport: normalized.transport,
+    command: normalized.command,
+    args: normalized.args,
+    endpoint: normalized.endpoint,
+    env: normalized.env as ClaudeDesktopConfig['mcpServers'][string]['env'],
+    exposedTools: normalized.exposedTools,
+    timeouts: normalized.timeouts,
+  };
 }

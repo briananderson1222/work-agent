@@ -30,7 +30,12 @@ describe('knowledge-scan-utils', () => {
         {
           getProject: () => ({ workingDirectory: '/workspace' }),
         } as any,
-        () => ({ id: 'code', label: 'Code', behavior: 'rag', storageDir: '/tmp/ns' }),
+        () => ({
+          id: 'code',
+          label: 'Code',
+          behavior: 'rag',
+          storageDir: '/tmp/ns',
+        }),
       ),
     ).toBe('/tmp/ns');
   });

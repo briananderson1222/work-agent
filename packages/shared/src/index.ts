@@ -5,4 +5,5 @@
  * Runtime helpers now live on explicit subpaths.
  */
 
+export * from './portability.js';
 export * from './types.js';

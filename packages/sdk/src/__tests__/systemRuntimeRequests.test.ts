@@ -5,10 +5,10 @@ vi.mock('../api', () => ({
 }));
 
 import {
+  applyCoreUpdate,
   fetchBranding,
   fetchMonitoringMetrics,
   requestSystemStatus,
-  applyCoreUpdate,
 } from '../query-domains/systemRuntimeRequests';
 
 describe('systemRuntimeRequests', () => {
@@ -36,7 +36,10 @@ describe('systemRuntimeRequests', () => {
   it('returns an empty metrics list when monitoring reports failure', async () => {
     vi.mocked(fetch).mockResolvedValue({
       ok: true,
-      json: async () => ({ success: false, data: { metrics: [{ agentSlug: 'one' }] } }),
+      json: async () => ({
+        success: false,
+        data: { metrics: [{ agentSlug: 'one' }] },
+      }),
     } as Response);
 
     await expect(fetchMonitoringMetrics('week')).resolves.toEqual([]);

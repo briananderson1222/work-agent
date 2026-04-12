@@ -102,8 +102,8 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
         await createProjectLayoutMutation.mutateAsync({
           projectSlug,
           type: 'coding',
-          name: 'Code',
-          slug: 'code',
+          name: 'Coding',
+          slug: 'coding',
           icon: '🔧',
           config: { workingDirectory: dir },
         });

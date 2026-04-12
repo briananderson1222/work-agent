@@ -32,7 +32,7 @@ describe('chat-request-preparation', () => {
         },
       } as any,
       input: 'How do I deploy this?',
-      options: {},
+      options: { providerManagedFallback: true },
       projectSlug: 'proj-1',
     });
 
@@ -46,7 +46,7 @@ describe('chat-request-preparation', () => {
     expect(result.ragContext).toBe('rag-context\n\nfeedback-guidelines');
   });
 
-  test('prepareChatRequest logs and continues when provider resolution fails', async () => {
+  test('prepareChatRequest skips provider resolution without an explicit fallback flag', async () => {
     const logger = {
       warn: vi.fn(),
       debug: vi.fn(),
@@ -75,12 +75,110 @@ describe('chat-request-preparation', () => {
       projectSlug: 'proj-1',
     });
 
+    expect(result.options.model).toBeUndefined();
     expect(result.useAlternateProvider).toBe(false);
     expect(result.resolvedProviderConn).toBeNull();
-    expect(logger.warn).toHaveBeenCalledWith(
-      'Failed to resolve project provider',
-      expect.objectContaining({ projectSlug: 'proj-1', error: 'boom' }),
-    );
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  test('prepareChatRequest resolves a global provider when no model override is present', async () => {
+    const result = await prepareChatRequest({
+      ctx: {
+        providerService: {
+          resolveProvider: vi.fn(async () => ({
+            model: 'llama3.2',
+            providerId: 'ollama-local',
+          })),
+          listProviderConnections: vi.fn(() => [
+            { id: 'ollama-local', type: 'ollama' },
+          ]),
+        },
+        knowledgeService: {
+          getInjectContext: vi.fn(async () => null),
+          getRAGContext: vi.fn(async () => null),
+        },
+        feedbackService: {
+          getBehaviorGuidelines: vi.fn(() => null),
+        },
+        storageAdapter: {} as any,
+        logger: {
+          warn: vi.fn(),
+          debug: vi.fn(),
+        },
+      } as any,
+      input: 'hello',
+      options: { providerManagedFallback: true },
+    });
+
+    expect(result.options.model).toBe('llama3.2');
+    expect(result.useAlternateProvider).toBe(true);
+    expect(result.resolvedProviderConn).toMatchObject({
+      id: 'ollama-local',
+      type: 'ollama',
+    });
+  });
+
+  test('prepareChatRequest does not resolve provider fallback without an explicit flag', async () => {
+    const result = await prepareChatRequest({
+      ctx: {
+        providerService: {
+          resolveProvider: vi.fn(async () => ({
+            model: 'llama3.2',
+            providerId: 'ollama-local',
+          })),
+          listProviderConnections: vi.fn(() => [
+            { id: 'ollama-local', type: 'ollama' },
+          ]),
+        },
+        knowledgeService: {
+          getInjectContext: vi.fn(async () => null),
+          getRAGContext: vi.fn(async () => null),
+        },
+        feedbackService: {
+          getBehaviorGuidelines: vi.fn(() => null),
+        },
+        storageAdapter: {} as any,
+        logger: {
+          warn: vi.fn(),
+          debug: vi.fn(),
+        },
+      } as any,
+      input: 'hello',
+      options: {},
+    });
+
+    expect(result.options.model).toBeUndefined();
+    expect(result.useAlternateProvider).toBe(false);
+    expect(result.resolvedProviderConn).toBeNull();
+  });
+
+  test('prepareChatRequest surfaces provider resolution failures when provider-managed fallback is explicit', async () => {
+    await expect(
+      prepareChatRequest({
+        ctx: {
+          providerService: {
+            resolveProvider: vi.fn(async () => {
+              throw new Error('No models available for provider');
+            }),
+            listProviderConnections: vi.fn(() => []),
+          },
+          knowledgeService: {
+            getInjectContext: vi.fn(async () => null),
+            getRAGContext: vi.fn(async () => null),
+          },
+          feedbackService: {
+            getBehaviorGuidelines: vi.fn(() => null),
+          },
+          storageAdapter: {} as any,
+          logger: {
+            warn: vi.fn(),
+            debug: vi.fn(),
+          },
+        } as any,
+        input: 'hello',
+        options: { providerManagedFallback: true },
+      }),
+    ).rejects.toThrow(/No models available/);
   });
 
   test('extractChatUserText returns the first user text part', () => {

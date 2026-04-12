@@ -10,8 +10,8 @@ import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import {
   buildConversationStatsView,
   buildEmptyConversationStatsView,
-  resolveConversationUserMessageTokens,
   type ConversationStats,
+  resolveConversationUserMessageTokens,
 } from './conversation-stats-view.js';
 
 // Type extensions for conversation manager

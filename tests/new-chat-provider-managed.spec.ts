@@ -1,0 +1,221 @@
+import { expect, test } from '@playwright/test';
+
+const PROJECTS = [
+  {
+    id: 'p1',
+    slug: 'my-project',
+    name: 'My Project',
+    icon: '🚀',
+    description: 'Project with provider-backed managed chat',
+    hasWorkingDirectory: true,
+    workingDirectory: '/work/my-project',
+    layoutCount: 0,
+    hasKnowledge: false,
+  },
+];
+
+const AGENTS = [
+  {
+    slug: 'default',
+    name: 'Stallion',
+    description: 'Default agent with full access to manage Stallion',
+    source: 'local',
+    model: 'us.anthropic.claude-sonnet-4-6',
+  },
+];
+
+function seedRoutes(
+  page: import('@playwright/test').Page,
+  options?: { projectHasProviderDefaults?: boolean },
+) {
+  const projectConfig = {
+    ...PROJECTS[0],
+    ...(options?.projectHasProviderDefaults
+      ? {
+          defaultProviderId: 'ollama-local',
+          defaultModel: 'llama3.2',
+        }
+      : {}),
+    agents: ['default'],
+    createdAt: '2026-04-12T00:00:00Z',
+    updatedAt: '2026-04-12T00:00:00Z',
+  };
+  return Promise.all([
+    page.route('**/api/projects', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: PROJECTS }),
+      }),
+    ),
+    page.route('**/api/projects/my-project', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: projectConfig,
+        }),
+      }),
+    ),
+    page.route('**/api/agents', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: AGENTS }),
+      }),
+    ),
+    page.route('**/api/connections/runtimes', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
+    page.route('**/api/connections/models', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: [
+            {
+              id: 'ollama-local',
+              kind: 'model',
+              type: 'ollama',
+              name: 'Local Ollama',
+              enabled: true,
+              capabilities: ['llm'],
+              config: { baseUrl: 'http://localhost:11434' },
+              status: 'ready',
+              prerequisites: [],
+            },
+          ],
+        }),
+      }),
+    ),
+    page.route('**/api/system/status', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ready: true,
+          acp: { connected: false, connections: [] },
+          providers: {
+            configured: [
+              {
+                id: 'ollama-local',
+                type: 'ollama',
+                enabled: true,
+                capabilities: ['llm'],
+              },
+            ],
+            detected: { ollama: true, bedrock: false },
+          },
+          capabilities: {
+            chat: { ready: true, source: 'ollama' },
+            runtime: { ready: false, source: null },
+            knowledge: { ready: false, source: null },
+            acp: { ready: false, source: null },
+          },
+          recommendation: null,
+          prerequisites: [],
+          clis: { codex: false, claude: false, 'kiro-cli': false },
+          bedrock: { credentialsFound: false, verified: null, region: null },
+        }),
+      }),
+    ),
+    page.route('**/api/system/capabilities', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          voice: { stt: [], tts: [] },
+          context: { providers: [] },
+        }),
+      }),
+    ),
+    page.route('**/api/config', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          defaultModel: 'llama3.2',
+          defaultLLMProvider: 'ollama-local',
+        }),
+      }),
+    ),
+    page.route('**/api/bedrock/models', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ models: [] }),
+      }),
+    ),
+    page.route('**/api/conversations**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ conversations: [] }),
+      }),
+    ),
+    page.route('**/events', (route) => route.abort()),
+  ]);
+}
+
+test('new chat shows Stallion for a global provider-managed fallback path', async ({
+  page,
+}) => {
+  await seedRoutes(page);
+  await page.addInitScript(() => {
+    localStorage.removeItem('recentAgents');
+  });
+
+  await page.goto('/?dock=open');
+
+  const newChatBtn = page
+    .locator('.chat-dock__tab-actions .chat-dock__new')
+    .nth(1);
+  await expect(newChatBtn).toBeVisible({ timeout: 5000 });
+  await newChatBtn.dispatchEvent('click');
+
+  await expect(page.getByText('New Chat')).toBeVisible({ timeout: 3000 });
+  await expect(page.locator('.new-chat-modal__group-label', { hasText: 'Global' })).toBeVisible();
+  await expect(page.getByText('Runtime Chat')).not.toBeVisible();
+
+  const stallionCard = page.locator('.new-chat-modal__agent', {
+    hasText: 'Stallion',
+  });
+  await expect(stallionCard).toBeVisible({ timeout: 3000 });
+  await stallionCard.click({ force: true });
+
+  await expect(page.locator('.chat-dock__tab-list')).toContainText('Stallion');
+});
+
+test('selected project context inherits the global provider-managed fallback when project defaults are absent', async ({
+  page,
+}) => {
+  await seedRoutes(page, { projectHasProviderDefaults: false });
+  await page.addInitScript(() => {
+    localStorage.setItem('lastProject', 'my-project');
+    localStorage.removeItem('recentAgents');
+  });
+
+  await page.goto('/?dock=open');
+
+  const newChatBtn = page
+    .locator('.chat-dock__tab-actions .chat-dock__new')
+    .nth(1);
+  await expect(newChatBtn).toBeVisible({ timeout: 5000 });
+  await newChatBtn.dispatchEvent('click');
+
+  await expect(page.getByText('New Chat')).toBeVisible({ timeout: 3000 });
+  await expect(
+    page.getByRole('button', { name: /My Project/ }),
+  ).toBeVisible();
+
+  const stallionCard = page.locator('.new-chat-modal__agent', {
+    hasText: 'Stallion',
+  });
+  await expect(stallionCard).toBeVisible({ timeout: 3000 });
+});

@@ -230,14 +230,10 @@ export class NovaSonicProvider extends EventEmitter implements IS2SProvider {
           currentToolContent: this.currentToolContent,
           currentContentType: this.currentContentType,
         };
-        processNovaSonicStreamEvent(
-          event,
-          state,
-          {
-            emit: (name, payload) => this.emit(name, payload),
-            setState: (state) => this.setState(state),
-          },
-        );
+        processNovaSonicStreamEvent(event, state, {
+          emit: (name, payload) => this.emit(name, payload),
+          setState: (state) => this.setState(state),
+        });
         this.currentRole = state.currentRole;
         this.currentGenerationStage = state.currentGenerationStage;
         this.currentToolName = state.currentToolName;

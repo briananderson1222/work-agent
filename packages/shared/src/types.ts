@@ -69,6 +69,17 @@ export type {
   PluginSettingField,
 } from '@stallion-ai/contracts/plugin';
 export type {
+  AgentsMdPortabilityDocument,
+  ExportableAppConfig,
+  GuidanceAgentExport,
+  GuidanceExportModel,
+  GuidanceWorkspaceExport,
+  NormalizedMcpConfig,
+  PortabilityFormat,
+  PortabilityImportLedgerEntry,
+  PortabilityLoss,
+} from '@stallion-ai/contracts/portability';
+export type {
   ProjectConfig,
   ProjectMetadata,
 } from '@stallion-ai/contracts/project';

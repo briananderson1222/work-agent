@@ -147,6 +147,7 @@ export class ConversationsStore {
     model?: string,
     attachments?: FileAttachment[],
     projectSlug?: string,
+    chatOptions?: Record<string, unknown>,
   ): Promise<{ conversationId?: string; finishReason?: string }> {
     this.setStatus(agentSlug, conversationId || 'temp', 'streaming');
 
@@ -164,6 +165,7 @@ export class ConversationsStore {
           model,
           attachments,
           projectSlug,
+          chatOptions,
         });
 
       this.setStatus(agentSlug, newConversationId || 'temp', 'idle');

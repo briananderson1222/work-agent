@@ -38,6 +38,13 @@ export class OllamaLLMProvider implements ILLMProvider {
       signal: opts.signal,
     });
 
+    if (!res.ok) {
+      const errorText = await res.text().catch(() => '');
+      throw new Error(
+        `Ollama chat failed (${res.status}): ${errorText || res.statusText || 'Unknown error'}`,
+      );
+    }
+
     const reader = res.body!.getReader();
     const decoder = new TextDecoder();
     let buf = '';

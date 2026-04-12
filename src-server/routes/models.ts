@@ -73,11 +73,11 @@ app.get('/capabilities', async (c) => {
     ) {
       return c.json(
         {
-          success: false,
-          error: 'AWS credentials not configured',
-          details: errorMessage(error),
+          success: true,
+          data: [],
+          warning: 'AWS credentials not configured',
         },
-        401,
+        200,
       );
     }
 

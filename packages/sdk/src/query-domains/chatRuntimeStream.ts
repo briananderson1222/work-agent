@@ -130,10 +130,12 @@ export function buildConversationTurnPayload(input: {
   model?: string;
   attachments?: ChatAttachmentInput[];
   projectSlug?: string;
+  chatOptions?: Record<string, unknown>;
 }) {
   return {
     input: buildConversationTurnInput(input.content, input.attachments),
     options: {
+      ...(input.chatOptions ?? {}),
       ...(input.conversationId ? { conversationId: input.conversationId } : {}),
       ...(input.title ? { title: input.title } : {}),
       ...(input.model ? { model: input.model } : {}),
@@ -169,6 +171,7 @@ export async function streamConversationTurn(input: {
   model?: string;
   attachments?: ChatAttachmentInput[];
   projectSlug?: string;
+  chatOptions?: Record<string, unknown>;
   apiBase?: string;
 }): Promise<{ conversationId?: string; finishReason?: string }> {
   const payload = buildConversationTurnPayload(input);
@@ -240,7 +243,11 @@ export async function streamConversationTurn(input: {
 
         const data = JSON.parse(dataStr);
 
-        if (data.type === 'conversation-started' && data.conversationId) {
+        if (
+          (data.type === 'conversation-started' ||
+            data.type === 'conversation') &&
+          data.conversationId
+        ) {
           conversationId = data.conversationId;
           input.onConversationStarted?.(data.conversationId, data.title);
           continue;

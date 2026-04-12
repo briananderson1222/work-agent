@@ -119,7 +119,9 @@ export async function scanKnowledgeDirectories({
   if (!scanPath || !existsSync(scanPath)) return { indexed: 0, skipped: 0 };
 
   const allowedExtensions = extensions
-    ? new Set(extensions.map((extension) => normalizeKnowledgeExtension(extension)))
+    ? new Set(
+        extensions.map((extension) => normalizeKnowledgeExtension(extension)),
+      )
     : DEFAULT_EXTENSIONS;
   const files = collectKnowledgeFiles(scanPath, allowedExtensions);
   const filteredFiles = applyKnowledgeScanPatterns(

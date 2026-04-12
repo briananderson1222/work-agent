@@ -40,7 +40,7 @@ export async function streamWithProvider(
   // Send conversation metadata
   await writer.write(
     `data: ${JSON.stringify({
-      type: 'conversation',
+      type: 'conversation-started',
       conversationId,
       title:
         messages.find((m) => m.role === 'user')?.content?.slice(0, 60) ||

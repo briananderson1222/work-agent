@@ -13,6 +13,7 @@
   ],
   "scripts": {
     "verify:convergence": "node scripts/verify-convergence.mjs",
+    "generate:openapi": "tsx scripts/generate-openapi.ts",
     "ci:fast": "npm run verify:convergence && npm run build:sdk && npm run build:connect && npx tsc --noEmit --skipLibCheck && npm run lint && npm run build:server && npm run build:ui && npm test -- --run",
     "ci:extended": "npm run ci:fast && npm run test:coverage",
     "install:playwright": "PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium",

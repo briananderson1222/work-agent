@@ -18,6 +18,14 @@ import {
 import type { Logger } from '../utils/logger.js';
 import { resolvePluginBundle } from './plugin-bundles.js';
 import {
+  buildPluginRequestContext,
+  createScopedPluginRequest,
+  loadPluginPublicServerModule,
+  type PluginServerModuleContext,
+  readPluginPublicManifest,
+  readPluginServerSettings,
+} from './plugin-public-server.js';
+import {
   errorMessage,
   getBody,
   param,
@@ -25,14 +33,6 @@ import {
   pluginGrantSchema,
   validate,
 } from './schemas.js';
-import {
-  buildPluginRequestContext,
-  createScopedPluginRequest,
-  loadPluginPublicServerModule,
-  readPluginPublicManifest,
-  readPluginServerSettings,
-  type PluginServerModuleContext,
-} from './plugin-public-server.js';
 
 interface PluginPublicRouteDeps {
   pluginsDir: string;

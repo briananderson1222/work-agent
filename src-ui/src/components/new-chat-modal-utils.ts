@@ -115,6 +115,7 @@ export function buildNewChatModalViewModel({
   layoutAvailableAgents,
   layoutName,
   layoutIcon,
+  providerManagedAgentSlugs = [],
   recentSlugs,
 }: {
   agents: AgentData[];
@@ -127,6 +128,7 @@ export function buildNewChatModalViewModel({
   layoutAvailableAgents: string[];
   layoutName?: string;
   layoutIcon?: string;
+  providerManagedAgentSlugs?: string[];
   recentSlugs: string[];
 }): NewChatModalViewModel {
   const contextOptions = buildContextOptions(projects);
@@ -143,13 +145,6 @@ export function buildNewChatModalViewModel({
   const isGlobal = selectedContext === GLOBAL_CONTEXT;
 
   const query = agentSearch.toLowerCase();
-  const runtimeChats = runtimeConnections
-    .filter(
-      (connection) =>
-        connection.type !== 'acp' && isRuntimeConnectionSelectable(connection),
-    )
-    .map((connection) => buildRuntimeChatAgent(connection) as AgentData);
-  const runtimeChatSlugs = new Set(runtimeChats.map((agent) => agent.slug));
   const chatReadyAgents = agents.filter(
     (agent) =>
       canAgentStartChat(agent, runtimeConnections) &&
@@ -157,7 +152,42 @@ export function buildNewChatModalViewModel({
         selectedProjectAgentFilter.length === 0 ||
         selectedProjectAgentFilter.includes(agent.slug)),
   );
-  const filtered = [...runtimeChats, ...chatReadyAgents].filter(
+  const providerManagedSet = new Set(providerManagedAgentSlugs);
+  const providerManagedAgents = agents.filter(
+    (agent) =>
+      providerManagedSet.has(agent.slug) &&
+      (!selectedProjectAgentFilter ||
+        selectedProjectAgentFilter.length === 0 ||
+        selectedProjectAgentFilter.includes(agent.slug)),
+  );
+  const existingRuntimeChatSlugs = new Set(
+    chatReadyAgents
+      .filter((agent) => agent.slug.startsWith('__runtime:'))
+      .map((agent) => agent.slug),
+  );
+  const runtimeChats = runtimeConnections
+    .filter(
+      (connection) =>
+        connection.type !== 'acp' && isRuntimeConnectionSelectable(connection),
+    )
+    .map((connection) => buildRuntimeChatAgent(connection) as AgentData)
+    .filter((agent) => !existingRuntimeChatSlugs.has(agent.slug));
+  const runtimeChatSlugs = new Set(
+    [...runtimeChats, ...chatReadyAgents]
+      .filter((agent) => agent.slug.startsWith('__runtime:'))
+      .map((agent) => agent.slug),
+  );
+  const eligibleAgents = new Map<string, AgentData>();
+  for (const agent of [
+    ...chatReadyAgents,
+    ...providerManagedAgents,
+    ...runtimeChats,
+  ]) {
+    if (!eligibleAgents.has(agent.slug)) {
+      eligibleAgents.set(agent.slug, agent);
+    }
+  }
+  const filtered = [...eligibleAgents.values()].filter(
     (agent) =>
       agent.name.toLowerCase().includes(query) ||
       agent.slug.toLowerCase().includes(query),
@@ -207,10 +237,9 @@ export function buildNewChatModalViewModel({
   if (recentAgents.length > 0) {
     groups.push({ label: 'Recent', icon: '🕐', agents: recentAgents });
   }
-
-  if (runtimeAgents.length > 0) {
-    groups.push({ label: 'Runtime Chat', icon: '⚡', agents: runtimeAgents });
-  }
+  const visibleRuntimeAgents = runtimeAgents.filter(
+    (agent) => !recentSet.has(agent.slug) || !!agentSearch,
+  );
 
   const showLayoutAgents = isGlobal || (selectedProject?.layoutCount ?? 0) > 0;
   if (showLayoutAgents && wsAgents.length > 0) {
@@ -220,6 +249,14 @@ export function buildNewChatModalViewModel({
       agents: wsAgents.filter(
         (agent) => !recentSet.has(agent.slug) || !!agentSearch,
       ),
+    });
+  }
+
+  if (visibleRuntimeAgents.length > 0) {
+    groups.push({
+      label: 'Runtime Chat',
+      icon: '⚡',
+      agents: visibleRuntimeAgents,
     });
   }
 

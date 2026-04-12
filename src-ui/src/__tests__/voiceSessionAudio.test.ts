@@ -9,13 +9,9 @@ import {
 
 describe('voiceSessionAudio', () => {
   test('float32ToInt16 clamps and converts samples', () => {
-    expect(Array.from(float32ToInt16(new Float32Array([-2, -1, 0, 1, 2])))).toEqual([
-      -32768,
-      -32768,
-      0,
-      32767,
-      32767,
-    ]);
+    expect(
+      Array.from(float32ToInt16(new Float32Array([-2, -1, 0, 1, 2]))),
+    ).toEqual([-32768, -32768, 0, 32767, 32767]);
   });
 
   test('downsample reduces sample count when rates differ', () => {
@@ -32,10 +28,8 @@ describe('voiceSessionAudio', () => {
   });
 
   test('int16ToFloat32 converts signed ranges back to float audio', () => {
-    expect(Array.from(int16ToFloat32(new Int16Array([-32768, 0, 32767])))).toEqual([
-      -1,
-      0,
-      1,
-    ]);
+    expect(
+      Array.from(int16ToFloat32(new Int16Array([-32768, 0, 32767]))),
+    ).toEqual([-1, 0, 1]);
   });
 });

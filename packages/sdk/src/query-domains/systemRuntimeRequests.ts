@@ -139,7 +139,10 @@ export async function applyCoreUpdate(apiBase: string): Promise<{
   const response = await fetch(`${apiBase}/api/system/core-update`, {
     method: 'POST',
   });
-  const result = (await response.json()) as { success: boolean; error?: string };
+  const result = (await response.json()) as {
+    success: boolean;
+    error?: string;
+  };
   if (!result.success) {
     throw new Error(result.error || 'Failed to apply core update');
   }

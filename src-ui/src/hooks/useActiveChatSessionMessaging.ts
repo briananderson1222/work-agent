@@ -104,11 +104,21 @@ export function useSendMessage(
 
       try {
         const title = !conversationId ? currentState?.title : undefined;
-        const model = currentState?.model;
-        const provider =
-          currentState?.orchestrationProvider ||
-          currentState?.provider ||
-          inferRuntimeProvider(agentSlug);
+        const isProviderManaged =
+          currentState?.executionMode === 'provider-managed';
+        const model = isProviderManaged ? undefined : currentState?.model;
+        const chatOptions = isProviderManaged
+          ? {
+              providerManagedFallback: true,
+              executionScope: currentState?.executionScope,
+              providerId: currentState?.providerId,
+            }
+          : undefined;
+        const provider = isProviderManaged
+          ? undefined
+          : currentState?.orchestrationProvider ||
+            currentState?.provider ||
+            inferRuntimeProvider(agentSlug);
 
         if (provider && provider !== 'bedrock') {
           if (attachments && attachments.length > 0) {
@@ -162,6 +172,7 @@ export function useSendMessage(
           model,
           attachments,
           currentState?.projectSlug,
+          chatOptions,
         );
 
         const nextConversationId = result?.conversationId;
@@ -266,6 +277,12 @@ export function useSendMessage(
           status: 'error',
           error: err.message,
           abortController: undefined,
+          ephemeralMessages: [
+            {
+              role: 'system',
+              content: `Error: ${err.message}`,
+            },
+          ],
         });
         clearStreamingMessage(sessionId);
       }

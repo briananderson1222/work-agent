@@ -6,7 +6,9 @@ import {
 
 describe('api-knowledge-utils', () => {
   test('knowledgeBase encodes project slugs and namespaces', () => {
-    expect(knowledgeBase('http://localhost:3141', 'proj slug', 'notes/core')).toBe(
+    expect(
+      knowledgeBase('http://localhost:3141', 'proj slug', 'notes/core'),
+    ).toBe(
       'http://localhost:3141/api/projects/proj%20slug/knowledge/ns/notes%2Fcore',
     );
   });

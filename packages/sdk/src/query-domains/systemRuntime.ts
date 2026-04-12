@@ -17,6 +17,7 @@ import {
   requestSystemStatus,
   verifyBedrockConnection,
 } from './systemRuntimeRequests';
+
 export {
   applyCoreUpdate,
   fetchAuthStatus,
@@ -291,5 +292,9 @@ export function useApplyCoreUpdateMutation(
 export function useServerCapabilitiesQuery(
   config?: QueryConfig<ServerCapabilities>,
 ) {
-  return useApiQuery(['system-capabilities'], () => fetchServerCapabilities(), config);
+  return useApiQuery(
+    ['system-capabilities'],
+    () => fetchServerCapabilities(),
+    config,
+  );
 }

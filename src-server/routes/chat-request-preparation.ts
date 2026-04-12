@@ -34,7 +34,7 @@ export async function prepareChatRequest(
   let useAlternateProvider = false;
   let resolvedProviderConn: ProviderConnectionConfig | null = null;
 
-  if (context.projectSlug && !options.model) {
+  if (options.providerManagedFallback && !options.model) {
     try {
       const resolved = await context.ctx.providerService.resolveProvider({
         projectSlug: context.projectSlug,
@@ -54,7 +54,10 @@ export async function prepareChatRequest(
         }
       }
     } catch (err: unknown) {
-      context.ctx.logger.warn('Failed to resolve project provider', {
+      if (options.providerManagedFallback) {
+        throw err;
+      }
+      context.ctx.logger.warn('Failed to resolve chat provider', {
         projectSlug: context.projectSlug,
         error: errorMessage(err),
       });

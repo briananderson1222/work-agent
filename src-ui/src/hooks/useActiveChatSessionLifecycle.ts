@@ -1,4 +1,3 @@
-import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import { fetchAgentConversations } from '@stallion-ai/sdk';
 import { useCallback, useEffect } from 'react';
 import { useActiveChatActions } from '../contexts/ActiveChatsContext';
@@ -8,6 +7,7 @@ import {
   useConversationActions,
 } from '../contexts/ConversationsContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import type { ChatExecutionMetadata } from '../utils/execution';
 import { useSendMessage } from './useActiveChatSessionMessaging';
 import {
   type ActiveChatConversationMessage,
@@ -66,11 +66,7 @@ export function useCreateChatSession() {
       title?: string,
       projectSlug?: string,
       projectName?: string,
-      execution?: {
-        provider?: ProviderKind;
-        model?: string;
-        providerOptions?: Record<string, unknown>;
-      },
+      execution?: ChatExecutionMetadata,
     ) => {
       const sessionId = `${agentSlug}:${Date.now()}`;
       initChat(sessionId, {
@@ -79,6 +75,10 @@ export function useCreateChatSession() {
         title: title || `${agentName} Chat`,
         projectSlug,
         projectName,
+        executionMode: execution?.executionMode,
+        executionScope: execution?.executionScope,
+        runtimeConnectionId: execution?.runtimeConnectionId,
+        providerId: execution?.providerId,
         provider: execution?.provider,
         model: execution?.model,
         providerOptions: execution?.providerOptions,
@@ -100,11 +100,7 @@ export function useOpenConversation(apiBase: string) {
       agentName: string,
       projectSlug?: string,
       projectName?: string,
-      execution?: {
-        provider?: ProviderKind;
-        model?: string;
-        providerOptions?: Record<string, unknown>;
-      },
+      execution?: ChatExecutionMetadata,
     ) => {
       const sessionId = `${agentSlug}:${Date.now()}`;
 
@@ -115,6 +111,10 @@ export function useOpenConversation(apiBase: string) {
         conversationId,
         projectSlug,
         projectName,
+        executionMode: execution?.executionMode,
+        executionScope: execution?.executionScope,
+        runtimeConnectionId: execution?.runtimeConnectionId,
+        providerId: execution?.providerId,
         provider: execution?.provider,
         model: execution?.model,
         providerOptions: execution?.providerOptions,
@@ -147,11 +147,7 @@ export function useLaunchChat(apiBase: string) {
       initialMessage?: string,
       projectSlug?: string,
       projectName?: string,
-      execution?: {
-        provider?: ProviderKind;
-        model?: string;
-        providerOptions?: Record<string, unknown>;
-      },
+      execution?: ChatExecutionMetadata,
     ) => {
       const sessionId = createChatSession(
         agentSlug,

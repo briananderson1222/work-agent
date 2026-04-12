@@ -36,6 +36,7 @@ export function AgentsView({
     form,
     handleDelete,
     handleDeselect,
+    handleNew,
     handleSave,
     handleSelect,
     integrationTools,
@@ -75,7 +76,7 @@ export function AgentsView({
         onDeselect={handleDeselect}
         onSearch={setSearch}
         searchPlaceholder="Search agents..."
-        onAdd={handleNew}
+        onAdd={() => handleNew()}
         addLabel="+ New Agent"
         emptyIcon="⬡"
         emptyTitle="No agent selected"

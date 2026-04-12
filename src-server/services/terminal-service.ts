@@ -1,5 +1,3 @@
-import { resolveTerminalShellCandidates } from './terminal-shells.js';
-import { pollTerminalSubprocessActivity } from './terminal-subprocess-state.js';
 import type { IPtyAdapter, IPtyProcess } from '../domain/pty-adapter.js';
 import type { ITerminalHistoryStore } from '../domain/terminal-history-store.js';
 import type {
@@ -9,6 +7,8 @@ import type {
   TerminalSessionState,
 } from '../domain/terminal-types.js';
 import { terminalOps } from '../telemetry/metrics.js';
+import { resolveTerminalShellCandidates } from './terminal-shells.js';
+import { pollTerminalSubprocessActivity } from './terminal-subprocess-state.js';
 
 const HISTORY_LINE_LIMIT = 5000;
 const PERSIST_DEBOUNCE_MS = 40;
@@ -225,7 +225,6 @@ export class TerminalService {
     const entry = this.sessions.get(sessionId);
     if (entry) await this.historyStore.save(sessionId, entry.history);
   }
-
 
   private pollSubprocesses(): void {
     for (const [sessionId, entry] of this.sessions) {

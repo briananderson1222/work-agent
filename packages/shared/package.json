@@ -11,6 +11,7 @@
     "./git": "./src/git.ts",
     "./mcp": "./src/mcp.ts",
     "./parsers": "./src/parsers.ts",
+    "./portability": "./src/portability.ts",
     "./runtime-events": "./src/runtime-events.ts"
   },
   "publishConfig": {

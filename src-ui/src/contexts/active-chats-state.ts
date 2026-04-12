@@ -65,6 +65,10 @@ export type ChatUIState = {
   projectSlug?: string;
   projectName?: string;
   focusDirectoryId?: string;
+  executionMode?: 'runtime' | 'provider-managed';
+  executionScope?: 'project' | 'global';
+  runtimeConnectionId?: string;
+  providerId?: string;
   provider?: ProviderKind;
   providerOptions?: Record<string, unknown>;
   orchestrationSessionStarted?: boolean;
@@ -91,6 +95,10 @@ export type ActiveChatMetadata = {
   conversationId?: string;
   projectSlug?: string;
   projectName?: string;
+  executionMode?: 'runtime' | 'provider-managed';
+  executionScope?: 'project' | 'global';
+  runtimeConnectionId?: string;
+  providerId?: string;
   provider?: ProviderKind;
   model?: string;
   providerOptions?: Record<string, unknown>;
@@ -103,6 +111,10 @@ export type PersistedActiveChat = {
   model?: string;
   projectSlug?: string;
   projectName?: string;
+  executionMode?: 'runtime' | 'provider-managed';
+  executionScope?: 'project' | 'global';
+  runtimeConnectionId?: string;
+  providerId?: string;
   provider?: ProviderKind;
   providerOptions?: Record<string, unknown>;
   orchestrationSessionStarted?: boolean;
@@ -179,6 +191,10 @@ export function hydrateActiveChats(
       model: session.model,
       projectSlug: session.projectSlug,
       projectName: session.projectName,
+      executionMode: session.executionMode,
+      executionScope: session.executionScope,
+      runtimeConnectionId: session.runtimeConnectionId,
+      providerId: session.providerId,
       provider: session.provider,
       providerOptions: session.providerOptions || {},
       orchestrationSessionStarted: session.orchestrationSessionStarted || false,
@@ -204,6 +220,10 @@ export function serializeActiveChats(
       model: chat.model,
       projectSlug: chat.projectSlug,
       projectName: chat.projectName,
+      executionMode: chat.executionMode,
+      executionScope: chat.executionScope,
+      runtimeConnectionId: chat.runtimeConnectionId,
+      providerId: chat.providerId,
       provider: chat.provider,
       providerOptions: chat.providerOptions || {},
       orchestrationSessionStarted: chat.orchestrationSessionStarted || false,
@@ -230,6 +250,10 @@ export function mergeChatUpdates(
   };
   const shouldPersist =
     'conversationId' in nextUpdates ||
+    'executionMode' in nextUpdates ||
+    'executionScope' in nextUpdates ||
+    'runtimeConnectionId' in nextUpdates ||
+    'providerId' in nextUpdates ||
     'model' in nextUpdates ||
     'provider' in nextUpdates ||
     'providerOptions' in nextUpdates ||

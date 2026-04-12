@@ -54,6 +54,7 @@ export type ConversationsContextType = {
     model?: string,
     attachments?: FileAttachment[],
     projectSlug?: string,
+    chatOptions?: Record<string, unknown>,
   ) => Promise<{ conversationId?: string; finishReason?: string }>;
   setStatus: (
     agentSlug: string,

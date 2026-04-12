@@ -1,6 +1,7 @@
 import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
+import { createLLMProvider } from '../providers/connection-factories.js';
 import type { ILLMProvider } from '../providers/model-provider-types.js';
 import { providerOps } from '../telemetry/metrics.js';
 
@@ -55,9 +56,13 @@ export class ProviderService {
       try {
         const project = await this.storageAdapter.getProject(opts.projectSlug);
         if (project.defaultProviderId && project.defaultModel) {
+          const providerId = project.defaultProviderId;
           return {
-            providerId: project.defaultProviderId,
-            model: project.defaultModel,
+            providerId,
+            model: await this.resolveModelForProvider(
+              providerId,
+              project.defaultModel,
+            ),
           };
         }
       } catch (e) {
@@ -82,7 +87,53 @@ export class ProviderService {
       'ollama-default';
     return {
       providerId: fallbackProviderId,
-      model: appConfig.defaultModel,
+      model: await this.resolveModelForProvider(
+        fallbackProviderId,
+        appConfig.defaultModel,
+      ),
     };
+  }
+
+  private async resolveModelForProvider(
+    providerId: string,
+    preferredModel?: string,
+  ): Promise<string> {
+    const providerConnection = this.storageAdapter
+      .listProviderConnections()
+      .find((connection) => connection.id === providerId);
+
+    if (!providerConnection) {
+      return preferredModel || '';
+    }
+
+    const configuredModel =
+      typeof providerConnection.config?.defaultModel === 'string'
+        ? providerConnection.config.defaultModel.trim()
+        : '';
+    if (configuredModel) {
+      return configuredModel;
+    }
+
+    if (providerConnection.type === 'bedrock') {
+      return preferredModel || '';
+    }
+
+    const provider = createLLMProvider(providerConnection);
+    if (!provider) {
+      return preferredModel || '';
+    }
+
+    const models = await provider.listModels().catch(() => []);
+    if (models.length === 0) {
+      throw new Error(
+        `No models available for provider '${providerConnection.name || providerId}'`,
+      );
+    }
+
+    if (preferredModel && models.some((model) => model.id === preferredModel)) {
+      return preferredModel;
+    }
+
+    return models[0]!.id;
   }
 }

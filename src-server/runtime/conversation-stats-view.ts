@@ -65,7 +65,9 @@ export function buildEmptyConversationStatsView({
   };
 }
 
-export function resolveConversationUserMessageTokens(messages: any[] = []): number {
+export function resolveConversationUserMessageTokens(
+  messages: any[] = [],
+): number {
   return messages
     .filter((message) => message.role === 'user')
     .reduce((sum, message) => {
@@ -106,8 +108,7 @@ export function buildConversationStatsView({
     systemPromptTokens,
     mcpServerTokens,
     userMessageTokens,
-    assistantMessageTokens:
-      assistantMessageTokens ?? stats.outputTokens ?? 0,
+    assistantMessageTokens: assistantMessageTokens ?? stats.outputTokens ?? 0,
     contextFilesTokens: 0,
   };
 }

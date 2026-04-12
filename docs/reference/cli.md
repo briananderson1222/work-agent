@@ -164,6 +164,46 @@ stallion config set defaultModel us.anthropic.claude-sonnet-4-5-20250929-v1:0
 stallion config set registryUrl null
 ```
 
+### `export --format=<format>`
+
+Export Stallion configuration into an external portability format.
+
+```
+stallion export --format=<agents-md|claude-desktop> [--output=<path>]
+```
+
+Supported formats:
+
+| Format | Output |
+|--------|--------|
+| `agents-md` | Stallion-owned `AGENTS.md` export with structured machine block and loss report |
+| `claude-desktop` | `claude_desktop_config.json`-style MCP configuration |
+
+```bash
+stallion export --format=agents-md --output=./AGENTS.md
+stallion export --format=claude-desktop --output=./claude_desktop_config.json
+```
+
+### `import <file>`
+
+Import a supported portability file back into Stallion’s canonical config.
+
+```
+stallion import <file>
+```
+
+Current supported inputs:
+
+| Input | Behavior |
+|-------|----------|
+| `AGENTS.md` | Restores structured Stallion-owned sections, preserves unmatched prose as notes, records import ledger metadata |
+| `claude_desktop_config.json` | Imports MCP server definitions into Stallion integrations |
+
+```bash
+stallion import ./AGENTS.md
+stallion import ./claude_desktop_config.json
+```
+
 ---
 
 ## Plugin Management

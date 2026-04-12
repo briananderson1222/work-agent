@@ -87,8 +87,7 @@ export function processNovaSonicStreamEvent(
 
   if (event.toolUse) {
     state.currentToolName = event.toolUse.toolName ?? state.currentToolName;
-    state.currentToolUseId =
-      event.toolUse.toolUseId ?? state.currentToolUseId;
+    state.currentToolUseId = event.toolUse.toolUseId ?? state.currentToolUseId;
     state.currentToolContent += event.toolUse.content ?? '';
     return;
   }

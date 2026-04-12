@@ -8,6 +8,8 @@ import {
   preferredChatRuntime,
   preferredConnectedRuntime,
   resolveAgentExecution,
+  resolveGlobalProviderManagedExecution,
+  resolveProjectProviderManagedExecution,
   resolveSessionExecutionSummary,
   runtimeConnectionIdToProviderKind,
 } from '../utils/execution';
@@ -194,5 +196,91 @@ describe('execution utils', () => {
     ] as any);
 
     expect(runtime?.id).toBe('codex-runtime');
+  });
+
+  test('resolves provider-managed execution for project-scoped chat', () => {
+    const resolved = resolveProjectProviderManagedExecution(
+      {
+        defaultProviderId: 'ollama-local',
+        defaultModel: 'llama3.2',
+      },
+      [
+        {
+          id: 'ollama-local',
+          kind: 'model',
+          type: 'ollama',
+          name: 'Local Ollama',
+          enabled: true,
+          capabilities: ['llm'],
+          config: {},
+          status: 'ready',
+          prerequisites: [],
+        },
+      ] as any,
+    );
+
+    expect(resolved).toEqual({
+      executionMode: 'provider-managed',
+      executionScope: 'project',
+      provider: 'ollama',
+      providerId: 'ollama-local',
+      model: 'llama3.2',
+      providerOptions: {},
+    });
+  });
+
+  test('does not resolve provider-managed execution for bedrock or incomplete project config', () => {
+    expect(
+      resolveProjectProviderManagedExecution(
+        {
+          defaultProviderId: 'bedrock-default',
+          defaultModel: 'claude-sonnet',
+        },
+        [
+          {
+            id: 'bedrock-default',
+            kind: 'model',
+            type: 'bedrock',
+            name: 'Bedrock',
+            enabled: true,
+            capabilities: ['llm'],
+            config: {},
+            status: 'ready',
+            prerequisites: [],
+          },
+        ] as any,
+      ),
+    ).toBeNull();
+    expect(resolveProjectProviderManagedExecution(null, [] as any)).toBeNull();
+  });
+
+  test('resolves a global provider-managed fallback when there is exactly one llm provider', () => {
+    const resolved = resolveGlobalProviderManagedExecution(
+      {
+        defaultModel: 'llama3.2',
+      },
+      [
+        {
+          id: 'ollama-local',
+          kind: 'model',
+          type: 'ollama',
+          name: 'Local Ollama',
+          enabled: true,
+          capabilities: ['llm'],
+          config: {},
+          status: 'ready',
+          prerequisites: [],
+        },
+      ] as any,
+    );
+
+    expect(resolved).toEqual({
+      executionMode: 'provider-managed',
+      executionScope: 'global',
+      provider: 'ollama',
+      providerId: 'ollama-local',
+      model: 'llama3.2',
+      providerOptions: {},
+    });
   });
 });

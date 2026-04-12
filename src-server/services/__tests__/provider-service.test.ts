@@ -1,10 +1,20 @@
-import { describe, expect, test, vi } from 'vitest';
+import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 vi.mock('../telemetry/metrics.js', () => ({
   providerOps: { add: vi.fn() },
 }));
+vi.mock('../../providers/connection-factories.js', () => ({
+  createLLMProvider: vi.fn(),
+}));
 
 const { ProviderService } = await import('../provider-service.js');
+const { createLLMProvider } = await import(
+  '../../providers/connection-factories.js'
+);
+
+beforeEach(() => {
+  vi.mocked(createLLMProvider).mockReset();
+});
 
 function createMockStorageAdapter() {
   const connections: any[] = [];
@@ -100,6 +110,9 @@ describe('ProviderService', () => {
           defaultModel: 'llama3.2',
         }) as any,
     );
+    vi.mocked(createLLMProvider).mockReturnValue({
+      listModels: vi.fn(async () => [{ id: 'llama3.2', name: 'Llama 3.2' }]),
+    } as any);
 
     const result = await svc.resolveProvider({ projectSlug: 'missing' });
 
@@ -107,6 +120,63 @@ describe('ProviderService', () => {
       providerId: 'ollama-local',
       model: 'llama3.2',
     });
+  });
+
+  test('resolveProvider picks the first available provider model when the preferred model is unavailable', async () => {
+    const adapter = createMockStorageAdapter();
+    adapter.getProject.mockRejectedValue(new Error('not found'));
+    adapter.saveProviderConnection({
+      id: 'ollama-local',
+      type: 'ollama',
+      name: 'Ollama',
+      enabled: true,
+      capabilities: ['llm'],
+      config: {},
+    });
+    const svc = new ProviderService(
+      adapter as any,
+      async () =>
+        ({
+          defaultModel: 'us.anthropic.claude-sonnet-4-6',
+        }) as any,
+    );
+    vi.mocked(createLLMProvider).mockReturnValue({
+      listModels: vi.fn(async () => [{ id: 'llama3.2', name: 'Llama 3.2' }]),
+    } as any);
+
+    const result = await svc.resolveProvider({ projectSlug: 'missing' });
+
+    expect(result).toEqual({
+      providerId: 'ollama-local',
+      model: 'llama3.2',
+    });
+  });
+
+  test('resolveProvider throws when a non-bedrock provider has no available models', async () => {
+    const adapter = createMockStorageAdapter();
+    adapter.getProject.mockRejectedValue(new Error('not found'));
+    adapter.saveProviderConnection({
+      id: 'ollama-local',
+      type: 'ollama',
+      name: 'Ollama',
+      enabled: true,
+      capabilities: ['llm'],
+      config: {},
+    });
+    const svc = new ProviderService(
+      adapter as any,
+      async () =>
+        ({
+          defaultModel: 'us.anthropic.claude-sonnet-4-6',
+        }) as any,
+    );
+    vi.mocked(createLLMProvider).mockReturnValue({
+      listModels: vi.fn(async () => []),
+    } as any);
+
+    await expect(
+      svc.resolveProvider({ projectSlug: 'missing' }),
+    ).rejects.toThrow(/No models available/);
   });
 
   test('checkHealth returns provider health', async () => {
