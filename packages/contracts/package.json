@@ -13,6 +13,7 @@
     "./knowledge": "./src/knowledge.ts",
     "./layout": "./src/layout.ts",
     "./notification": "./src/notification.ts",
+    "./portability": "./src/portability.ts",
     "./plugin": "./src/plugin.ts",
     "./project": "./src/project.ts",
     "./runtime": "./src/runtime.ts",

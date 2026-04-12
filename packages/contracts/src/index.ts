@@ -8,6 +8,7 @@ export * from './layout.js';
 export * from './notification.js';
 export * from './orchestration.js';
 export * from './plugin.js';
+export * from './portability.js';
 export * from './project.js';
 export * from './provider.js';
 export * from './runtime.js';

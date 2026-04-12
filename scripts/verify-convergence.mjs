@@ -82,9 +82,13 @@ for (const scriptName of ['verify:convergence', 'ci:fast', 'ci:extended']) {
 
 const allowedSharedImportFiles = new Map([
   ['packages/cli/src/commands/build.ts', ['@stallion-ai/shared/build', '@stallion-ai/shared/parsers']],
+  ['packages/cli/src/commands/export.ts', ['@stallion-ai/shared/portability']],
   ['packages/cli/src/commands/helpers.ts', ['@stallion-ai/shared/parsers']],
+  ['packages/cli/src/commands/import.ts', ['@stallion-ai/shared/portability']],
   ['packages/cli/src/commands/install.ts', ['@stallion-ai/shared/build', '@stallion-ai/shared/parsers']],
   ['packages/cli/src/commands/lifecycle.ts', ['@stallion-ai/shared/git']],
+  ['packages/cli/src/commands/portability-io.ts', ['@stallion-ai/shared/portability']],
+  ['packages/cli/src/commands/portability.ts', ['@stallion-ai/shared/portability']],
   ['packages/cli/src/dev/server.ts', ['@stallion-ai/shared/build']],
   ['packages/cli/src/dev/http.ts', ['@stallion-ai/shared/mcp']],
   ['packages/cli/src/dev/mcp.ts', ['@stallion-ai/shared/mcp', '@stallion-ai/shared/parsers']],
@@ -5423,6 +5427,9 @@ const pluginPublicRoutes = readFileSync(
   new URL('../src-server/routes/plugin-public-routes.ts', import.meta.url),
   'utf8',
 );
+if (!pluginPublicRoutes.includes('./plugin-public-server.js')) {
+  errors.push('plugin-public-routes.ts must delegate server module request/context helpers to plugin-public-server.ts.');
+}
 for (const requiredHelper of [
   'export function registerPluginPublicRoutes',
   "app.get('/:name/bundle.js'",
@@ -5434,6 +5441,33 @@ for (const requiredHelper of [
 ]) {
   if (!pluginPublicRoutes.includes(requiredHelper)) {
     errors.push(`plugin-public-routes.ts must include ${requiredHelper}.`);
+  }
+}
+for (const retiredPluginPublicSnippet of [
+  'function buildRequestContext(',
+  'function createScopedRequest(',
+  'async function readPluginManifest(',
+  'async function readPluginSettings(',
+  'async function loadPluginServerModule(',
+]) {
+  if (pluginPublicRoutes.includes(retiredPluginPublicSnippet)) {
+    errors.push(`plugin-public-routes.ts must not inline extracted helper ${retiredPluginPublicSnippet}.`);
+  }
+}
+
+const pluginPublicServer = readFileSync(
+  new URL('../src-server/routes/plugin-public-server.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function buildPluginRequestContext',
+  'export function createScopedPluginRequest',
+  'export async function readPluginPublicManifest',
+  'export async function readPluginServerSettings',
+  'export async function loadPluginPublicServerModule',
+]) {
+  if (!pluginPublicServer.includes(requiredHelper)) {
+    errors.push(`plugin-public-server.ts must include ${requiredHelper}.`);
   }
 }
 

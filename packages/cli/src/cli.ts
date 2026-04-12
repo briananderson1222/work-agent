@@ -18,6 +18,8 @@
  *   stallion init [name]          Scaffold a new plugin (compat alias)
  *   stallion create-plugin [name] Scaffold a new plugin
  *     --template=<full|layout|provider>
+ *   stallion export --format=agents-md [--output=path]
+ *   stallion import <file>
  *   stallion build                Build plugin bundle
  *   stallion dev [port] [flags]   Dev preview server (default: 4200)
  *     --no-mcp              Disable MCP tool connections
@@ -29,6 +31,8 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build } from './commands/build.js';
 import { configGet, configSet } from './commands/config.js';
+import { exportConfig } from './commands/export.js';
+import { importConfig } from './commands/import.js';
 import { createPlugin, init, type PluginTemplate } from './commands/init.js';
 import {
   info,
@@ -79,6 +83,8 @@ Configuration:
   stallion config               Show all config values
   stallion config get <key>     Get a config value
   stallion config set <key> <value>  Set a config value (use "null" to unset)
+  stallion export --format=<format> [--output=<path>]
+  stallion import <file>
 
 Plugin Management:
   stallion list                 List installed plugins
@@ -97,6 +103,8 @@ Plugin Development:
   stallion init [name]          Scaffold a new plugin (compat alias)
   stallion create-plugin [name] Scaffold a new plugin
     --template=<full|layout|provider>
+  stallion export --format=agents-md [--output=<path>]
+  stallion import <file>        Import a Stallion-exported AGENTS.md
   stallion build                Build plugin bundle
   stallion dev [port] [flags]   Dev preview server (default: 4200)
     --no-mcp              Disable MCP tool connections
@@ -208,6 +216,22 @@ export async function runCli(argv: string[]): Promise<void> {
       else configGet(); // bare `stallion config` shows all
       break;
     }
+    case 'export': {
+      const formatArg = args.find((arg) => arg.startsWith('--format='));
+      const outputArg = args.find((arg) => arg.startsWith('--output='));
+      const format = formatArg?.split('=')[1];
+      if (!format) {
+        throw new Error('Usage: stallion export --format=<agents-md>');
+      }
+      exportConfig({
+        format: format as 'agents-md' | 'claude-desktop',
+        output: outputArg?.split('=')[1],
+      });
+      break;
+    }
+    case 'import':
+      importConfig(args[0]);
+      break;
     case 'dev': {
       const flags: DevFlags = {};
       let devPort = 4200;
