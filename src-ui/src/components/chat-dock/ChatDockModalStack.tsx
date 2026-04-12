@@ -32,7 +32,12 @@ interface ChatDockModalStackProps {
   onCloseNewChat: () => void;
   onCloseSettings: () => void;
   onCloseSessionPicker: () => void;
-  onSessionPickerSelect: (conversationId: string, agentSlug: string) => void;
+  onSessionPickerSelect: (
+    conversationId: string,
+    agentSlug: string,
+    projectSlug?: string,
+    projectName?: string,
+  ) => void;
   onChatFontSizeChange: (fn: (prev: number) => number) => void;
   onShowReasoningChange: (show: boolean) => void;
   onShowToolDetailsChange: (show: boolean) => void;

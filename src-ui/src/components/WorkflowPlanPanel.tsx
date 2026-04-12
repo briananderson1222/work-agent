@@ -36,21 +36,25 @@ function slugifyTitle(value: string) {
   );
 }
 
+function stepCheckbox(status: WorkflowPlanStepStatus) {
+  if (status === 'completed') return 'x';
+  if (status === 'in_progress') return '>';
+  return ' ';
+}
+
+function stepStatusLabel(status: WorkflowPlanStepStatus) {
+  if (status === 'completed') return 'Completed';
+  if (status === 'in_progress') return 'Active';
+  return 'Pending';
+}
+
 function buildMarkdown(title: string, steps: WorkflowPlanStep[]) {
   if (steps.length === 0) {
     return `# ${title}`;
   }
 
   const checklist = steps
-    .map((step) => {
-      const checkbox =
-        step.status === 'completed'
-          ? 'x'
-          : step.status === 'in_progress'
-            ? '>'
-            : ' ';
-      return `- [${checkbox}] ${step.label}`;
-    })
+    .map((step) => `- [${stepCheckbox(step.status)}] ${step.label}`)
     .join('\n');
 
   return `# ${title}\n\n${checklist}`;
@@ -116,17 +120,11 @@ function downloadFile(filename: string, mimeType: string, contents: string) {
 }
 
 function StepStatusBadge({ status }: { status: WorkflowPlanStepStatus }) {
-  const label =
-    status === 'completed'
-      ? 'Completed'
-      : status === 'in_progress'
-        ? 'Active'
-        : 'Pending';
   return (
     <span
       className={`workflow-plan-panel__step-badge workflow-plan-panel__step-badge--${status}`}
     >
-      {label}
+      {stepStatusLabel(status)}
     </span>
   );
 }

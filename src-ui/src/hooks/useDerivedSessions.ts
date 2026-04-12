@@ -5,6 +5,52 @@ import { conversationsStore } from '../contexts/ConversationsContext';
 import type { ChatSession } from '../types';
 import { deriveLatestPlanArtifactFromMessages } from '../utils/planArtifacts';
 
+function buildSessionMessages(
+  chatState: typeof import('../contexts/active-chats-state')['createDefaultChatState'] extends (
+    ...args: any[]
+  ) => infer R
+    ? R
+    : never,
+  backendMessages: any[],
+  sessionStatus: string,
+) {
+  let messages: any[];
+  if (
+    sessionStatus === 'sending' &&
+    chatState.messages &&
+    chatState.messages.length > 0
+  ) {
+    messages = chatState.messages.map((message) => ({
+      ...message,
+      timestamp: message.timestamp || Date.now(),
+      optimistic: true,
+    }));
+  } else {
+    const effectiveBackend =
+      backendMessages.length > 0 ? backendMessages : chatState.messages || [];
+    const optimisticMessages = (chatState.messages || [])
+      .slice(effectiveBackend.length)
+      .map((message) => ({
+        ...message,
+        timestamp: message.timestamp || Date.now(),
+        optimistic: true,
+      }));
+
+    messages = [...effectiveBackend, ...optimisticMessages];
+  }
+
+  const messagesWithTimestamps = messages.map((message, index) => ({
+    ...message,
+    timestamp:
+      message.timestamp || Date.now() - (messages.length - index) * 1000,
+  }));
+
+  return [
+    ...messagesWithTimestamps,
+    ...(chatState.ephemeralMessages || []),
+  ].sort((left, right) => (left.timestamp || 0) - (right.timestamp || 0));
+}
+
 // Hook to get all open tabs (with messages loaded from backend)
 export function useDerivedSessions(
   _apiBase: string,
@@ -51,55 +97,11 @@ export function useDerivedSessions(
         ? conversationsSnapshot.messages[messagesKey] || []
         : [];
 
-      // During sending, use chatState.messages as source of truth to avoid race conditions
-      // with fetchMessages updating conversationsSnapshot before chatState.messages is updated
-      let messages: any[];
-      if (
-        sessionStatus === 'sending' &&
-        chatState.messages &&
-        chatState.messages.length > 0
-      ) {
-        // Use optimistic messages during sending
-        messages = chatState.messages.map((m) => ({
-          ...m,
-          timestamp: (m as any).timestamp || Date.now(),
-          optimistic: true,
-        }));
-      } else {
-        // Guard: if backend snapshot is momentarily stale (empty) but chatState
-        // has messages, fall back to chatState.messages to prevent blank flash
-        const effectiveBackend =
-          backendMessages.length > 0
-            ? backendMessages
-            : chatState.messages || [];
-
-        const optimisticMessages = (chatState.messages || [])
-          .slice(effectiveBackend.length)
-          .map((m) => ({
-            ...m,
-            timestamp: (m as any).timestamp || Date.now(),
-            optimistic: true,
-          }));
-
-        messages = [...effectiveBackend, ...optimisticMessages];
-      }
-
-      // Merge backend and ephemeral messages, sort by timestamp
-      const ephemeralMessages = chatState.ephemeralMessages || [];
-
-      // Preserve backend timestamps, only assign fallback for messages without timestamps
-      const messagesWithTimestamps = messages.map((m, index) => ({
-        ...m,
-        timestamp: m.timestamp || Date.now() - (messages.length - index) * 1000, // Fallback: recent timestamps in reverse order
-      }));
-
-      // NOTE: Streaming message is rendered separately via StreamingText component
-      // to bypass React batching and enable smooth character-by-character display
-
-      const allMessages = [
-        ...messagesWithTimestamps,
-        ...ephemeralMessages,
-      ].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0));
+      const allMessages = buildSessionMessages(
+        chatState,
+        backendMessages,
+        sessionStatus,
+      );
       const latestPlanArtifact =
         chatState.planArtifact ||
         deriveLatestPlanArtifactFromMessages(
