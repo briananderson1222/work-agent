@@ -231,6 +231,48 @@ for (const requiredSystemRuntimeHelper of [
   }
 }
 
+const catalogPath = new URL(
+  '../packages/sdk/src/query-domains/catalog.ts',
+  import.meta.url,
+);
+const catalog = readFileSync(catalogPath, 'utf8');
+if (!catalog.includes("./catalogRequests")) {
+  errors.push('catalog.ts must import request helpers from catalogRequests.ts.');
+}
+if (catalog.includes('fetch(')) {
+  errors.push('catalog.ts must not inline HTTP transport after extracting catalogRequests.ts.');
+}
+for (const retiredInlineCatalogSnippet of [
+  'async function fetchRegistryItems<',
+  'async function requestPlaybook<',
+  'async function requestIntegration<',
+  'const response = await fetch(`${apiBase}/api/playbooks`',
+  'const response = await fetch(`${apiBase}/integrations`',
+  'const response = await fetch(`${apiBase}/api/registry/${tab}${suffix}`',
+]) {
+  if (catalog.includes(retiredInlineCatalogSnippet)) {
+    errors.push(`catalog.ts must not inline extracted catalog transport helper ${retiredInlineCatalogSnippet}.`);
+  }
+}
+
+const catalogRequests = readFileSync(
+  new URL('../packages/sdk/src/query-domains/catalogRequests.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredCatalogHelper of [
+  'export async function fetchPlaybooks',
+  'export async function requestPlaybookRun',
+  'export async function requestPlaybookOutcome',
+  'export async function fetchRegistryItems',
+  'export async function requestPlaybook',
+  'export async function requestIntegration',
+  'export async function requestRegistryIntegrationAction',
+]) {
+  if (!catalogRequests.includes(requiredCatalogHelper)) {
+    errors.push(`catalogRequests.ts must include ${requiredCatalogHelper}.`);
+  }
+}
+
 const toolManagementView = readFileSync(
   new URL('../src-ui/src/views/ToolManagementView.tsx', import.meta.url),
   'utf8',
@@ -1752,11 +1794,34 @@ const conversationManager = readFileSync(
   new URL('../src-server/runtime/conversation-manager.ts', import.meta.url),
   'utf8',
 );
-if (!conversationManager.includes("./usage-stats.js")) {
-  errors.push('conversation-manager.ts must share context window math through usage-stats.ts.');
+if (!conversationManager.includes('./conversation-stats-view.js')) {
+  errors.push('conversation-manager.ts must delegate stats view shaping to conversation-stats-view.ts.');
 }
-if (conversationManager.includes('function calculateContextWindowPercentage(')) {
-  errors.push('conversation-manager.ts must not inline calculateContextWindowPercentage once usage-stats.ts exists.');
+for (const retiredConversationSnippet of [
+  'calculateContextWindowPercentage',
+  'getMessageTextContent',
+  'const contextTokens = systemPromptTokens + mcpServerTokens;',
+  'contextFilesTokens: 0',
+]) {
+  if (conversationManager.includes(retiredConversationSnippet)) {
+    errors.push(`conversation-manager.ts must not inline extracted conversation stats helper ${retiredConversationSnippet}.`);
+  }
+}
+
+const conversationStatsView = readFileSync(
+  new URL('../src-server/runtime/conversation-stats-view.ts', import.meta.url),
+  'utf8',
+);
+for (const requiredHelper of [
+  'export function buildEmptyConversationStatsView',
+  'export function resolveConversationUserMessageTokens',
+  'export function buildConversationStatsView',
+  'calculateContextWindowPercentage',
+  'getMessageTextContent',
+]) {
+  if (!conversationStatsView.includes(requiredHelper)) {
+    errors.push(`conversation-stats-view.ts must include ${requiredHelper}.`);
+  }
 }
 
 const runtimeShutdown = readFileSync(

@@ -8,30 +8,16 @@ import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
 import type { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import {
-  calculateContextWindowPercentage,
-  getMessageTextContent,
-} from './usage-stats.js';
+  buildConversationStatsView,
+  buildEmptyConversationStatsView,
+  resolveConversationUserMessageTokens,
+  type ConversationStats,
+} from './conversation-stats-view.js';
 
 // Type extensions for conversation manager
 interface ConversationMetadata {
   stats?: ConversationStats;
   modelStats?: Record<string, any>;
-}
-
-interface ConversationStats {
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  contextTokens?: number;
-  turns: number;
-  toolCalls: number;
-  estimatedCost: number;
-  tokenBreakdown?: {
-    userMessageTokens?: number;
-    assistantMessageTokens?: number;
-    systemPromptTokens?: number;
-    mcpServerTokens?: number;
-  };
 }
 
 interface ConversationWithMetadata {
@@ -98,94 +84,32 @@ export async function getConversationStats(
 
   // If no conversationId or conversation doesn't exist, return agent-level stats
   if (!conversationId) {
-    const contextTokens = systemPromptTokens + mcpServerTokens;
-    const contextWindowPercentage = calculateContextWindowPercentage(
-      modelId,
-      contextTokens,
-    );
-
-    return {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      contextTokens,
-      turns: 0,
-      toolCalls: 0,
-      estimatedCost: 0,
-      contextWindowPercentage,
+    return buildEmptyConversationStatsView({
       modelId,
       systemPromptTokens,
       mcpServerTokens,
-      userMessageTokens: 0,
-      assistantMessageTokens: 0,
-      contextFilesTokens: 0,
-    };
+    });
   }
 
   const adapter = memoryAdapters.get(slug);
 
   if (!adapter) {
-    const contextTokens = systemPromptTokens + mcpServerTokens;
-    return {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      contextTokens,
-      turns: 0,
-      toolCalls: 0,
-      estimatedCost: 0,
-      contextWindowPercentage: calculateContextWindowPercentage(
-        modelId,
-        contextTokens,
-      ),
+    return buildEmptyConversationStatsView({
       modelId,
       systemPromptTokens,
       mcpServerTokens,
-      userMessageTokens: 0,
-      assistantMessageTokens: 0,
-      contextFilesTokens: 0,
-    };
+    });
   }
 
   const conversation = await adapter.getConversation(conversationId);
 
   if (!conversation) {
-    return {
-      inputTokens: 0,
-      outputTokens: 0,
-      totalTokens: 0,
-      contextTokens: systemPromptTokens + mcpServerTokens,
-      turns: 0,
-      toolCalls: 0,
-      estimatedCost: 0,
-      contextWindowPercentage: calculateContextWindowPercentage(
-        modelId,
-        systemPromptTokens + mcpServerTokens,
-      ),
+    return buildEmptyConversationStatsView({
       modelId,
       systemPromptTokens,
       mcpServerTokens,
-      userMessageTokens: 0,
-      assistantMessageTokens: 0,
-      contextFilesTokens: 0,
       notFound: true,
-    };
-  }
-
-  interface ConversationStats {
-    inputTokens: number;
-    outputTokens: number;
-    totalTokens: number;
-    contextTokens?: number;
-    turns: number;
-    toolCalls: number;
-    estimatedCost: number;
-    tokenBreakdown?: {
-      userMessageTokens?: number;
-      assistantMessageTokens?: number;
-      systemPromptTokens?: number;
-      mcpServerTokens?: number;
-    };
+    });
   }
 
   const stats: ConversationStats = (conversation as ConversationWithMetadata)
@@ -201,15 +125,10 @@ export async function getConversationStats(
   const modelStats =
     (conversation as ConversationWithMetadata).metadata?.modelStats || {};
 
-  const contextWindowPercentage = calculateContextWindowPercentage(
-    modelId,
-    stats.contextTokens || stats.totalTokens,
-  );
-
   // Get token breakdown from stats or calculate on-the-fly
   const breakdown = stats.tokenBreakdown || {};
   let userMessageTokens = breakdown.userMessageTokens;
-  let assistantMessageTokens = breakdown.assistantMessageTokens;
+  const assistantMessageTokens = breakdown.assistantMessageTokens;
 
   // If breakdown doesn't exist, calculate user message tokens from conversation
   // Note: messages are stored separately, not on conversation object
@@ -218,21 +137,11 @@ export async function getConversationStats(
       conversation.userId,
       conversationId,
     );
-    const userMessages = messages?.filter((m: any) => m.role === 'user') || [];
-    userMessageTokens = userMessages.reduce((sum: number, m: any) => {
-      const content = getMessageTextContent(m);
-      return sum + Math.ceil(content.length / 4);
-    }, 0);
+    userMessageTokens = resolveConversationUserMessageTokens(messages);
   }
 
-  // If assistant tokens not in breakdown, use outputTokens
-  if (assistantMessageTokens === undefined) {
-    assistantMessageTokens = stats.outputTokens || 0;
-  }
-
-  return {
-    ...stats,
-    contextWindowPercentage,
+  return buildConversationStatsView({
+    stats,
     conversationId,
     modelId,
     modelStats,
@@ -240,8 +149,7 @@ export async function getConversationStats(
     mcpServerTokens,
     userMessageTokens,
     assistantMessageTokens,
-    contextFilesTokens: 0, // Placeholder for future context files support
-  };
+  });
 }
 
 /**

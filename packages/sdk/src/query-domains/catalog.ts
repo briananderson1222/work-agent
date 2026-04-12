@@ -5,13 +5,21 @@ import type {
   RegistryItem,
 } from '@stallion-ai/contracts/catalog';
 import type { ToolDef } from '@stallion-ai/contracts/tool';
-import { _getApiBase } from '../api';
 import {
   type MutationOptions,
   type QueryConfig,
   useApiMutation,
   useApiQuery,
 } from '../query-core';
+import {
+  fetchPlaybooks,
+  fetchRegistryItems,
+  requestIntegration,
+  requestPlaybook,
+  requestPlaybookOutcome,
+  requestPlaybookRun,
+  requestRegistryIntegrationAction,
+} from './catalogRequests';
 
 interface PlaybookMutationInput {
   name: string;
@@ -51,77 +59,10 @@ export type RegistryCatalogTab =
   | 'integrations'
   | 'plugins';
 
-async function fetchRegistryItems<T>(
-  tab: RegistryCatalogTab,
-  installed: boolean,
-): Promise<T[]> {
-  const apiBase = await _getApiBase();
-  const suffix = installed ? '/installed' : '';
-  const response = await fetch(`${apiBase}/api/registry/${tab}${suffix}`);
-  const result = await response.json();
-  if (!result.success) {
-    throw new Error(result.error || `Failed to fetch ${tab} registry items`);
-  }
-  return (result.data || []) as T[];
-}
-
-async function requestPlaybook<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/api/playbooks${path}`, init);
-  const result = await response.json();
-  if (!result.success) {
-    throw new Error(result.error || 'Playbook request failed');
-  }
-  return result.data as T;
-}
-
-export async function requestPlaybookRun(id: string): Promise<Playbook> {
-  return requestPlaybook<Playbook>(`/${encodeURIComponent(id)}/run`, {
-    method: 'POST',
-  });
-}
-
-export async function requestPlaybookOutcome({
-  id,
-  outcome,
-}: PlaybookOutcomeInput): Promise<Playbook> {
-  return requestPlaybook<Playbook>(`/${encodeURIComponent(id)}/outcome`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ outcome }),
-  });
-}
-
-async function requestIntegration<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const apiBase = await _getApiBase();
-  const response = await fetch(`${apiBase}/integrations${path}`, init);
-  const result = await response.json();
-  if (!result.success) {
-    throw new Error(result.error || 'Integration request failed');
-  }
-  return result.data as T;
-}
+export { requestPlaybookOutcome, requestPlaybookRun } from './catalogRequests';
 
 export function usePlaybooksQuery(config?: QueryConfig<any>) {
-  return useApiQuery(
-    ['playbooks'],
-    async () => {
-      const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/api/playbooks`);
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error);
-      }
-      return result.data;
-    },
-    config,
-  );
+  return useApiQuery(['playbooks'], () => fetchPlaybooks(), config);
 }
 
 /** @deprecated Use usePlaybooksQuery instead */
@@ -365,25 +306,8 @@ export function useRegistryIntegrationActionMutation(
   options?: MutationOptions<InstallResult, IntegrationRegistryActionInput>,
 ) {
   return useApiMutation(
-    async ({ id, action }: IntegrationRegistryActionInput) => {
-      const apiBase = await _getApiBase();
-      const response =
-        action === 'install'
-          ? await fetch(`${apiBase}/api/registry/integrations/install`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ id }),
-            })
-          : await fetch(
-              `${apiBase}/api/registry/integrations/${encodeURIComponent(id)}`,
-              { method: 'DELETE' },
-            );
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.error || result.message || `${action} failed`);
-      }
-      return result as InstallResult;
-    },
+    (input: IntegrationRegistryActionInput) =>
+      requestRegistryIntegrationAction(input),
     {
       invalidateKeys: [
         ['registry', 'integrations'],
