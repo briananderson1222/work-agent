@@ -1,4 +1,5 @@
 import { agentQueries } from '@stallion-ai/sdk';
+import { resolveEffectiveCapabilityState } from '../utils/execution';
 import { registerCommand } from './registry';
 import { promptSlug } from './utils';
 
@@ -7,6 +8,21 @@ registerCommand(
   'mcp',
   async ({ chatState, queryClient, addEphemeralMessage, sessionId, agent }) => {
     try {
+      const support = resolveEffectiveCapabilityState({
+        agent,
+        chatState,
+        hasModelCatalog: false,
+      });
+
+      if (!support.mcp) {
+        addEphemeralMessage(sessionId, {
+          role: 'system',
+          content:
+            'MCP servers are unavailable for this binding. This chat is not using a Stallion binding that supports MCP.',
+        });
+        return;
+      }
+
       const tools = await queryClient.fetchQuery(
         agentQueries.tools(agent?.slug || chatState.agentSlug),
       );
@@ -93,11 +109,40 @@ registerCommand(
 );
 
 // Model command - override default by setting input and opening model selector
-registerCommand('model', async ({ updateChat, sessionId, autocomplete }) => {
-  autocomplete.closeCommand();
-  updateChat(sessionId, { input: '/model ' });
-  autocomplete.openModel();
-});
+registerCommand(
+  'model',
+  async ({
+    updateChat,
+    sessionId,
+    autocomplete,
+    addEphemeralMessage,
+    agent,
+    chatState,
+    queryClient,
+  }) => {
+    const models = queryClient.getQueryData<any[]>(['models']) || [];
+    const support = resolveEffectiveCapabilityState({
+      agent,
+      chatState,
+      hasModelCatalog: models.length > 0,
+    });
+
+    if (!support.model_selection) {
+      addEphemeralMessage(sessionId, {
+        role: 'system',
+        content:
+          'Model selection is unavailable for this binding. The current chat does not have a usable model catalog.',
+      });
+      autocomplete.closeAll();
+      updateChat(sessionId, { input: '' });
+      return;
+    }
+
+    autocomplete.closeCommand();
+    updateChat(sessionId, { input: '/model ' });
+    autocomplete.openModel();
+  },
+);
 
 // Stats command
 registerCommand(

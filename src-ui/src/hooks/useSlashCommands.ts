@@ -5,7 +5,10 @@ import {
 } from '@stallion-ai/sdk';
 import { useCallback, useMemo } from 'react';
 import { useAgents } from '../contexts/AgentsContext';
+import type { ChatUIState } from '../contexts/active-chats-state';
+import { useModels } from '../contexts/ModelsContext';
 import { promptSlug } from '../slashCommands/utils';
+import { resolveEffectiveCapabilityState } from '../utils/execution';
 
 export interface SlashCommand {
   cmd: string;
@@ -27,8 +30,12 @@ function getModelDisplayName(modelId: string): string {
   return modelId;
 }
 
-export function useSlashCommands(agentSlug: string | null) {
+export function useSlashCommands(
+  agentSlug: string | null,
+  chatState?: ChatUIState | null,
+) {
   const agents = useAgents();
+  const models = useModels();
   const { data: prompts } = usePromptsQuery();
 
   const currentAgent = agentSlug
@@ -53,18 +60,13 @@ export function useSlashCommands(agentSlug: string | null) {
   const commands = useMemo(() => {
     const currentModelId = currentAgent?.model || 'default';
     const modelDisplayName = getModelDisplayName(currentModelId);
+    const support = resolveEffectiveCapabilityState({
+      agent: currentAgent,
+      chatState,
+      hasModelCatalog: models.length > 0,
+    });
 
     const BUILTIN_COMMANDS: SlashCommand[] = [
-      { cmd: '/mcp', description: 'List MCP servers for this agent' },
-      {
-        cmd: '/tools',
-        description: 'Show available tools and auto-approved list',
-      },
-      {
-        cmd: '/model',
-        description: `Select model override (agent default: ${modelDisplayName})`,
-        currentModel: modelDisplayName,
-      },
       {
         cmd: '/prompts',
         description: 'List available prompts and custom commands',
@@ -81,6 +83,36 @@ export function useSlashCommands(agentSlug: string | null) {
         description: 'Open a new or existing conversation',
       },
     ];
+
+    if (support.mcp) {
+      BUILTIN_COMMANDS.unshift({
+        cmd: '/mcp',
+        description: 'List MCP servers for this agent',
+      });
+    }
+
+    if (support.tool_execution) {
+      BUILTIN_COMMANDS.splice(support.mcp ? 1 : 0, 0, {
+        cmd: '/tools',
+        description: 'Show available tools and auto-approved list',
+      });
+    }
+
+    if (support.model_selection) {
+      BUILTIN_COMMANDS.splice(
+        support.mcp && support.tool_execution
+          ? 2
+          : support.mcp || support.tool_execution
+            ? 1
+            : 0,
+        0,
+        {
+          cmd: '/model',
+          description: `Select model override (agent default: ${modelDisplayName})`,
+          currentModel: modelDisplayName,
+        },
+      );
+    }
 
     const promptCommands: SlashCommand[] = (prompts || [])
       .filter((p: any) => p.global || (agentSlug && p.agent === agentSlug))
@@ -104,7 +136,15 @@ export function useSlashCommands(agentSlug: string | null) {
       : [];
 
     return [...BUILTIN_COMMANDS, ...customCommands, ...promptCommands];
-  }, [agentSlug, acpCommands, currentAgent, isAcp, prompts]);
+  }, [
+    agentSlug,
+    acpCommands,
+    currentAgent,
+    isAcp,
+    prompts,
+    chatState,
+    models.length,
+  ]);
 
   // Fetch live autocomplete options from kiro-cli for ACP agents
   const fetchCommandOptions = useCallback(

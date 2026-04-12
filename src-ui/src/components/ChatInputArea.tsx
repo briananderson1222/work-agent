@@ -35,6 +35,7 @@ interface ChatInputAreaProps {
   apiBase: string;
   // Model selector
   currentModel?: string;
+  canModelSelect: boolean;
   agentDefaultModel?: string;
   availableModels: Model[];
   modelQuery: string | null;
@@ -80,6 +81,7 @@ export function ChatInputArea({
   dockHeight,
   apiBase,
   currentModel,
+  canModelSelect,
   agentDefaultModel,
   availableModels,
   modelQuery,
@@ -259,11 +261,14 @@ export function ChatInputArea({
         </div>
         <button
           onClick={onModelOpen}
+          disabled={!canModelSelect}
           className={`chat-input__model-btn ${isOverride ? 'chat-input__model-btn--override' : 'chat-input__model-btn--default'}`}
           title={
-            isOverride
-              ? 'Model override active - click to change'
-              : 'Click to change model'
+            !canModelSelect
+              ? 'Model selection is unavailable for this binding'
+              : isOverride
+                ? 'Model override active - click to change'
+                : 'Click to change model'
           }
         >
           {modelInfo?.name || 'Default Model'}

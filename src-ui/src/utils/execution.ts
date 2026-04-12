@@ -95,7 +95,28 @@ type AgentWithExecution = {
   description?: string;
   execution?: AgentExecutionConfig;
   model?: string;
+  toolsConfig?: {
+    mcpServers?: string[];
+  };
 };
+
+type ChatBindingState = {
+  executionMode?: 'runtime' | 'provider-managed';
+  runtimeConnectionId?: string | null;
+  provider?: ProviderKind | null;
+  providerId?: string | null;
+  orchestrationProvider?: ProviderKind | null;
+  model?: string | null;
+};
+
+export type SharedCapability =
+  | 'system_prompt'
+  | 'mcp'
+  | 'tool_execution'
+  | 'model_catalog'
+  | 'model_selection';
+
+export type EffectiveCapabilityState = Record<SharedCapability, boolean>;
 
 export type ChatExecutionMetadata = {
   executionMode: 'runtime' | 'provider-managed';
@@ -106,6 +127,61 @@ export type ChatExecutionMetadata = {
   model?: string;
   providerOptions: Record<string, unknown>;
 };
+
+export function supportsProviderManagedBinding(
+  agent: AgentWithExecution | null | undefined,
+): boolean {
+  if (!agent) return false;
+  return !agent.toolsConfig?.mcpServers?.length;
+}
+
+export function resolveEffectiveCapabilityState({
+  agent,
+  chatState,
+  hasModelCatalog,
+}: {
+  agent: AgentWithExecution | null | undefined;
+  chatState?: ChatBindingState | null;
+  hasModelCatalog: boolean;
+}): EffectiveCapabilityState {
+  const runtimeConnectionId =
+    chatState?.runtimeConnectionId ??
+    agent?.execution?.runtimeConnectionId ??
+    null;
+  const activeProvider =
+    chatState?.orchestrationProvider ??
+    chatState?.provider ??
+    runtimeConnectionIdToProviderKind(runtimeConnectionId);
+  if (chatState?.executionMode === 'provider-managed') {
+    return {
+      system_prompt: true,
+      mcp: false,
+      tool_execution: false,
+      model_catalog: false,
+      model_selection: false,
+    };
+  }
+
+  if (activeProvider && activeProvider !== 'bedrock') {
+    return {
+      system_prompt: true,
+      mcp: false,
+      tool_execution: false,
+      model_catalog: false,
+      model_selection: false,
+    };
+  }
+
+  const hasMcp = !!agent?.toolsConfig?.mcpServers?.length;
+
+  return {
+    system_prompt: !!agent,
+    mcp: hasMcp,
+    tool_execution: hasMcp,
+    model_catalog: hasModelCatalog,
+    model_selection: hasModelCatalog,
+  };
+}
 
 type SessionExecutionSummary = {
   provider?: ProviderKind | null;

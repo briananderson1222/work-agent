@@ -21,13 +21,26 @@ const AGENTS = [
     description: 'Default agent with full access to manage Stallion',
     source: 'local',
     model: 'us.anthropic.claude-sonnet-4-6',
+    toolsConfig: { mcpServers: ['stallion-control'], autoApprove: [] },
   },
 ];
 
 function seedRoutes(
   page: import('@playwright/test').Page,
-  options?: { projectHasProviderDefaults?: boolean },
+  options?: {
+    projectHasProviderDefaults?: boolean;
+    agentRequiresMcp?: boolean;
+  },
 ) {
+  const agents =
+    options?.agentRequiresMcp === false
+      ? [
+          {
+            ...AGENTS[0],
+            toolsConfig: { mcpServers: [], autoApprove: [] },
+          },
+        ]
+      : AGENTS;
   const projectConfig = {
     ...PROJECTS[0],
     ...(options?.projectHasProviderDefaults
@@ -62,7 +75,7 @@ function seedRoutes(
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ success: true, data: AGENTS }),
+        body: JSON.stringify({ success: true, data: agents }),
       }),
     ),
     page.route('**/api/connections/runtimes', (route) =>
@@ -163,7 +176,7 @@ function seedRoutes(
   ]);
 }
 
-test('new chat shows Stallion for a global provider-managed fallback path', async ({
+test('new chat does not show Stallion for a global provider-managed fallback path when MCP is required', async ({
   page,
 }) => {
   await seedRoutes(page);
@@ -180,19 +193,17 @@ test('new chat shows Stallion for a global provider-managed fallback path', asyn
   await newChatBtn.dispatchEvent('click');
 
   await expect(page.getByText('New Chat')).toBeVisible({ timeout: 3000 });
-  await expect(page.locator('.new-chat-modal__group-label', { hasText: 'Global' })).toBeVisible();
+  await expect(
+    page.locator('.new-chat-modal__group-label', { hasText: 'Global' }),
+  ).toHaveCount(0);
   await expect(page.getByText('Runtime Chat')).not.toBeVisible();
 
-  const stallionCard = page.locator('.new-chat-modal__agent', {
-    hasText: 'Stallion',
-  });
-  await expect(stallionCard).toBeVisible({ timeout: 3000 });
-  await stallionCard.click({ force: true });
-
-  await expect(page.locator('.chat-dock__tab-list')).toContainText('Stallion');
+  await expect(
+    page.locator('.new-chat-modal__agent', { hasText: 'Stallion' }),
+  ).toHaveCount(0);
 });
 
-test('selected project context inherits the global provider-managed fallback when project defaults are absent', async ({
+test('selected project context does not show Stallion when provider-managed fallback cannot satisfy MCP', async ({
   page,
 }) => {
   await seedRoutes(page, { projectHasProviderDefaults: false });
@@ -210,12 +221,34 @@ test('selected project context inherits the global provider-managed fallback whe
   await newChatBtn.dispatchEvent('click');
 
   await expect(page.getByText('New Chat')).toBeVisible({ timeout: 3000 });
-  await expect(
-    page.getByRole('button', { name: /My Project/ }),
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /My Project/ })).toBeVisible();
 
-  const stallionCard = page.locator('.new-chat-modal__agent', {
-    hasText: 'Stallion',
+  await expect(
+    page.locator('.new-chat-modal__agent', { hasText: 'Stallion' }),
+  ).toHaveCount(0);
+});
+
+test('new chat still shows Stallion when provider-managed fallback matches the agent capability set', async ({
+  page,
+}) => {
+  await seedRoutes(page, { agentRequiresMcp: false });
+  await page.addInitScript(() => {
+    localStorage.removeItem('recentAgents');
   });
-  await expect(stallionCard).toBeVisible({ timeout: 3000 });
+
+  await page.goto('/?dock=open');
+
+  const newChatBtn = page
+    .locator('.chat-dock__tab-actions .chat-dock__new')
+    .nth(1);
+  await expect(newChatBtn).toBeVisible({ timeout: 5000 });
+  await newChatBtn.dispatchEvent('click');
+
+  await expect(page.getByText('New Chat')).toBeVisible({ timeout: 3000 });
+  await expect(
+    page.locator('.new-chat-modal__group-label', { hasText: 'Global' }),
+  ).toBeVisible();
+  await expect(
+    page.locator('.new-chat-modal__agent', { hasText: 'Stallion' }),
+  ).toBeVisible();
 });

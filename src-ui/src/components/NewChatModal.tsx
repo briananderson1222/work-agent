@@ -18,6 +18,7 @@ import {
 import {
   resolveGlobalProviderManagedExecution,
   resolveProjectProviderManagedExecution,
+  supportsProviderManagedBinding,
 } from '../utils/execution';
 import { AgentIcon } from './AgentIcon';
 import {
@@ -124,7 +125,7 @@ export function NewChatModal({
       return agents;
     }
     return agents.map((agent) =>
-      agent.slug === 'default'
+      agent.slug === 'default' && supportsProviderManagedBinding(agent)
         ? {
             ...agent,
             execution: {
@@ -146,6 +147,18 @@ export function NewChatModal({
     );
   }, [agents, providerManagedExecution]);
 
+  const providerManagedAgentSlugs = useMemo(() => {
+    if (!providerManagedExecution) {
+      return [];
+    }
+    return modalAgents
+      .filter(
+        (agent) =>
+          agent.execution?.runtimeOptions?.executionMode === 'provider-managed',
+      )
+      .map((agent) => agent.slug);
+  }, [modalAgents, providerManagedExecution]);
+
   const activeChatsSnapshot = activeChatsStore.getSnapshot();
 
   const viewModel = useMemo(
@@ -161,7 +174,7 @@ export function NewChatModal({
         layoutAvailableAgents: layout?.availableAgents || [],
         layoutName: layout?.name,
         layoutIcon: layout?.icon,
-        providerManagedAgentSlugs: providerManagedExecution ? ['default'] : [],
+        providerManagedAgentSlugs,
         recentSlugs: getRecentAgentSlugsForContext(
           activeChatsSnapshot,
           selectedContext,
@@ -178,7 +191,7 @@ export function NewChatModal({
       layout?.name,
       projectAgentFilter,
       projects,
-      providerManagedExecution,
+      providerManagedAgentSlugs,
       runtimeConnections,
       selectedContext,
     ],

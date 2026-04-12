@@ -1,4 +1,5 @@
 import { agentQueries } from '@stallion-ai/sdk';
+import { resolveEffectiveCapabilityState } from '../utils/execution';
 import { registerCommand } from './registry';
 
 registerCommand(
@@ -17,6 +18,23 @@ registerCommand(
         addEphemeralMessage(sessionId, {
           role: 'system',
           content: 'No agent found.',
+        });
+        autocomplete.closeAll();
+        updateChat(sessionId, { input: '' });
+        return;
+      }
+
+      const support = resolveEffectiveCapabilityState({
+        agent,
+        chatState,
+        hasModelCatalog: false,
+      });
+
+      if (!support.tool_execution) {
+        addEphemeralMessage(sessionId, {
+          role: 'system',
+          content:
+            'Tool inventory is unavailable for this binding. This chat is not using a tool-capable Stallion agent runtime.',
         });
         autocomplete.closeAll();
         updateChat(sessionId, { input: '' });

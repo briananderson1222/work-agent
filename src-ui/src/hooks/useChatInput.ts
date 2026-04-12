@@ -3,8 +3,10 @@ import {
   useActiveChatActions,
   useActiveChatState,
 } from '../contexts/ActiveChatsContext';
+import { useAgent } from '../contexts/AgentsContext';
 import { useToast } from '../contexts/ToastContext';
 import type { FileAttachment } from '../types';
+import { resolveEffectiveCapabilityState } from '../utils/execution';
 import { useCancelMessage, useSendMessage } from './useActiveChatSessions';
 import { useAutocompleteState } from './useAutocompleteState';
 import { useSlashCommandHandler } from './useSlashCommandHandler';
@@ -67,12 +69,13 @@ export function useChatInput({
     navigateHistoryDown,
   } = useActiveChatActions();
   const activeChatState = useActiveChatState(sessionId || '');
+  const currentAgent = useAgent(agentSlug || '');
   const cancelMessage = useCancelMessage();
 
   // Slash commands
   const { commands: slashCommands } = useSlashCommands(
     agentSlug,
-    activeChatState?.provider,
+    activeChatState,
   );
   const handleSlashCommand = useSlashCommandHandler();
 
@@ -117,6 +120,11 @@ export function useChatInput({
   const input = activeChatState?.input || '';
   const attachments = activeChatState?.attachments || [];
   const currentModel = activeChatState?.model;
+  const support = resolveEffectiveCapabilityState({
+    agent: currentAgent,
+    chatState: activeChatState,
+    hasModelCatalog: _availableModels.length > 0,
+  });
 
   // Handlers
   const handleInputChange = useCallback(
@@ -218,11 +226,22 @@ export function useChatInput({
 
   const handleModelOpen = useCallback(() => {
     if (!sessionId) return;
+    if (!support.model_selection) {
+      showToast('Model selection is unavailable for this binding.', 'warning');
+      return;
+    }
     closeCommand();
     updateChat(sessionId, { input: '/model ' });
     setTimeout(() => openModel(), 0);
     textareaRef.current?.focus();
-  }, [sessionId, updateChat, closeCommand, openModel]);
+  }, [
+    sessionId,
+    support.model_selection,
+    showToast,
+    closeCommand,
+    updateChat,
+    openModel,
+  ]);
 
   const handleCommandSelect = useCallback(
     async (command: SlashCommand) => {
@@ -255,6 +274,7 @@ export function useChatInput({
     input,
     attachments,
     currentModel,
+    canModelSelect: support.model_selection,
     modelQuery,
     commandQuery,
     slashCommands,

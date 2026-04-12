@@ -20,7 +20,11 @@ describe('default-agent slash commands', () => {
     return {
       sessionId: 's1',
       chatState: { agentSlug: 'default' },
-      agent: { slug: 'default', name: 'Stallion', toolsConfig: {} },
+      agent: {
+        slug: 'default',
+        name: 'Stallion',
+        toolsConfig: { mcpServers: ['stallion-control'], autoApprove: [] },
+      },
       args: [],
       apiBase: 'http://localhost:3141',
       updateChat: vi.fn(),
@@ -82,7 +86,10 @@ describe('default-agent slash commands', () => {
       agent: {
         slug: 'default',
         name: 'Stallion',
-        toolsConfig: { autoApprove: ['stallion-control_*'] },
+        toolsConfig: {
+          mcpServers: ['stallion-control'],
+          autoApprove: ['stallion-control_*'],
+        },
       },
       chatState: {
         agentSlug: 'default',
@@ -123,6 +130,94 @@ describe('default-agent slash commands', () => {
         content: expect.stringContaining('github (1 tools)'),
       }),
     );
+  });
+
+  test('/tools reports unsupported bindings for provider-managed chats', async () => {
+    const { getCommand } = await import('../slashCommands/registry');
+    const handler = getCommand('tools');
+    const context = baseContext({
+      chatState: {
+        agentSlug: 'default',
+        executionMode: 'provider-managed',
+      },
+      queryClient: {
+        fetchQuery: vi.fn(),
+      } as any,
+    });
+
+    await handler!(context);
+
+    expect(context.addEphemeralMessage).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({
+        content: expect.stringContaining('Tool inventory is unavailable'),
+      }),
+    );
+  });
+
+  test('/model reports unavailable model selection when no model catalog exists', async () => {
+    const { getCommand } = await import('../slashCommands/registry');
+    const handler = getCommand('model');
+    const context = baseContext({
+      queryClient: {
+        getQueryData: vi.fn(() => []),
+      } as any,
+      autocomplete: {
+        openModel: vi.fn(),
+        openNewChat: vi.fn(),
+        closeCommand: vi.fn(),
+        closeAll: vi.fn(),
+      },
+    });
+
+    await handler!(context);
+
+    expect(context.addEphemeralMessage).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({
+        content: expect.stringContaining('Model selection is unavailable'),
+      }),
+    );
+    expect(context.autocomplete.openModel).not.toHaveBeenCalled();
+  });
+
+  test('/model stays available for connected runtime chats when a model catalog exists', async () => {
+    const { getCommand } = await import('../slashCommands/registry');
+    const handler = getCommand('model');
+    const context = baseContext({
+      agent: {
+        slug: '__runtime:claude-runtime',
+        name: 'Claude Runtime',
+        toolsConfig: {},
+        execution: { runtimeConnectionId: 'claude-runtime' },
+      },
+      chatState: {
+        agentSlug: '__runtime:claude-runtime',
+        executionMode: 'runtime',
+        runtimeConnectionId: 'claude-runtime',
+      },
+      queryClient: {
+        getQueryData: vi.fn(() => [
+          { id: 'claude-sonnet', name: 'Claude Sonnet' },
+        ]),
+      } as any,
+      autocomplete: {
+        openModel: vi.fn(),
+        openNewChat: vi.fn(),
+        closeCommand: vi.fn(),
+        closeAll: vi.fn(),
+      },
+    });
+
+    await handler!(context);
+
+    expect(context.addEphemeralMessage).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({
+        content: expect.stringContaining('Model selection is unavailable'),
+      }),
+    );
+    expect(context.autocomplete.openModel).not.toHaveBeenCalled();
   });
 
   test('/prompts lists available prompt commands', async () => {

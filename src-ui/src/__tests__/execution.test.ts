@@ -8,10 +8,12 @@ import {
   preferredChatRuntime,
   preferredConnectedRuntime,
   resolveAgentExecution,
+  resolveEffectiveCapabilityState,
   resolveGlobalProviderManagedExecution,
   resolveProjectProviderManagedExecution,
   resolveSessionExecutionSummary,
   runtimeConnectionIdToProviderKind,
+  supportsProviderManagedBinding,
 } from '../utils/execution';
 
 describe('execution utils', () => {
@@ -281,6 +283,79 @@ describe('execution utils', () => {
       providerId: 'ollama-local',
       model: 'llama3.2',
       providerOptions: {},
+    });
+  });
+
+  test('marks provider-managed bindings as incompatible for agents that require MCP', () => {
+    expect(
+      supportsProviderManagedBinding({
+        slug: 'default',
+        toolsConfig: { mcpServers: ['stallion-control'] },
+      } as any),
+    ).toBe(false);
+    expect(
+      supportsProviderManagedBinding({
+        slug: 'chat-helper',
+        toolsConfig: { mcpServers: [] },
+      } as any),
+    ).toBe(true);
+  });
+
+  test('derives effective capability state from the current binding', () => {
+    expect(
+      resolveEffectiveCapabilityState({
+        agent: {
+          slug: 'default',
+          toolsConfig: { mcpServers: ['stallion-control'] },
+          execution: { runtimeConnectionId: 'bedrock-runtime' },
+        } as any,
+        hasModelCatalog: true,
+      }),
+    ).toEqual({
+      system_prompt: true,
+      mcp: true,
+      tool_execution: true,
+      model_catalog: true,
+      model_selection: true,
+    });
+
+    expect(
+      resolveEffectiveCapabilityState({
+        agent: {
+          slug: 'default',
+          toolsConfig: { mcpServers: ['stallion-control'] },
+        } as any,
+        chatState: {
+          executionMode: 'provider-managed',
+        } as any,
+        hasModelCatalog: true,
+      }),
+    ).toEqual({
+      system_prompt: true,
+      mcp: false,
+      tool_execution: false,
+      model_catalog: false,
+      model_selection: false,
+    });
+
+    expect(
+      resolveEffectiveCapabilityState({
+        agent: {
+          slug: '__runtime:claude-runtime',
+          execution: { runtimeConnectionId: 'claude-runtime' },
+        } as any,
+        chatState: {
+          executionMode: 'runtime',
+          runtimeConnectionId: 'claude-runtime',
+        } as any,
+        hasModelCatalog: true,
+      }),
+    ).toEqual({
+      system_prompt: true,
+      mcp: false,
+      tool_execution: false,
+      model_catalog: false,
+      model_selection: false,
     });
   });
 });
