@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  DEFAULT_MODEL,
   DEFAULT_SYSTEM_PROMPT,
   loadAppConfigFile,
   updateAppConfigFile,
@@ -29,7 +30,7 @@ describe('config-loader-app', () => {
     expect(config).toEqual(
       expect.objectContaining({
         region: 'us-east-1',
-        defaultModel: 'us.anthropic.claude-sonnet-4-6',
+        defaultModel: DEFAULT_MODEL,
         systemPrompt: DEFAULT_SYSTEM_PROMPT,
       }),
     );
@@ -63,12 +64,37 @@ describe('config-loader-app', () => {
     const config = await loadAppConfigFile(tempDir);
 
     expect(config.systemPrompt).toBe(DEFAULT_SYSTEM_PROMPT);
+    expect(config.defaultModel).toBe('foo');
     expect(config.templateVariables).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ key: 'PROJECT', value: 'x' }),
         expect.objectContaining({ key: 'AGENT_NAME', value: 'Stallion' }),
       ]),
     );
+  });
+
+  it('migrates the legacy default model seed to the current profile id', async () => {
+    const configDir = join(tempDir, 'config');
+    const appPath = join(configDir, 'app.json');
+    mkdirSync(configDir, { recursive: true });
+    writeFileSync(
+      appPath,
+      JSON.stringify(
+        {
+          region: 'us-east-1',
+          defaultModel: 'us.anthropic.claude-sonnet-4-6',
+          invokeModel: 'bar',
+          structureModel: 'baz',
+        },
+        null,
+        2,
+      ),
+      'utf-8',
+    );
+
+    const config = await loadAppConfigFile(tempDir);
+
+    expect(config.defaultModel).toBe(DEFAULT_MODEL);
   });
 
   it('rejects unsafe system prompts on update', async () => {

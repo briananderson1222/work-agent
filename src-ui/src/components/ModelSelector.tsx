@@ -9,6 +9,28 @@ export interface Model {
   originalId: string;
 }
 
+function normalizeModelLookupId(id: string | undefined): string {
+  if (!id) return '';
+  return id.trim().replace(/^(us|eu|ap|sa|ca|af|me)\./, '');
+}
+
+function findModelById(
+  models: Model[],
+  value: string | undefined,
+): Model | null {
+  if (!value) return null;
+  const normalized = normalizeModelLookupId(value);
+  return (
+    models.find(
+      (model) =>
+        model.id === value ||
+        model.originalId === value ||
+        normalizeModelLookupId(model.id) === normalized ||
+        normalizeModelLookupId(model.originalId) === normalized,
+    ) ?? null
+  );
+}
+
 // Autocomplete version for chat interface
 interface ModelSelectorAutocompleteProps {
   query: string;
@@ -132,10 +154,8 @@ export function ModelSelector({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const selectedModel = models.find((m) => m.id === value);
-  const defaultModelInfo = defaultModel
-    ? models.find((m) => m.id === defaultModel)
-    : null;
+  const selectedModel = findModelById(models, value);
+  const defaultModelInfo = findModelById(models, defaultModel);
 
   // Display value: show default model info if no value, otherwise show selected model
   const displayValue = value

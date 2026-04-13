@@ -7,6 +7,7 @@ export function ConnectionSection({
   testStatus,
   region,
   regionError,
+  showRegion,
   onApiBaseChange,
   onResetApiBase,
   onTestConnection,
@@ -18,6 +19,7 @@ export function ConnectionSection({
   testStatus: 'idle' | 'testing' | 'success' | 'failed';
   region: string;
   regionError?: string;
+  showRegion: boolean;
   onApiBaseChange: (value: string) => void;
   onResetApiBase: () => void;
   onTestConnection: () => void;
@@ -76,25 +78,27 @@ export function ConnectionSection({
         </button>
       </div>
 
-      <div className="settings__field">
-        <label className="settings__field-label" htmlFor="region">
-          AWS Region
-        </label>
-        <input
-          id="region"
-          type="text"
-          className={regionError ? 'settings__field--invalid' : ''}
-          value={region}
-          onChange={(event) => onRegionChange(event.target.value)}
-          placeholder="us-east-1"
-        />
-        {regionError && (
-          <span className="settings__field-error">{regionError}</span>
-        )}
-        <span className="settings__field-hint">
-          Region for Bedrock API calls.
-        </span>
-      </div>
+      {showRegion ? (
+        <div className="settings__field">
+          <label className="settings__field-label" htmlFor="region">
+            AWS Region
+          </label>
+          <input
+            id="region"
+            type="text"
+            className={regionError ? 'settings__field--invalid' : ''}
+            value={region}
+            onChange={(event) => onRegionChange(event.target.value)}
+            placeholder="us-east-1"
+          />
+          {regionError && (
+            <span className="settings__field-error">{regionError}</span>
+          )}
+          <span className="settings__field-hint">
+            Only used for Amazon Bedrock routing.
+          </span>
+        </div>
+      ) : null}
     </SettingsSection>
   );
 }

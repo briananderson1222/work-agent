@@ -19,6 +19,12 @@ const DEFAULT_TEMPLATE_VARIABLES = [
   { key: 'AGENT_NAME', type: 'static' as const, value: 'Stallion' },
 ];
 
+export const DEFAULT_REGION = 'us-east-1';
+export const DEFAULT_MODEL = 'us.anthropic.claude-sonnet-4-20250514-v1:0';
+const LEGACY_DEFAULT_MODEL = 'us.anthropic.claude-sonnet-4-6';
+export const DEFAULT_INVOKE_MODEL = 'us.amazon.nova-2-lite-v1:0';
+export const DEFAULT_STRUCTURE_MODEL = 'us.amazon.nova-micro-v1:0';
+
 function getAppConfigPath(projectHomeDir: string): string {
   return join(projectHomeDir, 'config', 'app.json');
 }
@@ -53,10 +59,10 @@ export async function loadAppConfigFile(
 
   if (!existsSync(path)) {
     const defaultConfig: AppConfig = {
-      region: 'us-east-1',
-      defaultModel: 'us.anthropic.claude-sonnet-4-6',
-      invokeModel: 'us.amazon.nova-2-lite-v1:0',
-      structureModel: 'us.amazon.nova-micro-v1:0',
+      region: DEFAULT_REGION,
+      defaultModel: DEFAULT_MODEL,
+      invokeModel: DEFAULT_INVOKE_MODEL,
+      structureModel: DEFAULT_STRUCTURE_MODEL,
       systemPrompt: DEFAULT_SYSTEM_PROMPT,
       templateVariables: [...DEFAULT_TEMPLATE_VARIABLES],
     };
@@ -69,9 +75,20 @@ export async function loadAppConfigFile(
   const data = JSON.parse(content) as AppConfig & {
     templateVariables?: Array<{ key: string }>;
   };
+  let shouldPersist = false;
 
-  if (!data.invokeModel) data.invokeModel = 'us.amazon.nova-2-lite-v1:0';
-  if (!data.structureModel) data.structureModel = 'us.amazon.nova-micro-v1:0';
+  if (data.defaultModel === LEGACY_DEFAULT_MODEL) {
+    data.defaultModel = DEFAULT_MODEL;
+    shouldPersist = true;
+  }
+  if (!data.invokeModel) {
+    data.invokeModel = DEFAULT_INVOKE_MODEL;
+    shouldPersist = true;
+  }
+  if (!data.structureModel) {
+    data.structureModel = DEFAULT_STRUCTURE_MODEL;
+    shouldPersist = true;
+  }
   if (!data.systemPrompt) {
     data.systemPrompt = DEFAULT_SYSTEM_PROMPT;
     if (!data.templateVariables?.some((v) => v.key === 'AGENT_NAME')) {
@@ -80,6 +97,10 @@ export async function loadAppConfigFile(
         ...DEFAULT_TEMPLATE_VARIABLES,
       ];
     }
+    shouldPersist = true;
+  }
+
+  if (shouldPersist) {
     await saveAppConfigFile(projectHomeDir, data);
   }
 

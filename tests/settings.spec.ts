@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 async function goToSettings(page: import('@playwright/test').Page) {
   await page.goto('/');
   await page.waitForSelector('button:has-text("⚙")', { timeout: 10_000 });
-  await page.click('button:has-text("⚙")');
+  await forceClick(page, 'button:has-text("⚙")');
   await page.waitForSelector('.settings__section-nav', { timeout: 10_000 });
 }
 
@@ -14,6 +14,7 @@ async function forceClick(
 ) {
   await page
     .locator(selector)
+    .first()
     .evaluate((el) =>
       el.dispatchEvent(new MouseEvent('click', { bubbles: true })),
     );
@@ -106,10 +107,19 @@ test.describe('Settings', () => {
     await expect(page.getByText('✓ Connected')).toBeVisible({ timeout: 5_000 });
   });
 
-  test('invalid region shows validation error', async ({ page }) => {
+  test('connection settings keep bedrock-specific region fields hidden by default', async ({
+    page,
+  }) => {
     await page.click('a[href="#section-connection"]');
-    await page.fill('#region', 'invalid!!');
-    await expect(page.getByText('Invalid region format')).toBeVisible();
+    await expect(
+      page.getByLabel('Backend API Base URL', { exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Region for Bedrock API calls.', { exact: true }),
+    ).not.toBeVisible();
+    await expect(
+      page.getByLabel('AWS Region', { exact: true }),
+    ).not.toBeVisible();
   });
 
   test('template variable add and remove', async ({ page }) => {
