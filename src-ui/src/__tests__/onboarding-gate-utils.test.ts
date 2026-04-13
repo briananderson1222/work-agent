@@ -20,6 +20,7 @@ function createStatus(overrides: Partial<SystemStatus> = {}): SystemStatus {
       connections: [],
     },
     providers: {
+      configuredChatReady: false,
       configured: [],
       detected: {
         ollama: false,
@@ -27,6 +28,14 @@ function createStatus(overrides: Partial<SystemStatus> = {}): SystemStatus {
       },
     },
     clis: {},
+    recommendation: {
+      code: 'unconfigured',
+      type: 'connections',
+      actionLabel: 'Open Connections',
+      title: 'No usable AI path is configured yet',
+      detail:
+        'Start Ollama locally or add a provider/runtime connection to make Stallion ready for first-run chat.',
+    },
     ready: false,
     ...overrides,
   };
@@ -52,11 +61,20 @@ describe('onboardingGateUtils', () => {
   test('shows detection-led guidance when Ollama is reachable', () => {
     const status = createStatus({
       providers: {
+        configuredChatReady: false,
         configured: [],
         detected: {
           ollama: true,
           bedrock: false,
         },
+      },
+      recommendation: {
+        code: 'detected-ollama',
+        type: 'providers',
+        actionLabel: 'Add Ollama connection',
+        title: 'Ollama is reachable locally',
+        detail:
+          'Create a model connection for the detected local Ollama server to make first-run chat explicit.',
       },
       ready: true,
     });
@@ -73,9 +91,10 @@ describe('onboardingGateUtils', () => {
     });
   });
 
-  test('shows non-chat-provider guidance when only vectordb providers exist', () => {
+  test('shows generic setup guidance when only vectordb providers exist', () => {
     const status = createStatus({
       providers: {
+        configuredChatReady: false,
         configured: [
           {
             id: 'lancedb-builtin',
@@ -89,23 +108,63 @@ describe('onboardingGateUtils', () => {
           bedrock: false,
         },
       },
+      recommendation: {
+        code: 'unconfigured',
+        type: 'connections',
+        actionLabel: 'Open Connections',
+        title: 'No usable AI path is configured yet',
+        detail:
+          'Start Ollama locally or add a provider/runtime connection to make Stallion ready for first-run chat.',
+      },
     });
 
     expect(shouldShowSetupBanner(status)).toBe(true);
-    expect(setupBannerVariant(status)).toBe('configured-no-chat');
+    expect(setupBannerVariant(status)).toBe('unconfigured');
     expect(buildSetupBannerContent(status)).toEqual({
-      title: 'No chat-capable connection is enabled',
+      title: 'No AI connection configured yet',
       description:
-        'Connections are configured, but none can run chat yet. Add or enable a model provider in Connections.',
+        'Start Ollama locally or add a provider connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
       actionLabel: 'Manage Connections',
-      badges: ['Configured: lancedb'],
+      badges: [],
       actionTarget: 'providers',
     });
+  });
+
+  test('prefers ollama detection over vectordb-only configured providers', () => {
+    const status = createStatus({
+      providers: {
+        configuredChatReady: false,
+        configured: [
+          {
+            id: 'lancedb-builtin',
+            type: 'lancedb',
+            enabled: true,
+            capabilities: ['vectordb'],
+          },
+        ],
+        detected: {
+          ollama: true,
+          bedrock: false,
+        },
+      },
+      recommendation: {
+        code: 'detected-ollama',
+        type: 'providers',
+        actionLabel: 'Add Ollama connection',
+        title: 'Ollama is reachable locally',
+        detail:
+          'Create a model connection for the detected local Ollama server to make first-run chat explicit.',
+      },
+      ready: true,
+    });
+
+    expect(setupBannerVariant(status)).toBe('detected-ollama');
   });
 
   test('hides the setup banner once a configured llm provider exists', () => {
     const status = createStatus({
       providers: {
+        configuredChatReady: true,
         configured: [
           {
             id: 'ollama-local',
@@ -118,6 +177,14 @@ describe('onboardingGateUtils', () => {
           ollama: true,
           bedrock: false,
         },
+      },
+      recommendation: {
+        code: 'configured-chat-ready',
+        type: 'providers',
+        actionLabel: 'Review model connections',
+        title: 'A chat-capable model connection is already configured',
+        detail:
+          'Stallion can already route chat through ollama. Review connections if you want to change the default.',
       },
       ready: true,
     });
@@ -143,6 +210,7 @@ describe('onboardingGateUtils', () => {
   test('shows disabled llm providers as configured but not enabled', () => {
     const status = createStatus({
       providers: {
+        configuredChatReady: false,
         configured: [
           {
             id: 'bedrock-default',
@@ -156,6 +224,14 @@ describe('onboardingGateUtils', () => {
           bedrock: true,
         },
       },
+      recommendation: {
+        code: 'configured-no-chat',
+        type: 'providers',
+        actionLabel: 'Manage model connections',
+        title: 'No chat-capable connection is enabled',
+        detail:
+          'Model connections are configured, but none can run chat yet. Enable or repair a model connection in Connections.',
+      },
     });
 
     expect(configuredLlmProviders(status)).toEqual([]);
@@ -167,6 +243,33 @@ describe('onboardingGateUtils', () => {
       actionLabel: 'Manage Connections',
       badges: ['Disabled: Amazon Bedrock'],
       actionTarget: 'providers',
+    });
+  });
+
+  test('shows runtime guidance when only connected runtimes are available', () => {
+    const status = createStatus({
+      recommendation: {
+        code: 'runtime-only',
+        type: 'runtimes',
+        actionLabel: 'Review runtimes',
+        title: 'A runtime is available before chat is configured',
+        detail:
+          'Connected runtimes are detectable, but there is still no explicit chat-capable model connection configured.',
+      },
+      clis: {
+        codex: true,
+      },
+      ready: false,
+    });
+
+    expect(setupBannerVariant(status)).toBe('runtime-only');
+    expect(buildSetupBannerContent(status)).toEqual({
+      title: 'A runtime is available before chat is configured',
+      description:
+        'Connected runtimes are detectable, but there is still no explicit chat-capable model connection configured.',
+      actionLabel: 'Review Runtimes',
+      badges: [],
+      actionTarget: 'runtimes',
     });
   });
 });

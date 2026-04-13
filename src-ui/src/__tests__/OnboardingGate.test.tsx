@@ -67,6 +67,7 @@ function createStatus(overrides: Partial<SystemStatus> = {}): SystemStatus {
       connections: [],
     },
     providers: {
+      configuredChatReady: false,
       configured: [],
       detected: {
         ollama: false,
@@ -74,6 +75,14 @@ function createStatus(overrides: Partial<SystemStatus> = {}): SystemStatus {
       },
     },
     clis: {},
+    recommendation: {
+      code: 'unconfigured',
+      type: 'connections',
+      actionLabel: 'Open Connections',
+      title: 'No usable AI path is configured yet',
+      detail:
+        'Start Ollama locally or add a provider/runtime connection to make Stallion ready for first-run chat.',
+    },
     ready: false,
     ...overrides,
   };
@@ -100,11 +109,20 @@ describe('OnboardingGate', () => {
 
     currentStatus = createStatus({
       providers: {
+        configuredChatReady: false,
         configured: [],
         detected: {
           ollama: true,
           bedrock: false,
         },
+      },
+      recommendation: {
+        code: 'detected-ollama',
+        type: 'providers',
+        actionLabel: 'Add Ollama connection',
+        title: 'Ollama is reachable locally',
+        detail:
+          'Create a model connection for the detected local Ollama server to make first-run chat explicit.',
       },
     });
 
@@ -129,5 +147,31 @@ describe('OnboardingGate', () => {
 
     expect(navigate).toHaveBeenCalledWith('/connections/providers');
     expect(screen.queryByText('Connection manager')).toBeNull();
+  });
+
+  test('routes runtime-only setup actions to runtime connections', () => {
+    currentStatus = createStatus({
+      recommendation: {
+        code: 'runtime-only',
+        type: 'runtimes',
+        actionLabel: 'Review runtimes',
+        title: 'A runtime is available before chat is configured',
+        detail:
+          'Connected runtimes are detectable, but there is still no explicit chat-capable model connection configured.',
+      },
+      clis: {
+        codex: true,
+      },
+    });
+
+    render(
+      <OnboardingGate>
+        <div>App</div>
+      </OnboardingGate>,
+    );
+
+    fireEvent.click(screen.getByText('Review Runtimes'));
+
+    expect(navigate).toHaveBeenCalledWith('/connections/runtimes');
   });
 });

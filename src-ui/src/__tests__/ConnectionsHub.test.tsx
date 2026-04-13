@@ -36,13 +36,36 @@ vi.mock('@stallion-ai/sdk', () => ({
         },
         prerequisites: [],
       },
+      {
+        id: 'lancedb-builtin',
+        kind: 'model',
+        type: 'lancedb',
+        name: 'Stallion Built-In',
+        enabled: true,
+        status: 'ready',
+        capabilities: ['vectordb'],
+        config: {},
+        prerequisites: [],
+      },
     ],
   }),
   useIntegrationsQuery: () => ({ data: [] }),
-  useGlobalKnowledgeStatusQuery: () => ({ data: null }),
+  useGlobalKnowledgeStatusQuery: () => ({
+    data: {
+      vectorDb: {
+        id: 'lancedb-builtin',
+        name: 'Stallion Built-In',
+        type: 'lancedb',
+        enabled: true,
+      },
+      embedding: null,
+      stats: { totalDocuments: 0, totalChunks: 0, projectCount: 0 },
+    },
+  }),
   useSystemStatusQuery: () => ({
     data: {
       recommendation: {
+        code: 'detected-bedrock',
         type: 'providers',
         actionLabel: 'Review model connections',
         title: 'Detected setup help',
@@ -70,5 +93,22 @@ describe('ConnectionsHub', () => {
     expect(screen.getByText('Setup required')).toBeTruthy();
     expect(screen.queryByText('Enabled')).toBeNull();
     expect(screen.getByText('Catalog: Fallback')).toBeTruthy();
+  });
+
+  test('shows built-in vectordb only in the knowledge section', () => {
+    const { container } = render(<ConnectionsHub />);
+    const sections = Array.from(
+      container.querySelectorAll('.connections-hub__section'),
+    );
+    const modelSection = sections.find((section) =>
+      section.textContent?.includes('Model Connections'),
+    );
+    const knowledgeSection = sections.find((section) =>
+      section.textContent?.includes('Knowledge'),
+    );
+
+    expect(modelSection?.textContent).not.toContain('Stallion Built-In');
+    expect(knowledgeSection?.textContent).toContain('Stallion Built-In');
+    expect(screen.queryByText('+ Add a model connection')).toBeNull();
   });
 });

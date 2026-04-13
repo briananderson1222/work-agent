@@ -119,6 +119,31 @@ describe('seedRuntimeDefaultProviderConnection', () => {
     );
   });
 
+  test('does not reseed when an enabled llm provider already exists', async () => {
+    const storageAdapter = {
+      listProviderConnections: vi.fn(() => [
+        {
+          id: 'ollama-local',
+          type: 'ollama',
+          enabled: true,
+          capabilities: ['llm', 'embedding'],
+        },
+      ]),
+      saveProviderConnection: vi.fn(),
+    };
+    const logger = { info: vi.fn(), debug: vi.fn() };
+
+    await seedRuntimeDefaultProviderConnection({
+      storageAdapter: storageAdapter as any,
+      appConfig: {},
+      logger,
+      checkOllamaAvailability: async () => true,
+      checkBedrockCredentials: async () => true,
+    });
+
+    expect(storageAdapter.saveProviderConnection).not.toHaveBeenCalled();
+  });
+
   test('falls back to bedrock when ollama is unavailable and credentials are available', async () => {
     const storageAdapter = {
       listProviderConnections: vi.fn(() => []),

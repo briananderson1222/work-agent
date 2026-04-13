@@ -54,6 +54,7 @@ export interface SystemStatus {
     connections: Array<{ id: string; status: string }>;
   };
   providers?: {
+    configuredChatReady?: boolean;
     configured: Array<{
       id: string;
       type: string;
@@ -74,6 +75,13 @@ export interface SystemStatus {
     }
   >;
   recommendation?: {
+    code?:
+      | 'configured-chat-ready'
+      | 'configured-no-chat'
+      | 'detected-ollama'
+      | 'detected-bedrock'
+      | 'runtime-only'
+      | 'unconfigured';
     type: 'providers' | 'runtimes' | 'connections';
     actionLabel: string;
     title: string;

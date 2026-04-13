@@ -36,6 +36,13 @@ export type CapabilityState = {
 };
 
 export type SystemRecommendation = {
+  code:
+    | 'configured-chat-ready'
+    | 'configured-no-chat'
+    | 'detected-ollama'
+    | 'detected-bedrock'
+    | 'runtime-only'
+    | 'unconfigured';
   type: 'providers' | 'runtimes' | 'connections';
   actionLabel: string;
   title: string;

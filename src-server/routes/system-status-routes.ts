@@ -37,17 +37,8 @@ function buildCapabilityStates(input: {
 
   return {
     chat: {
-      ready:
-        configuredLlmProviders.length > 0 ||
-        input.ollamaReachable ||
-        input.credentialsFound,
-      source:
-        configuredLlmProviders[0]?.type ??
-        (input.ollamaReachable
-          ? 'ollama-detected'
-          : input.credentialsFound
-            ? 'bedrock-detected'
-            : null),
+      ready: configuredLlmProviders.length > 0,
+      source: configuredLlmProviders[0]?.type ?? null,
     },
     runtime: {
       ready:
@@ -89,14 +80,29 @@ function buildSystemRecommendation(input: {
   );
   if (enabledLlmProvider) {
     return {
+      code: 'configured-chat-ready',
       type: 'providers',
       actionLabel: 'Review model connections',
       title: 'A chat-capable model connection is already configured',
       detail: `Stallion can already route chat through ${enabledLlmProvider.type}. Review connections if you want to change the default.`,
     };
   }
+  const configuredLlmProvider = input.configuredProviders.find((provider) =>
+    provider.capabilities.includes('llm'),
+  );
+  if (configuredLlmProvider) {
+    return {
+      code: 'configured-no-chat',
+      type: 'providers',
+      actionLabel: 'Manage model connections',
+      title: 'No chat-capable connection is enabled',
+      detail:
+        'Model connections are configured, but none can run chat yet. Enable or repair a model connection in Connections.',
+    };
+  }
   if (input.ollamaReachable) {
     return {
+      code: 'detected-ollama',
       type: 'providers',
       actionLabel: 'Add Ollama connection',
       title: 'Ollama is reachable locally',
@@ -106,6 +112,7 @@ function buildSystemRecommendation(input: {
   }
   if (input.credentialsFound) {
     return {
+      code: 'detected-bedrock',
       type: 'providers',
       actionLabel: 'Add Bedrock connection',
       title: 'Bedrock credentials are available',
@@ -115,6 +122,7 @@ function buildSystemRecommendation(input: {
   }
   if (input.codexInstalled || input.claudeInstalled || input.acpConnected) {
     return {
+      code: 'runtime-only',
       type: 'runtimes',
       actionLabel: 'Review runtimes',
       title: 'A runtime is available before chat is configured',
@@ -123,6 +131,7 @@ function buildSystemRecommendation(input: {
     };
   }
   return {
+    code: 'unconfigured',
     type: 'connections',
     actionLabel: 'Open Connections',
     title: 'No usable AI path is configured yet',
@@ -195,6 +204,7 @@ export function createSystemStatusRoutes(deps: SystemStatusDeps) {
         connections: acpStatus.connections,
       },
       providers: {
+        configuredChatReady: configuredLlmProviders.length > 0,
         configured: configuredProviders.map((provider) => ({
           id: provider.id,
           type: provider.type,

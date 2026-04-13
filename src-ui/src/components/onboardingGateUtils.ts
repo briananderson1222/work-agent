@@ -17,6 +17,7 @@ export type SetupBannerVariant =
   | 'hidden'
   | 'detected-ollama'
   | 'detected-bedrock'
+  | 'runtime-only'
   | 'configured-no-chat'
   | 'unconfigured';
 
@@ -43,16 +44,32 @@ export function setupBannerVariant(status: SystemStatus): SetupBannerVariant {
     return 'hidden';
   }
 
-  if (configuredLlmProviders(status).length > 0) {
+  if (
+    status.providers?.configuredChatReady ||
+    status.recommendation?.code === 'configured-chat-ready'
+  ) {
     return 'hidden';
   }
 
-  const configured = configuredProviders(status);
-  if (configured.some((provider) => provider.capabilities.includes('llm'))) {
+  if (status.recommendation?.code === 'configured-no-chat') {
     return 'configured-no-chat';
   }
 
-  if (enabledConfiguredProviders(status).length > 0) {
+  if (status.recommendation?.code === 'detected-ollama') {
+    return 'detected-ollama';
+  }
+  if (status.recommendation?.code === 'detected-bedrock') {
+    return 'detected-bedrock';
+  }
+  if (status.recommendation?.code === 'runtime-only') {
+    return 'runtime-only';
+  }
+
+  const configured = configuredProviders(status);
+  if (
+    configured.some((provider) => provider.capabilities.includes('llm')) &&
+    configuredLlmProviders(status).length === 0
+  ) {
     return 'configured-no-chat';
   }
 
@@ -74,8 +91,10 @@ export function shouldShowSetupBanner(status: SystemStatus): boolean {
 export function buildSetupBannerContent(
   status: SystemStatus,
 ): SetupBannerContent {
-  const configured = configuredProviders(status);
-  const enabledProviders = enabledConfiguredProviders(status);
+  const configured = configuredProviders(status).filter((provider) =>
+    provider.capabilities.includes('llm'),
+  );
+  const enabledProviders = configuredLlmProviders(status);
 
   switch (setupBannerVariant(status)) {
     case 'detected-ollama':
@@ -108,6 +127,15 @@ export function buildSetupBannerContent(
             : `Disabled: ${connectionTypeLabel(provider.type)}`,
         ),
         actionTarget: 'providers',
+      };
+    case 'runtime-only':
+      return {
+        title: 'A runtime is available before chat is configured',
+        description:
+          'Connected runtimes are detectable, but there is still no explicit chat-capable model connection configured.',
+        actionLabel: 'Review Runtimes',
+        badges: [],
+        actionTarget: 'runtimes',
       };
     case 'hidden':
       return {

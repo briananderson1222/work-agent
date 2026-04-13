@@ -15,6 +15,9 @@ import type { ProjectConfig } from '@stallion-ai/contracts/project';
 import { FileStorageAdapter } from './file-storage-adapter.js';
 import { runOrchestrationEventMigration } from './migrations/003-orchestration-events.js';
 
+const BUILTIN_VECTOR_DB_ID = 'lancedb-builtin';
+const BUILTIN_VECTOR_DB_NAME = 'Stallion Built-In';
+
 export async function runStartupMigrations(
   projectHomeDir: string,
 ): Promise<void> {
@@ -23,11 +26,21 @@ export async function runStartupMigrations(
   // Seed default provider connections (runs every startup, idempotent)
   const storageAdapter = new FileStorageAdapter(projectHomeDir);
   const existing = storageAdapter.listProviderConnections();
+  const builtinVectorDb = existing.find(
+    (connection) =>
+      connection.id === BUILTIN_VECTOR_DB_ID && connection.type === 'lancedb',
+  );
+  if (builtinVectorDb && builtinVectorDb.name !== BUILTIN_VECTOR_DB_NAME) {
+    storageAdapter.saveProviderConnection({
+      ...builtinVectorDb,
+      name: BUILTIN_VECTOR_DB_NAME,
+    });
+  }
   if (!existing.some((c) => c.capabilities.includes('vectordb'))) {
     storageAdapter.saveProviderConnection({
-      id: 'lancedb-builtin',
+      id: BUILTIN_VECTOR_DB_ID,
       type: 'lancedb',
-      name: 'LanceDB (built-in)',
+      name: BUILTIN_VECTOR_DB_NAME,
       config: { dataDir: `${projectHomeDir}/vectordb` },
       enabled: true,
       capabilities: ['vectordb'] as ('llm' | 'embedding' | 'vectordb')[],

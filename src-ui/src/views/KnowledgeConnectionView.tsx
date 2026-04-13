@@ -1,11 +1,16 @@
 import {
+  useConnectionsQuery,
   useGlobalKnowledgeStatusQuery,
-  useModelConnectionsQuery,
   useSaveConnectionMutation,
   useTestVectorDbConnectionMutation,
 } from '@stallion-ai/sdk';
 import { useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
+import { connectionTypeLabel } from '../utils/execution';
+import {
+  findModelConnectionById,
+  getKnowledgeInventory,
+} from './connectionInventory';
 import './KnowledgeConnectionView.css';
 import './editor-layout.css';
 
@@ -50,13 +55,17 @@ function IconGlobe() {
 export function KnowledgeConnectionView() {
   const { navigate } = useNavigation();
 
-  const { data: providers = [] } = useModelConnectionsQuery();
+  const { data: connections = [] } = useConnectionsQuery();
   const { data: status } = useGlobalKnowledgeStatusQuery();
 
-  const vectorDb = providers.find((p) => p.capabilities.includes('vectordb'));
-  const embeddingProvider = providers.find(
-    (p) => p.enabled && p.capabilities.includes('embedding'),
-  );
+  const { vectorDb: fallbackVectorDb, embeddingProvider: fallbackEmbedding } =
+    getKnowledgeInventory(connections);
+  const vectorDb =
+    findModelConnectionById(connections, status?.vectorDb?.id) ??
+    fallbackVectorDb;
+  const embeddingProvider =
+    findModelConnectionById(connections, status?.embedding?.id) ??
+    fallbackEmbedding;
 
   const [dataDir, setDataDir] = useState<string | null>(null);
   const editingDataDir =
@@ -121,7 +130,9 @@ export function KnowledgeConnectionView() {
                   {vectorDb.name}
                 </span>
                 <span className="knowledge-view__card-type">
-                  {vectorDb.type}
+                  {vectorDb.id === 'lancedb-builtin'
+                    ? 'Built-in vector store'
+                    : connectionTypeLabel(vectorDb.type)}
                 </span>
                 <span className="knowledge-view__card-spacer" />
                 <span
@@ -206,7 +217,7 @@ export function KnowledgeConnectionView() {
                   {embeddingProvider.name}
                 </span>
                 <span className="knowledge-view__card-type">
-                  {embeddingProvider.type}
+                  {connectionTypeLabel(embeddingProvider.type)}
                 </span>
                 <span className="knowledge-view__card-spacer" />
                 <button

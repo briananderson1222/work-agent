@@ -51,9 +51,10 @@ describe('System Routes', () => {
     const body = await json(await app.request('/status'));
     expect(body.bedrock).toBeDefined();
     expect(body.acp).toBeDefined();
-    expect(body.capabilities.chat.ready).toBe(true);
+    expect(body.capabilities.chat.ready).toBe(false);
     expect(body.recommendation).toEqual(
       expect.objectContaining({
+        code: 'detected-bedrock',
         type: 'providers',
       }),
     );
@@ -89,6 +90,7 @@ describe('System Routes', () => {
     const body = await json(await app.request('/status'));
     expect(body.ready).toBe(true);
     expect(body.capabilities.chat.source).toBe('ollama');
+    expect(body.providers.configuredChatReady).toBe(true);
     expect(body.recommendation.title).toContain('already configured');
     expect(body.providers.configured).toEqual(
       expect.arrayContaining([
@@ -125,7 +127,9 @@ describe('System Routes', () => {
     const body = await json(await app.request('/status'));
     expect(body.ready).toBe(false);
     expect(body.capabilities.chat.ready).toBe(false);
-    expect(['connections', 'runtimes']).toContain(body.recommendation.type);
+    expect(['unconfigured', 'runtime-only']).toContain(
+      body.recommendation.code,
+    );
     expect(body.providers.configured).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
@@ -133,6 +137,38 @@ describe('System Routes', () => {
           capabilities: ['vectordb'],
         }),
       ]),
+    );
+  });
+
+  test('GET /status reports configured-no-chat when an llm provider exists but is disabled', async () => {
+    vi.mocked(checkBedrockCredentials).mockResolvedValueOnce(false);
+
+    const app = createSystemRoutes(
+      {
+        ...createMockDeps(),
+        listProviderConnections: () => [
+          {
+            id: 'bedrock-default',
+            type: 'bedrock',
+            enabled: false,
+            capabilities: ['llm'],
+          },
+        ],
+        getAppConfig: () => ({
+          defaultModel: 'claude-3',
+          runtime: 'voltagent',
+        }),
+      } as any,
+      mockLogger,
+    );
+    const body = await json(await app.request('/status'));
+    expect(body.capabilities.chat.ready).toBe(false);
+    expect(body.providers.configuredChatReady).toBe(false);
+    expect(body.recommendation).toEqual(
+      expect.objectContaining({
+        code: 'configured-no-chat',
+        type: 'providers',
+      }),
     );
   });
 

@@ -16,7 +16,11 @@ import {
   IconTool,
 } from './connections-hub/utils';
 import './ConnectionsHub.css';
-import { runtimeCatalogSourceLabel } from '../utils/execution';
+import {
+  connectionTypeLabel,
+  runtimeCatalogSourceLabel,
+} from '../utils/execution';
+import { isModelInventoryConnection } from './connectionInventory';
 
 export type ConnectionsHubProps = Record<string, never>;
 
@@ -30,9 +34,7 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
 
   const { data: knowledge } = useGlobalKnowledgeStatusQuery();
 
-  const modelConnections = connections.filter(
-    (connection) => connection.kind === 'model',
-  );
+  const modelConnections = connections.filter(isModelInventoryConnection);
   const runtimeConnections = connections.filter(
     (connection) => connection.kind === 'runtime',
   );
@@ -230,7 +232,9 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
                 />
               </div>
               <span className="connections-hub__card-type">
-                {knowledge.vectorDb.type}
+                {knowledge.vectorDb.id === 'lancedb-builtin'
+                  ? 'Built-in vector store'
+                  : connectionTypeLabel(knowledge.vectorDb.type)}
               </span>
             </button>
           ) : (
