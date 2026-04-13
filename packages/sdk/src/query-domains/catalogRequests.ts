@@ -111,16 +111,29 @@ export async function requestRegistryIntegrationAction({
   id: string;
   action: 'install' | 'uninstall';
 }): Promise<InstallResult> {
+  return requestRegistryCatalogAction('integrations', { id, action });
+}
+
+export async function requestRegistryCatalogAction(
+  tab: RegistryCatalogTab,
+  {
+    id,
+    action,
+  }: {
+    id: string;
+    action: 'install' | 'uninstall';
+  },
+): Promise<InstallResult> {
   const apiBase = await _getApiBase();
   const response =
     action === 'install'
-      ? await fetch(`${apiBase}/api/registry/integrations/install`, {
+      ? await fetch(`${apiBase}/api/registry/${tab}/install`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id }),
         })
       : await fetch(
-          `${apiBase}/api/registry/integrations/${encodeURIComponent(id)}`,
+          `${apiBase}/api/registry/${tab}/${encodeURIComponent(id)}`,
           { method: 'DELETE' },
         );
   const result = (await response.json()) as InstallResult & {

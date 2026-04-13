@@ -15,6 +15,7 @@ import {
   fetchPlaybooks,
   fetchRegistryItems,
   requestIntegration,
+  requestRegistryCatalogAction,
   requestPlaybook,
   requestPlaybookOutcome,
   requestPlaybookRun,
@@ -42,6 +43,11 @@ interface PlaybookOutcomeInput {
 }
 
 interface IntegrationRegistryActionInput {
+  id: string;
+  action: 'install' | 'uninstall';
+}
+
+interface RegistryActionInput {
   id: string;
   action: 'install' | 'uninstall';
 }
@@ -313,6 +319,42 @@ export function useRegistryIntegrationActionMutation(
         ['registry', 'integrations'],
         ['registry', 'integrations', 'installed'],
         ['integrations'],
+      ],
+      onSuccess: options?.onSuccess,
+      onError: options?.onError,
+    },
+  );
+}
+
+export function useRegistryAgentActionMutation(
+  options?: MutationOptions<InstallResult, RegistryActionInput>,
+) {
+  return useApiMutation(
+    (input: RegistryActionInput) =>
+      requestRegistryCatalogAction('agents', input),
+    {
+      invalidateKeys: [
+        ['registry', 'agents'],
+        ['registry', 'agents', 'installed'],
+        ['agents'],
+      ],
+      onSuccess: options?.onSuccess,
+      onError: options?.onError,
+    },
+  );
+}
+
+export function useRegistrySkillActionMutation(
+  options?: MutationOptions<InstallResult, RegistryActionInput>,
+) {
+  return useApiMutation(
+    (input: RegistryActionInput) =>
+      requestRegistryCatalogAction('skills', input),
+    {
+      invalidateKeys: [
+        ['registry', 'skills'],
+        ['registry', 'skills', 'installed'],
+        ['skills'],
       ],
       onSuccess: options?.onSuccess,
       onError: options?.onError,

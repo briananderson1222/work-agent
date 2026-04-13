@@ -2,27 +2,63 @@
  * @vitest-environment jsdom
  */
 
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, test, vi } from 'vitest';
 
-let installed = false;
-const mutationCalls: Array<{ id: string; action: 'install' | 'uninstall' }> =
-  [];
+const installedByTab = {
+  agents: new Set<string>(),
+  integrations: new Set<string>(),
+  plugins: new Set<string>(),
+  skills: new Set<string>(),
+};
+const mutationCalls: Array<{
+  action: 'install' | 'uninstall';
+  id: string;
+  tab: 'agents' | 'integrations' | 'plugins' | 'skills';
+}> = [];
 
-vi.mock('@stallion-ai/sdk', () => ({
-  useInstalledRegistryItemsQuery: (tab: string) => ({
-    data:
-      tab === 'plugins' && installed
-        ? [
-            {
-              id: 'demo-layout',
-              displayName: 'Demo Layout',
-            },
-          ]
-        : [],
-    isLoading: false,
-  }),
-  usePluginRegistryInstallMutation: () => ({
+const registryItems = {
+  agents: [
+    {
+      id: 'agent-one',
+      displayName: 'Agent One',
+      description: 'Primary agent',
+      version: '1.0.0',
+    },
+    {
+      id: 'agent-two',
+      displayName: 'Agent Two',
+      description: 'Backup agent',
+    },
+  ],
+  integrations: [
+    {
+      id: 'integration-one',
+      displayName: 'Integration One',
+      description: 'Registry integration',
+      source: 'AIM',
+    },
+  ],
+  plugins: [
+    {
+      id: 'demo-layout',
+      displayName: 'Demo Layout',
+      description: 'Starter plugin',
+      source: '../demo-layout',
+      version: '1.0.0',
+    },
+  ],
+  skills: [
+    {
+      id: 'skill-one',
+      displayName: 'Skill One',
+      description: 'Registry skill',
+    },
+  ],
+} as const;
+
+function makeMutation(tab: 'agents' | 'integrations' | 'plugins' | 'skills') {
+  return {
     isPending: false,
     mutate: (
       variables: { id: string; action: 'install' | 'uninstall' },
@@ -33,59 +69,117 @@ vi.mock('@stallion-ai/sdk', () => ({
         }) => void;
       },
     ) => {
-      mutationCalls.push(variables);
-      installed = variables.action === 'install';
+      mutationCalls.push({ tab, ...variables });
+      if (variables.action === 'install') {
+        installedByTab[tab].add(variables.id);
+      } else {
+        installedByTab[tab].delete(variables.id);
+      }
       callbacks?.onSuccess?.({
         success: true,
         action: variables.action,
       });
     },
     variables: null,
-  }),
-  useRegistryItemsQuery: (tab: string) => ({
-    data:
-      tab === 'plugins'
-        ? [
-            {
-              id: 'demo-layout',
-              displayName: 'Demo Layout',
-              description: 'Starter plugin',
-              installed,
-              source: '../demo-layout',
-              version: '1.0.0',
-            },
-          ]
-        : [],
+  };
+}
+
+vi.mock('@stallion-ai/sdk', () => ({
+  useInstalledRegistryItemsQuery: (tab: string) => ({
+    data: registryItems[tab as keyof typeof registryItems].filter((item) =>
+      installedByTab[tab as keyof typeof installedByTab].has(item.id),
+    ),
     isLoading: false,
   }),
+  useRegistryAgentActionMutation: () => makeMutation('agents'),
+  useRegistryIntegrationActionMutation: () => makeMutation('integrations'),
+  usePluginRegistryInstallMutation: () => makeMutation('plugins'),
+  useRegistryItemsQuery: (tab: string) => ({
+    data: registryItems[tab as keyof typeof registryItems].map((item) => ({
+      ...item,
+      installed: installedByTab[tab as keyof typeof installedByTab].has(
+        item.id,
+      ),
+    })),
+    isLoading: false,
+  }),
+  useRegistrySkillActionMutation: () => makeMutation('skills'),
 }));
 
 import { RegistryView } from '../views/RegistryView';
 
 afterEach(() => {
-  installed = false;
+  for (const installedItems of Object.values(installedByTab)) {
+    installedItems.clear();
+  }
   mutationCalls.length = 0;
 });
 
 describe('RegistryView', () => {
-  test('installs and removes registry plugins from the plugins tab', () => {
+  test('uses selected-card preview actions for agents without mutating on card click', () => {
     const { rerender } = render(<RegistryView />);
 
-    fireEvent.click(screen.getByRole('button', { name: 'Plugins' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Install' }));
+    fireEvent.click(screen.getByRole('button', { name: /Agent Two/i }));
 
-    expect(mutationCalls).toEqual([{ id: 'demo-layout', action: 'install' }]);
-    expect(screen.getByText('Installed Demo Layout')).toBeTruthy();
+    expect(mutationCalls).toEqual([]);
+    const detail = screen.getByTestId('registry-detail');
+    expect(within(detail).getByText('Selected agent')).toBeTruthy();
+    expect(within(detail).getByRole('button', { name: 'Install' })).toBeTruthy();
 
-    rerender(<RegistryView />);
-    expect(screen.getByRole('button', { name: 'Remove' })).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: 'Remove' }));
+    fireEvent.click(within(detail).getByRole('button', { name: 'Install' }));
 
     expect(mutationCalls).toEqual([
-      { id: 'demo-layout', action: 'install' },
-      { id: 'demo-layout', action: 'uninstall' },
+      { id: 'agent-two', action: 'install', tab: 'agents' },
     ]);
-    expect(screen.getByText('Removed Demo Layout')).toBeTruthy();
+    expect(screen.getByText('Installed Agent Two')).toBeTruthy();
+
+    rerender(<RegistryView />);
+    const installedDetail = screen.getByTestId('registry-detail');
+    expect(
+      within(installedDetail).getByRole('button', { name: 'Remove' }),
+    ).toBeTruthy();
+
+    fireEvent.click(
+      within(installedDetail).getByRole('button', { name: 'Remove' }),
+    );
+
+    expect(mutationCalls).toEqual([
+      { id: 'agent-two', action: 'install', tab: 'agents' },
+      { id: 'agent-two', action: 'uninstall', tab: 'agents' },
+    ]);
+    expect(screen.getByText('Removed Agent Two')).toBeTruthy();
   });
+
+  test.each([
+    ['Skills', 'skills', 'skill-one', 'Skill One'],
+    ['Integrations', 'integrations', 'integration-one', 'Integration One'],
+    ['Plugins', 'plugins', 'demo-layout', 'Demo Layout'],
+  ] as const)(
+    'renders preview install/remove actions for %s',
+    (tabLabel, tabKey, itemId, itemLabel) => {
+      const { rerender } = render(<RegistryView />);
+
+      fireEvent.click(screen.getByRole('button', { name: tabLabel }));
+      const detail = screen.getByTestId('registry-detail');
+      expect(
+        within(detail).getByText(`Selected ${tabKey.slice(0, -1)}`),
+      ).toBeTruthy();
+
+      fireEvent.click(within(detail).getByRole('button', { name: 'Install' }));
+
+      expect(mutationCalls).toContainEqual({
+        id: itemId,
+        action: 'install',
+        tab: tabKey,
+      });
+      expect(screen.getByText(`Installed ${itemLabel}`)).toBeTruthy();
+
+      rerender(<RegistryView />);
+      expect(
+        within(screen.getByTestId('registry-detail')).getByRole('button', {
+          name: 'Remove',
+        }),
+      ).toBeTruthy();
+    },
+  );
 });
