@@ -8,6 +8,7 @@ import {
   useRegistrySkillActionMutation,
 } from '@stallion-ai/sdk';
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigation } from '../contexts/NavigationContext';
 import './page-layout.css';
 
 interface RegistryItem {
@@ -34,20 +35,50 @@ function getTabSingularLabel(tab: RegistryCatalogTab) {
   return tab.slice(0, -1);
 }
 
+function getRegistrySourceLabel(item: RegistryItem) {
+  if (!item.source) return null;
+  if (item.source === 'GitHub') return 'GitHub';
+  if (item.source.startsWith('/')) return 'Local';
+  return item.source;
+}
+
+function getRegistryActionLabel(tab: RegistryCatalogTab, isInstalled: boolean) {
+  if (tab === 'skills') {
+    return isInstalled ? 'Remove from workspace' : 'Install to workspace';
+  }
+  return isInstalled ? 'Remove' : 'Install';
+}
+
+function getRegistryActionHint(tab: RegistryCatalogTab, isInstalled: boolean) {
+  if (tab !== 'skills') return null;
+  return isInstalled
+    ? 'Removing deletes the workspace copy so the skill is no longer selectable in agent definitions.'
+    : 'Installing copies this skill into the workspace so it becomes selectable in agent definitions.';
+}
+
 export function RegistryView() {
+  const { navigate } = useNavigation();
   const [activeTab, setActiveTab] = useState<RegistryCatalogTab>('agents');
   const [message, setMessage] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const { data: available = [], isLoading: loadingAvailable } =
-    useRegistryItemsQuery<RegistryItem>(activeTab);
-  const { data: installed = [], isLoading: loadingInstalled } =
-    useInstalledRegistryItemsQuery<RegistryItem>(activeTab);
+  const {
+    data: available = [],
+    error: availableError,
+    isLoading: loadingAvailable,
+  } = useRegistryItemsQuery<RegistryItem>(activeTab);
+  const {
+    data: installed = [],
+    error: installedError,
+    isLoading: loadingInstalled,
+  } = useInstalledRegistryItemsQuery<RegistryItem>(activeTab);
   const agentMutation = useRegistryAgentActionMutation();
   const integrationMutation = useRegistryIntegrationActionMutation();
   const pluginMutation = usePluginRegistryInstallMutation();
   const skillMutation = useRegistrySkillActionMutation();
 
   const isLoading = loadingAvailable || loadingInstalled;
+  const loadError =
+    (availableError as Error | null) || (installedError as Error | null);
   const installedIds = useMemo(
     () =>
       new Set(installed.map((item) => getRegistryItemId(item as RegistryItem))),
@@ -92,31 +123,33 @@ export function RegistryView() {
           ? integrationMutation.isPending
           : pluginMutation.isPending) && pendingId === selectedItemId;
 
-  const runAction = () => {
-    if (!selectedItem || !selectedItemId) return;
-
-    const action = selectedInstalled ? 'uninstall' : 'install';
+  const runAction = (
+    item: RegistryItem,
+    itemId: string,
+    isInstalled: boolean,
+  ) => {
+    const action = isInstalled ? 'uninstall' : 'install';
     const callbacks = {
       onError: (error: Error) => setMessage(error.message),
       onSuccess: () =>
         setMessage(
-          `${selectedInstalled ? 'Removed' : 'Installed'} ${selectedItem.displayName || selectedItemId}`,
+          `${isInstalled ? 'Removed' : 'Installed'} ${item.displayName || itemId}`,
         ),
     };
 
     if (activeTab === 'agents') {
-      agentMutation.mutate({ id: selectedItemId, action }, callbacks);
+      agentMutation.mutate({ id: itemId, action }, callbacks);
       return;
     }
     if (activeTab === 'skills') {
-      skillMutation.mutate({ id: selectedItemId, action }, callbacks);
+      skillMutation.mutate({ id: itemId, action }, callbacks);
       return;
     }
     if (activeTab === 'integrations') {
-      integrationMutation.mutate({ id: selectedItemId, action }, callbacks);
+      integrationMutation.mutate({ id: itemId, action }, callbacks);
       return;
     }
-    pluginMutation.mutate({ id: selectedItemId, action }, callbacks);
+    pluginMutation.mutate({ id: itemId, action }, callbacks);
   };
 
   return (
@@ -128,6 +161,17 @@ export function RegistryView() {
           <p className="page__subtitle">
             Browse and install agents, skills, integrations, and plugins.
           </p>
+          {activeTab === 'skills' && (
+            <div className="page__header-actions-inline">
+              <button
+                type="button"
+                className="page__btn-secondary"
+                onClick={() => navigate('/skills')}
+              >
+                Manage Installed Skills
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -152,13 +196,20 @@ export function RegistryView() {
 
         {isLoading && <div className="page__empty">Loading...</div>}
 
-        {!isLoading && available.length === 0 && (
+        {!isLoading && loadError && (
+          <div className="page__empty">
+            <p>Could not load {activeTab} right now.</p>
+            <p className="page__subtitle">{loadError.message}</p>
+          </div>
+        )}
+
+        {!isLoading && !loadError && available.length === 0 && (
           <div className="page__empty">
             <p>No {activeTab} available in the registry.</p>
           </div>
         )}
 
-        {!isLoading && available.length > 0 && (
+        {!isLoading && !loadError && available.length > 0 && (
           <>
             {selectedItem && (
               <div
@@ -187,17 +238,32 @@ export function RegistryView() {
                   </span>
                 </div>
 
-                {(selectedItem.version || selectedItem.source) && (
+                {getRegistrySourceLabel(selectedItem) && (
+                  <div
+                    className="page__meta-row"
+                    style={{ marginTop: '0.75rem' }}
+                  >
+                    <span className="page__meta-pill">
+                      {getRegistrySourceLabel(selectedItem)}
+                    </span>
+                  </div>
+                )}
+
+                {selectedItem.version && (
                   <div
                     className="page__subtitle"
                     style={{ marginTop: '0.75rem' }}
                   >
-                    {[
-                      selectedItem.version ? `v${selectedItem.version}` : null,
-                      selectedItem.source,
-                    ]
-                      .filter(Boolean)
-                      .join(' • ')}
+                    {`v${selectedItem.version}`}
+                  </div>
+                )}
+
+                {getRegistryActionHint(activeTab, selectedInstalled) && (
+                  <div
+                    className="page__subtitle"
+                    style={{ marginTop: '0.75rem' }}
+                  >
+                    {getRegistryActionHint(activeTab, selectedInstalled)}
                   </div>
                 )}
 
@@ -208,14 +274,16 @@ export function RegistryView() {
                     disabled={actionPending}
                     onClick={() => {
                       setMessage(null);
-                      runAction();
+                      runAction(
+                        selectedItem,
+                        selectedItemId!,
+                        selectedInstalled,
+                      );
                     }}
                   >
                     {actionPending
                       ? 'Working...'
-                      : selectedInstalled
-                        ? 'Remove'
-                        : 'Install'}
+                      : getRegistryActionLabel(activeTab, selectedInstalled)}
                   </button>
                 </div>
               </div>
@@ -226,16 +294,25 @@ export function RegistryView() {
                 const id = getRegistryItemId(item);
                 const isInstalled = installedIds.has(id) || !!item.installed;
                 const isSelected = id === selectedItemId;
+                const sourceLabel = getRegistrySourceLabel(item);
 
                 return (
-                  <button
+                  <div
                     key={id}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
                     className="page__card-loose"
                     aria-pressed={isSelected}
                     onClick={() => {
                       setMessage(null);
                       setSelectedId(id);
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setMessage(null);
+                        setSelectedId(id);
+                      }
                     }}
                     style={{
                       width: '100%',
@@ -267,17 +344,35 @@ export function RegistryView() {
                       </span>
                     </div>
 
-                    {(item.version || item.source) && (
+                    {item.version && (
                       <div
                         className="page__subtitle"
                         style={{ marginTop: '0.75rem' }}
                       >
-                        {[item.version ? `v${item.version}` : null, item.source]
-                          .filter(Boolean)
-                          .join(' • ')}
+                        {`v${item.version}`}
                       </div>
                     )}
-                  </button>
+
+                    <div className="page__card-footer">
+                      <div className="page__meta-row">
+                        {sourceLabel && (
+                          <span className="page__meta-pill">{sourceLabel}</span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="page__btn-secondary"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setMessage(null);
+                          setSelectedId(id);
+                          runAction(item, id, isInstalled);
+                        }}
+                      >
+                        {getRegistryActionLabel(activeTab, isInstalled)}
+                      </button>
+                    </div>
+                  </div>
                 );
               })}
             </div>

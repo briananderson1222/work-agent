@@ -349,11 +349,25 @@ export function configureRuntimeRoutes(
             : agent.model?.modelId;
         }
 
+        const configuredProviders = context.providerService
+          .listProviderConnections()
+          .filter(
+            (connection) =>
+              connection.enabled && connection.capabilities.includes('llm'),
+          );
+
+        if (
+          !context.appConfig.defaultLLMProvider &&
+          configuredProviders.length === 0
+        ) {
+          return 'Not configured';
+        }
+
         try {
           const { model } = await context.providerService.resolveProvider({});
-          return model || context.appConfig.defaultModel;
+          return model || 'Not configured';
         } catch {
-          return context.appConfig.defaultModel;
+          return 'Not configured';
         }
       },
     }),

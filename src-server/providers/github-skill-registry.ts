@@ -91,6 +91,7 @@ export class GitHubSkillRegistryProvider implements ISkillRegistryProvider {
               description: metadata.description || '',
               version: metadata.metadata?.version || undefined,
               installed: false,
+              source: 'GitHub',
             });
           } catch (e) {
             logger.warn('Failed to parse remote skill', { dir, error: e });
@@ -99,6 +100,7 @@ export class GitHubSkillRegistryProvider implements ISkillRegistryProvider {
               displayName: dir,
               description: '',
               installed: false,
+              source: 'GitHub',
             });
           }
         }),

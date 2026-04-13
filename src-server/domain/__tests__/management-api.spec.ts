@@ -212,9 +212,7 @@ describe('App config operations', () => {
     const config = await loader.loadAppConfig();
 
     expect(config.region).toBe('us-east-1');
-    expect(config.defaultModel).toBe(
-      'us.anthropic.claude-sonnet-4-20250514-v1:0',
-    );
+    expect(config.defaultModel).toBe('');
   });
 
   it('updates app config', async () => {
@@ -225,9 +223,7 @@ describe('App config operations', () => {
     });
 
     expect(updated.region).toBe('us-west-2');
-    expect(updated.defaultModel).toBe(
-      'us.anthropic.claude-sonnet-4-20250514-v1:0',
-    ); // unchanged
+    expect(updated.defaultModel).toBe(''); // unchanged
   });
 
   it('rejects suspicious system prompts', async () => {

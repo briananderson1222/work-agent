@@ -140,6 +140,7 @@ interface ModelSelectorProps {
   onChange: (modelId: string) => void;
   placeholder?: string;
   defaultModel?: string; // Global default model to show as option
+  models?: Model[];
 }
 
 export function ModelSelector({
@@ -147,8 +148,10 @@ export function ModelSelector({
   onChange,
   placeholder,
   defaultModel,
+  models: providedModels,
 }: ModelSelectorProps) {
-  const models = useModels();
+  const globalModels = useModels();
+  const models = providedModels ?? globalModels;
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);

@@ -1,6 +1,38 @@
 import { useFileSystemBrowseQuery } from '@stallion-ai/sdk';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
+function resolveBrowsePath(value: string): string | undefined {
+  const shouldSuggest = value.startsWith('/') || value.startsWith('~');
+  if (!shouldSuggest) return undefined;
+
+  if (value === '~') return '~';
+  if (value === '/') return '/';
+
+  const endsWithSlash = value.endsWith('/');
+  if (endsWithSlash) {
+    return value === '/' ? '/' : value.replace(/\/$/, '');
+  }
+
+  const lastSlash = value.lastIndexOf('/');
+  if (value.startsWith('~/') && lastSlash === 1) {
+    return '~';
+  }
+  if (lastSlash <= 0) {
+    return value.startsWith('~') ? '~' : '/';
+  }
+  return value.substring(0, lastSlash);
+}
+
+function buildSuggestionPath(basePath: string, entryName: string): string {
+  if (basePath === '/' || basePath === '') {
+    return `/${entryName}`;
+  }
+  if (basePath === '~') {
+    return `~/${entryName}`;
+  }
+  return `${basePath.replace(/\/$/, '')}/${entryName}`;
+}
+
 export function PathAutocomplete({
   value,
   onChange,
@@ -32,13 +64,7 @@ export function PathAutocomplete({
 
   const shouldSuggest = value.startsWith('/') || value.startsWith('~');
   const endsWithSlash = value.endsWith('/');
-  const browsePath = !shouldSuggest
-    ? undefined
-    : endsWithSlash
-      ? value.replace(/\/$/, '')
-      : value.lastIndexOf('/') <= 0
-        ? '/'
-        : value.substring(0, value.lastIndexOf('/'));
+  const browsePath = resolveBrowsePath(value);
   const prefix = !shouldSuggest
     ? ''
     : endsWithSlash
@@ -54,8 +80,9 @@ export function PathAutocomplete({
       return [];
     }
     return data.entries
+      .filter((entry) => entry.isDirectory)
       .filter((entry) => !prefix || entry.name.toLowerCase().includes(prefix))
-      .map((entry) => `${data.path}/${entry.name}`);
+      .map((entry) => buildSuggestionPath(data.path, entry.name));
   }, [data, prefix, shouldSuggest]);
 
   useEffect(() => {

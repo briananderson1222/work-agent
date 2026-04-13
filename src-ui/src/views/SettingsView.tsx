@@ -33,18 +33,10 @@ export interface SettingsViewProps {
   onNavigate?: (view: NavigationView) => void;
 }
 
-function isBedrockScopedModel(modelId: string | undefined): boolean {
-  if (!modelId) return false;
-  return (
-    /^(us|eu|ap|sa|ca|af|me)\./.test(modelId) ||
-    /^(anthropic|amazon|meta|mistral|cohere|ai21)\./.test(modelId)
-  );
-}
-
 export function SettingsView({
   onBack,
   onSaved,
-  onNavigate,
+  onNavigate: _onNavigate,
 }: SettingsViewProps) {
   const {
     apiBase: currentApiBase,
@@ -84,9 +76,7 @@ export function SettingsView({
   const configJson = JSON.stringify(config);
   const baselineJson = JSON.stringify(configData || {});
   const hasChanges = configJson !== baselineJson;
-  const showBedrockRegion =
-    config.defaultLLMProvider === 'bedrock' ||
-    (!config.defaultLLMProvider && isBedrockScopedModel(config.defaultModel));
+  const showBedrockRegion = config.defaultLLMProvider === 'bedrock';
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: only re-sync when server data changes, not on local edits
   useEffect(() => {
@@ -173,16 +163,6 @@ export function SettingsView({
           <div className="page__header-text">
             <div className="page__label">settings</div>
             <h1 className="page__title">Settings</h1>
-            <div className="settings__header-shortcuts">
-              <button
-                type="button"
-                className="settings__secondary-btn"
-                onClick={() => onNavigate?.({ type: 'monitoring' })}
-              >
-                Monitoring
-              </button>
-              <ThemeToggle />
-            </div>
           </div>
         </div>
 

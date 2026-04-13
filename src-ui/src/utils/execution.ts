@@ -165,7 +165,7 @@ function asModelOptions(value: unknown): ModelOption[] {
   });
 }
 
-function runtimeCatalogVisibleModels(
+export function runtimeCatalogVisibleModels(
   runtimeConnection?: RuntimeConnectionView | ConnectionConfig | null,
 ): ModelOption[] {
   const runtimeCatalog = (runtimeConnection as RuntimeConnectionView | null)

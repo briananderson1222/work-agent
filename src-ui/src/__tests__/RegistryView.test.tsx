@@ -53,6 +53,7 @@ const registryItems = {
       id: 'skill-one',
       displayName: 'Skill One',
       description: 'Registry skill',
+      source: 'GitHub',
     },
   ],
 } as const;
@@ -106,6 +107,14 @@ vi.mock('@stallion-ai/sdk', () => ({
   useRegistrySkillActionMutation: () => makeMutation('skills'),
 }));
 
+const navigateMock = vi.fn();
+
+vi.mock('../contexts/NavigationContext', () => ({
+  useNavigation: () => ({
+    navigate: navigateMock,
+  }),
+}));
+
 import { RegistryView } from '../views/RegistryView';
 
 afterEach(() => {
@@ -113,6 +122,7 @@ afterEach(() => {
     installedItems.clear();
   }
   mutationCalls.length = 0;
+  navigateMock.mockReset();
 });
 
 describe('RegistryView', () => {
@@ -153,10 +163,10 @@ describe('RegistryView', () => {
   });
 
   test.each([
-    ['Skills', 'skills', 'skill-one', 'Skill One'],
+    ['Skills', 'skills', 'skill-one', 'Skill One', 'GitHub'],
     ['Integrations', 'integrations', 'integration-one', 'Integration One'],
     ['Plugins', 'plugins', 'demo-layout', 'Demo Layout'],
-  ] as const)('renders preview install/remove actions for %s', (tabLabel, tabKey, itemId, itemLabel) => {
+  ] as const)('renders preview install/remove actions for %s', (tabLabel, tabKey, itemId, itemLabel, sourceLabel) => {
     const { rerender } = render(<RegistryView />);
 
     fireEvent.click(screen.getByRole('button', { name: tabLabel }));
@@ -164,8 +174,18 @@ describe('RegistryView', () => {
     expect(
       within(detail).getByText(`Selected ${tabKey.slice(0, -1)}`),
     ).toBeTruthy();
+    if (sourceLabel) {
+      expect(within(detail).getAllByText(sourceLabel).length).toBeGreaterThan(
+        0,
+      );
+    }
 
-    fireEvent.click(within(detail).getByRole('button', { name: 'Install' }));
+    const card = screen.getByRole('button', { name: new RegExp(itemLabel) });
+    const cardInstallButton = card.querySelector(
+      '.page__btn-secondary',
+    ) as HTMLButtonElement | null;
+    expect(cardInstallButton?.textContent).toMatch(/Install/);
+    fireEvent.click(cardInstallButton!);
 
     expect(mutationCalls).toContainEqual({
       id: itemId,
@@ -177,8 +197,19 @@ describe('RegistryView', () => {
     rerender(<RegistryView />);
     expect(
       within(screen.getByTestId('registry-detail')).getByRole('button', {
-        name: 'Remove',
+        name: /Remove/,
       }),
     ).toBeTruthy();
+  });
+
+  test('offers a route to installed skill management from the skills tab', () => {
+    render(<RegistryView />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Skills' }));
+    fireEvent.click(
+      screen.getByRole('button', { name: 'Manage Installed Skills' }),
+    );
+
+    expect(navigateMock).toHaveBeenCalledWith('/skills');
   });
 });

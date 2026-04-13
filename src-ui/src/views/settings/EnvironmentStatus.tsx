@@ -17,8 +17,14 @@ export function EnvironmentStatus({ apiBase }: { apiBase: string }) {
 
   const { data: systemStatus, isLoading: loading } =
     useSystemStatusForApiBaseQuery(apiBase);
+  const hideImplicitBedrockPrereq =
+    systemStatus?.recommendation?.code === 'runtime-only';
   const prerequisites = Array.isArray(systemStatus?.prerequisites)
-    ? (systemStatus.prerequisites as Prerequisite[])
+    ? (systemStatus.prerequisites as Prerequisite[]).filter((prerequisite) =>
+        hideImplicitBedrockPrereq
+          ? prerequisite.id !== 'bedrock-credentials'
+          : true,
+      )
     : [];
 
   useEffect(() => {

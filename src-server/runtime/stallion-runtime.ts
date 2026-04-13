@@ -345,10 +345,19 @@ export class StallionRuntime {
           return checkBedrockCredentials();
         },
         createDefaultSkillRegistryProvider: async () => {
+          const { FilesystemSkillRegistryProvider } = await import(
+            '../providers/filesystem-skill-registry.js'
+          );
           const { GitHubSkillRegistryProvider } = await import(
             '../providers/github-skill-registry.js'
           );
-          return new GitHubSkillRegistryProvider();
+          const { MultiSourceSkillRegistryProvider } = await import(
+            '../providers/multi-source-skill-registry.js'
+          );
+          return new MultiSourceSkillRegistryProvider([
+            new FilesystemSkillRegistryProvider(),
+            new GitHubSkillRegistryProvider(),
+          ]);
         },
         runStartupMigrations: async (projectHomeDir) => {
           const { runStartupMigrations } = await import(

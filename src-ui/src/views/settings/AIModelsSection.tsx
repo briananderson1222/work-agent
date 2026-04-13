@@ -1,6 +1,20 @@
+import type { RuntimeConnectionView } from '@stallion-ai/contracts/tool';
+import { useRuntimeConnectionsQuery } from '@stallion-ai/sdk';
 import { ModelSelector } from '../../components/ModelSelector';
 import type { AppConfig } from '../../types';
+import {
+  preferredChatRuntime,
+  runtimeCatalogVisibleModels,
+} from '../../utils/execution';
 import { SettingsSection } from './SettingsSection';
+
+function isBedrockScopedModel(modelId: string | undefined): boolean {
+  if (!modelId) return false;
+  return (
+    /^(us|eu|ap|sa|ca|af|me)\./.test(modelId) ||
+    /^(anthropic|amazon|meta|mistral|cohere|ai21)\./.test(modelId)
+  );
+}
 
 export function AIModelsSection({
   config,
@@ -13,6 +27,18 @@ export function AIModelsSection({
   validationWarnings: Record<string, string>;
   onChange: (config: AppConfig) => void;
 }) {
+  const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery() as {
+    data?: RuntimeConnectionView[];
+  };
+  const preferredRuntime = preferredChatRuntime(runtimeConnections);
+  const runtimeModels = runtimeCatalogVisibleModels(preferredRuntime);
+  const useRuntimeModelOptions =
+    !config.defaultLLMProvider && runtimeModels.length > 0;
+  const displayDefaultModel =
+    useRuntimeModelOptions && isBedrockScopedModel(config.defaultModel)
+      ? ''
+      : (config.defaultModel ?? '');
+
   return (
     <SettingsSection icon="◆" title="AI & Models" id="section-ai">
       <div className="settings__field">
@@ -20,12 +46,23 @@ export function AIModelsSection({
           Default Model
         </label>
         <ModelSelector
-          value={config.defaultModel || ''}
+          value={displayDefaultModel}
+          models={
+            useRuntimeModelOptions
+              ? runtimeModels.map((model) => ({
+                  id: model.id,
+                  name: model.name,
+                  originalId: model.originalId,
+                }))
+              : undefined
+          }
           onChange={(modelId) => onChange({ ...config, defaultModel: modelId })}
           placeholder="Select a model…"
         />
         <span className="settings__field-hint">
-          Default model for agents that don't specify one.
+          {useRuntimeModelOptions
+            ? `Default model for agents that don't specify one. Options currently come from ${preferredRuntime?.name}.`
+            : "Default model for agents that don't specify one."}
         </span>
       </div>
 

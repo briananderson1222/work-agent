@@ -20,8 +20,11 @@ const DEFAULT_TEMPLATE_VARIABLES = [
 ];
 
 export const DEFAULT_REGION = 'us-east-1';
-export const DEFAULT_MODEL = 'us.anthropic.claude-sonnet-4-20250514-v1:0';
-const LEGACY_DEFAULT_MODEL = 'us.anthropic.claude-sonnet-4-6';
+export const DEFAULT_MODEL = '';
+const LEGACY_DEFAULT_MODELS = new Set([
+  'us.anthropic.claude-sonnet-4-6',
+  'us.anthropic.claude-sonnet-4-20250514-v1:0',
+]);
 export const DEFAULT_INVOKE_MODEL = 'us.amazon.nova-2-lite-v1:0';
 export const DEFAULT_STRUCTURE_MODEL = 'us.amazon.nova-micro-v1:0';
 
@@ -77,7 +80,10 @@ export async function loadAppConfigFile(
   };
   let shouldPersist = false;
 
-  if (data.defaultModel === LEGACY_DEFAULT_MODEL) {
+  if (
+    LEGACY_DEFAULT_MODELS.has(data.defaultModel || '') &&
+    !data.defaultLLMProvider
+  ) {
     data.defaultModel = DEFAULT_MODEL;
     shouldPersist = true;
   }
