@@ -46,7 +46,7 @@ export function IntegrationEditorPanel({
   onUnlock: () => void;
 }) {
   return (
-    <div className="detail-panel">
+    <div className="detail-panel integration-editor-panel">
       <DetailHeader
         title={editForm.displayName || editForm.id || 'New Integration'}
         badge={
@@ -91,13 +91,18 @@ export function IntegrationEditorPanel({
         </button>
       </DetailHeader>
 
-      <div className="detail-panel__body">
+      <div className="agent-editor__section">
+        <div className="agent-editor__section-header">
+          <h3 className="agent-editor__section-title">Editor Mode</h3>
+          <p className="agent-editor__section-desc">
+            Switch between guided fields and raw <code>mcp.json</code> editing.
+          </p>
+        </div>
         {message && (
           <div className={`plugins__message plugins__message--${message.type}`}>
             {message.text}
           </div>
         )}
-
         <div className="integration__mode-tabs">
           <button
             className={`integration__mode-tab ${viewMode === 'form' ? 'integration__mode-tab--active' : ''}`}
@@ -112,13 +117,18 @@ export function IntegrationEditorPanel({
             Raw JSON
           </button>
         </div>
+      </div>
 
-        {viewMode === 'raw' ? (
+      {viewMode === 'raw' ? (
+        <div className="agent-editor__section">
+          <div className="agent-editor__section-header">
+            <h3 className="agent-editor__section-title">Raw Configuration</h3>
+            <p className="agent-editor__section-desc">
+              Paste a standard <code>mcp.json</code> config compatible with
+              Claude Desktop, Cursor, Windsurf, and similar tools.
+            </p>
+          </div>
           <div className="integration__raw-section">
-            <div className="integration__raw-hint">
-              Paste a standard <code>mcp.json</code> config — compatible with
-              Claude Desktop, Cursor, Windsurf, etc.
-            </div>
             <textarea
               className="integration__raw-editor"
               value={rawJson}
@@ -133,9 +143,11 @@ export function IntegrationEditorPanel({
               <div className="integration__raw-error">{rawError}</div>
             )}
           </div>
-        ) : (
-          <>
-            {editForm.plugin && locked && !isNew && (
+        </div>
+      ) : (
+        <>
+          {editForm.plugin && locked && !isNew && (
+            <div className="agent-editor__section">
               <div className="editor__lock-banner">
                 <span>
                   🔒 Managed by plugin &ldquo;{editForm.plugin}&rdquo;. Edits
@@ -149,8 +161,16 @@ export function IntegrationEditorPanel({
                   Unlock
                 </button>
               </div>
-            )}
+            </div>
+          )}
 
+          <div className="agent-editor__section">
+            <div className="agent-editor__section-header">
+              <h3 className="agent-editor__section-title">Basics</h3>
+              <p className="agent-editor__section-desc">
+                Configure the identity and display details for this tool server.
+              </p>
+            </div>
             <div className="editor-field">
               <label className="editor-label" htmlFor="int-id">
                 ID
@@ -207,6 +227,15 @@ export function IntegrationEditorPanel({
                 disabled={locked}
               />
             </div>
+          </div>
+
+          <div className="agent-editor__section">
+            <div className="agent-editor__section-header">
+              <h3 className="agent-editor__section-title">Connection</h3>
+              <p className="agent-editor__section-desc">
+                Choose the transport and provide the fields required to connect.
+              </p>
+            </div>
             <div className="editor-field">
               <label className="editor-label" htmlFor="int-transport">
                 Transport
@@ -232,7 +261,7 @@ export function IntegrationEditorPanel({
                 <option value="tcp">TCP</option>
               </select>
               <p className="editor-help">
-                Connection fields change based on transport type
+                Connection fields change based on transport type.
               </p>
             </div>
 
@@ -302,72 +331,80 @@ export function IntegrationEditorPanel({
                 />
               </div>
             )}
+          </div>
 
-            <div className="editor-field">
-              <label className="editor-label">Environment Variables</label>
-              {Object.entries(editForm.env || {}).map(([key, value], index) => (
-                <div key={index} className="editor-kv-row">
-                  <input
-                    className="editor-input editor-input--half"
-                    value={key}
-                    placeholder="KEY"
-                    disabled={locked}
-                    onChange={(event) => {
-                      const entries = Object.entries(editForm.env || {});
-                      entries[index] = [event.target.value, value];
-                      onUpdate((form) => ({
-                        ...form,
-                        env: Object.fromEntries(entries),
-                      }));
-                    }}
-                  />
-                  <input
-                    className="editor-input editor-input--half"
-                    value={value}
-                    placeholder="value"
-                    disabled={locked}
-                    onChange={(event) =>
-                      onUpdate((form) => ({
-                        ...form,
-                        env: {
-                          ...(form.env || {}),
-                          [key]: event.target.value,
-                        },
-                      }))
-                    }
-                  />
-                  <button
-                    type="button"
-                    className="editor-btn--icon"
-                    disabled={locked}
-                    onClick={() =>
-                      onUpdate((form) => {
-                        const { [key]: _, ...rest } = form.env || {};
-                        return { ...form, env: rest };
-                      })
-                    }
-                  >
-                    ×
-                  </button>
-                </div>
-              ))}
-              <button
-                type="button"
-                className="editor-btn--ghost"
-                disabled={locked}
-                onClick={() =>
-                  onUpdate((form) => ({
-                    ...form,
-                    env: { ...(form.env || {}), '': '' },
-                  }))
-                }
-              >
-                + Add Variable
-              </button>
+          <div className="agent-editor__section">
+            <div className="agent-editor__section-header">
+              <h3 className="agent-editor__section-title">
+                Environment Variables
+              </h3>
+              <p className="agent-editor__section-desc">
+                Define secrets and runtime configuration passed to the server
+                process.
+              </p>
             </div>
-          </>
-        )}
-      </div>
+            {Object.entries(editForm.env || {}).map(([key, value], index) => (
+              <div key={index} className="editor-kv-row">
+                <input
+                  className="editor-input editor-input--half"
+                  value={key}
+                  placeholder="KEY"
+                  disabled={locked}
+                  onChange={(event) => {
+                    const entries = Object.entries(editForm.env || {});
+                    entries[index] = [event.target.value, value];
+                    onUpdate((form) => ({
+                      ...form,
+                      env: Object.fromEntries(entries),
+                    }));
+                  }}
+                />
+                <input
+                  className="editor-input editor-input--half"
+                  value={value}
+                  placeholder="value"
+                  disabled={locked}
+                  onChange={(event) =>
+                    onUpdate((form) => ({
+                      ...form,
+                      env: {
+                        ...(form.env || {}),
+                        [key]: event.target.value,
+                      },
+                    }))
+                  }
+                />
+                <button
+                  type="button"
+                  className="editor-btn--icon"
+                  disabled={locked}
+                  onClick={() =>
+                    onUpdate((form) => {
+                      const { [key]: _, ...rest } = form.env || {};
+                      return { ...form, env: rest };
+                    })
+                  }
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            <button
+              type="button"
+              className="editor-btn--ghost"
+              disabled={locked}
+              onClick={() =>
+                onUpdate((form) => ({
+                  ...form,
+                  env: { ...(form.env || {}), '': '' },
+                }))
+              }
+            >
+              + Add Variable
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }

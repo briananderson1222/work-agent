@@ -12,6 +12,93 @@ import { pluginRegistry } from '../core/PluginRegistry';
 import './ProfilePage.css';
 import '../views/page-layout.css';
 
+type UsageByDateEntry = {
+  cost?: number;
+  messages?: number;
+};
+
+function buildUsageGraphPoints(
+  usageStats: NonNullable<ReturnType<typeof useAnalytics>['usageStats']>,
+) {
+  const byDateEntries = Object.entries(
+    (usageStats.byDate || {}) as Record<string, UsageByDateEntry>,
+  ).sort(
+    ([left], [right]) => left.localeCompare(right),
+  );
+
+  if (byDateEntries.length > 0) {
+    return byDateEntries.slice(-14).map(([date, stats]) => ({
+      label: new Date(`${date}T12:00:00`).toLocaleDateString(undefined, {
+        month: 'short',
+        day: 'numeric',
+      }),
+      value: stats.messages || 0,
+    }));
+  }
+
+  if (usageStats.lifetime.totalMessages > 0) {
+    return [
+      {
+        label: 'All time',
+        value: usageStats.lifetime.totalMessages,
+      },
+    ];
+  }
+
+  return [];
+}
+
+function ProfileUsageGraph({
+  usageStats,
+}: {
+  usageStats: NonNullable<ReturnType<typeof useAnalytics>['usageStats']> | null;
+}) {
+  const points = usageStats ? buildUsageGraphPoints(usageStats) : [];
+  const maxValue = Math.max(1, ...points.map((point) => point.value));
+
+  return (
+    <div
+      className="profile-usage-graph"
+      aria-label="Usage activity overview"
+      role="img"
+    >
+      <div className="profile-usage-graph__header">
+        <span className="profile-card__section-title">Usage activity</span>
+        <span className="profile-usage-graph__caption">
+          {points.length > 1 ? 'Recent activity' : 'Usage snapshot'}
+        </span>
+      </div>
+
+      {points.length === 0 ? (
+        <div className="profile-usage-graph__empty">
+          <div className="profile-usage-graph__empty-bars" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+          <span>No usage data yet</span>
+        </div>
+      ) : (
+        <div className="profile-usage-graph__bars">
+          {points.map((point) => (
+            <div key={point.label} className="profile-usage-graph__column">
+              <div
+                className="profile-usage-graph__bar"
+                style={{
+                  height: `${Math.max((point.value / maxValue) * 100, 12)}%`,
+                }}
+                title={`${point.label}: ${point.value.toLocaleString()} messages`}
+              />
+              <span className="profile-usage-graph__label">{point.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ProfilePage() {
   const { usageStats, loading } = useAnalytics();
   const { user } = useAuth();
@@ -116,6 +203,7 @@ export function ProfilePage() {
                   </div>
                 </div>
               )}
+              <ProfileUsageGraph usageStats={usageStats ?? null} />
             </div>
           </div>
         </div>

@@ -16,7 +16,16 @@ const MOCK_USAGE = {
     default: { messages: 35, cost: 1.0, conversations: 4 },
     coder: { messages: 7, cost: 0.23, conversations: 1 },
   },
-  byDate: {},
+  byDate: {
+    '2026-04-01': { messages: 2, cost: 0.08, byAgent: { default: 2 } },
+    '2026-04-02': {
+      messages: 4,
+      cost: 0.12,
+      byAgent: { default: 3, coder: 1 },
+    },
+    '2026-04-03': { messages: 1, cost: 0.04, byAgent: { coder: 1 } },
+    '2026-04-04': { messages: 6, cost: 0.2, byAgent: { default: 6 } },
+  },
 };
 
 const MOCK_ACHIEVEMENTS = [
@@ -131,6 +140,30 @@ test.describe('Profile Page', () => {
     await expect(page.locator('.profile-hero-subtitle')).toContainText(
       '42 messages',
     );
+    await expect(page.getByLabel('Recent usage graph')).toBeVisible();
+  });
+
+  test('renders a usage graph inside the first hero card when activity data exists', async ({
+    page,
+  }) => {
+    await page.goto('/profile');
+
+    const heroCard = page.locator('.profile-container > .profile-card').first();
+    await expect(
+      heroCard.locator('[aria-label="Usage activity overview"]'),
+    ).toBeVisible();
+    await expect(heroCard.locator('.profile-usage-graph__bar').first()).toBeVisible();
+  });
+
+  test('renders a usage graph inside the first hero card when activity data exists', async ({
+    page,
+  }) => {
+    await page.goto('/profile');
+
+    const heroCard = page.locator('.profile-container > .profile-card').first();
+    await expect(
+      heroCard.locator('[data-testid^="chart-col-"]').first(),
+    ).toBeVisible();
   });
 
   test('renders usage stats panel with stat cards', async ({ page }) => {
@@ -208,6 +241,13 @@ test.describe('Profile Page', () => {
               byModel: {},
               byAgent: {},
               byDate: {},
+              rangeSummary: {
+                totalMessages: 0,
+                totalDays: 0,
+                activeDays: 0,
+                avgPerDay: 0,
+                totalCost: 0,
+              },
             },
           },
         });
@@ -218,8 +258,16 @@ test.describe('Profile Page', () => {
     await expect(
       page.getByText('Start your journey with your first message'),
     ).toBeVisible();
+    await expect(
+      page.getByText('your first messages will light up this graph.'),
+    ).toBeVisible();
     await expect(page.getByText('No model data yet')).toBeVisible();
     await expect(page.getByText('No agent data yet')).toBeVisible();
+    await expect(
+      page
+        .locator('.profile-container > .profile-card')
+        .first(),
+    ).toContainText(/No (usage|activity)/i);
   });
 
   test('mobile layout stacks vertically', async ({ page }) => {

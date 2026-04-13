@@ -207,6 +207,112 @@
   margin-top: 0.25rem;
 }
 
+.profile-usage-graph {
+  margin-top: 0.5rem;
+  padding: 1rem 1rem 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--border-primary) 92%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--bg-primary) 35%, transparent);
+}
+
+.profile-usage-graph__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.profile-usage-graph__caption {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-family: "JetBrains Mono", monospace;
+}
+
+.profile-usage-graph__bars {
+  display: flex;
+  align-items: end;
+  gap: 0.6rem;
+  min-height: 118px;
+  margin-top: 0.75rem;
+}
+
+.profile-usage-graph__column {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 118px;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 0.45rem;
+}
+
+.profile-usage-graph__bar {
+  width: 100%;
+  min-height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-primary) 100%, white 8%) 0%,
+    color-mix(in srgb, var(--accent-primary) 70%, var(--bg-tertiary)) 100%
+  );
+  box-shadow: 0 10px 24px -14px
+    color-mix(in srgb, var(--accent-primary) 70%, transparent);
+}
+
+.profile-usage-graph__label {
+  max-width: 100%;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  font-family: "JetBrains Mono", monospace;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.profile-usage-graph__empty {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  align-items: center;
+  justify-content: center;
+  min-height: 118px;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.profile-usage-graph__empty-bars {
+  display: flex;
+  align-items: end;
+  gap: 0.45rem;
+  height: 56px;
+}
+
+.profile-usage-graph__empty-bars span {
+  display: block;
+  width: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-primary) 18%, transparent);
+}
+
+.profile-usage-graph__empty-bars span:nth-child(1) {
+  height: 18px;
+}
+
+.profile-usage-graph__empty-bars span:nth-child(2) {
+  height: 34px;
+}
+
+.profile-usage-graph__empty-bars span:nth-child(3) {
+  height: 26px;
+}
+
+.profile-usage-graph__empty-bars span:nth-child(4) {
+  height: 44px;
+}
+
 .profile-badge {
   font-family: "JetBrains Mono", monospace;
   font-size: 0.75rem;
@@ -303,6 +409,15 @@
 
   .profile-hero-badges {
     justify-content: center;
+  }
+
+  .profile-usage-graph__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .profile-usage-graph__bars {
+    gap: 0.45rem;
   }
 
   .profile-stats-grid {
