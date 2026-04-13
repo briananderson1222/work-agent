@@ -20,6 +20,7 @@ interface MonitoringLogControlsProps {
   autocompleteOptions: MonitoringAutocompleteOption[];
   selectedIndex: number;
   onAutocompleteSelect: (option: MonitoringAutocompleteOption) => void;
+  actions?: React.ReactNode;
 }
 
 export function MonitoringLogControls(props: MonitoringLogControlsProps) {
@@ -97,6 +98,10 @@ export function MonitoringLogControls(props: MonitoringLogControlsProps) {
             </div>
           )}
         </div>
+
+        {props.actions ? (
+          <div className="log-controls-actions">{props.actions}</div>
+        ) : null}
       </div>
     </div>
   );

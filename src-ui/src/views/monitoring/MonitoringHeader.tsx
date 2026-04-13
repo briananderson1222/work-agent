@@ -1,12 +1,5 @@
 import type { MonitoringStats } from '../../contexts/MonitoringContext';
 
-function getConnectionLabel(connectionStatus: string) {
-  if (connectionStatus === 'connected') return 'Connected';
-  if (connectionStatus === 'connecting') return 'Connecting...';
-  if (connectionStatus === 'error') return 'Error';
-  return 'Disconnected';
-}
-
 export function MonitoringHeader({
   stats,
   connectionStatus,
@@ -20,9 +13,12 @@ export function MonitoringHeader({
     <div className="monitoring-header">
       <div className="monitoring-title">
         <h1>MONITORING</h1>
-        <div className="status-badge">
+        <div
+          className="status-badge"
+          aria-label={`Monitoring connection ${connectionStatus}`}
+          title={`Monitoring connection ${connectionStatus}`}
+        >
           <span className={`status-dot status-dot-${connectionStatus}`}></span>
-          {getConnectionLabel(connectionStatus)}
         </div>
       </div>
 

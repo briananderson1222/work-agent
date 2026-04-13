@@ -273,30 +273,30 @@ export function MonitoringView() {
             autocompleteOptions={autocompleteOptions}
             selectedIndex={selectedIndex}
             onAutocompleteSelect={handleAutocompleteSelect}
-          />
-
-          <div className="log-controls">
-            <div className="log-controls-row">
+            actions={
               <button
                 onClick={() => setAutoFollow(!autoFollow)}
                 className={`btn-toggle ${autoFollow ? 'active' : ''}`}
+                aria-pressed={autoFollow}
               >
-                AUTO-FOLLOW
+                Auto Follow
               </button>
+            }
+          />
 
-              <MonitoringActiveFilters
-                selectedAgents={selectedAgents}
-                selectedConversation={selectedConversation}
-                selectedToolCallId={selectedToolCallId}
-                selectedTraceId={selectedTraceId}
-                onRemoveAgent={(agent) =>
-                  setSelectedAgents((prev) => prev.filter((a) => a !== agent))
-                }
-                onClearConversation={() => setSelectedConversation(null)}
-                onClearToolCall={() => setSelectedToolCallId(null)}
-                onClearTrace={() => setSelectedTraceId(null)}
-              />
-            </div>
+          <div className="monitoring-active-filter-bar">
+            <MonitoringActiveFilters
+              selectedAgents={selectedAgents}
+              selectedConversation={selectedConversation}
+              selectedToolCallId={selectedToolCallId}
+              selectedTraceId={selectedTraceId}
+              onRemoveAgent={(agent) =>
+                setSelectedAgents((prev) => prev.filter((a) => a !== agent))
+              }
+              onClearConversation={() => setSelectedConversation(null)}
+              onClearToolCall={() => setSelectedToolCallId(null)}
+              onClearTrace={() => setSelectedTraceId(null)}
+            />
           </div>
 
           <MonitoringLogStream

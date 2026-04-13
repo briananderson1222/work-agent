@@ -48,6 +48,10 @@ export interface MonitoringDeps {
     userId: string,
   ) => Promise<any[]>;
   acpBridge?: ACPManager;
+  resolveAgentModel?: (
+    slug: string,
+    agent: MonitoringAgent,
+  ) => Promise<string | null | undefined> | string | null | undefined;
 }
 
 export function createMonitoringRoutes(deps: MonitoringDeps) {
@@ -86,10 +90,14 @@ export function createMonitoringRoutes(deps: MonitoringDeps) {
             }
           }
 
-          const modelId =
+          const fallbackModelId =
             typeof agent.model === 'string'
               ? agent.model
               : (agent.model as ModelWithId)?.modelId || 'unknown';
+          const modelId =
+            (await deps.resolveAgentModel?.(slug, agent)) ||
+            fallbackModelId ||
+            'unknown';
 
           return {
             slug,

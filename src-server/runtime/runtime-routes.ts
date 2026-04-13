@@ -342,6 +342,20 @@ export function configureRuntimeRoutes(
       monitoringEvents: context.monitoringEvents,
       queryEventsFromDisk: context.queryEventsFromDisk,
       acpBridge: context.acpBridge,
+      resolveAgentModel: async (slug, agent) => {
+        if (slug !== 'default') {
+          return typeof agent.model === 'string'
+            ? agent.model
+            : agent.model?.modelId;
+        }
+
+        try {
+          const { model } = await context.providerService.resolveProvider({});
+          return model || context.appConfig.defaultModel;
+        } catch {
+          return context.appConfig.defaultModel;
+        }
+      },
     }),
   );
   context.app.route(

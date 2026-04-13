@@ -45,6 +45,34 @@ describe('Monitoring Routes', () => {
     expect(body.data.summary).toBeDefined();
   });
 
+  test('GET /stats prefers resolved runtime model over serialized agent model', async () => {
+    const deps = createMockDeps();
+    deps.resolveAgentModel = vi
+      .fn()
+      .mockResolvedValue('resolved-runtime-model');
+
+    const app = createMonitoringRoutes(deps as any);
+    const body = await json(await app.request('/stats'));
+
+    expect(body.success).toBe(true);
+    expect(deps.resolveAgentModel).toHaveBeenCalledWith(
+      'default',
+      expect.objectContaining({ name: 'Default', model: 'claude-3' }),
+    );
+    expect(body.data.agents[0].model).toBe('resolved-runtime-model');
+  });
+
+  test('GET /stats falls back to serialized agent model when resolver is empty', async () => {
+    const deps = createMockDeps();
+    deps.resolveAgentModel = vi.fn().mockResolvedValue('');
+
+    const app = createMonitoringRoutes(deps as any);
+    const body = await json(await app.request('/stats'));
+
+    expect(body.success).toBe(true);
+    expect(body.data.agents[0].model).toBe('claude-3');
+  });
+
   test('GET /metrics returns filtered metrics', async () => {
     const deps = createMockDeps();
     deps.metricsLog.push({
