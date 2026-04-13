@@ -10,8 +10,8 @@ import { useApiBase } from '../contexts/ApiBaseContext';
 import { getAllCommands, getCommand } from '../slashCommands/registry';
 import '../slashCommands/builtins';
 import '../slashCommands/tools';
-import { findMatchingPlaybookCommand } from '../utils/playbook-commands';
 import type { BindingStatus } from '../utils/execution';
+import { findMatchingPlaybookCommand } from '../utils/playbook-commands';
 
 export function useSlashCommandHandler() {
   const { apiBase } = useApiBase();

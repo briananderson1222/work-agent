@@ -1,8 +1,8 @@
+import type { RuntimeConnectionView } from '@stallion-ai/contracts/tool';
 import {
   useProjectLayoutsQuery,
   useRuntimeConnectionsQuery,
 } from '@stallion-ai/sdk';
-import type { RuntimeConnectionView } from '@stallion-ai/contracts/tool';
 import type { AgentData } from '../../contexts/AgentsContext';
 import { useModelSupportsAttachments } from '../../contexts/ModelCapabilitiesContext';
 import { useProject } from '../../contexts/ProjectsContext';
