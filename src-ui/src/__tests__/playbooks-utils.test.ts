@@ -28,6 +28,7 @@ describe('playbooks utils', () => {
     expect(playbookToForm(playbook)).toEqual({
       name: 'Research assistant',
       content: 'Draft the plan',
+      storageMode: 'json-inline',
       description: 'Generate a research plan',
       category: 'analysis',
       tags: 'research, planning',
@@ -41,6 +42,7 @@ describe('playbooks utils', () => {
       buildPlaybookPayload({
         name: 'Research assistant',
         content: 'Draft the plan',
+        storageMode: 'markdown-file',
         description: '',
         category: '',
         tags: ' alpha, beta , , gamma ',
@@ -50,6 +52,7 @@ describe('playbooks utils', () => {
     ).toEqual({
       name: 'Research assistant',
       content: 'Draft the plan',
+      storageMode: 'markdown-file',
       tags: ['alpha', 'beta', 'gamma'],
     });
   });
@@ -66,12 +69,16 @@ describe('playbooks utils', () => {
     expect(
       buildPlaybookExportMarkdown({
         name: 'Research assistant',
+        storageMode: 'markdown-file',
         description: 'Generate a research plan',
         category: 'analysis',
+        tags: 'research, planning',
+        agent: 'planner',
+        global: true,
         content: 'Draft the plan',
       }),
     ).toBe(
-      '---\nname: "Research assistant"\ndescription: "Generate a research plan"\ncategory: "analysis"\n---\n\nDraft the plan',
+      '---\nname: "Research assistant"\ndescription: "Generate a research plan"\ncategory: "analysis"\ntags:\n  - research\n  - planning\nagent: "planner"\nglobal: true\nassetType: playbook\nruntimeMode: slash-command\n---\n\nDraft the plan',
     );
   });
 

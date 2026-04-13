@@ -24,6 +24,7 @@ describe('PlaybooksEditor', () => {
         form={{
           name: 'Research assistant',
           content: 'Draft the plan',
+          storageMode: 'json-inline',
           description: '',
           category: 'analysis',
           tags: '',

@@ -3,6 +3,7 @@ import type { Playbook } from '@stallion-ai/contracts/catalog';
 export interface PlaybookForm {
   name: string;
   content: string;
+  storageMode: 'json-inline' | 'markdown-file';
   description: string;
   category: string;
   tags: string;
@@ -13,6 +14,7 @@ export interface PlaybookForm {
 export const EMPTY_PLAYBOOK_FORM: PlaybookForm = {
   name: '',
   content: '',
+  storageMode: 'json-inline',
   description: '',
   category: '',
   tags: '',
@@ -24,6 +26,7 @@ export function playbookToForm(playbook: Playbook): PlaybookForm {
   return {
     name: playbook.name,
     content: playbook.content,
+    storageMode: playbook.storageMode ?? 'json-inline',
     description: playbook.description ?? '',
     category: playbook.category ?? '',
     tags: (playbook.tags ?? []).join(', '),
@@ -36,6 +39,7 @@ export function buildPlaybookPayload(form: PlaybookForm) {
   return {
     name: form.name,
     content: form.content,
+    storageMode: form.storageMode,
     description: form.description || undefined,
     category: form.category || undefined,
     tags: form.tags
@@ -58,12 +62,32 @@ export function extractTemplateVariables(content: string) {
 export function buildPlaybookExportMarkdown(form: {
   name: string;
   content: string;
+  storageMode?: 'json-inline' | 'markdown-file';
   description: string;
   category: string;
+  tags?: string;
+  agent?: string;
+  global?: boolean;
 }) {
   const parts = ['---', `name: "${form.name}"`];
   if (form.description) parts.push(`description: "${form.description}"`);
   if (form.category) parts.push(`category: "${form.category}"`);
+  if (form.tags) {
+    const tags = form.tags
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    if (tags.length > 0) {
+      parts.push('tags:');
+      for (const tag of tags) parts.push(`  - ${tag}`);
+    }
+  }
+  if (form.agent) parts.push(`agent: "${form.agent}"`);
+  if (form.global) parts.push('global: true');
+  if (form.storageMode === 'markdown-file') {
+    parts.push('assetType: playbook');
+    parts.push('runtimeMode: slash-command');
+  }
   parts.push('---', '', form.content);
   return parts.join('\n');
 }

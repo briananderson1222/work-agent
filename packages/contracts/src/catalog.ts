@@ -24,6 +24,7 @@ export interface Playbook {
   id: string;
   name: string;
   content: string;
+  storageMode?: 'json-inline' | 'markdown-file';
   description?: string;
   category?: string;
   tags?: string[];

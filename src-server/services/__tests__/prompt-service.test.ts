@@ -65,6 +65,22 @@ describe('PromptService', () => {
     });
   });
 
+  test('addPrompt can create a file-backed playbook', async () => {
+    const p = await svc.addPrompt({
+      name: 'File Prompt',
+      content: 'Do file stuff',
+      storageMode: 'markdown-file',
+      description: 'File backed',
+    });
+
+    expect(p.storageMode).toBe('markdown-file');
+    expect(await svc.getPrompt(p.id)).toMatchObject({
+      name: 'File Prompt',
+      storageMode: 'markdown-file',
+      content: 'Do file stuff',
+    });
+  });
+
   test('getPrompt finds by id', async () => {
     const p = await svc.addPrompt({ name: 'Find Me', content: 'x' });
     expect(await svc.getPrompt(p.id)).toMatchObject({ name: 'Find Me' });
@@ -94,6 +110,26 @@ describe('PromptService', () => {
     });
   });
 
+  test('updatePrompt persists markdown-backed prompts', async () => {
+    const p = await svc.addPrompt({
+      name: 'Markdown',
+      content: 'before',
+      storageMode: 'markdown-file',
+    });
+
+    const updated = await svc.updatePrompt(p.id, {
+      content: 'after',
+      description: 'Updated',
+    });
+
+    expect(updated.storageMode).toBe('markdown-file');
+    expect(await svc.getPrompt(p.id)).toMatchObject({
+      content: 'after',
+      description: 'Updated',
+      storageMode: 'markdown-file',
+    });
+  });
+
   test('updatePrompt throws for missing', () => {
     expect(() => svc.updatePrompt('nope', { name: 'x' })).toThrow('not found');
   });
@@ -102,6 +138,16 @@ describe('PromptService', () => {
     const p = await svc.addPrompt({ name: 'Del', content: 'x' });
     await svc.deletePrompt(p.id);
     expect(await svc.listPrompts()).toHaveLength(0);
+  });
+
+  test('deletePrompt removes file-backed playbooks', async () => {
+    const p = await svc.addPrompt({
+      name: 'Delete file',
+      content: 'x',
+      storageMode: 'markdown-file',
+    });
+    await svc.deletePrompt(p.id);
+    await expect(svc.getPrompt(p.id)).resolves.toBeNull();
   });
 
   test('deletePrompt throws for missing', () => {

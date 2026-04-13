@@ -10,6 +10,7 @@ export const promptSourceContextSchema = z.object({
 export const promptCreateSchema = z.object({
   name: z.string().min(1).max(200),
   content: z.string().min(1).max(100000),
+  storageMode: z.enum(['json-inline', 'markdown-file']).optional(),
   description: z.string().optional(),
   category: z.string().optional(),
   tags: z.array(z.string()).optional(),

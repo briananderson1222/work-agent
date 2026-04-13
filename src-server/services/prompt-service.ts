@@ -1,5 +1,12 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename, join } from 'node:path';
 import type {
   GuidanceAsset,
   PlaybookOutcome,
@@ -14,6 +21,7 @@ import { resolveHomeDir } from '../utils/paths.js';
 
 const PROMPTS_DIR = join(resolveHomeDir(), 'prompts');
 const PROMPTS_FILE = join(PROMPTS_DIR, 'prompts.json');
+const PLAYBOOK_FILES_DIR = join(PROMPTS_DIR, 'files');
 
 function defaultSourceContext(): PlaybookSourceContext {
   return { kind: 'user' };
@@ -77,23 +85,171 @@ function normalizePrompt(
 }
 
 function load(): Prompt[] {
-  if (!existsSync(PROMPTS_FILE)) return [];
-  return (JSON.parse(readFileSync(PROMPTS_FILE, 'utf-8')) as Prompt[]).map(
-    (prompt) => normalizePrompt(prompt),
-  );
+  const prompts = [...loadJsonPrompts(), ...loadMarkdownPrompts()];
+  const deduped = new Map<string, Prompt>();
+  for (const prompt of prompts) {
+    deduped.set(prompt.id, normalizePrompt(prompt));
+  }
+  return Array.from(deduped.values());
 }
 
 function save(prompts: Prompt[]): void {
   if (!existsSync(PROMPTS_DIR)) mkdirSync(PROMPTS_DIR, { recursive: true });
   writeFileSync(
     PROMPTS_FILE,
+    JSON.stringify(jsonPrompts(prompts), null, 2),
+    'utf-8',
+  );
+  if (!existsSync(PLAYBOOK_FILES_DIR))
+    mkdirSync(PLAYBOOK_FILES_DIR, { recursive: true });
+  const markdownPrompts = prompts.filter(
+    (prompt) => prompt.storageMode === 'markdown-file',
+  );
+  const activeIds = new Set(markdownPrompts.map((prompt) => prompt.id));
+  for (const file of readdirSync(PLAYBOOK_FILES_DIR)) {
+    if (!file.endsWith('.md') && !file.endsWith('.meta.json')) continue;
+    const id = file.replace(/\.meta\.json$|\.md$/g, '');
+    if (!activeIds.has(id)) {
+      rmSync(join(PLAYBOOK_FILES_DIR, file), { force: true });
+    }
+  }
+  for (const prompt of markdownPrompts) {
+    saveMarkdownPrompt(prompt);
+  }
+}
+
+function loadJsonPrompts(): Prompt[] {
+  if (!existsSync(PROMPTS_FILE)) return [];
+  return JSON.parse(readFileSync(PROMPTS_FILE, 'utf-8')) as Prompt[];
+}
+
+function jsonPrompts(prompts: Prompt[]): Prompt[] {
+  return prompts
+    .filter((prompt) => prompt.storageMode !== 'markdown-file')
+    .map((prompt) => normalizePrompt(prompt));
+}
+
+function parseFrontmatter(text: string): {
+  meta: Record<string, any>;
+  body: string;
+} {
+  const match = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+  if (!match) return { meta: {}, body: text.trim() };
+  const lines = match[1].split('\n');
+  const meta: Record<string, any> = {};
+  let currentArrayKey: string | null = null;
+  for (const rawLine of lines) {
+    const line = rawLine.trimEnd();
+    if (!line.trim()) continue;
+    if (currentArrayKey && line.trim().startsWith('- ')) {
+      meta[currentArrayKey] ??= [];
+      meta[currentArrayKey].push(
+        line
+          .trim()
+          .slice(2)
+          .replace(/^["']|["']$/g, ''),
+      );
+      continue;
+    }
+    currentArrayKey = null;
+    const idx = line.indexOf(':');
+    if (idx <= 0) continue;
+    const key = line.slice(0, idx).trim();
+    const value = line.slice(idx + 1).trim();
+    if (!value) {
+      currentArrayKey = key;
+      continue;
+    }
+    if (value === 'true' || value === 'false') {
+      meta[key] = value === 'true';
+    } else {
+      meta[key] = value.replace(/^["']|["']$/g, '');
+    }
+  }
+  return { meta, body: match[2].trim() };
+}
+
+function buildPromptMarkdown(prompt: Prompt): string {
+  const parts = ['---', `name: "${prompt.name}"`];
+  if (prompt.description) parts.push(`description: "${prompt.description}"`);
+  if (prompt.category) parts.push(`category: "${prompt.category}"`);
+  if (prompt.tags?.length) {
+    parts.push('tags:');
+    for (const tag of prompt.tags) parts.push(`  - ${tag}`);
+  }
+  if (prompt.agent) parts.push(`agent: "${prompt.agent}"`);
+  if (prompt.global) parts.push('global: true');
+  parts.push('assetType: playbook');
+  parts.push('runtimeMode: slash-command');
+  parts.push('---', '', prompt.content);
+  return parts.join('\n');
+}
+
+function markdownMetaPath(id: string) {
+  return join(PLAYBOOK_FILES_DIR, `${id}.meta.json`);
+}
+
+function markdownPromptPath(id: string) {
+  return join(PLAYBOOK_FILES_DIR, `${id}.md`);
+}
+
+function saveMarkdownPrompt(prompt: Prompt): void {
+  if (!existsSync(PLAYBOOK_FILES_DIR))
+    mkdirSync(PLAYBOOK_FILES_DIR, { recursive: true });
+  writeFileSync(
+    markdownPromptPath(prompt.id),
+    buildPromptMarkdown(prompt),
+    'utf-8',
+  );
+  writeFileSync(
+    markdownMetaPath(prompt.id),
     JSON.stringify(
-      prompts.map((prompt) => normalizePrompt(prompt)),
+      {
+        id: prompt.id,
+        source: prompt.source,
+        provenance: prompt.provenance,
+        stats: prompt.stats,
+        createdAt: prompt.createdAt,
+        updatedAt: prompt.updatedAt,
+        storageMode: 'markdown-file',
+      },
       null,
       2,
     ),
     'utf-8',
   );
+}
+
+function loadMarkdownPrompts(): Prompt[] {
+  if (!existsSync(PLAYBOOK_FILES_DIR)) return [];
+  const files = readdirSync(PLAYBOOK_FILES_DIR).filter((file) =>
+    file.endsWith('.md'),
+  );
+  return files.map((file) => {
+    const id = basename(file, '.md');
+    const raw = readFileSync(join(PLAYBOOK_FILES_DIR, file), 'utf-8');
+    const { meta, body } = parseFrontmatter(raw);
+    const metaPath = markdownMetaPath(id);
+    const sidecar = existsSync(metaPath)
+      ? JSON.parse(readFileSync(metaPath, 'utf-8'))
+      : {};
+    return {
+      id: sidecar.id || id,
+      name: meta.name || id,
+      content: body,
+      description: meta.description,
+      category: meta.category,
+      tags: meta.tags,
+      agent: meta.agent,
+      global: meta.global,
+      source: sidecar.source || 'local',
+      provenance: sidecar.provenance,
+      stats: sidecar.stats,
+      createdAt: sidecar.createdAt || new Date().toISOString(),
+      updatedAt: sidecar.updatedAt || new Date().toISOString(),
+      storageMode: 'markdown-file',
+    } satisfies Prompt;
+  });
 }
 
 export class PromptService {
@@ -115,6 +271,7 @@ export class PromptService {
     opts: {
       name: string;
       content: string;
+      storageMode?: 'json-inline' | 'markdown-file';
       description?: string;
       category?: string;
       tags?: string[];

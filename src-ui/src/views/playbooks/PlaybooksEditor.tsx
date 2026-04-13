@@ -278,6 +278,22 @@ export function PlaybooksEditor({
                 ))}
               </select>
             </div>
+
+            <div className="editor-field editor-field--row">
+              <Toggle
+                checked={form.storageMode === 'markdown-file'}
+                onChange={(value) =>
+                  onFieldChange(
+                    'storageMode',
+                    value ? 'markdown-file' : 'json-inline',
+                  )
+                }
+                size="sm"
+              />
+              <span className="editor-label">
+                Store as file-backed markdown
+              </span>
+            </div>
           </div>
         </details>
       </div>
