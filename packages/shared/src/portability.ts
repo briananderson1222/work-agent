@@ -71,16 +71,27 @@ export interface ParseClaudeDesktopConfigResult {
 export function buildGuidanceWorkspace(
   appConfig: AppConfig,
 ): GuidanceWorkspaceExport {
-  return APP_CONFIG_GUIDANCE_KEYS.reduce<GuidanceWorkspaceExport>(
-    (acc, key) => {
-      const value = appConfig[key];
-      if (value !== undefined) {
-        acc[key] = structuredClone(value);
-      }
-      return acc;
-    },
-    {},
-  );
+  const workspace: GuidanceWorkspaceExport = {};
+  for (const key of APP_CONFIG_GUIDANCE_KEYS) {
+    if (key === 'systemPrompt' && appConfig.systemPrompt !== undefined) {
+      workspace.systemPrompt = structuredClone(appConfig.systemPrompt);
+    }
+    if (
+      key === 'templateVariables' &&
+      appConfig.templateVariables !== undefined
+    ) {
+      workspace.templateVariables = structuredClone(
+        appConfig.templateVariables,
+      );
+    }
+    if (
+      key === 'approvalGuardian' &&
+      appConfig.approvalGuardian !== undefined
+    ) {
+      workspace.approvalGuardian = structuredClone(appConfig.approvalGuardian);
+    }
+  }
+  return workspace;
 }
 
 export function collectGuidanceLosses(appConfig: AppConfig): PortabilityLoss[] {
@@ -150,12 +161,14 @@ export function normalizeMcpToolDef(def: ToolDef): {
     });
   }
 
+  const normalizedTransport = transport as NormalizedMcpConfig['transport'];
+
   return {
     normalized: {
       id: def.id,
       displayName: def.displayName,
       description: def.description,
-      transport,
+      transport: normalizedTransport,
       command: def.command,
       args: def.args ? [...def.args] : undefined,
       endpoint: def.endpoint,

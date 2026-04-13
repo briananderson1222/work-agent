@@ -40,6 +40,49 @@ export interface Playbook {
 
 export type Prompt = Playbook;
 
+export type GuidanceAssetKind = 'playbook' | 'skill';
+export type GuidanceAssetStorageMode =
+  | 'json-inline'
+  | 'markdown-file'
+  | 'skill-package';
+export type GuidanceAssetRuntimeMode =
+  | 'slash-command'
+  | 'prompt-record'
+  | 'skill-catalog';
+
+export interface GuidanceAssetPackaging {
+  installable: boolean;
+  installed?: boolean;
+  installedVersion?: string;
+  version?: string;
+  path?: string;
+  source?: string;
+  resources?: Array<{ name: string; path: string }>;
+  scripts?: Array<{ name: string; path: string }>;
+}
+
+export interface GuidanceAsset {
+  id: string;
+  kind: GuidanceAssetKind;
+  name: string;
+  body: string;
+  description?: string;
+  tags?: string[];
+  category?: string;
+  scope?: {
+    agent?: string;
+    global?: boolean;
+  };
+  source?: string;
+  storageMode: GuidanceAssetStorageMode;
+  runtimeMode: GuidanceAssetRuntimeMode;
+  packaging?: GuidanceAssetPackaging;
+  provenance?: PlaybookProvenance;
+  stats?: PlaybookStats;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
 export interface RegistryItem {
   id: string;
   displayName?: string;
@@ -57,6 +100,9 @@ export interface Skill extends RegistryItem {
   path?: string;
   installedVersion?: string;
   updateAvailable?: boolean;
+  body?: string;
+  resources?: Array<{ name: string; path: string }>;
+  scripts?: Array<{ name: string; path: string }>;
 }
 
 export interface InstallResult {

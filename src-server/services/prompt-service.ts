@@ -1,11 +1,13 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type {
+  GuidanceAsset,
   PlaybookOutcome,
   PlaybookSourceContext,
   PlaybookStats,
   Prompt,
 } from '@stallion-ai/contracts/catalog';
+import { playbookToGuidanceAsset } from '@stallion-ai/shared';
 import type { IPromptRegistryProvider } from '../providers/provider-interfaces.js';
 import { promptOps } from '../telemetry/metrics.js';
 import { resolveHomeDir } from '../utils/paths.js';
@@ -99,6 +101,10 @@ export class PromptService {
 
   listPrompts(): Promise<Prompt[]> {
     return Promise.resolve(load());
+  }
+
+  listGuidanceAssets(): Promise<GuidanceAsset[]> {
+    return Promise.resolve(load().map(playbookToGuidanceAsset));
   }
 
   getPrompt(id: string): Promise<Prompt | null> {

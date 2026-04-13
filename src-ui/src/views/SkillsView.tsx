@@ -7,6 +7,7 @@ import {
   useUninstallSkillMutation,
   useUpdateSkillMutation,
 } from '@stallion-ai/sdk';
+import { skillToGuidanceAsset } from '@stallion-ai/shared';
 import { useMemo, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -69,10 +70,17 @@ export function SkillsView() {
     );
   }, [skills, search]);
 
-  const items = filtered.map((s) => ({
-    id: s.name,
-    name: s.name,
-    subtitle: s.installed ? '✓ Installed' : s.source,
+  const guidanceAssets = useMemo(
+    () => filtered.map(skillToGuidanceAsset),
+    [filtered],
+  );
+
+  const items = guidanceAssets.map((asset) => ({
+    id: asset.name,
+    name: asset.name,
+    subtitle: asset.packaging?.installed
+      ? '✓ Installed'
+      : asset.packaging?.source || asset.source,
   }));
 
   const selected = skills.find((s) => s.name === selectedId);

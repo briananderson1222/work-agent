@@ -63,6 +63,35 @@ describe('SkillService', () => {
     expect(service.listSkills()).toEqual([]);
   });
 
+  test('listGuidanceAssets normalizes installed skills into guidance assets', async () => {
+    const skillDir = join(testDir, 'skills', 'my-skill');
+    mkdirSync(skillDir, { recursive: true });
+    writeFileSync(
+      join(skillDir, 'SKILL.md'),
+      '---\nname: my-skill\ndescription: A test skill\n---\nBody content',
+    );
+    writeFileSync(
+      join(skillDir, '.stallion-meta.json'),
+      JSON.stringify({ version: '1.0.0' }),
+    );
+
+    await service.discoverSkills(testDir);
+
+    expect(service.listGuidanceAssets()).toEqual([
+      expect.objectContaining({
+        kind: 'skill',
+        name: 'my-skill',
+        body: expect.stringContaining('Body content'),
+        description: 'A test skill',
+        runtimeMode: 'skill-catalog',
+        packaging: expect.objectContaining({
+          path: skillDir,
+        }),
+      }),
+    ]);
+    rmSync(testDir, { recursive: true, force: true });
+  });
+
   test('getSkillCount returns 0 initially', () => {
     expect(service.getSkillCount()).toBe(0);
   });

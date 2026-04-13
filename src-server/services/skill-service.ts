@@ -11,6 +11,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { readdir, readFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
+import type { GuidanceAsset } from '@stallion-ai/contracts/catalog';
+import { skillToGuidanceAsset } from '@stallion-ai/shared';
 import {
   extractResourceLinks,
   handleSkillRead,
@@ -222,6 +224,42 @@ export class SkillService {
       }
       return { name: s.name, description: s.description, version };
     });
+  }
+
+  listGuidanceAssets(): GuidanceAsset[] {
+    return Array.from(this.registry.values()).map((skill) =>
+      skillToGuidanceAsset({
+        id: skill.name,
+        name: skill.name,
+        description: skill.description,
+        installed: true,
+        installedVersion: (() => {
+          if (!skill.location) return undefined;
+          const metaPath = join(dirname(skill.location), '.stallion-meta.json');
+          if (!existsSync(metaPath)) return undefined;
+          try {
+            return JSON.parse(readFileSync(metaPath, 'utf-8')).version;
+          } catch {
+            return undefined;
+          }
+        })(),
+        body: skill.body,
+        path: skill.location ? dirname(skill.location) : undefined,
+        resources: skill.resources.map((resource) => ({
+          name: resource.name,
+          path: resource.path,
+        })),
+        scripts: skill.resources
+          .filter((resource) => {
+            const ext = extname(resource.path);
+            return SCRIPT_EXTS.has(ext);
+          })
+          .map((resource) => ({
+            name: resource.name,
+            path: resource.path,
+          })),
+      }),
+    );
   }
 
   async getSkill(name: string): Promise<SkillConfig> {

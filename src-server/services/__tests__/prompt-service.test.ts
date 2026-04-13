@@ -29,6 +29,25 @@ describe('PromptService', () => {
     expect(await svc.listPrompts()).toEqual([]);
   });
 
+  test('listGuidanceAssets normalizes prompts into guidance assets', async () => {
+    await svc.addPrompt({
+      name: 'Test',
+      content: 'Do stuff',
+      description: 'Reusable guidance',
+      global: true,
+    });
+
+    await expect(svc.listGuidanceAssets()).resolves.toEqual([
+      expect.objectContaining({
+        kind: 'playbook',
+        name: 'Test',
+        body: 'Do stuff',
+        description: 'Reusable guidance',
+        runtimeMode: 'slash-command',
+      }),
+    ]);
+  });
+
   test('addPrompt creates and returns prompt', async () => {
     const p = await svc.addPrompt({ name: 'Test', content: 'Do stuff' });
     expect(p.id).toBeDefined();

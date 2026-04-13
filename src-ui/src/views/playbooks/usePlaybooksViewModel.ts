@@ -8,6 +8,7 @@ import {
   useTrackPlaybookRunMutation,
   useUpdatePlaybookMutation,
 } from '@stallion-ai/sdk';
+import { playbookToGuidanceAsset } from '@stallion-ai/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApiBase } from '../../contexts/ApiBaseContext';
 import { useNavigation } from '../../contexts/NavigationContext';
@@ -22,14 +23,11 @@ import {
   buildPlaybookPayload,
   EMPTY_PLAYBOOK_FORM,
   extractTemplateVariables,
+  formatPlaybookStatsSummary,
   type PlaybookForm,
   playbookToForm,
 } from './utils';
-import {
-  buildPlaybookCategories,
-  buildPlaybookListItems,
-  filterAndSortPlaybooks,
-} from './view-utils';
+import { buildPlaybookCategories, filterAndSortPlaybooks } from './view-utils';
 
 type AgentOption = { slug: string; name: string };
 
@@ -140,7 +138,27 @@ export function usePlaybooksViewModel() {
     () => filterAndSortPlaybooks(prompts, search, sortBy),
     [prompts, search, sortBy],
   );
-  const listItems = useMemo(() => buildPlaybookListItems(filtered), [filtered]);
+  const guidanceAssets = useMemo(
+    () => filtered.map(playbookToGuidanceAsset),
+    [filtered],
+  );
+  const listItems = useMemo(
+    () =>
+      guidanceAssets.map((asset) => ({
+        id: asset.id,
+        name: asset.name,
+        subtitle: [
+          asset.category,
+          asset.tags?.slice(0, 2).join(', '),
+          formatPlaybookStatsSummary(
+            filtered.find((playbook) => playbook.id === asset.id)!,
+          ),
+        ]
+          .filter(Boolean)
+          .join(' · '),
+      })),
+    [filtered, guidanceAssets],
+  );
   const selectedPrompt = prompts.find((playbook) => playbook.id === selectedId);
   const isEditing = isNew || !!selectedId;
   const templateVars = useMemo(
