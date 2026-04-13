@@ -1,6 +1,7 @@
 import type { Playbook } from '@stallion-ai/contracts/catalog';
 import {
   useAgentsQuery,
+  useCreateLocalSkillMutation,
   useCreatePlaybookMutation,
   useDeletePlaybookMutation,
   useImportPlaybooksMutation,
@@ -39,7 +40,7 @@ export function usePlaybooksViewModel() {
     deselect: urlDeselect,
   } = useUrlSelection('/playbooks');
   const { showToast } = useToast();
-  const { setDockState, setActiveChat } = useNavigation();
+  const { navigate, setDockState, setActiveChat } = useNavigation();
   const createChatSession = useCreateChatSession();
   const sendMessage = useSendMessage(apiBase);
 
@@ -63,6 +64,7 @@ export function usePlaybooksViewModel() {
     data?: AgentOption[];
   };
   const trackRunMutation = useTrackPlaybookRunMutation();
+  const createLocalSkillMutation = useCreateLocalSkillMutation();
 
   const handleRun = useCallback(
     async (resolvedContent: string, agentSlug: string) => {
@@ -240,8 +242,46 @@ export function usePlaybooksViewModel() {
     }
   }
 
-  function handleImport(items: string[]) {
+  function handleImport(
+    items: Array<{
+      name: string;
+      content: string;
+      description?: string;
+      category?: string;
+      tags?: string[];
+      agent?: string;
+      global?: boolean;
+      storageMode?: 'json-inline' | 'markdown-file';
+    }>,
+  ) {
     importMutation.mutate(items);
+  }
+
+  async function handlePackageAsSkill() {
+    if (!form.name.trim() || !form.content.trim()) {
+      showToast('Name and content are required');
+      return;
+    }
+    try {
+      await createLocalSkillMutation.mutateAsync({
+        name: form.name.trim(),
+        body: form.content,
+        description: form.description || undefined,
+        category: form.category || undefined,
+        tags: form.tags
+          ? form.tags
+              .split(',')
+              .map((tag) => tag.trim())
+              .filter(Boolean)
+          : undefined,
+        agent: form.agent || undefined,
+        global: form.global || undefined,
+      });
+      showToast('Skill package created');
+      navigate(`/skills/${encodeURIComponent(form.name.trim())}`);
+    } catch {
+      showToast('Failed to package playbook as skill');
+    }
   }
 
   return {
@@ -257,6 +297,7 @@ export function usePlaybooksViewModel() {
     handleDeselect,
     handleDuplicate,
     handleImport,
+    handlePackageAsSkill,
     handleRun,
     handleSave,
     importPending: importMutation.isPending,

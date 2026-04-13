@@ -1,4 +1,5 @@
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
+import { useNavigation } from '../contexts/NavigationContext';
 import { PlaybooksEditor } from './playbooks/PlaybooksEditor';
 import { PlaybooksModalStack } from './playbooks/PlaybooksModalStack';
 import { usePlaybooksViewModel } from './playbooks/usePlaybooksViewModel';
@@ -10,6 +11,7 @@ import './page-layout.css';
 import './editor-layout.css';
 
 export function PlaybooksView() {
+  const { navigate } = useNavigation();
   const viewModel = usePlaybooksViewModel();
   const DiscardModal = viewModel.DiscardModal;
 
@@ -63,6 +65,12 @@ export function PlaybooksView() {
             >
               {viewModel.importPending ? 'Importing…' : 'Import .md'}
             </button>
+            <button
+              className="split-pane__add-btn split-pane__add-btn--secondary"
+              onClick={() => navigate('/skills')}
+            >
+              Open Skills
+            </button>
           </>
         }
       >
@@ -87,6 +95,7 @@ export function PlaybooksView() {
             onGlobalChange={viewModel.onGlobalChange}
             onSave={viewModel.handleSave}
             onTest={() => viewModel.setShowRunModal(true)}
+            onPackageAsSkill={viewModel.handlePackageAsSkill}
             onGenerateContent={(value) =>
               viewModel.updateField('content', value)
             }

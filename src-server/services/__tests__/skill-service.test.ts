@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
@@ -196,5 +196,58 @@ describe('SkillService', () => {
     await service.discoverSkills(testDir);
     expect(service.getSkillCount()).toBe(0);
     rmSync(testDir, { recursive: true, force: true });
+  });
+
+  test('createLocalSkill writes canonical SKILL.md and discovers it', async () => {
+    const result = await service.createLocalSkill(
+      {
+        name: 'author-skill',
+        description: 'Author me',
+        body: 'Body text',
+        tags: ['ops', 'deploy'],
+        category: 'Operations',
+        agent: 'deployer',
+        global: true,
+      },
+      testDir,
+    );
+
+    expect(result.success).toBe(true);
+    const content = readFileSync(
+      join(testDir, 'skills', 'author-skill', 'SKILL.md'),
+      'utf-8',
+    );
+    expect(content).toContain('name: author-skill');
+    expect(content).toContain('description: Author me');
+    expect(content).toContain('tags:');
+    expect(service.listSkills()[0]?.name).toBe('author-skill');
+  });
+
+  test('updateLocalSkill rewrites the skill body', async () => {
+    await service.createLocalSkill(
+      {
+        name: 'author-skill',
+        description: 'Author me',
+        body: 'Body text',
+      },
+      testDir,
+    );
+
+    const result = await service.updateLocalSkill(
+      'author-skill',
+      {
+        body: 'Updated body',
+        description: 'Updated description',
+      },
+      testDir,
+    );
+
+    expect(result.success).toBe(true);
+    const content = readFileSync(
+      join(testDir, 'skills', 'author-skill', 'SKILL.md'),
+      'utf-8',
+    );
+    expect(content).toContain('Updated description');
+    expect(content).toContain('Updated body');
   });
 });

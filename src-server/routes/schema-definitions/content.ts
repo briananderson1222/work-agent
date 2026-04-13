@@ -29,6 +29,22 @@ export const promptOutcomeSchema = z.object({
   outcome: z.enum(['success', 'failure']),
 });
 
+export const localSkillCreateSchema = z.object({
+  name: z.string().min(1).max(200),
+  body: z.string().min(1).max(100000),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  tags: z.array(z.string()).optional(),
+  agent: z.string().optional(),
+  global: z.boolean().optional(),
+});
+
+export const localSkillUpdateSchema = localSkillCreateSchema
+  .partial()
+  .refine((obj) => Object.keys(obj).length > 0, {
+    message: 'At least one field is required',
+  });
+
 // Projects
 export const projectCreateSchema = z
   .object({

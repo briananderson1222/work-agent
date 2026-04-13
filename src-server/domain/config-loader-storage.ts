@@ -11,6 +11,11 @@ export interface SkillConfigRecord {
   installedAt: string;
   version?: string;
   path: string;
+  body?: string;
+  tags?: string[];
+  category?: string;
+  agent?: string;
+  global?: boolean;
 }
 
 export async function loadIntegrationConfig(

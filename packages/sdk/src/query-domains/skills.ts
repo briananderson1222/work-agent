@@ -93,6 +93,65 @@ export function useUpdateSkillMutation() {
   });
 }
 
+export function useCreateLocalSkillMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: {
+      name: string;
+      body: string;
+      description?: string;
+      category?: string;
+      tags?: string[];
+      agent?: string;
+      global?: boolean;
+    }) => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/skills/local`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      });
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || result.message || 'Create failed');
+      }
+      return result;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] }),
+  });
+}
+
+export function useUpdateLocalSkillMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      name,
+      ...updates
+    }: {
+      name: string;
+      body?: string;
+      description?: string;
+      category?: string;
+      tags?: string[];
+      agent?: string;
+      global?: boolean;
+    }) => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/skills/${name}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates),
+      });
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || result.message || 'Update failed');
+      }
+      return result;
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['skills'] }),
+  });
+}
+
 export function useSkillContentQuery(
   id: string | undefined,
   config?: QueryConfig<any>,
@@ -111,5 +170,24 @@ export function useSkillContentQuery(
       return result.data as string;
     },
     { ...config, enabled: !!id && (config?.enabled ?? true) },
+  );
+}
+
+export function useSkillQuery(
+  name: string | undefined,
+  config?: QueryConfig<any>,
+) {
+  return useApiQuery(
+    ['skills', 'detail', name ?? ''],
+    async () => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/skills/${name}`);
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to load skill');
+      }
+      return result.data;
+    },
+    { ...config, enabled: !!name && (config?.enabled ?? true) },
   );
 }

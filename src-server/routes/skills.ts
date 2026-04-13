@@ -8,6 +8,8 @@ import { skillOps } from '../telemetry/metrics.js';
 import {
   errorMessage,
   getBody,
+  localSkillCreateSchema,
+  localSkillUpdateSchema,
   param,
   skillCreateSchema,
   validate,
@@ -48,6 +50,41 @@ export function createSkillRoutes(
         return c.json({ success: false, error: result.message }, 400);
       }
       return c.json({ success: true, data: result }, 201);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
+    }
+  });
+
+  // Create local packaged skill
+  app.post('/local', validate(localSkillCreateSchema), async (c) => {
+    try {
+      const body = getBody(c);
+      const result = await skillService.createLocalSkill(
+        body,
+        getProjectHomeDir(),
+      );
+      if (!result.success) {
+        return c.json({ success: false, error: result.message }, 400);
+      }
+      return c.json({ success: true, data: result }, 201);
+    } catch (error: unknown) {
+      return c.json({ success: false, error: errorMessage(error) }, 400);
+    }
+  });
+
+  app.put('/:name', validate(localSkillUpdateSchema), async (c) => {
+    try {
+      const name = param(c, 'name');
+      const body = getBody(c);
+      const result = await skillService.updateLocalSkill(
+        name,
+        body,
+        getProjectHomeDir(),
+      );
+      if (!result.success) {
+        return c.json({ success: false, error: result.message }, 400);
+      }
+      return c.json({ success: true, data: result });
     } catch (error: unknown) {
       return c.json({ success: false, error: errorMessage(error) }, 400);
     }

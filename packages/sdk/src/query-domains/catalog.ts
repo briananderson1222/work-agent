@@ -25,6 +25,7 @@ import {
 interface PlaybookMutationInput {
   name: string;
   content: string;
+  storageMode?: 'json-inline' | 'markdown-file';
   description?: string;
   category?: string;
   tags?: string[];
@@ -177,23 +178,10 @@ export function useRecordPlaybookOutcomeMutation(
 }
 
 export function useImportPlaybooksMutation(
-  options?: MutationOptions<
-    PlaybookImportResult,
-    Array<
-      Pick<PlaybookMutationInput, 'name' | 'content'> & {
-        description?: string;
-      }
-    >
-  >,
+  options?: MutationOptions<PlaybookImportResult, Array<PlaybookMutationInput>>,
 ) {
   return useApiMutation(
-    async (
-      items: Array<
-        Pick<PlaybookMutationInput, 'name' | 'content'> & {
-          description?: string;
-        }
-      >,
-    ) => {
+    async (items: Array<PlaybookMutationInput>) => {
       const results = await Promise.allSettled(
         items.map((item) =>
           requestPlaybook<Playbook>('', {

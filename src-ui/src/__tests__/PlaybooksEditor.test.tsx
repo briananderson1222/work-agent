@@ -61,6 +61,7 @@ describe('PlaybooksEditor', () => {
         onGlobalChange={vi.fn()}
         onSave={vi.fn()}
         onTest={vi.fn()}
+        onPackageAsSkill={vi.fn()}
         onGenerateContent={vi.fn()}
         onGenerateDescription={vi.fn()}
       />,

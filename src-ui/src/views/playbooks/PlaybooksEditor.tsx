@@ -30,6 +30,7 @@ interface PlaybooksEditorProps {
   onGlobalChange: (value: boolean) => void;
   onSave: () => void;
   onTest: () => void;
+  onPackageAsSkill: () => void;
   onGenerateContent: (value: string) => void;
   onGenerateDescription: (value: string) => void;
 }
@@ -54,6 +55,7 @@ export function PlaybooksEditor({
   onGlobalChange,
   onSave,
   onTest,
+  onPackageAsSkill,
   onGenerateContent,
   onGenerateDescription,
 }: PlaybooksEditorProps) {
@@ -92,6 +94,9 @@ export function PlaybooksEditor({
             Export .md
           </button>
         )}
+        <button className="editor-btn" onClick={onPackageAsSkill}>
+          Package as Skill
+        </button>
         {!isNew && selectedId && (
           <button
             className="editor-btn"

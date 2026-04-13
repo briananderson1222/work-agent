@@ -9,7 +9,7 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
-import { readdir, readFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import type { GuidanceAsset } from '@stallion-ai/contracts/catalog';
 import { skillToGuidanceAsset } from '@stallion-ai/shared';
@@ -38,6 +38,16 @@ import {
 } from './skill-service-install.js';
 
 const SCRIPT_EXTS = new Set(['.py', '.sh', '.js', '.ts']);
+
+interface EditableSkillInput {
+  name: string;
+  description?: string;
+  body: string;
+  tags?: string[];
+  category?: string;
+  agent?: string;
+  global?: boolean;
+}
 
 export class SkillService {
   private registry = new Map<string, ResolvedSkill>();
@@ -211,9 +221,14 @@ export class SkillService {
     name: string;
     description: string;
     version?: string;
+    source?: string;
+    path?: string;
+    installed?: boolean;
   }> {
     return Array.from(this.registry.values()).map((s) => {
       let version: string | undefined;
+      let source: string | undefined;
+      let path: string | undefined;
       if (s.location) {
         const metaPath = join(dirname(s.location), '.stallion-meta.json');
         if (existsSync(metaPath)) {
@@ -221,8 +236,24 @@ export class SkillService {
             version = JSON.parse(readFileSync(metaPath, 'utf-8')).version;
           } catch {}
         }
+        const skillJsonPath = join(dirname(s.location), 'skill.json');
+        if (existsSync(skillJsonPath)) {
+          try {
+            const config = JSON.parse(readFileSync(skillJsonPath, 'utf-8'));
+            source = config.source;
+            path = config.path;
+            version = config.version ?? version;
+          } catch {}
+        }
       }
-      return { name: s.name, description: s.description, version };
+      return {
+        name: s.name,
+        description: s.description,
+        version,
+        source,
+        path,
+        installed: true,
+      };
     });
   }
 
@@ -264,7 +295,111 @@ export class SkillService {
 
   async getSkill(name: string): Promise<SkillConfig> {
     skillOps.add(1, { operation: 'get' });
-    return this.configLoader.loadSkill(name);
+    const config = await this.configLoader.loadSkill(name);
+    const skillPath = join(config.path, 'SKILL.md');
+    if (!existsSync(skillPath)) {
+      return config;
+    }
+
+    try {
+      const content = await readFile(skillPath, 'utf-8');
+      const { properties, body } = parseSkillContent(content);
+      const { metadata } = parseFrontmatter(content);
+      const frontmatter = metadata as unknown as Record<string, unknown>;
+      return {
+        ...config,
+        body,
+        description: properties.description ?? config.description,
+        tags: Array.isArray(frontmatter.tags)
+          ? (frontmatter.tags as string[])
+          : config.tags,
+        category:
+          typeof frontmatter.category === 'string'
+            ? frontmatter.category
+            : config.category,
+        agent:
+          typeof frontmatter.agent === 'string'
+            ? frontmatter.agent
+            : config.agent,
+        global:
+          typeof frontmatter.global === 'boolean'
+            ? frontmatter.global
+            : config.global,
+      };
+    } catch {
+      return config;
+    }
+  }
+
+  async createLocalSkill(
+    input: EditableSkillInput,
+    projectHomeDir: string,
+    projectSlug?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const skillDir = this.resolveSkillDir(
+      projectHomeDir,
+      input.name,
+      projectSlug,
+    );
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      join(skillDir, 'SKILL.md'),
+      this.serializeSkillMarkdown(input),
+      'utf-8',
+    );
+    await this.configLoader.saveSkill(input.name, {
+      name: input.name,
+      description: input.description,
+      source: 'local',
+      installedAt: new Date().toISOString(),
+      path: skillDir,
+      body: input.body,
+      tags: input.tags,
+      category: input.category,
+      agent: input.agent,
+      global: input.global,
+    });
+    await this.discoverSkills(projectHomeDir, projectSlug);
+    return { success: true, message: `Created ${input.name}` };
+  }
+
+  async updateLocalSkill(
+    name: string,
+    updates: Partial<EditableSkillInput>,
+    projectHomeDir: string,
+    projectSlug?: string,
+  ): Promise<{ success: boolean; message: string }> {
+    const current = await this.getSkill(name);
+    const next: EditableSkillInput = {
+      name: updates.name ?? current.name,
+      description: updates.description ?? current.description,
+      body: updates.body ?? current.body ?? '',
+      tags: updates.tags ?? current.tags,
+      category: updates.category ?? current.category,
+      agent: updates.agent ?? current.agent,
+      global: updates.global ?? current.global,
+    };
+    const skillDir = this.resolveSkillDir(projectHomeDir, name, projectSlug);
+    await mkdir(skillDir, { recursive: true });
+    await writeFile(
+      join(skillDir, 'SKILL.md'),
+      this.serializeSkillMarkdown(next),
+      'utf-8',
+    );
+    await this.configLoader.saveSkill(next.name, {
+      ...current,
+      name: next.name,
+      description: next.description,
+      source: 'local',
+      path: skillDir,
+      body: next.body,
+      tags: next.tags,
+      category: next.category,
+      agent: next.agent,
+      global: next.global,
+    });
+    await this.discoverSkills(projectHomeDir, projectSlug);
+    return { success: true, message: `Updated ${next.name}` };
   }
 
   async installSkill(
@@ -335,5 +470,29 @@ export class SkillService {
       });
       return undefined;
     }
+  }
+
+  private resolveSkillDir(
+    projectHomeDir: string,
+    name: string,
+    projectSlug?: string,
+  ) {
+    return projectSlug
+      ? join(projectHomeDir, 'projects', projectSlug, 'skills', name)
+      : join(projectHomeDir, 'skills', name);
+  }
+
+  private serializeSkillMarkdown(input: EditableSkillInput): string {
+    const parts = ['---', `name: ${input.name}`];
+    if (input.description) parts.push(`description: ${input.description}`);
+    if (input.category) parts.push(`category: ${input.category}`);
+    if (input.tags?.length) {
+      parts.push('tags:');
+      for (const tag of input.tags) parts.push(`  - ${tag}`);
+    }
+    if (input.agent) parts.push(`agent: ${input.agent}`);
+    if (input.global) parts.push('global: true');
+    parts.push('---', '', input.body);
+    return parts.join('\n');
   }
 }

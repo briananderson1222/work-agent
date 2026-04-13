@@ -18,7 +18,18 @@ interface PlaybooksModalStackProps {
   onCancelImport: () => void;
   onCancelRun: () => void;
   onConfirmDelete: () => void;
-  onImport: (items: string[]) => void;
+  onImport: (
+    items: {
+      name: string;
+      content: string;
+      description?: string;
+      category?: string;
+      tags?: string[];
+      agent?: string;
+      global?: boolean;
+      storageMode?: 'json-inline' | 'markdown-file';
+    }[],
+  ) => void;
   onRun: (resolvedContent: string, agentSlug: string) => Promise<void>;
 }
 

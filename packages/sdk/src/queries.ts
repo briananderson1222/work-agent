@@ -202,11 +202,14 @@ export {
   useToggleJob,
 } from './query-domains/scheduler';
 export {
+  useCreateLocalSkillMutation,
   useInstallSkillMutation,
   useRegistrySkillsQuery,
   useSkillContentQuery,
+  useSkillQuery,
   useSkillsQuery,
   useUninstallSkillMutation,
+  useUpdateLocalSkillMutation,
   useUpdateSkillMutation,
 } from './query-domains/skills';
 export {

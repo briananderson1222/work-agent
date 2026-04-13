@@ -6,12 +6,26 @@ interface ImportPreview {
   description: string;
   content: string;
   file: string;
+  category?: string;
+  tags?: string[];
+  agent?: string;
+  global?: boolean;
+  storageMode?: 'json-inline' | 'markdown-file';
 }
 
 interface ImportPromptsModalProps {
   isOpen: boolean;
   onImport: (
-    items: { name: string; content: string; description?: string }[],
+    items: {
+      name: string;
+      content: string;
+      description?: string;
+      category?: string;
+      tags?: string[];
+      agent?: string;
+      global?: boolean;
+      storageMode?: 'json-inline' | 'markdown-file';
+    }[],
   ) => void;
   onCancel: () => void;
 }
@@ -19,22 +33,51 @@ interface ImportPromptsModalProps {
 function parseFrontmatter(text: string): {
   name?: string;
   description?: string;
+  category?: string;
+  tags?: string[];
+  agent?: string;
+  global?: boolean;
   content: string;
 } {
   const match = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
   if (!match) return { content: text };
-  const meta: Record<string, string> = {};
-  for (const line of match[1].split('\n')) {
+  const meta: Record<string, any> = {};
+  let currentArrayKey: string | null = null;
+  for (const rawLine of match[1].split('\n')) {
+    const line = rawLine.trimEnd();
+    if (!line.trim()) continue;
+    if (currentArrayKey && line.trim().startsWith('- ')) {
+      meta[currentArrayKey] ??= [];
+      meta[currentArrayKey].push(
+        line
+          .trim()
+          .slice(2)
+          .replace(/^["']|["']$/g, ''),
+      );
+      continue;
+    }
+    currentArrayKey = null;
     const idx = line.indexOf(':');
-    if (idx > 0)
-      meta[line.slice(0, idx).trim()] = line
-        .slice(idx + 1)
-        .trim()
-        .replace(/^["']|["']$/g, '');
+    if (idx <= 0) continue;
+    const key = line.slice(0, idx).trim();
+    const value = line.slice(idx + 1).trim();
+    if (!value) {
+      currentArrayKey = key;
+      continue;
+    }
+    if (value === 'true' || value === 'false') {
+      meta[key] = value === 'true';
+    } else {
+      meta[key] = value.replace(/^["']|["']$/g, '');
+    }
   }
   return {
     name: meta.name,
     description: meta.description,
+    category: meta.category,
+    tags: meta.tags,
+    agent: meta.agent,
+    global: meta.global,
     content: match[2].trim(),
   };
 }
@@ -59,6 +102,11 @@ export function ImportPromptsModal({
       previews.push({
         name: parsed.name || file.name.replace(/\.md$/, ''),
         description: parsed.description || '',
+        category: parsed.category,
+        tags: parsed.tags,
+        agent: parsed.agent,
+        global: parsed.global,
+        storageMode: 'markdown-file',
         content: parsed.content,
         file: file.name,
       });
@@ -79,11 +127,27 @@ export function ImportPromptsModal({
 
   const handleImport = () => {
     onImport(
-      preview.map(({ name, content, description }) => ({
-        name,
-        content,
-        description: description || undefined,
-      })),
+      preview.map(
+        ({
+          name,
+          content,
+          description,
+          category,
+          tags,
+          agent,
+          global,
+          storageMode,
+        }) => ({
+          name,
+          content,
+          description: description || undefined,
+          category,
+          tags,
+          agent,
+          global,
+          storageMode,
+        }),
+      ),
     );
     setPreview([]);
   };
