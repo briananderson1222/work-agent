@@ -124,7 +124,9 @@ describe('RegistryView', () => {
     expect(mutationCalls).toEqual([]);
     const detail = screen.getByTestId('registry-detail');
     expect(within(detail).getByText('Selected agent')).toBeTruthy();
-    expect(within(detail).getByRole('button', { name: 'Install' })).toBeTruthy();
+    expect(
+      within(detail).getByRole('button', { name: 'Install' }),
+    ).toBeTruthy();
 
     fireEvent.click(within(detail).getByRole('button', { name: 'Install' }));
 
@@ -154,32 +156,29 @@ describe('RegistryView', () => {
     ['Skills', 'skills', 'skill-one', 'Skill One'],
     ['Integrations', 'integrations', 'integration-one', 'Integration One'],
     ['Plugins', 'plugins', 'demo-layout', 'Demo Layout'],
-  ] as const)(
-    'renders preview install/remove actions for %s',
-    (tabLabel, tabKey, itemId, itemLabel) => {
-      const { rerender } = render(<RegistryView />);
+  ] as const)('renders preview install/remove actions for %s', (tabLabel, tabKey, itemId, itemLabel) => {
+    const { rerender } = render(<RegistryView />);
 
-      fireEvent.click(screen.getByRole('button', { name: tabLabel }));
-      const detail = screen.getByTestId('registry-detail');
-      expect(
-        within(detail).getByText(`Selected ${tabKey.slice(0, -1)}`),
-      ).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: tabLabel }));
+    const detail = screen.getByTestId('registry-detail');
+    expect(
+      within(detail).getByText(`Selected ${tabKey.slice(0, -1)}`),
+    ).toBeTruthy();
 
-      fireEvent.click(within(detail).getByRole('button', { name: 'Install' }));
+    fireEvent.click(within(detail).getByRole('button', { name: 'Install' }));
 
-      expect(mutationCalls).toContainEqual({
-        id: itemId,
-        action: 'install',
-        tab: tabKey,
-      });
-      expect(screen.getByText(`Installed ${itemLabel}`)).toBeTruthy();
+    expect(mutationCalls).toContainEqual({
+      id: itemId,
+      action: 'install',
+      tab: tabKey,
+    });
+    expect(screen.getByText(`Installed ${itemLabel}`)).toBeTruthy();
 
-      rerender(<RegistryView />);
-      expect(
-        within(screen.getByTestId('registry-detail')).getByRole('button', {
-          name: 'Remove',
-        }),
-      ).toBeTruthy();
-    },
-  );
+    rerender(<RegistryView />);
+    expect(
+      within(screen.getByTestId('registry-detail')).getByRole('button', {
+        name: 'Remove',
+      }),
+    ).toBeTruthy();
+  });
 });

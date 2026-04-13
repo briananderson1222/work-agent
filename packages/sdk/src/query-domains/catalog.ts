@@ -15,10 +15,10 @@ import {
   fetchPlaybooks,
   fetchRegistryItems,
   requestIntegration,
-  requestRegistryCatalogAction,
   requestPlaybook,
   requestPlaybookOutcome,
   requestPlaybookRun,
+  requestRegistryCatalogAction,
   requestRegistryIntegrationAction,
 } from './catalogRequests';
 

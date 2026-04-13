@@ -152,7 +152,9 @@ test.describe('Profile Page', () => {
     await expect(
       heroCard.locator('[aria-label="Usage activity overview"]'),
     ).toBeVisible();
-    await expect(heroCard.locator('.profile-usage-graph__bar').first()).toBeVisible();
+    await expect(
+      heroCard.locator('.profile-usage-graph__bar').first(),
+    ).toBeVisible();
   });
 
   test('renders a usage graph inside the first hero card when activity data exists', async ({
@@ -264,9 +266,7 @@ test.describe('Profile Page', () => {
     await expect(page.getByText('No model data yet')).toBeVisible();
     await expect(page.getByText('No agent data yet')).toBeVisible();
     await expect(
-      page
-        .locator('.profile-container > .profile-card')
-        .first(),
+      page.locator('.profile-container > .profile-card').first(),
     ).toContainText(/No (usage|activity)/i);
   });
 

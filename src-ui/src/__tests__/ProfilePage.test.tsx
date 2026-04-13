@@ -88,9 +88,9 @@ describe('ProfilePage', () => {
 
     expect(screen.getByLabelText('Usage activity overview')).toBeTruthy();
     expect(screen.getByText(/Recent activity/)).toBeTruthy();
-    expect(container.querySelectorAll('.profile-usage-graph__bar')).toHaveLength(
-      14,
-    );
+    expect(
+      container.querySelectorAll('.profile-usage-graph__bar'),
+    ).toHaveLength(14);
   });
 
   test('renders the empty hero graph state when no recent usage exists', () => {

@@ -22,9 +22,7 @@ function buildUsageGraphPoints(
 ) {
   const byDateEntries = Object.entries(
     (usageStats.byDate || {}) as Record<string, UsageByDateEntry>,
-  ).sort(
-    ([left], [right]) => left.localeCompare(right),
-  );
+  ).sort(([left], [right]) => left.localeCompare(right));
 
   if (byDateEntries.length > 0) {
     return byDateEntries.slice(-14).map(([date, stats]) => ({

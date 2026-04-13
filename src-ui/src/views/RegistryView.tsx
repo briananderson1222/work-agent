@@ -188,7 +188,10 @@ export function RegistryView() {
                 </div>
 
                 {(selectedItem.version || selectedItem.source) && (
-                  <div className="page__subtitle" style={{ marginTop: '0.75rem' }}>
+                  <div
+                    className="page__subtitle"
+                    style={{ marginTop: '0.75rem' }}
+                  >
                     {[
                       selectedItem.version ? `v${selectedItem.version}` : null,
                       selectedItem.source,
@@ -252,7 +255,9 @@ export function RegistryView() {
                           {item.displayName || id}
                         </div>
                         {item.description && (
-                          <div className="page__card-desc">{item.description}</div>
+                          <div className="page__card-desc">
+                            {item.description}
+                          </div>
                         )}
                       </div>
                       <span
