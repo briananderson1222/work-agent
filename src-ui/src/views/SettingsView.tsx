@@ -76,7 +76,7 @@ export function SettingsView({
   const configJson = JSON.stringify(config);
   const baselineJson = JSON.stringify(configData || {});
   const hasChanges = configJson !== baselineJson;
-  const showBedrockRegion = config.defaultLLMProvider === 'bedrock';
+  const showRegion = true;
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: only re-sync when server data changes, not on local edits
   useEffect(() => {
@@ -276,7 +276,7 @@ export function SettingsView({
             testStatus={testStatus}
             region={config.region || ''}
             regionError={validationErrors.region}
-            showRegion={showBedrockRegion}
+            showRegion={showRegion}
             onApiBaseChange={(value) => {
               try {
                 if (value) new URL(value);

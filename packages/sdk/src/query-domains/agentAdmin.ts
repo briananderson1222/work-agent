@@ -214,7 +214,7 @@ export function useModelsQuery(config?: QueryConfig<any>) {
     ['models'],
     async () => {
       const apiBase = await _getApiBase();
-      const response = await fetch(`${apiBase}/bedrock/models`);
+      const response = await fetch(`${apiBase}/api/models`);
       const result = await response.json();
       if (!result.success) {
         throw new Error(result.error);

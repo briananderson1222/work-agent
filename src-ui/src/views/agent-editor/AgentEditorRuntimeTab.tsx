@@ -9,6 +9,7 @@ import {
 import { Checkbox } from '../../components/Checkbox';
 import {
   connectionStatusLabel,
+  defaultManagedRuntimeConnection,
   isManagedRuntimeConnectionId,
   preferredConnectedRuntime,
   runtimeCatalogSourceLabel,
@@ -34,14 +35,25 @@ export function AgentEditorRuntimeTab({
       connection.type !== 'acp' &&
       connection.capabilities.includes('agent-runtime'),
   );
+  const preferredConnected = preferredConnectedRuntime(
+    availableRuntimeConnections,
+  );
+  const managedRuntime = defaultManagedRuntimeConnection(
+    availableRuntimeConnections,
+  );
   const selectedRuntimeId =
     form.execution.runtimeConnectionId ||
-    preferredConnectedRuntime(availableRuntimeConnections)?.id ||
-    'bedrock-runtime';
+    preferredConnected?.id ||
+    managedRuntime?.id ||
+    availableRuntimeConnections[0]?.id ||
+    '';
   const selectedRuntime = availableRuntimeConnections.find(
     (connection) => connection.id === selectedRuntimeId,
   );
-  const needsModelConnection = isManagedRuntimeConnectionId(selectedRuntimeId);
+  const needsModelConnection = isManagedRuntimeConnectionId(
+    selectedRuntimeId,
+    availableRuntimeConnections,
+  );
   const readyModelConnections = modelConnections.filter(
     (connection) =>
       connection.enabled && connection.capabilities.includes('llm'),
@@ -81,6 +93,7 @@ export function AgentEditorRuntimeTab({
                 runtimeConnectionId: event.target.value,
                 modelConnectionId: isManagedRuntimeConnectionId(
                   event.target.value,
+                  availableRuntimeConnections,
                 )
                   ? current.execution.modelConnectionId
                   : '',
@@ -104,7 +117,7 @@ export function AgentEditorRuntimeTab({
               ? 'Runs via the Claude Agent SDK. Requires ANTHROPIC_API_KEY.'
               : selectedRuntimeId === 'codex-runtime'
                 ? 'Runs via the Codex CLI. Requires Codex installed and OPENAI_API_KEY.'
-                : 'Runs via AWS Bedrock. Requires a configured Model Connection.')}
+                : 'Runs via Stallion’s built-in managed runtime. Requires a configured model connection.')}
           {selectedRuntime && (
             <>
               {' '}
@@ -149,7 +162,8 @@ export function AgentEditorRuntimeTab({
             ))}
           </select>
           <span className="editor-hint">
-            Which Bedrock connection to use. Leave blank to use the app default.
+            Which model connection to use for the managed runtime. Leave blank
+            to use the app default.
           </span>
         </div>
       )}

@@ -211,8 +211,10 @@ describe('App config operations', () => {
   it('loads default app config on first run', async () => {
     const config = await loader.loadAppConfig();
 
-    expect(config.region).toBe('us-east-1');
+    expect(config.region).toBeUndefined();
     expect(config.defaultModel).toBe('');
+    expect(config.invokeModel).toBe('');
+    expect(config.structureModel).toBe('');
   });
 
   it('updates app config', async () => {

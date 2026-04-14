@@ -31,7 +31,9 @@ type AgentLike = {
   prompts?: string[];
 };
 
-export function createEmptyAgentForm(): AgentFormData {
+export function createEmptyAgentForm(
+  defaultRuntimeConnectionId = '',
+): AgentFormData {
   return {
     slug: '',
     name: '',
@@ -43,7 +45,7 @@ export function createEmptyAgentForm(): AgentFormData {
     maxSteps: '',
     tools: { mcpServers: [], available: [], autoApprove: [] },
     execution: {
-      runtimeConnectionId: 'bedrock-runtime',
+      runtimeConnectionId: defaultRuntimeConnectionId,
       modelConnectionId: '',
       runtimeOptions: {},
     },
@@ -53,7 +55,10 @@ export function createEmptyAgentForm(): AgentFormData {
   };
 }
 
-export function formFromAgent(agent: AgentLike): AgentFormData {
+export function formFromAgent(
+  agent: AgentLike,
+  defaultRuntimeConnectionId = '',
+): AgentFormData {
   return {
     slug: agent.slug || agent.id || '',
     name: agent.name || '',
@@ -78,7 +83,7 @@ export function formFromAgent(agent: AgentLike): AgentFormData {
     },
     execution: {
       runtimeConnectionId:
-        agent.execution?.runtimeConnectionId || 'bedrock-runtime',
+        agent.execution?.runtimeConnectionId || defaultRuntimeConnectionId,
       modelConnectionId: agent.execution?.modelConnectionId || '',
       runtimeOptions: agent.execution?.runtimeOptions || {},
     },
@@ -88,10 +93,13 @@ export function formFromAgent(agent: AgentLike): AgentFormData {
   };
 }
 
-export function createNewAgentForm(initialForm?: Partial<AgentFormData>) {
+export function createNewAgentForm(
+  initialForm?: Partial<AgentFormData>,
+  defaultRuntimeConnectionId = '',
+) {
   return initialForm
-    ? { ...createEmptyAgentForm(), ...initialForm }
-    : createEmptyAgentForm();
+    ? { ...createEmptyAgentForm(defaultRuntimeConnectionId), ...initialForm }
+    : createEmptyAgentForm(defaultRuntimeConnectionId);
 }
 
 export function isAgentFormDirty(

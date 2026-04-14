@@ -9,6 +9,7 @@ import {
   fetchBranding,
   fetchMonitoringMetrics,
   requestSystemStatus,
+  verifyManagedRuntimeConnection,
 } from '../query-domains/systemRuntimeRequests';
 
 describe('systemRuntimeRequests', () => {
@@ -73,6 +74,26 @@ describe('systemRuntimeRequests', () => {
     expect(fetch).toHaveBeenCalledWith(
       'http://custom.test/api/system/core-update',
       { method: 'POST' },
+    );
+  });
+
+  it('posts managed runtime verification through the generic endpoint', async () => {
+    vi.mocked(fetch).mockResolvedValue({
+      ok: true,
+      json: async () => ({ verified: true }),
+    } as Response);
+
+    await expect(verifyManagedRuntimeConnection('us-west-2')).resolves.toEqual({
+      verified: true,
+    });
+
+    expect(fetch).toHaveBeenCalledWith(
+      'http://example.test/api/system/verify-managed-runtime',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ region: 'us-west-2' }),
+      },
     );
   });
 });

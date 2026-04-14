@@ -93,7 +93,6 @@ function setupRoutes(page: import('@playwright/test').Page) {
       route.fulfill({
         json: {
           prerequisites: [],
-          bedrock: {},
           acp: { connections: [] },
           ready: true,
         },

@@ -141,6 +141,27 @@ describe('Invoke Routes', () => {
     expect(typeof body.steps).toBe('number');
   });
 
+  test('POST /invoke returns 500 when no invoke model is configured and none is provided', async () => {
+    const ctx = createMockCtx({
+      appConfig: {
+        invokeModel: '',
+        structureModel: '',
+        defaultModel: '',
+        systemPrompt: null,
+      },
+    });
+    const app = createInvokeRoutes(ctx as any);
+    const res = await app.request('/invoke', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Do something' }),
+    });
+    expect(res.status).toBe(500);
+    const body = await json(res);
+    expect(body.success).toBe(false);
+    expect(body.error).toContain('No invoke model configured');
+  });
+
   test('POST /invoke returns 500 on error', async () => {
     const ctx = createMockCtx();
     ctx.framework.createTempAgent = vi

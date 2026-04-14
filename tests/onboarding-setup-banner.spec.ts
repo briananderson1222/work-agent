@@ -20,11 +20,6 @@ test.describe('Onboarding Setup Launcher', () => {
         body: JSON.stringify({
           ready: false,
           prerequisites: [],
-          bedrock: {
-            credentialsFound: false,
-            verified: null,
-            region: null,
-          },
           acp: { connected: false, connections: [] },
           providers: {
             configuredChatReady: false,
@@ -74,11 +69,6 @@ test.describe('Onboarding Setup Launcher', () => {
         body: JSON.stringify({
           ready: true,
           prerequisites: [],
-          bedrock: {
-            credentialsFound: false,
-            verified: null,
-            region: null,
-          },
           acp: { connected: false, connections: [] },
           providers: {
             configuredChatReady: false,
@@ -89,12 +79,14 @@ test.describe('Onboarding Setup Launcher', () => {
             },
           },
           recommendation: {
-            code: 'detected-ollama',
+            code: 'detected-provider',
             type: 'providers',
             actionLabel: 'Add Ollama connection',
-            title: 'Ollama is reachable locally',
+            title: 'Ollama is available',
             detail:
               'Create a model connection for the detected local Ollama server to make first-run chat explicit.',
+            detectedProviderType: 'ollama',
+            detectedProviderLabel: 'Ollama',
           },
           clis: {},
         }),
@@ -106,7 +98,7 @@ test.describe('Onboarding Setup Launcher', () => {
     await expect(page.getByTestId('setup-launcher')).toBeVisible({
       timeout: 10000,
     });
-    await expect(page.getByText('Ollama detected locally')).toBeVisible();
+    await expect(page.getByText('Ollama is available')).toBeVisible();
     await expect(page.getByText('Detected: Ollama')).toBeVisible();
     await expect(
       page.getByRole('button', { name: 'Review Connections' }),
@@ -125,11 +117,6 @@ test.describe('Onboarding Setup Launcher', () => {
         body: JSON.stringify({
           ready: true,
           prerequisites: [],
-          bedrock: {
-            credentialsFound: false,
-            verified: null,
-            region: null,
-          },
           acp: { connected: false, connections: [] },
           providers: {
             configuredChatReady: true,

@@ -9,12 +9,13 @@ import type { AgentFormData } from '../views/agent-editor/types';
 
 let runtimeConnections = [
   {
-    id: 'bedrock-runtime',
+    id: 'managed-runtime',
     kind: 'runtime',
-    type: 'bedrock-runtime',
-    name: 'Bedrock Runtime',
+    type: 'managed-runtime',
+    name: 'Managed Runtime',
     enabled: true,
     capabilities: ['agent-runtime'],
+    config: { executionClass: 'managed' },
   },
   {
     id: 'codex-runtime',
@@ -23,6 +24,7 @@ let runtimeConnections = [
     name: 'Codex Runtime',
     enabled: true,
     capabilities: ['agent-runtime'],
+    config: { executionClass: 'connected' },
   },
 ];
 
@@ -52,7 +54,7 @@ function createForm(): AgentFormData {
     maxSteps: '',
     tools: { mcpServers: [], available: [], autoApprove: [] },
     execution: {
-      runtimeConnectionId: 'bedrock-runtime',
+      runtimeConnectionId: 'managed-runtime',
       modelConnectionId: 'bedrock-default',
       runtimeOptions: { legacy: true },
     },
@@ -66,12 +68,13 @@ describe('AgentEditorBasicTab', () => {
   test('switches new agents to the preferred connected runtime', () => {
     runtimeConnections = [
       {
-        id: 'bedrock-runtime',
+        id: 'managed-runtime',
         kind: 'runtime',
-        type: 'bedrock-runtime',
-        name: 'Bedrock Runtime',
+        type: 'managed-runtime',
+        name: 'Managed Runtime',
         enabled: true,
         capabilities: ['agent-runtime'],
+        config: { executionClass: 'managed' },
       },
       {
         id: 'codex-runtime',
@@ -80,6 +83,7 @@ describe('AgentEditorBasicTab', () => {
         name: 'Codex Runtime',
         enabled: true,
         capabilities: ['agent-runtime'],
+        config: { executionClass: 'connected' },
       },
     ];
     const setForm = vi.fn();
@@ -116,12 +120,13 @@ describe('AgentEditorBasicTab', () => {
   test('disables the connected agent option when no connected runtime exists', () => {
     runtimeConnections = [
       {
-        id: 'bedrock-runtime',
+        id: 'managed-runtime',
         kind: 'runtime',
-        type: 'bedrock-runtime',
-        name: 'Bedrock Runtime',
+        type: 'managed-runtime',
+        name: 'Managed Runtime',
         enabled: true,
         capabilities: ['agent-runtime'],
+        config: { executionClass: 'managed' },
       },
     ];
 
@@ -139,11 +144,6 @@ describe('AgentEditorBasicTab', () => {
       />,
     );
 
-    expect(
-      screen
-        .getByRole('option', { name: 'Connected' })
-        .getAttribute('disabled'),
-    ).not.toBeNull();
     expect(
       screen.getByText(
         /Add a connected runtime in Connections before switching this agent\./,

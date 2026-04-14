@@ -5,7 +5,7 @@
 
 import {
   useSystemStatusQuery,
-  verifyBedrockConnection,
+  verifyManagedRuntimeConnection,
 } from '@stallion-ai/sdk';
 
 export function useSystemStatus(pollInterval?: number) {
@@ -16,5 +16,12 @@ export async function verifyBedrock(
   _apiBase: string,
   region?: string,
 ): Promise<{ verified: boolean; error?: string }> {
-  return verifyBedrockConnection(region);
+  return verifyManagedRuntimeConnection(region);
+}
+
+export async function verifyManagedRuntime(
+  _apiBase: string,
+  region?: string,
+): Promise<{ verified: boolean; error?: string }> {
+  return verifyManagedRuntimeConnection(region);
 }

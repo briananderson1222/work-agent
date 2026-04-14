@@ -288,6 +288,7 @@ export async function listRuntimeConnectionsForAdapters(options: {
           ...mergeRuntimeConfig(id, options.appConfig, settings),
           provider: adapter.provider,
           providerLabel: providerLabelForAdapter(adapter),
+          executionClass: adapter.metadata.executionClass ?? 'connected',
         },
         runtimeCatalog,
         prerequisites,
@@ -332,6 +333,7 @@ export async function listRuntimeConnectionsForAdapters(options: {
     config: {
       configuredCount,
       connectedCount,
+      executionClass: 'external',
     },
     prerequisites: acpPrerequisites,
     status: acpEnabled

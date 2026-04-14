@@ -34,9 +34,11 @@ export const voiceSessionCreateSchema = z.object({
 });
 
 // System
-export const verifyBedrockSchema = z.object({
+export const verifyManagedRuntimeSchema = z.object({
   region: z.string().optional(),
 });
+
+export const verifyBedrockSchema = verifyManagedRuntimeSchema;
 
 // Registry
 export const registryInstallSchema = z.object({

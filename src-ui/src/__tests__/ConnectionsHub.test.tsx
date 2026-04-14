@@ -65,11 +65,13 @@ vi.mock('@stallion-ai/sdk', () => ({
   useSystemStatusQuery: () => ({
     data: {
       recommendation: {
-        code: 'detected-bedrock',
+        code: 'detected-provider',
         type: 'providers',
         actionLabel: 'Review model connections',
         title: 'Detected setup help',
         detail: 'Open connections to finish setup.',
+        detectedProviderType: 'bedrock',
+        detectedProviderLabel: 'Amazon Bedrock',
       },
       capabilities: {
         chat: { ready: false, source: null },

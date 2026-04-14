@@ -79,6 +79,7 @@ export class CodexAdapter implements ProviderAdapterShape {
     ],
     runtimeId: 'codex-runtime',
     builtin: true,
+    executionClass: 'connected',
   } as const;
 
   private readonly transport: CodexAdapterTransport;

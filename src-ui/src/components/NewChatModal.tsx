@@ -16,6 +16,7 @@ import {
   trackRecentAgent,
 } from '../hooks/useRecentAgents';
 import {
+  defaultManagedRuntimeConnection,
   resolveGlobalProviderManagedExecution,
   resolveProjectProviderManagedExecution,
   supportsProviderManagedBinding,
@@ -119,6 +120,10 @@ export function NewChatModal({
       selectedProjectSlug,
     ],
   );
+  const managedRuntime = useMemo(
+    () => defaultManagedRuntimeConnection(runtimeConnections),
+    [runtimeConnections],
+  );
 
   const modalAgents = useMemo(() => {
     if (!providerManagedExecution) {
@@ -130,7 +135,7 @@ export function NewChatModal({
             ...agent,
             execution: {
               runtimeConnectionId:
-                agent.execution?.runtimeConnectionId || 'bedrock-runtime',
+                agent.execution?.runtimeConnectionId || managedRuntime?.id,
               modelId: agent.execution?.modelId ?? null,
               runtimeOptions: {
                 ...(agent.execution?.runtimeOptions ?? {}),
@@ -145,7 +150,7 @@ export function NewChatModal({
           }
         : agent,
     );
-  }, [agents, providerManagedExecution]);
+  }, [agents, managedRuntime?.id, providerManagedExecution]);
 
   const providerManagedAgentSlugs = useMemo(() => {
     if (!providerManagedExecution) {

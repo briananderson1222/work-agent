@@ -15,8 +15,7 @@ export interface SetupBannerContent {
 
 export type SetupBannerVariant =
   | 'hidden'
-  | 'detected-ollama'
-  | 'detected-bedrock'
+  | 'detected-provider'
   | 'runtime-only'
   | 'configured-no-chat'
   | 'unconfigured';
@@ -55,11 +54,8 @@ export function setupBannerVariant(status: SystemStatus): SetupBannerVariant {
     return 'configured-no-chat';
   }
 
-  if (status.recommendation?.code === 'detected-ollama') {
-    return 'detected-ollama';
-  }
-  if (status.recommendation?.code === 'detected-bedrock') {
-    return 'detected-bedrock';
+  if (status.recommendation?.code === 'detected-provider') {
+    return 'detected-provider';
   }
   if (status.recommendation?.code === 'runtime-only') {
     return 'runtime-only';
@@ -74,11 +70,8 @@ export function setupBannerVariant(status: SystemStatus): SetupBannerVariant {
   }
 
   const detected = status.providers?.detected;
-  if (detected?.ollama) {
-    return 'detected-ollama';
-  }
-  if (detected?.bedrock) {
-    return 'detected-bedrock';
+  if (detected?.ollama || detected?.bedrock) {
+    return 'detected-provider';
   }
 
   return 'unconfigured';
@@ -97,24 +90,26 @@ export function buildSetupBannerContent(
   const enabledProviders = configuredLlmProviders(status);
 
   switch (setupBannerVariant(status)) {
-    case 'detected-ollama':
+    case 'detected-provider': {
+      const detectedProviderLabel =
+        status.recommendation?.detectedProviderLabel ||
+        (status.providers?.detected?.ollama
+          ? 'Ollama'
+          : status.providers?.detected?.bedrock
+            ? 'Amazon Bedrock'
+            : 'Provider');
       return {
-        title: 'Ollama detected locally',
+        title:
+          status.recommendation?.title ||
+          `${detectedProviderLabel} is available`,
         description:
-          'A local Ollama server is reachable. Open Connections to review or save a chat-capable model provider.',
+          status.recommendation?.detail ||
+          `Open Connections to review or save a ${detectedProviderLabel} model provider for chat.`,
         actionLabel: 'Review Connections',
-        badges: ['Detected: Ollama'],
+        badges: [`Detected: ${detectedProviderLabel}`],
         actionTarget: 'providers',
       };
-    case 'detected-bedrock':
-      return {
-        title: 'Bedrock credentials detected',
-        description:
-          'AWS credentials are available. Open Connections to review or save a Bedrock model provider for chat.',
-        actionLabel: 'Review Connections',
-        badges: ['Detected: Amazon Bedrock'],
-        actionTarget: 'providers',
-      };
+    }
     case 'configured-no-chat':
       return {
         title: 'No chat-capable connection is enabled',
@@ -149,7 +144,7 @@ export function buildSetupBannerContent(
       return {
         title: 'No AI connection configured yet',
         description:
-          'Start Ollama locally or add a provider connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
+          'Start a local model runtime or add a provider connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
         actionLabel: 'Manage Connections',
         badges: enabledProviders.map(
           (provider) => `Configured: ${connectionTypeLabel(provider.type)}`,

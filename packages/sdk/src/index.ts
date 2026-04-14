@@ -378,8 +378,10 @@ export {
   useUsageQuery,
   useUserQuery,
   useVerifyBedrockMutation,
+  useVerifyManagedRuntimeMutation,
   useWorkflowContentQuery,
   verifyBedrockConnection,
+  verifyManagedRuntimeConnection,
   type WorkflowFile,
   waitForAgentHealth,
 } from './queries';

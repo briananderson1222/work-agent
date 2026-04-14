@@ -239,7 +239,9 @@ export {
   useSystemStatusForApiBaseQuery,
   useSystemStatusQuery,
   useVerifyBedrockMutation,
+  useVerifyManagedRuntimeMutation,
   verifyBedrockConnection,
+  verifyManagedRuntimeConnection,
 } from './query-domains/systemRuntime';
 export {
   type AvailableProjectLayout,

@@ -8,7 +8,7 @@ type ConfigData = AppConfig & {
 
 export const CONFIG_DEFAULTS = {
   defaultChatFontSize: 14,
-  region: 'us-east-1',
+  region: '',
   userId: 'default-user', // Static userId until auth is implemented
   apiBase:
     typeof window !== 'undefined'

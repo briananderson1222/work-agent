@@ -75,6 +75,11 @@ function buildSystemRecommendation(input: {
   claudeInstalled: boolean;
   acpConnected: boolean;
 }): SystemRecommendation {
+  const detectedProvider = input.ollamaReachable
+    ? { type: 'ollama', label: 'Ollama' }
+    : input.credentialsFound
+      ? { type: 'bedrock', label: 'Amazon Bedrock' }
+      : null;
   const enabledLlmProvider = input.configuredProviders.find(
     (provider) => provider.enabled && provider.capabilities.includes('llm'),
   );
@@ -100,24 +105,18 @@ function buildSystemRecommendation(input: {
         'Model connections are configured, but none can run chat yet. Enable or repair a model connection in Connections.',
     };
   }
-  if (input.ollamaReachable) {
+  if (detectedProvider) {
     return {
-      code: 'detected-ollama',
+      code: 'detected-provider',
       type: 'providers',
-      actionLabel: 'Add Ollama connection',
-      title: 'Ollama is reachable locally',
+      actionLabel: `Add ${detectedProvider.label} connection`,
+      title: `${detectedProvider.label} is available`,
       detail:
-        'Create a model connection for the detected local Ollama server to make first-run chat explicit.',
-    };
-  }
-  if (input.credentialsFound) {
-    return {
-      code: 'detected-bedrock',
-      type: 'providers',
-      actionLabel: 'Add Bedrock connection',
-      title: 'Bedrock credentials are available',
-      detail:
-        'AWS credentials were detected. Add or enable a Bedrock model connection if you want Stallion to use it for chat.',
+        detectedProvider.type === 'ollama'
+          ? 'Create a model connection for the detected local Ollama server to make first-run chat explicit.'
+          : 'Detected credentials can back a Bedrock model connection if you want Stallion to use it for chat.',
+      detectedProviderType: detectedProvider.type,
+      detectedProviderLabel: detectedProvider.label,
     };
   }
   if (input.codexInstalled || input.claudeInstalled || input.acpConnected) {
@@ -167,7 +166,6 @@ export function createSystemStatusRoutes(deps: SystemStatusDeps) {
     systemOps.add(1, { op: 'get_status' });
 
     const acpStatus = deps.getACPStatus();
-    const config = deps.getAppConfig();
     const configuredProviders = normalizeConfiguredProviders(
       deps.listProviderConnections?.() ?? [],
     );
@@ -194,11 +192,6 @@ export function createSystemStatusRoutes(deps: SystemStatusDeps) {
 
     return c.json({
       prerequisites,
-      bedrock: {
-        credentialsFound,
-        verified: null,
-        region: config.region ?? null,
-      },
       acp: {
         connected: acpStatus.connected,
         connections: acpStatus.connections,

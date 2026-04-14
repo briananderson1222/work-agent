@@ -34,17 +34,19 @@ export async function renewAuth(): Promise<{
   return (await response.json()) as { success: boolean; error?: string };
 }
 
-export async function verifyBedrockConnection(
+export async function verifyManagedRuntimeConnection(
   region?: string,
 ): Promise<{ verified: boolean; error?: string }> {
   const apiBase = await resolveApiBase();
-  const response = await fetch(`${apiBase}/api/system/verify-bedrock`, {
+  const response = await fetch(`${apiBase}/api/system/verify-managed-runtime`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(region ? { region } : {}),
   });
   return (await response.json()) as { verified: boolean; error?: string };
 }
+
+export const verifyBedrockConnection = verifyManagedRuntimeConnection;
 
 export async function requestSystemStatus(
   apiBaseOverride?: string,

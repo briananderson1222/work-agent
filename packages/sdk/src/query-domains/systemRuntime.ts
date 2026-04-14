@@ -16,6 +16,7 @@ import {
   requestCoreUpdateStatus,
   requestSystemStatus,
   verifyBedrockConnection,
+  verifyManagedRuntimeConnection,
 } from './systemRuntimeRequests';
 
 export {
@@ -30,6 +31,7 @@ export {
   requestCoreUpdateStatus,
   requestSystemStatus,
   verifyBedrockConnection,
+  verifyManagedRuntimeConnection,
 } from './systemRuntimeRequests';
 
 export interface SystemPrerequisite {
@@ -44,11 +46,6 @@ export interface SystemPrerequisite {
 
 export interface SystemStatus {
   prerequisites?: SystemPrerequisite[];
-  bedrock: {
-    credentialsFound: boolean;
-    verified: boolean | null;
-    region: string | null;
-  };
   acp: {
     connected: boolean;
     connections: Array<{ id: string; status: string }>;
@@ -78,14 +75,15 @@ export interface SystemStatus {
     code?:
       | 'configured-chat-ready'
       | 'configured-no-chat'
-      | 'detected-ollama'
-      | 'detected-bedrock'
+      | 'detected-provider'
       | 'runtime-only'
       | 'unconfigured';
     type: 'providers' | 'runtimes' | 'connections';
     actionLabel: string;
     title: string;
     detail: string;
+    detectedProviderType?: string;
+    detectedProviderLabel?: string;
   };
   ready: boolean;
 }
@@ -206,6 +204,24 @@ export function useVerifyBedrockMutation(
 ) {
   return useMutation({
     mutationFn: async (region?: string) => verifyBedrockConnection(region),
+    onSuccess: (data, region) => {
+      options?.onSuccess?.(data, region);
+    },
+    onError: (error, region) => {
+      options?.onError?.(error as Error, region);
+    },
+  });
+}
+
+export function useVerifyManagedRuntimeMutation(
+  options?: MutationOptions<
+    { verified: boolean; error?: string },
+    string | undefined
+  >,
+) {
+  return useMutation({
+    mutationFn: async (region?: string) =>
+      verifyManagedRuntimeConnection(region),
     onSuccess: (data, region) => {
       options?.onSuccess?.(data, region);
     },

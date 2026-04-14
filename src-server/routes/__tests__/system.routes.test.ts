@@ -49,13 +49,13 @@ describe('System Routes', () => {
   test('GET /status returns readiness check', async () => {
     const app = createSystemRoutes(createMockDeps() as any, mockLogger);
     const body = await json(await app.request('/status'));
-    expect(body.bedrock).toBeDefined();
     expect(body.acp).toBeDefined();
     expect(body.capabilities.chat.ready).toBe(false);
     expect(body.recommendation).toEqual(
       expect.objectContaining({
-        code: 'detected-bedrock',
+        code: 'detected-provider',
         type: 'providers',
+        detectedProviderType: 'bedrock',
       }),
     );
     expect(body.clis).toEqual(

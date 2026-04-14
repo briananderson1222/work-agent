@@ -32,8 +32,19 @@ export async function invokeGlobalPrompt(
           .filter(Boolean) as ITool[])
       : [];
 
-  const invokeModelId = model || ctx.appConfig.invokeModel;
-  const structureModelId = structureModel || ctx.appConfig.structureModel;
+  const invokeModelId =
+    model || ctx.appConfig.invokeModel || ctx.appConfig.defaultModel;
+  const structureModelId =
+    structureModel ||
+    ctx.appConfig.structureModel ||
+    invokeModelId ||
+    ctx.appConfig.defaultModel;
+
+  if (!invokeModelId) {
+    throw new Error(
+      'No invoke model configured. Set a default model or pass model explicitly.',
+    );
+  }
 
   const mainModel = await ctx.createBedrockModel({
     model: ctx.modelCatalog

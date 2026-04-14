@@ -22,11 +22,6 @@ test.describe('System & Registry Routes', () => {
       route.fulfill({
         json: {
           prerequisites: [],
-          bedrock: {
-            credentialsFound: true,
-            verified: null,
-            region: 'us-east-1',
-          },
           acp: { connected: false, connections: [] },
           clis: { 'kiro-cli': true },
           ready: true,

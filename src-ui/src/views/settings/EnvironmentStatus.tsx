@@ -17,11 +17,11 @@ export function EnvironmentStatus({ apiBase }: { apiBase: string }) {
 
   const { data: systemStatus, isLoading: loading } =
     useSystemStatusForApiBaseQuery(apiBase);
-  const hideImplicitBedrockPrereq =
+  const hideImplicitProviderPrereq =
     systemStatus?.recommendation?.code === 'runtime-only';
   const prerequisites = Array.isArray(systemStatus?.prerequisites)
     ? (systemStatus.prerequisites as Prerequisite[]).filter((prerequisite) =>
-        hideImplicitBedrockPrereq
+        hideImplicitProviderPrereq
           ? prerequisite.id !== 'bedrock-credentials'
           : true,
       )

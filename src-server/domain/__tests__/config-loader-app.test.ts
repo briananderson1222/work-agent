@@ -29,8 +29,9 @@ describe('config-loader-app', () => {
 
     expect(config).toEqual(
       expect.objectContaining({
-        region: 'us-east-1',
         defaultModel: DEFAULT_MODEL,
+        invokeModel: '',
+        structureModel: '',
         systemPrompt: DEFAULT_SYSTEM_PROMPT,
       }),
     );
@@ -49,7 +50,6 @@ describe('config-loader-app', () => {
       appPath,
       JSON.stringify(
         {
-          region: 'us-east-1',
           defaultModel: 'foo',
           invokeModel: 'bar',
           structureModel: 'baz',
@@ -81,7 +81,6 @@ describe('config-loader-app', () => {
       appPath,
       JSON.stringify(
         {
-          region: 'us-east-1',
           defaultModel: 'us.anthropic.claude-sonnet-4-6',
           invokeModel: 'bar',
           structureModel: 'baz',

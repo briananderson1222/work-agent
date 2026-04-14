@@ -39,12 +39,13 @@ export type SystemRecommendation = {
   code:
     | 'configured-chat-ready'
     | 'configured-no-chat'
-    | 'detected-ollama'
-    | 'detected-bedrock'
+    | 'detected-provider'
     | 'runtime-only'
     | 'unconfigured';
   type: 'providers' | 'runtimes' | 'connections';
   actionLabel: string;
   title: string;
   detail: string;
+  detectedProviderType?: string;
+  detectedProviderLabel?: string;
 };

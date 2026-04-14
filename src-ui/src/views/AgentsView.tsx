@@ -9,17 +9,13 @@ import './page-layout.css';
 
 interface AgentsViewProps {
   agents: AgentData[];
+  apiBase?: string;
   availableModels: Array<{ id: string; name: string }>;
   defaultModel?: string;
-  bedrockReady: boolean;
   onNavigate: (view: NavigationView) => void;
 }
 
-export function AgentsView({
-  agents,
-  bedrockReady: _bedrockReady,
-  onNavigate,
-}: AgentsViewProps) {
+export function AgentsView({ agents, onNavigate }: AgentsViewProps) {
   const { isLoading: agentsLoading } = useAgentsQuery();
   const {
     DiscardModal,

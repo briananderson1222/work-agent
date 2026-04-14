@@ -71,14 +71,17 @@ describe('agents view utils', () => {
   });
 
   test('createNewAgentForm merges template form data onto a fresh base form', () => {
-    const next = createNewAgentForm({
-      name: 'Template Agent',
-      tools: { mcpServers: ['server-2'], available: [], autoApprove: [] },
-    });
+    const next = createNewAgentForm(
+      {
+        name: 'Template Agent',
+        tools: { mcpServers: ['server-2'], available: [], autoApprove: [] },
+      },
+      'managed-runtime',
+    );
 
     expect(next.name).toBe('Template Agent');
     expect(next.tools.mcpServers).toEqual(['server-2']);
-    expect(next.execution.runtimeConnectionId).toBe('bedrock-runtime');
+    expect(next.execution.runtimeConnectionId).toBe('managed-runtime');
   });
 
   test('validateAgentForm enforces required fields and slug rules for new agents', () => {

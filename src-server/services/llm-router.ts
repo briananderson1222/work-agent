@@ -1,6 +1,6 @@
 /**
  * LLM Router — instantiates ILLMProvider from ProviderConnectionConfig
- * and streams responses for non-Bedrock providers.
+ * and streams responses for provider-managed chat paths.
  */
 
 import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';

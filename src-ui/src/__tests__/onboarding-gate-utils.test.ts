@@ -10,11 +10,6 @@ import {
 function createStatus(overrides: Partial<SystemStatus> = {}): SystemStatus {
   return {
     prerequisites: [],
-    bedrock: {
-      credentialsFound: false,
-      verified: null,
-      region: null,
-    },
     acp: {
       connected: false,
       connections: [],
@@ -51,7 +46,7 @@ describe('onboardingGateUtils', () => {
     expect(buildSetupBannerContent(status)).toEqual({
       title: 'No AI connection configured yet',
       description:
-        'Start Ollama locally or add a provider connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
+        'Start a local model runtime or add a provider connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
       actionLabel: 'Manage Connections',
       badges: [],
       actionTarget: 'providers',
@@ -69,22 +64,24 @@ describe('onboardingGateUtils', () => {
         },
       },
       recommendation: {
-        code: 'detected-ollama',
+        code: 'detected-provider',
         type: 'providers',
         actionLabel: 'Add Ollama connection',
-        title: 'Ollama is reachable locally',
+        title: 'Ollama is available',
         detail:
           'Create a model connection for the detected local Ollama server to make first-run chat explicit.',
+        detectedProviderType: 'ollama',
+        detectedProviderLabel: 'Ollama',
       },
       ready: true,
     });
 
     expect(shouldShowSetupBanner(status)).toBe(true);
-    expect(setupBannerVariant(status)).toBe('detected-ollama');
+    expect(setupBannerVariant(status)).toBe('detected-provider');
     expect(buildSetupBannerContent(status)).toEqual({
-      title: 'Ollama detected locally',
+      title: 'Ollama is available',
       description:
-        'A local Ollama server is reachable. Open Connections to review or save a chat-capable model provider.',
+        'Create a model connection for the detected local Ollama server to make first-run chat explicit.',
       actionLabel: 'Review Connections',
       badges: ['Detected: Ollama'],
       actionTarget: 'providers',
@@ -123,7 +120,7 @@ describe('onboardingGateUtils', () => {
     expect(buildSetupBannerContent(status)).toEqual({
       title: 'No AI connection configured yet',
       description:
-        'Start Ollama locally or add a provider connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
+        'Start a local model runtime or add a provider connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
       actionLabel: 'Manage Connections',
       badges: [],
       actionTarget: 'providers',
@@ -148,17 +145,19 @@ describe('onboardingGateUtils', () => {
         },
       },
       recommendation: {
-        code: 'detected-ollama',
+        code: 'detected-provider',
         type: 'providers',
         actionLabel: 'Add Ollama connection',
-        title: 'Ollama is reachable locally',
+        title: 'Ollama is available',
         detail:
           'Create a model connection for the detected local Ollama server to make first-run chat explicit.',
+        detectedProviderType: 'ollama',
+        detectedProviderLabel: 'Ollama',
       },
       ready: true,
     });
 
-    expect(setupBannerVariant(status)).toBe('detected-ollama');
+    expect(setupBannerVariant(status)).toBe('detected-provider');
   });
 
   test('hides the setup banner once a configured llm provider exists', () => {

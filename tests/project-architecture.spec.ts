@@ -10,7 +10,6 @@ import { expect, test } from '@playwright/test';
 
 const STATUS_READY = JSON.stringify({
   ready: true,
-  bedrock: { credentialsFound: false, verified: null, region: 'us-east-1' },
   acp: { connected: false, connections: [] },
   clis: {},
   prerequisites: [],

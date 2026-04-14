@@ -38,7 +38,7 @@ export function AgentEditorAdvancedSection({
         <div className="agent-editor__advanced-content">
           <div className="editor-field">
             <label className="editor-label" htmlFor="ae-region">
-              AWS Region
+              Region
             </label>
             <input
               id="ae-region"
@@ -52,7 +52,7 @@ export function AgentEditorAdvancedSection({
                   region: event.target.value,
                 }))
               }
-              placeholder={appConfig?.region || 'us-east-1'}
+              placeholder={appConfig?.region || 'e.g. us-east-1'}
             />
           </div>
 

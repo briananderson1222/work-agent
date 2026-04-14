@@ -19,14 +19,14 @@ const DEFAULT_TEMPLATE_VARIABLES = [
   { key: 'AGENT_NAME', type: 'static' as const, value: 'Stallion' },
 ];
 
-export const DEFAULT_REGION = 'us-east-1';
+export const DEFAULT_REGION = '';
 export const DEFAULT_MODEL = '';
 const LEGACY_DEFAULT_MODELS = new Set([
   'us.anthropic.claude-sonnet-4-6',
   'us.anthropic.claude-sonnet-4-20250514-v1:0',
 ]);
-export const DEFAULT_INVOKE_MODEL = 'us.amazon.nova-2-lite-v1:0';
-export const DEFAULT_STRUCTURE_MODEL = 'us.amazon.nova-micro-v1:0';
+export const DEFAULT_INVOKE_MODEL = '';
+export const DEFAULT_STRUCTURE_MODEL = '';
 
 function getAppConfigPath(projectHomeDir: string): string {
   return join(projectHomeDir, 'config', 'app.json');
@@ -62,7 +62,6 @@ export async function loadAppConfigFile(
 
   if (!existsSync(path)) {
     const defaultConfig: AppConfig = {
-      region: DEFAULT_REGION,
       defaultModel: DEFAULT_MODEL,
       invokeModel: DEFAULT_INVOKE_MODEL,
       structureModel: DEFAULT_STRUCTURE_MODEL,

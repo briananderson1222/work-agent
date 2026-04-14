@@ -3,6 +3,7 @@ import { useRuntimeConnectionsQuery } from '@stallion-ai/sdk';
 import { AgentIcon } from '../../components/AgentIcon';
 import { ModelSelector } from '../../components/ModelSelector';
 import {
+  defaultManagedRuntimeConnection,
   isManagedRuntimeConnectionId,
   preferredConnectedRuntime,
 } from '../../utils/execution';
@@ -40,6 +41,9 @@ export function AgentEditorBasicTab({
   const preferredConnected = preferredConnectedRuntime(
     runtimeConnections as ConnectionConfig[],
   );
+  const managedRuntime = defaultManagedRuntimeConnection(
+    runtimeConnections as ConnectionConfig[],
+  );
 
   return (
     <>
@@ -64,7 +68,7 @@ export function AgentEditorBasicTab({
                       nextType === 'connected'
                         ? preferredConnected?.id ||
                           current.execution.runtimeConnectionId
-                        : 'bedrock-runtime',
+                        : managedRuntime?.id || '',
                     modelConnectionId:
                       nextType === 'connected'
                         ? ''
@@ -73,6 +77,7 @@ export function AgentEditorBasicTab({
                       nextType === 'connected' &&
                       isManagedRuntimeConnectionId(
                         current.execution.runtimeConnectionId,
+                        runtimeConnections as ConnectionConfig[],
                       )
                         ? {}
                         : current.execution.runtimeOptions,

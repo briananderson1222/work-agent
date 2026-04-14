@@ -38,11 +38,6 @@ test.describe('Notifications inbox', () => {
         body: JSON.stringify({
           ready: true,
           prerequisites: [],
-          bedrock: {
-            credentialsFound: false,
-            verified: null,
-            region: null,
-          },
           acp: { connected: false, connections: [] },
           providers: {
             configured: [

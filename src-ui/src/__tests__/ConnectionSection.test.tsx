@@ -18,21 +18,25 @@ const baseProps = {
 };
 
 describe('ConnectionSection', () => {
-  test('hides the AWS region field outside bedrock-scoped settings', () => {
+  test('hides the region field when disabled', () => {
     render(<ConnectionSection {...baseProps} showRegion={false} />);
 
-    expect(screen.queryByLabelText('AWS Region')).toBeNull();
+    expect(screen.queryByLabelText('Default Region')).toBeNull();
     expect(
-      screen.queryByText('Only used for Amazon Bedrock routing.'),
+      screen.queryByText(
+        'Used for built-in cloud providers and regional model routing.',
+      ),
     ).toBeNull();
   });
 
-  test('shows the AWS region field only when bedrock-specific routing is active', () => {
+  test('shows the region field when enabled', () => {
     render(<ConnectionSection {...baseProps} showRegion />);
 
-    expect(screen.getByLabelText('AWS Region')).toBeTruthy();
+    expect(screen.getByLabelText('Default Region')).toBeTruthy();
     expect(
-      screen.getByText('Only used for Amazon Bedrock routing.'),
+      screen.getByText(
+        'Used for built-in cloud providers and regional model routing.',
+      ),
     ).toBeTruthy();
   });
 });

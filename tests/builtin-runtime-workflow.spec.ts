@@ -119,7 +119,6 @@ async function seedRuntimeRoutes(
           recommendation: null,
           prerequisites: [],
           clis: { codex: true, claude: true, 'kiro-cli': false },
-          bedrock: { credentialsFound: false, verified: null, region: null },
         }),
       ),
     ),

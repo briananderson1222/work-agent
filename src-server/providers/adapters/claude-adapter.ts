@@ -58,6 +58,7 @@ export class ClaudeAdapter implements ProviderAdapterShape {
     ],
     runtimeId: 'claude-runtime',
     builtin: true,
+    executionClass: 'connected',
   } as const;
 
   private readonly events = new AsyncEventQueue();

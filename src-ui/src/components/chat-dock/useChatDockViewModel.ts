@@ -91,11 +91,11 @@ export function useChatDockViewModel({
     bindingStatus.visibleModels as ModelOption[],
     currentModelId,
   );
-  const bedrockModelSupportsAttachments = useModelSupportsAttachments(
+  const selectedModelSupportsAttachments = useModelSupportsAttachments(
     typeof currentModelId === 'string' ? currentModelId : undefined,
   );
   const modelSupportsAttachments =
-    bedrockModelSupportsAttachments ||
+    selectedModelSupportsAttachments ||
     (agents.find((agent) => agent.slug === activeSession?.agentSlug)
       ?.supportsAttachments ??
       false);

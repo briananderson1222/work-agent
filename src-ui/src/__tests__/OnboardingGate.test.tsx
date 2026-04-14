@@ -57,11 +57,6 @@ import { OnboardingGate } from '../components/OnboardingGate';
 function createStatus(overrides: Partial<SystemStatus> = {}): SystemStatus {
   return {
     prerequisites: [],
-    bedrock: {
-      credentialsFound: false,
-      verified: null,
-      region: null,
-    },
     acp: {
       connected: false,
       connections: [],
@@ -117,12 +112,14 @@ describe('OnboardingGate', () => {
         },
       },
       recommendation: {
-        code: 'detected-ollama',
+        code: 'detected-provider',
         type: 'providers',
         actionLabel: 'Add Ollama connection',
-        title: 'Ollama is reachable locally',
+        title: 'Ollama is available',
         detail:
           'Create a model connection for the detected local Ollama server to make first-run chat explicit.',
+        detectedProviderType: 'ollama',
+        detectedProviderLabel: 'Ollama',
       },
     });
 
@@ -133,7 +130,7 @@ describe('OnboardingGate', () => {
     );
 
     expect(screen.getByTestId('setup-launcher')).toBeTruthy();
-    expect(screen.getByText('Ollama detected locally')).toBeTruthy();
+    expect(screen.getByText('Ollama is available')).toBeTruthy();
   });
 
   test('routes setup actions to provider setup instead of the server connection modal', () => {

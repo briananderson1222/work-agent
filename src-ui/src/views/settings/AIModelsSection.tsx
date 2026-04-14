@@ -8,14 +8,6 @@ import {
 } from '../../utils/execution';
 import { SettingsSection } from './SettingsSection';
 
-function isBedrockScopedModel(modelId: string | undefined): boolean {
-  if (!modelId) return false;
-  return (
-    /^(us|eu|ap|sa|ca|af|me)\./.test(modelId) ||
-    /^(anthropic|amazon|meta|mistral|cohere|ai21)\./.test(modelId)
-  );
-}
-
 export function AIModelsSection({
   config,
   validationErrors,
@@ -34,10 +26,6 @@ export function AIModelsSection({
   const runtimeModels = runtimeCatalogVisibleModels(preferredRuntime);
   const useRuntimeModelOptions =
     !config.defaultLLMProvider && runtimeModels.length > 0;
-  const displayDefaultModel =
-    useRuntimeModelOptions && isBedrockScopedModel(config.defaultModel)
-      ? ''
-      : (config.defaultModel ?? '');
 
   return (
     <SettingsSection icon="◆" title="AI & Models" id="section-ai">
@@ -46,7 +34,7 @@ export function AIModelsSection({
           Default Model
         </label>
         <ModelSelector
-          value={displayDefaultModel}
+          value={config.defaultModel ?? ''}
           models={
             useRuntimeModelOptions
               ? runtimeModels.map((model) => ({

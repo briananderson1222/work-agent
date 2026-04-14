@@ -1,3 +1,4 @@
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import {
   type AgentTemplate,
   useAgentQuery,
@@ -5,6 +6,7 @@ import {
   useAgentToolsQuery,
   useIntegrationsQuery,
   usePromptsQuery,
+  useRuntimeConnectionsQuery,
   useSkillsQuery,
 } from '@stallion-ai/sdk';
 import { useEffect, useMemo, useState } from 'react';
@@ -19,6 +21,7 @@ import { useAIEnrich } from '../../hooks/useAIEnrich';
 import { useUnsavedGuard } from '../../hooks/useUnsavedGuard';
 import { useUrlSelection } from '../../hooks/useUrlSelection';
 import type { NavigationView, Tool } from '../../types';
+import { defaultManagedRuntimeConnection } from '../../utils/execution';
 import {
   buildAgentsViewEmptyContent,
   buildAgentsViewItems,
@@ -62,9 +65,16 @@ export function useAgentsViewModel({
   const [isCreating, setIsCreating] = useState(urlSlug === 'new');
   const [templatePicked, setTemplatePicked] = useState(false);
   const [search, setSearch] = useState('');
-  const [form, setForm] = useState<AgentFormData>(() => createEmptyAgentForm());
+  const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery() as {
+    data?: ConnectionConfig[];
+  };
+  const defaultManagedRuntimeId =
+    defaultManagedRuntimeConnection(runtimeConnections)?.id ?? '';
+  const [form, setForm] = useState<AgentFormData>(() =>
+    createEmptyAgentForm(defaultManagedRuntimeId),
+  );
   const [savedForm, setSavedForm] = useState<AgentFormData>(() =>
-    createEmptyAgentForm(),
+    createEmptyAgentForm(defaultManagedRuntimeId),
   );
   const [isSaving, setIsSaving] = useState(false);
   const [isLocked, setIsLocked] = useState(true);
@@ -140,11 +150,39 @@ export function useAgentsViewModel({
       return;
     }
 
-    const nextForm = formFromAgent(loadedAgent);
+    const nextForm = formFromAgent(loadedAgent, defaultManagedRuntimeId);
     setForm(nextForm);
     setSavedForm(nextForm);
     setIsLocked(true);
-  }, [loadedAgent, isCreating]);
+  }, [defaultManagedRuntimeId, loadedAgent, isCreating]);
+
+  useEffect(() => {
+    if (!defaultManagedRuntimeId) {
+      return;
+    }
+    setForm((current) =>
+      current.execution.runtimeConnectionId
+        ? current
+        : {
+            ...current,
+            execution: {
+              ...current.execution,
+              runtimeConnectionId: defaultManagedRuntimeId,
+            },
+          },
+    );
+    setSavedForm((current) =>
+      current.execution.runtimeConnectionId
+        ? current
+        : {
+            ...current,
+            execution: {
+              ...current.execution,
+              runtimeConnectionId: defaultManagedRuntimeId,
+            },
+          },
+    );
+  }, [defaultManagedRuntimeId]);
 
   useEffect(() => {
     setIntegrationTools(groupAgentToolsByServer(agentTools));
@@ -173,7 +211,7 @@ export function useAgentsViewModel({
       urlSelect('new');
       setIsCreating(true);
       setTemplatePicked(!!initialForm || agents.length === 0);
-      const base = createNewAgentForm(initialForm);
+      const base = createNewAgentForm(initialForm, defaultManagedRuntimeId);
       setForm(base);
       setSavedForm(base);
       setActionError(null);

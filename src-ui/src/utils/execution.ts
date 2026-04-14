@@ -17,7 +17,7 @@ export function connectionTypeLabel(type: string): string {
     case 'openai-compat':
       return 'OpenAI-Compatible';
     case 'bedrock-runtime':
-      return 'Bedrock';
+      return 'Managed';
     case 'claude-runtime':
       return 'Claude';
     case 'codex-runtime':
@@ -141,6 +141,8 @@ export type ChatExecutionMetadata = {
   providerOptions: Record<string, unknown>;
 };
 
+export type RuntimeExecutionClass = 'managed' | 'connected' | 'external';
+
 function asModelOptions(value: unknown): ModelOption[] {
   if (!Array.isArray(value)) {
     return [];
@@ -180,6 +182,23 @@ export function runtimeCatalogVisibleModels(
     return runtimeCatalog.fallbackModels;
   }
   return [];
+}
+
+function runtimeExecutionClass(
+  runtimeConnection?: RuntimeConnectionView | ConnectionConfig | null,
+): RuntimeExecutionClass | undefined {
+  const executionClass = runtimeConnection?.config.executionClass;
+  if (
+    executionClass === 'managed' ||
+    executionClass === 'connected' ||
+    executionClass === 'external'
+  ) {
+    return executionClass;
+  }
+  if (runtimeConnection?.id === 'acp' || runtimeConnection?.type === 'acp') {
+    return 'external';
+  }
+  return undefined;
 }
 
 export function runtimeCatalogSourceLabel(
@@ -247,11 +266,12 @@ export function resolveBindingStatus({
     chatState?.orchestrationProvider ??
     chatState?.provider ??
     runtimeConnectionIdToProviderKind(runtimeConnectionId);
+  const executionClass = runtimeExecutionClass(runtimeConnection);
   const agentModels = asModelOptions(agent?.modelOptions);
   const runtimeModels = runtimeCatalogVisibleModels(runtimeConnection);
   const usesGlobalCatalog =
     chatState?.executionMode !== 'provider-managed' &&
-    (!activeProvider || activeProvider === 'bedrock');
+    executionClass === 'managed';
   const visibleModels =
     agentModels.length > 0
       ? agentModels
@@ -274,18 +294,18 @@ export function resolveBindingStatus({
           model_catalog: false,
           model_selection: false,
         }
-      : activeProvider && activeProvider !== 'bedrock'
+      : executionClass === 'managed'
         ? {
-            system_prompt: true,
-            mcp: false,
-            tool_execution: false,
+            system_prompt: !!agent,
+            mcp: !!agent?.toolsConfig?.mcpServers?.length,
+            tool_execution: !!agent?.toolsConfig?.mcpServers?.length,
             model_catalog: visibleModels.length > 0,
             model_selection: visibleModels.length > 0,
           }
         : {
-            system_prompt: !!agent,
-            mcp: !!agent?.toolsConfig?.mcpServers?.length,
-            tool_execution: !!agent?.toolsConfig?.mcpServers?.length,
+            system_prompt: !!agent || !!activeProvider,
+            mcp: false,
+            tool_execution: false,
             model_catalog: visibleModels.length > 0,
             model_selection: visibleModels.length > 0,
           };
@@ -345,14 +365,17 @@ export function resolveEffectiveCapabilityState({
   agent,
   chatState,
   hasModelCatalog,
+  runtimeConnection,
 }: {
   agent: AgentWithExecution | null | undefined;
   chatState?: ChatBindingState | null;
   hasModelCatalog: boolean;
+  runtimeConnection?: RuntimeConnectionView | ConnectionConfig | null;
 }): EffectiveCapabilityState {
   return resolveBindingStatus({
     agent,
     chatState,
+    runtimeConnection,
     globalModels: hasModelCatalog
       ? [{ id: 'catalog', name: 'Catalog', originalId: 'catalog' }]
       : [],
@@ -389,8 +412,33 @@ export function runtimeConnectionIdToProviderKind(
 
 export function isManagedRuntimeConnectionId(
   runtimeConnectionId?: string | null,
+  runtimeConnections: ConnectionConfig[] = [],
 ): boolean {
-  return runtimeConnectionId === 'bedrock-runtime';
+  if (!runtimeConnectionId) {
+    return false;
+  }
+  return (
+    runtimeExecutionClass(
+      runtimeConnections.find(
+        (connection) => connection.id === runtimeConnectionId,
+      ),
+    ) === 'managed'
+  );
+}
+
+export function defaultManagedRuntimeConnection(
+  runtimeConnections: ConnectionConfig[],
+): ConnectionConfig | null {
+  return (
+    runtimeConnections.find(
+      (connection) =>
+        connection.kind === 'runtime' &&
+        connection.enabled &&
+        connection.type !== 'acp' &&
+        connection.capabilities.includes('agent-runtime') &&
+        runtimeExecutionClass(connection) === 'managed',
+    ) ?? null
+  );
 }
 
 export function preferredConnectedRuntime(
@@ -400,9 +448,8 @@ export function preferredConnectedRuntime(
     (connection) =>
       connection.kind === 'runtime' &&
       connection.enabled &&
-      connection.type !== 'acp' &&
-      !isManagedRuntimeConnectionId(connection.id) &&
-      connection.capabilities.includes('agent-runtime'),
+      connection.capabilities.includes('agent-runtime') &&
+      runtimeExecutionClass(connection) === 'connected',
   );
   const preferredIds = ['claude-runtime', 'codex-runtime'];
   for (const id of preferredIds) {
@@ -417,7 +464,7 @@ export function runtimeConnectionLabel(
 ): string {
   switch (runtimeConnectionId) {
     case 'bedrock-runtime':
-      return 'Bedrock Runtime';
+      return 'Managed Runtime';
     case 'claude-runtime':
       return 'Claude Runtime';
     case 'codex-runtime':
@@ -463,8 +510,7 @@ export function buildProviderOptions(
 export function resolveAgentExecution(
   agent: AgentWithExecution,
 ): ChatExecutionMetadata {
-  const runtimeConnectionId =
-    agent.execution?.runtimeConnectionId || 'bedrock-runtime';
+  const runtimeConnectionId = agent.execution?.runtimeConnectionId || undefined;
   const runtimeOptions = agent.execution?.runtimeOptions ?? {};
   if (runtimeOptions.executionMode === 'provider-managed') {
     return {
@@ -493,8 +539,7 @@ export function resolveAgentExecution(
   return {
     executionMode: 'runtime',
     runtimeConnectionId,
-    provider:
-      runtimeConnectionIdToProviderKind(runtimeConnectionId) ?? 'bedrock',
+    provider: runtimeConnectionIdToProviderKind(runtimeConnectionId),
     model: agent.execution?.modelId || agent.model || undefined,
     providerOptions: buildProviderOptions(
       runtimeConnectionId,
@@ -519,8 +564,8 @@ export function agentRuntimeStatus(
   agent: AgentWithExecution,
   runtimeConnections: ConnectionConfig[],
 ): ConnectionStatus | 'missing' {
-  const runtimeConnectionId =
-    agent.execution?.runtimeConnectionId || 'bedrock-runtime';
+  const runtimeConnectionId = agent.execution?.runtimeConnectionId;
+  if (!runtimeConnectionId) return 'missing';
   const connection = runtimeConnections.find(
     (candidate) => candidate.id === runtimeConnectionId,
   );
@@ -532,8 +577,8 @@ export function canAgentStartChat(
   agent: AgentWithExecution,
   runtimeConnections: ConnectionConfig[],
 ): boolean {
-  const runtimeConnectionId =
-    agent.execution?.runtimeConnectionId || 'bedrock-runtime';
+  const runtimeConnectionId = agent.execution?.runtimeConnectionId;
+  if (!runtimeConnectionId) return false;
   const connection = runtimeConnections.find(
     (candidate) => candidate.id === runtimeConnectionId,
   );
@@ -596,8 +641,7 @@ function resolveProviderManagedExecution(
       connection.kind === 'model' &&
       connection.enabled &&
       connection.status === 'ready' &&
-      connection.capabilities.includes('llm') &&
-      connection.type !== 'bedrock',
+      connection.capabilities.includes('llm'),
   );
   const explicitProviderConnection = target.defaultProviderId
     ? enabledLlmConnections.find(
@@ -671,12 +715,18 @@ export function preferredChatRuntime(
   runtimeConnections: ConnectionConfig[],
 ): ConnectionConfig | null {
   const ready = runtimeConnections.filter(isRuntimeConnectionSelectable);
-  const preferredIds = ['claude-runtime', 'codex-runtime', 'bedrock-runtime'];
+  const connected = ready.filter(
+    (connection) => runtimeExecutionClass(connection) === 'connected',
+  );
+  const managed = ready.filter(
+    (connection) => runtimeExecutionClass(connection) === 'managed',
+  );
+  const preferredIds = ['claude-runtime', 'codex-runtime'];
   for (const id of preferredIds) {
-    const match = ready.find((connection) => connection.id === id);
+    const match = connected.find((connection) => connection.id === id);
     if (match) return match;
   }
-  return ready[0] ?? null;
+  return connected[0] ?? managed[0] ?? ready[0] ?? null;
 }
 
 export function resolveSessionExecutionSummary(

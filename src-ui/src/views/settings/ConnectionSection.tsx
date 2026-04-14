@@ -81,7 +81,7 @@ export function ConnectionSection({
       {showRegion ? (
         <div className="settings__field">
           <label className="settings__field-label" htmlFor="region">
-            AWS Region
+            Default Region
           </label>
           <input
             id="region"
@@ -95,7 +95,7 @@ export function ConnectionSection({
             <span className="settings__field-error">{regionError}</span>
           )}
           <span className="settings__field-hint">
-            Only used for Amazon Bedrock routing.
+            Used for built-in cloud providers and regional model routing.
           </span>
         </div>
       ) : null}

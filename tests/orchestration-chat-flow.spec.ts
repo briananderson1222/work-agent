@@ -39,11 +39,6 @@ test.describe('Orchestration Chat Flow', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           ready: true,
-          bedrock: {
-            credentialsFound: false,
-            verified: null,
-            region: 'us-east-1',
-          },
           acp: { connected: false, connections: [] },
           clis: {},
           prerequisites: [],

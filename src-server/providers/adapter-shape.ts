@@ -25,6 +25,7 @@ export interface ProviderAdapterMetadata {
   capabilities: readonly ConnectionCapability[];
   runtimeId?: string;
   builtin?: boolean;
+  executionClass?: 'managed' | 'connected';
 }
 
 export interface ProviderAdapterShape {

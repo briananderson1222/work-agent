@@ -14,7 +14,7 @@ const execFileAsync = promisify(execFileCb);
 export function createSystemUpdateRoutes(deps: SystemStatusDeps, logger: any) {
   const app = new Hono();
 
-  app.post('/verify-bedrock', async (c) => {
+  const verifyManagedRuntime = async (c: any) => {
     try {
       systemOps.add(1, { op: 'verify_bedrock' });
       const { BedrockClient, ListFoundationModelsCommand } = await import(
@@ -33,7 +33,10 @@ export function createSystemUpdateRoutes(deps: SystemStatusDeps, logger: any) {
       });
       return c.json({ verified: false, error: errorMessage(error) });
     }
-  });
+  };
+
+  app.post('/verify-managed-runtime', verifyManagedRuntime);
+  app.post('/verify-bedrock', verifyManagedRuntime);
 
   app.get('/core-update', async (c) => {
     try {

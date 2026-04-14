@@ -59,9 +59,30 @@ describe('agent-editor utils', () => {
   });
 
   test('agent type and tabs reflect runtime selection', () => {
-    expect(getAgentType('bedrock-runtime')).toBe('managed');
+    const runtimeConnections = [
+      {
+        id: 'managed-runtime',
+        kind: 'runtime',
+        type: 'managed-runtime',
+        name: 'Managed Runtime',
+        enabled: true,
+        capabilities: ['agent-runtime'],
+        config: { executionClass: 'managed' },
+      },
+      {
+        id: 'codex-runtime',
+        kind: 'runtime',
+        type: 'codex-runtime',
+        name: 'Codex Runtime',
+        enabled: true,
+        capabilities: ['agent-runtime'],
+        config: { executionClass: 'connected' },
+      },
+    ] as any;
+
+    expect(getAgentType('managed-runtime', runtimeConnections)).toBe('managed');
     expect(getAgentType('acp')).toBe('acp');
-    expect(getAgentType('codex-runtime')).toBe('connected');
+    expect(getAgentType('codex-runtime', runtimeConnections)).toBe('connected');
     expect(getEditorTabs('managed').map((tab) => tab.key)).toEqual([
       'basic',
       'skills',

@@ -51,6 +51,7 @@ describe('connection-service helpers', () => {
             capabilities: ['agent-runtime', 'resume'],
             runtimeId: 'codex-runtime',
             builtin: true,
+            executionClass: 'connected',
           },
           getPrerequisites: async () => [],
           listModels: async () => [
@@ -102,7 +103,11 @@ describe('connection-service helpers', () => {
       expect.objectContaining({
         id: 'acp',
         status: 'ready',
-        config: { configuredCount: 1, connectedCount: 1 },
+        config: expect.objectContaining({
+          configuredCount: 1,
+          connectedCount: 1,
+          executionClass: 'external',
+        }),
       }),
     ]);
   });

@@ -1,3 +1,4 @@
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import type { Tool } from '../../types';
 import type { AgentEditorTab, AgentFormData, AgentType } from './types';
 
@@ -8,12 +9,21 @@ export function slugify(name: string): string {
     .replace(/^-|-$/g, '');
 }
 
-export function getAgentType(runtimeConnectionId?: string): AgentType {
-  if (!runtimeConnectionId || runtimeConnectionId === 'bedrock-runtime') {
+export function getAgentType(
+  runtimeConnectionId?: string,
+  runtimeConnections: ConnectionConfig[] = [],
+): AgentType {
+  if (!runtimeConnectionId) {
     return 'managed';
   }
   if (runtimeConnectionId === 'acp') {
     return 'acp';
+  }
+  const runtimeConnection = runtimeConnections.find(
+    (connection) => connection.id === runtimeConnectionId,
+  );
+  if (runtimeConnection?.config.executionClass === 'managed') {
+    return 'managed';
   }
   return 'connected';
 }

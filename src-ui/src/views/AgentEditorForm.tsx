@@ -1,3 +1,5 @@
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
+import { useRuntimeConnectionsQuery } from '@stallion-ai/sdk';
 import { useState } from 'react';
 import { AgentEditorAdvancedSection } from './agent-editor/AgentEditorAdvancedSection';
 import { AgentEditorBasicTab } from './agent-editor/AgentEditorBasicTab';
@@ -27,8 +29,14 @@ export function AgentEditorForm(props: AgentEditorFormProps) {
   const [expandedIntegrations, setExpandedIntegrations] = useState<
     Record<string, boolean>
   >({});
+  const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery() as {
+    data?: ConnectionConfig[];
+  };
 
-  const agentType = getAgentType(form.execution.runtimeConnectionId);
+  const agentType = getAgentType(
+    form.execution.runtimeConnectionId,
+    runtimeConnections,
+  );
   const tabs = getEditorTabs(agentType);
   const [activeTab, setActiveTab] = useState(tabs[0].key);
 

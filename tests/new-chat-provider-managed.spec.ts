@@ -138,7 +138,6 @@ function seedRoutes(
           recommendation: null,
           prerequisites: [],
           clis: { codex: false, claude: false, 'kiro-cli': false },
-          bedrock: { credentialsFound: false, verified: null, region: null },
         }),
       }),
     ),

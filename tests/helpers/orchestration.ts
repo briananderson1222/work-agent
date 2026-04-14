@@ -2,7 +2,6 @@ import type { Page } from '@playwright/test';
 
 export const STATUS_READY = JSON.stringify({
   ready: true,
-  bedrock: { credentialsFound: false, verified: null, region: 'us-east-1' },
   acp: { connected: false, connections: [] },
   clis: {},
   prerequisites: [],

@@ -107,7 +107,7 @@ test.describe('Settings', () => {
     await expect(page.getByText('✓ Connected')).toBeVisible({ timeout: 5_000 });
   });
 
-  test('connection settings keep bedrock-specific region fields hidden by default', async ({
+  test('connection settings show the generic region field', async ({
     page,
   }) => {
     await page.click('a[href="#section-connection"]');
@@ -115,11 +115,14 @@ test.describe('Settings', () => {
       page.getByLabel('Backend API Base URL', { exact: true }),
     ).toBeVisible();
     await expect(
-      page.getByText('Region for Bedrock API calls.', { exact: true }),
-    ).not.toBeVisible();
+      page.getByText(
+        'Used for built-in cloud providers and regional model routing.',
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(
-      page.getByLabel('AWS Region', { exact: true }),
-    ).not.toBeVisible();
+      page.getByLabel('Default Region', { exact: true }),
+    ).toBeVisible();
   });
 
   test('template variable add and remove', async ({ page }) => {

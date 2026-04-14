@@ -115,7 +115,7 @@ describe('execution utils', () => {
         id: 'bedrock-runtime',
         kind: 'runtime',
         type: 'bedrock-runtime',
-        name: 'Bedrock Runtime',
+        name: 'Managed Runtime',
         enabled: true,
         capabilities: ['agent-runtime'],
         config: {},
@@ -141,10 +141,10 @@ describe('execution utils', () => {
         id: 'bedrock-runtime',
         kind: 'runtime',
         type: 'bedrock-runtime',
-        name: 'Bedrock Runtime',
+        name: 'Managed Runtime',
         enabled: true,
         capabilities: ['agent-runtime'],
-        config: {},
+        config: { executionClass: 'managed' },
         status: 'ready',
         prerequisites: [],
       },
@@ -156,6 +156,7 @@ describe('execution utils', () => {
         enabled: true,
         capabilities: ['agent-runtime'],
         config: {
+          executionClass: 'connected',
           defaultModel: 'gpt-5-codex',
         },
         status: 'ready',
@@ -198,10 +199,10 @@ describe('execution utils', () => {
         id: 'bedrock-runtime',
         kind: 'runtime',
         type: 'bedrock-runtime',
-        name: 'Bedrock Runtime',
+        name: 'Managed Runtime',
         enabled: true,
         capabilities: ['agent-runtime'],
-        config: {},
+        config: { executionClass: 'managed' },
         status: 'ready',
         prerequisites: [],
       },
@@ -212,7 +213,7 @@ describe('execution utils', () => {
         name: 'Codex Runtime',
         enabled: true,
         capabilities: ['agent-runtime'],
-        config: {},
+        config: { executionClass: 'connected' },
         status: 'ready',
         prerequisites: [],
       },
@@ -252,7 +253,7 @@ describe('execution utils', () => {
     });
   });
 
-  test('does not resolve provider-managed execution for bedrock or incomplete project config', () => {
+  test('resolves provider-managed execution for bedrock-backed project defaults', () => {
     expect(
       resolveProjectProviderManagedExecution(
         {
@@ -273,7 +274,14 @@ describe('execution utils', () => {
           },
         ] as any,
       ),
-    ).toBeNull();
+    ).toEqual({
+      executionMode: 'provider-managed',
+      executionScope: 'project',
+      provider: 'bedrock',
+      providerId: 'bedrock-default',
+      model: 'claude-sonnet',
+      providerOptions: {},
+    });
     expect(resolveProjectProviderManagedExecution(null, [] as any)).toBeNull();
   });
 
@@ -363,6 +371,17 @@ describe('execution utils', () => {
           slug: 'default',
           toolsConfig: { mcpServers: ['stallion-control'] },
           execution: { runtimeConnectionId: 'bedrock-runtime' },
+        } as any,
+        runtimeConnection: {
+          id: 'bedrock-runtime',
+          kind: 'runtime',
+          type: 'bedrock-runtime',
+          name: 'Managed Runtime',
+          enabled: true,
+          capabilities: ['agent-runtime'],
+          config: { executionClass: 'managed' },
+          status: 'ready',
+          prerequisites: [],
         } as any,
         hasModelCatalog: true,
       }),

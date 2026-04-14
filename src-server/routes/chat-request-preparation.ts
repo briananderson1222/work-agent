@@ -55,7 +55,7 @@ export async function prepareChatRequest(
       if (resolved.providerId) {
         options.providerId = resolved.providerId;
       }
-      if (resolved.providerId && resolved.providerId !== 'bedrock') {
+      if (resolved.providerId) {
         const connections =
           context.ctx.providerService.listProviderConnections();
         resolvedProviderConn =

@@ -10,7 +10,6 @@ import { expect, test } from '@playwright/test';
 
 const STATUS_ACP_CONNECTED = {
   ready: true,
-  bedrock: { credentialsFound: true, verified: null, region: 'us-east-1' },
   acp: {
     connected: true,
     connections: [{ id: 'kiro', status: 'connected' }],
