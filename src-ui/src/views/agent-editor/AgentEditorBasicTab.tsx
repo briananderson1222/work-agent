@@ -54,7 +54,7 @@ export function AgentEditorBasicTab({
     (c) => c.id === selectedRuntimeId,
   );
   const runtimeLabel = runtimeConnectionLabel(selectedRuntimeId);
-  const runtimeStatus = selectedRuntime
+  const runtimeStatus = selectedRuntime?.status
     ? connectionStatusLabel(selectedRuntime.status)
     : undefined;
 
