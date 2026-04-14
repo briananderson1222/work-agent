@@ -70,6 +70,20 @@ const DATA_HANDLERS: Record<string, (data: Record<string, unknown>) => void> = {
       navigationStore.navigate(path);
     }
   },
+  'build:updated': () => {
+    toastStore.show(
+      'App updated — refresh to get the latest version',
+      undefined,
+      0,
+      [
+        {
+          label: 'Refresh',
+          variant: 'primary',
+          onClick: () => window.location.reload(),
+        },
+      ],
+    );
+  },
 };
 
 const EVENT_HANDLERS: Record<string, (queryClient: any) => void> = {

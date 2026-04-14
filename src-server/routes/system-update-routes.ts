@@ -513,5 +513,12 @@ export function createSystemUpdateRoutes(deps: SystemStatusDeps, logger: any) {
     }
   });
 
+  app.post('/build-updated', (c) => {
+    deps.eventBus?.emit('build:updated', {
+      timestamp: new Date().toISOString(),
+    });
+    return c.json({ notified: true });
+  });
+
   return app;
 }

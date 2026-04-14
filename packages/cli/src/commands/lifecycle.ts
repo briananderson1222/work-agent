@@ -98,6 +98,15 @@ function isInstanceRunning(record: InstanceStateRecord): boolean {
   return isProcessAlive(record.serverPid) || isProcessAlive(record.uiPid);
 }
 
+function notifyBuildUpdated(serverPort: number): void {
+  try {
+    execSync(
+      `curl -s -X POST http://localhost:${serverPort}/api/system/build-updated`,
+      { stdio: 'ignore', timeout: 3000 },
+    );
+  } catch {}
+}
+
 function removeStateRecord(record: InstanceStateRecord): void {
   rmSync(record.statePath, { force: true });
 }
@@ -239,22 +248,6 @@ function stopRecord(record: InstanceStateRecord, announce = true): void {
   }
 }
 
-function ensureSingleMatch(
-  matches: InstanceStateRecord[],
-  action: string,
-): InstanceStateRecord | null {
-  if (matches.length === 0) return null;
-  if (matches.length === 1) return matches[0];
-
-  throw new Error(
-    [
-      `${action} matched multiple running Stallion instances in this checkout.`,
-      'Use --instance, --base, --port, or --ui-port to disambiguate.',
-      ...matches.map((record) => `  - ${describeInstance(record)}`),
-    ].join('\n'),
-  );
-}
-
 function assertNoSiblingConflicts(
   instanceId: string,
   actionLabel: string,
@@ -269,6 +262,22 @@ function assertNoSiblingConflicts(
       `${actionLabel} is blocked because this checkout uses shared build artifacts and other Stallion instances are still live.`,
       'Stop the sibling instance(s) first or rerun the action from a different checkout.',
       ...siblings.map((record) => `  - ${describeInstance(record)}`),
+    ].join('\n'),
+  );
+}
+
+function ensureSingleMatch(
+  matches: InstanceStateRecord[],
+  action: string,
+): InstanceStateRecord | null {
+  if (matches.length === 0) return null;
+  if (matches.length === 1) return matches[0];
+
+  throw new Error(
+    [
+      `${action} matched multiple running Stallion instances in this checkout.`,
+      'Use --instance, --base, --port, or --ui-port to disambiguate.',
+      ...matches.map((record) => `  - ${describeInstance(record)}`),
     ].join('\n'),
   );
 }
@@ -381,13 +390,18 @@ export function start(opts: StartOptions = {}): void {
   const needsBuild = Boolean(build) || !isInstalled();
 
   if (needsBuild) {
-    assertNoSiblingConflicts(instanceId, build ? 'start --build' : 'start');
     if (runningMatch) {
       stopRecord(runningMatch, false);
     }
     console.log('Building application...');
     execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
     execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });
+    const siblings = listRunningInstances().filter(
+      (record) => record.instanceId !== instanceId,
+    );
+    for (const sibling of siblings) {
+      notifyBuildUpdated(sibling.serverPort);
+    }
   } else if (runningMatch) {
     console.log(
       `✓ Already running\n  UI:   http://localhost:${runningMatch.uiPort}\n  Stop: stallion stop --instance=${runningMatch.instanceId}`,

@@ -34,21 +34,28 @@ export function killProcessTree(pid: number): void {
     return;
   }
   // Unix: try process-group kill first, fall back to single-PID
+  let signaled = false;
   try {
     process.kill(-pid, 'SIGTERM');
+    signaled = true;
   } catch {
     try {
       process.kill(pid, 'SIGTERM');
+      signaled = true;
     } catch {
-      return;
+      console.error(
+        `  ⚠ killProcessTree(${pid}): could not send SIGTERM (process may already be gone)`,
+      );
     }
   }
+  if (!signaled) return;
+
   const deadline = Date.now() + 5000;
   while (Date.now() < deadline) {
     try {
       process.kill(pid, 0);
     } catch {
-      return; // gone
+      return;
     }
     sleepSync(200);
   }
