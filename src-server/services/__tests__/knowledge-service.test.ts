@@ -13,6 +13,7 @@ vi.mock('@stallion-ai/contracts/knowledge', async (importOriginal) => {
     ...actual,
     BUILTIN_KNOWLEDGE_NAMESPACES: [
       { id: 'default', label: 'Default', behavior: 'rag' },
+      { id: 'rules', label: 'Rules & Steering', behavior: 'inject' },
     ],
   };
 });
@@ -81,6 +82,7 @@ describe('KnowledgeService — namespace management', () => {
     );
     const ns = svc.listNamespaces('test');
     expect(ns.some((n) => n.id === 'default')).toBe(true);
+    expect(ns.some((n) => n.id === 'rules')).toBe(true);
   });
 
   test('listNamespaces merges builtins with project namespaces', () => {
@@ -398,5 +400,37 @@ describe('KnowledgeService — file-first document operations', () => {
     expect(tree.type).toBe('directory');
     expect(tree.fileCount).toBe(1);
     expect(tree.children?.some((c) => c.name === 'test.md')).toBe(true);
+  });
+
+  test('uploaded documents appear in listDocuments without explicit namespace', async () => {
+    const svc = new KnowledgeService(
+      () => vectorDb as any,
+      () => embedding as any,
+      dir,
+    );
+    await svc.uploadDocument('test', 'readme.md', '# Hello World');
+    const allDocs = await svc.listDocuments('test');
+    expect(allDocs).toHaveLength(1);
+    expect(allDocs[0].filename).toBe('readme.md');
+    expect(allDocs[0].namespace).toBe('default');
+  });
+
+  test('uploading a .md file stores and retrieves content correctly', async () => {
+    const svc = new KnowledgeService(
+      () => vectorDb as any,
+      () => embedding as any,
+      dir,
+    );
+    const content =
+      '# My Notes\n\n- item 1\n- item 2\n\n## Section\n\nSome text here.';
+    const meta = await svc.uploadDocument('test', 'notes.md', content);
+    expect(meta.chunkCount).toBeGreaterThan(0);
+
+    const retrieved = await svc.getDocumentContent('test', meta.id, 'default');
+    expect(retrieved).toBe(content);
+
+    const docs = await svc.listDocuments('test', 'default');
+    expect(docs).toHaveLength(1);
+    expect(docs[0].id).toBe(meta.id);
   });
 });

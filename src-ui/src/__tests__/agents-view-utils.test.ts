@@ -117,6 +117,46 @@ describe('agents view utils', () => {
     ).toEqual({});
   });
 
+  test('validateAgentForm allows empty prompts for connected runtimes only', () => {
+    expect(
+      validateAgentForm(
+        {
+          ...createEmptyAgentForm(),
+          name: 'Connected Agent',
+          prompt: '',
+          execution: {
+            runtimeConnectionId: 'codex-runtime',
+            modelConnectionId: '',
+            runtimeOptions: {},
+          },
+        },
+        true,
+        'connected',
+      ),
+    ).toEqual({
+      slug: 'Slug is required',
+    });
+
+    expect(
+      validateAgentForm(
+        {
+          ...createEmptyAgentForm(),
+          name: 'Managed Agent',
+          prompt: '',
+          execution: {
+            runtimeConnectionId: 'bedrock-runtime',
+            modelConnectionId: '',
+            runtimeOptions: {},
+          },
+        },
+        false,
+        'managed',
+      ),
+    ).toEqual({
+      prompt: 'System prompt is required',
+    });
+  });
+
   test('buildAgentPayload strips empty fields and preserves runtime settings', () => {
     expect(
       buildAgentPayload({
@@ -166,6 +206,30 @@ describe('agents view utils', () => {
       icon: undefined,
       skills: undefined,
       prompts: ['prompt-a'],
+    });
+  });
+
+  test('buildAgentPayload preserves an empty prompt for connected runtimes', () => {
+    expect(
+      buildAgentPayload({
+        ...createEmptyAgentForm(),
+        slug: 'connected-agent',
+        name: 'Connected Agent',
+        prompt: '',
+        execution: {
+          runtimeConnectionId: 'codex-runtime',
+          modelConnectionId: '',
+          runtimeOptions: {},
+        },
+      }),
+    ).toMatchObject({
+      slug: 'connected-agent',
+      name: 'Connected Agent',
+      prompt: '',
+      execution: {
+        runtimeConnectionId: 'codex-runtime',
+        modelId: undefined,
+      },
     });
   });
 

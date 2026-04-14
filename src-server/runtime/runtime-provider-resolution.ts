@@ -29,6 +29,22 @@ export async function createRuntimeFrameworkModel(
   });
 }
 
+export async function resolveConfiguredModelId(
+  spec: Pick<AgentSpec, 'model'>,
+  options: {
+    appConfig: Pick<AppConfig, 'defaultModel'>;
+    modelCatalog?: Pick<BedrockModelCatalog, 'resolveModelId'>;
+  },
+): Promise<string> {
+  const modelId = spec.model || options.appConfig.defaultModel || '';
+  if (!modelId) {
+    return '';
+  }
+  return options.modelCatalog
+    ? await options.modelCatalog.resolveModelId(modelId)
+    : modelId;
+}
+
 export function resolveRuntimeVectorDbProvider(
   providerService: ProviderService,
 ) {

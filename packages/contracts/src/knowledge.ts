@@ -52,5 +52,6 @@ export interface KnowledgeSearchFilter {
 }
 
 export const BUILTIN_KNOWLEDGE_NAMESPACES: KnowledgeNamespaceConfig[] = [
+  { id: 'default', label: 'Documents', behavior: 'rag', builtIn: true },
   { id: 'rules', label: 'Rules & Steering', behavior: 'inject', builtIn: true },
 ];

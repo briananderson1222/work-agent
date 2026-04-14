@@ -11,16 +11,22 @@ const selectionState = {
   deselect: vi.fn(),
 };
 
+let localSkillsMock: any[] = [];
+let registrySkillsMock: any[] = [];
+
 vi.mock('@stallion-ai/sdk', () => ({
   useCreateLocalSkillMutation: () => ({
     isPending: false,
     mutateAsync: vi.fn().mockResolvedValue(undefined),
   }),
   useInstallSkillMutation: () => ({ isPending: false, mutate: vi.fn() }),
-  useRegistrySkillsQuery: () => ({ data: [], isLoading: false }),
+  useRegistrySkillsQuery: () => ({
+    data: registrySkillsMock,
+    isLoading: false,
+  }),
   useSkillContentQuery: () => ({ data: undefined }),
   useSkillQuery: () => ({ data: undefined }),
-  useSkillsQuery: () => ({ data: [] }),
+  useSkillsQuery: () => ({ data: localSkillsMock }),
   useUninstallSkillMutation: () => ({ isPending: false, mutate: vi.fn() }),
   useUpdateLocalSkillMutation: () => ({
     isPending: false,
@@ -61,6 +67,8 @@ afterEach(() => {
   selectionState.deselect.mockReset();
   navigateMock.mockReset();
   showToastMock.mockReset();
+  localSkillsMock = [];
+  registrySkillsMock = [];
 });
 
 describe('SkillsView', () => {
@@ -82,5 +90,29 @@ describe('SkillsView', () => {
     expect(selectionState.select).toHaveBeenCalledWith('new');
     expect(screen.getByText('New Skill')).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Create' })).toBeTruthy();
+  });
+
+  test('lists only installed local skills on /skills', () => {
+    localSkillsMock = [
+      {
+        name: 'installed-skill',
+        description: 'Installed locally',
+        version: '1.0.0',
+        source: 'local',
+      },
+    ];
+    registrySkillsMock = [
+      {
+        id: 'registry-only-skill',
+        displayName: 'Registry Only Skill',
+        description: 'Should not appear on /skills',
+        version: '9.9.9',
+      },
+    ];
+
+    render(<SkillsView />);
+
+    expect(screen.getByText('installed-skill')).toBeTruthy();
+    expect(screen.queryByText('Registry Only Skill')).toBeNull();
   });
 });

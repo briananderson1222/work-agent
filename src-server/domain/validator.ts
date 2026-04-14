@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { ToolDef } from '@stallion-ai/contracts/tool';
+import { requiresAgentPrompt } from '@stallion-ai/shared';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 
@@ -62,6 +63,7 @@ export class SchemaValidator {
    */
   validateAgentSpec(data: unknown): asserts data is AgentSpec {
     this.validate('agent', data);
+    this.validateAgentSemantics(data as AgentSpec);
   }
 
   /**
@@ -85,6 +87,18 @@ export class SchemaValidator {
       const errors = validator.errors || [];
       const message = this.formatErrors(schemaName, errors);
       throw new ValidationError(message, errors);
+    }
+  }
+
+  private validateAgentSemantics(spec: AgentSpec): void {
+    if (
+      requiresAgentPrompt(spec) &&
+      (!spec.prompt || spec.prompt.trim().length === 0)
+    ) {
+      throw new ValidationError(
+        'Invalid agent configuration:\n  /prompt: System prompt is required for managed agents',
+        [],
+      );
     }
   }
 

@@ -116,15 +116,20 @@ export function ProjectKnowledgeSection({
 
   async function uploadFiles(files: FileList | File[]) {
     setUploading(true);
+    let failed = 0;
     for (const file of Array.from(files)) {
       try {
         const content = await file.text();
         await uploadKnowledge(slug, file.name, content);
-      } catch {
-        // skip
+      } catch (error) {
+        console.error(`Failed to upload ${file.name}:`, error);
+        failed += 1;
       }
     }
     qc.invalidateQueries({ queryKey: ['knowledge', 'docs', slug] });
+    if (failed > 0) {
+      qc.invalidateQueries({ queryKey: ['knowledge', 'namespaces', slug] });
+    }
     setUploading(false);
   }
 

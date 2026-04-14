@@ -14,6 +14,12 @@ export function useUnsavedGuard(dirty: boolean) {
   const [showDiscard, setShowDiscard] = useState(false);
   const pendingRef = useRef<(() => void) | null>(null);
 
+  useEffect(() => {
+    if (dirty || !showDiscard) return;
+    setShowDiscard(false);
+    pendingRef.current = null;
+  }, [dirty, showDiscard]);
+
   // Browser close / reload
   useEffect(() => {
     if (!dirty) return;

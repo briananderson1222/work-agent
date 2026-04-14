@@ -170,32 +170,47 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
         </h3>
 
         <form onSubmit={handleCreate}>
-          <div className="editor-field">
-            <label className="editor-label">Name *</label>
-            <input
-              className="editor-input"
-              type="text"
-              value={name}
-              placeholder="My Project"
-              autoFocus
-              required
-              onChange={(e) => setName(e.target.value)}
-            />
+          <div
+            className="editor-field"
+            style={{ flexDirection: 'row', alignItems: 'flex-end', gap: '8px' }}
+          >
+            <div style={{ width: '64px', flexShrink: 0 }}>
+              <label className="editor-label">Icon</label>
+              <input
+                className="editor-input"
+                type="text"
+                value={icon}
+                placeholder="🚀"
+                style={{ textAlign: 'center' }}
+                onChange={(e) => setIcon(e.target.value)}
+              />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <label className="editor-label">Name *</label>
+              <input
+                className="editor-input"
+                type="text"
+                value={name}
+                placeholder="My Project"
+                autoFocus
+                required
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
           </div>
 
           <div className="editor-field">
             <label className="editor-label">
-              Icon{' '}
+              Working Directory{' '}
               <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
-                (emoji, optional)
+                (optional)
               </span>
             </label>
-            <input
-              className="editor-input"
-              type="text"
-              value={icon}
-              placeholder="🚀"
-              onChange={(e) => setIcon(e.target.value)}
+            <PathAutocomplete
+              apiBase={apiBase}
+              value={directory}
+              onChange={setDirectory}
+              placeholder="/path/to/project"
             />
           </div>
 
@@ -212,21 +227,6 @@ export function NewProjectModal({ isOpen, onClose }: NewProjectModalProps) {
               placeholder="A brief description"
               rows={2}
               onChange={(e) => setDescription(e.target.value)}
-            />
-          </div>
-
-          <div className="editor-field">
-            <label className="editor-label">
-              Working Directory{' '}
-              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>
-                (optional)
-              </span>
-            </label>
-            <PathAutocomplete
-              apiBase={apiBase}
-              value={directory}
-              onChange={setDirectory}
-              placeholder="/path/to/project"
             />
           </div>
 

@@ -40,6 +40,23 @@ describe('Agent CRUD operations', () => {
     expect(loaded.name).toBe('Test Agent');
   });
 
+  it('creates a connected agent without a custom prompt', async () => {
+    const { slug, spec: created } = await loader.createAgent({
+      name: 'Connected Agent',
+      prompt: '',
+      execution: {
+        runtimeConnectionId: 'codex-runtime',
+      },
+    });
+
+    expect(slug).toBe('connected-agent');
+    expect(created.prompt).toBe('');
+    expect(created.execution?.runtimeConnectionId).toBe('codex-runtime');
+
+    const loaded = await loader.loadAgent(slug);
+    expect(loaded.prompt).toBe('');
+  });
+
   it('generates slug from special characters in name', async () => {
     const spec: AgentSpec = {
       name: 'My Super-Cool Agent!',

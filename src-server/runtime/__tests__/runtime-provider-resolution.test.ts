@@ -1,6 +1,7 @@
 import { describe, expect, test, vi } from 'vitest';
 import {
   createRuntimeFrameworkModel,
+  resolveConfiguredModelId,
   resolveRuntimeEmbeddingProvider,
   resolveRuntimeVectorDbProvider,
 } from '../runtime-provider-resolution.js';
@@ -51,5 +52,35 @@ describe('runtime-provider-resolution', () => {
     } as any);
 
     expect(provider).toBeNull();
+  });
+
+  test('resolveConfiguredModelId skips catalog lookup when no model is configured', async () => {
+    const modelCatalog = {
+      resolveModelId: vi.fn(async (modelId: string) => `resolved:${modelId}`),
+    };
+
+    await expect(
+      resolveConfiguredModelId({ model: '' } as any, {
+        appConfig: { defaultModel: '' } as any,
+        modelCatalog: modelCatalog as any,
+      }),
+    ).resolves.toBe('');
+
+    expect(modelCatalog.resolveModelId).not.toHaveBeenCalled();
+  });
+
+  test('resolveConfiguredModelId uses the catalog when a model is configured', async () => {
+    const modelCatalog = {
+      resolveModelId: vi.fn(async (modelId: string) => `resolved:${modelId}`),
+    };
+
+    await expect(
+      resolveConfiguredModelId({ model: '' } as any, {
+        appConfig: { defaultModel: 'anthropic.test' } as any,
+        modelCatalog: modelCatalog as any,
+      }),
+    ).resolves.toBe('resolved:anthropic.test');
+
+    expect(modelCatalog.resolveModelId).toHaveBeenCalledWith('anthropic.test');
   });
 });

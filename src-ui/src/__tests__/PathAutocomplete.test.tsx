@@ -22,7 +22,7 @@ describe('PathAutocomplete', () => {
   test('queries the home shortcut path and suggests directories only', () => {
     browseMock.mockReturnValue({
       data: {
-        path: '~',
+        path: '/Users/test',
         entries: [
           { name: 'Documents', isDirectory: true },
           { name: 'Downloads', isDirectory: true },
@@ -65,5 +65,49 @@ describe('PathAutocomplete', () => {
     fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Tab' });
 
     expect(onChange).toHaveBeenCalledWith('/tmp/project/');
+  });
+
+  test('uses ~ prefix in suggestions when user types ~/ even though server returns absolute path', () => {
+    browseMock.mockReturnValue({
+      data: {
+        path: '/Users/test',
+        entries: [
+          { name: 'Documents', isDirectory: true },
+          { name: 'Projects', isDirectory: true },
+        ],
+      },
+    });
+
+    render(
+      <PathAutocomplete
+        value="~/"
+        onChange={vi.fn()}
+        apiBase="http://localhost:3000"
+      />,
+    );
+
+    expect(browseMock).toHaveBeenCalledWith('~', { enabled: true });
+
+    const docsItem = screen.getByText('📁 Documents').closest('div');
+    const projItem = screen.getByText('📁 Projects').closest('div');
+
+    expect(docsItem?.textContent).toContain('~/Documents');
+    expect(docsItem?.textContent).not.toContain('/Users/test/Documents');
+    expect(projItem?.textContent).toContain('~/Projects');
+  });
+
+  test('auto-focuses the input on mount', () => {
+    browseMock.mockReturnValue({ data: undefined });
+
+    render(
+      <PathAutocomplete
+        value="/tmp"
+        onChange={vi.fn()}
+        apiBase="http://localhost:3000"
+      />,
+    );
+
+    const input = screen.getByRole('textbox');
+    expect(input).toBe(document.activeElement);
   });
 });

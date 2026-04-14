@@ -235,13 +235,16 @@ export function useAgentsViewModel({
     try {
       setIsSaving(true);
       setActionError(null);
+      const savedSnapshot = structuredClone(form);
       const payload = buildAgentPayload(form);
       if (isCreating) {
         await createAgent(payload as any);
+        setSavedForm(savedSnapshot);
         setIsCreating(false);
         urlSelect(form.slug);
       } else {
         await updateAgent(selectedSlug!, payload);
+        setSavedForm(savedSnapshot);
         await Promise.all([refetchAgent(), refetchAgentTools()]);
       }
     } catch (err: any) {

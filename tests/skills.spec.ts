@@ -1,6 +1,19 @@
 import { expect, test } from '@playwright/test';
 
 test.describe('Skills (via Registry + API)', () => {
+  test('standalone /skills shows installed skills only', async ({ page }) => {
+    await page.goto('/skills');
+    await page.waitForSelector('.split-pane', { timeout: 15_000 });
+
+    await expect(page.getByRole('heading', { name: 'Skills' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '+ New Skill' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: 'Install' }),
+    ).not.toBeVisible();
+  });
+
   test('registry Skills tab loads and is selectable', async ({ page }) => {
     await page.goto('/registry');
     await page.waitForSelector('.page__tab', { timeout: 15_000 });
@@ -20,13 +33,5 @@ test.describe('Skills (via Registry + API)', () => {
       return { status: res.status, ok: res.ok };
     });
     expect(response.ok).toBe(true);
-  });
-
-  test('standalone /skills route no longer exists', async ({ page }) => {
-    await page.goto('/skills');
-    await page.waitForTimeout(2000);
-    // Old SkillsView removed — should not render a dedicated skills page
-    const url = page.url();
-    expect(url).toBeTruthy();
   });
 });

@@ -20,6 +20,7 @@ import {
   type McpClient,
   Agent as StrandsAgent,
 } from '@strands-agents/sdk';
+import { resolveConfiguredModelId } from './runtime-provider-resolution.js';
 import { wireStrandsAgentHooks } from './strands-agent-hooks.js';
 import { mapStrandsStreamEvent } from './strands-stream-events.js';
 import {
@@ -361,10 +362,7 @@ export class StrandsFramework {
     spec: AgentSpec,
     config: AgentCreationConfig,
   ): Promise<any> {
-    const modelId = spec.model || config.appConfig.defaultModel;
-    const resolvedModel = config.modelCatalog
-      ? await config.modelCatalog.resolveModelId(modelId)
-      : modelId;
+    const resolvedModel = await resolveConfiguredModelId(spec, config);
     return new BedrockModel({
       modelId: resolvedModel,
       region: spec.region || config.appConfig.region || 'us-east-1',

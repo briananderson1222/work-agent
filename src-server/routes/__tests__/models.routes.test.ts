@@ -37,6 +37,19 @@ async function json(res: Response) {
 }
 
 describe('Models Routes', () => {
+  test('GET / returns { success, data } with model catalog entries', async () => {
+    const { default: app } = await import('../models.js');
+    const body = await json(await app.request('/'));
+
+    expect(body.success).toBe(true);
+    expect(Array.isArray(body.data)).toBe(true);
+    expect(body.data[0]).toMatchObject({
+      modelId: 'anthropic.claude-3-sonnet',
+      modelName: 'Claude 3 Sonnet',
+      outputModalities: ['TEXT'],
+    });
+  });
+
   test('GET /capabilities returns empty success when AWS credentials are unavailable', async () => {
     bedrockClientMock.send.mockRejectedValueOnce(
       Object.assign(new Error('missing credentials'), {

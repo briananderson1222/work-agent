@@ -13,15 +13,66 @@ const logger = createLogger({ name: 'models' });
 const app = new Hono();
 
 // Cache for model data (refresh every hour)
-let modelCache: any = null;
-let cacheTimestamp = 0;
+let modelCatalogCache: any = null;
+let modelCatalogCacheTimestamp = 0;
+let modelCapabilitiesCache: any = null;
+let modelCapabilitiesCacheTimestamp = 0;
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+
+app.get('/', async (c) => {
+  try {
+    if (
+      modelCatalogCache &&
+      Date.now() - modelCatalogCacheTimestamp < CACHE_TTL
+    ) {
+      return c.json({ success: true, data: modelCatalogCache });
+    }
+
+    bedrockOps.add(1, { op: 'list_models' });
+    const region = process.env.AWS_REGION || 'us-east-1';
+    const bedrockClient = new BedrockClient({ region });
+    const modelsResponse = await bedrockClient.send(
+      new ListFoundationModelsCommand({}),
+    );
+    const models = (modelsResponse.modelSummaries || []).filter(
+      (model) =>
+        model.modelLifecycle?.status === 'ACTIVE' ||
+        model.modelLifecycle?.status === 'LEGACY',
+    );
+
+    modelCatalogCache = models;
+    modelCatalogCacheTimestamp = Date.now();
+
+    return c.json({ success: true, data: models });
+  } catch (error: unknown) {
+    logger.error('Error fetching model catalog', { error });
+
+    if (
+      (error instanceof Error && error.name === 'CredentialsProviderError') ||
+      errorMessage(error)?.includes('credentials')
+    ) {
+      return c.json(
+        {
+          success: true,
+          data: [],
+          warning: 'AWS credentials not configured',
+        },
+        200,
+      );
+    }
+
+    return c.json({ success: false, error: errorMessage(error) }, 500);
+  }
+});
 
 app.get('/capabilities', async (c) => {
   try {
     // Return cached data if fresh
-    if (modelCache && Date.now() - cacheTimestamp < CACHE_TTL) {
-      return c.json({ success: true, data: modelCache });
+    if (
+      modelCapabilitiesCache &&
+      Date.now() - modelCapabilitiesCacheTimestamp < CACHE_TTL
+    ) {
+      return c.json({ success: true, data: modelCapabilitiesCache });
     }
     bedrockOps.add(1, { op: 'list_capabilities' });
     const region = process.env.AWS_REGION || 'us-east-1';
@@ -59,8 +110,8 @@ app.get('/capabilities', async (c) => {
         lifecycleStatus: model.modelLifecycle?.status,
       }));
 
-    modelCache = capabilities;
-    cacheTimestamp = Date.now();
+    modelCapabilitiesCache = capabilities;
+    modelCapabilitiesCacheTimestamp = Date.now();
 
     return c.json({ success: true, data: capabilities });
   } catch (error: unknown) {

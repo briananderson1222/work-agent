@@ -53,11 +53,10 @@ export function PathAutocomplete({
   className?: string;
 }) {
   const [selectedIdx, setSelectedIdx] = useState(-1);
-  const [show, setShow] = useState(false);
+  const [userDismissed, setUserDismissed] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const pickingRef = useRef(false);
 
-  // Focus input on mount
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
@@ -76,28 +75,28 @@ export function PathAutocomplete({
   });
 
   const suggestions = useMemo(() => {
-    if (!shouldSuggest || !data?.entries) {
+    if (!shouldSuggest || !data?.entries || !browsePath) {
       return [];
     }
     return data.entries
       .filter((entry) => entry.isDirectory)
       .filter((entry) => !prefix || entry.name.toLowerCase().includes(prefix))
-      .map((entry) => buildSuggestionPath(data.path, entry.name));
-  }, [data, prefix, shouldSuggest]);
+      .map((entry) => buildSuggestionPath(browsePath, entry.name));
+  }, [data, browsePath, prefix, shouldSuggest]);
+
+  const show = !userDismissed && suggestions.length > 0;
 
   useEffect(() => {
     setSelectedIdx(-1);
-    if (!shouldSuggest) {
-      setShow(false);
-      return;
+    if (suggestions.length > 0) {
+      setUserDismissed(false);
     }
-    setShow(suggestions.length > 0);
-  }, [shouldSuggest, suggestions]);
+  }, [suggestions]);
 
   const pick = (path: string) => {
     pickingRef.current = true;
     onChange(`${path}/`);
-    setShow(true);
+    setUserDismissed(false);
     inputRef.current?.focus();
     setTimeout(() => {
       pickingRef.current = false;
@@ -107,7 +106,6 @@ export function PathAutocomplete({
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!show || suggestions.length === 0) {
       if (e.key === 'Enter') {
-        setShow(false);
         onSubmit?.();
       }
       return;
@@ -130,12 +128,12 @@ export function PathAutocomplete({
         e.preventDefault();
         pick(suggestions[selectedIdx]);
       } else {
-        setShow(false);
+        setUserDismissed(true);
         onSubmit?.();
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
-      setShow(false);
+      setUserDismissed(true);
       inputRef.current?.blur();
     }
   };
@@ -149,22 +147,22 @@ export function PathAutocomplete({
         value={value}
         onChange={(e) => {
           onChange(e.target.value);
-          setShow(true);
+          setUserDismissed(false);
         }}
         onKeyDown={onKeyDown}
         onBlur={() =>
           setTimeout(() => {
             if (!pickingRef.current) {
-              setShow(false);
+              setUserDismissed(true);
               onBlur?.();
             }
           }, 200)
         }
-        onFocus={() => suggestions.length > 0 && setShow(true)}
+        onFocus={() => setUserDismissed(false)}
         placeholder={placeholder}
         disabled={disabled}
       />
-      {show && suggestions.length > 0 && (
+      {show && (
         <div
           style={{
             position: 'absolute',

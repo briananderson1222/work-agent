@@ -69,6 +69,32 @@ describe('Agent schema validation', () => {
 
     expect(() => validator.validateAgentSpec(spec)).not.toThrow();
   });
+
+  it('accepts an empty prompt for connected runtimes', () => {
+    const spec = {
+      name: 'Codex Runtime Chat',
+      prompt: '',
+      execution: {
+        runtimeConnectionId: 'codex-runtime',
+      },
+    };
+
+    expect(() => validator.validateAgentSpec(spec)).not.toThrow();
+  });
+
+  it('rejects an empty prompt for managed runtimes', () => {
+    const spec = {
+      name: 'Managed Agent',
+      prompt: '',
+      execution: {
+        runtimeConnectionId: 'bedrock-runtime',
+      },
+    };
+
+    expect(() => validator.validateAgentSpec(spec)).toThrowError(
+      /System prompt is required for managed agents/,
+    );
+  });
 });
 
 describe('App schema validation', () => {

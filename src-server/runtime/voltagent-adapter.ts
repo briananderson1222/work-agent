@@ -19,6 +19,7 @@ import type { ConfigLoader } from '../domain/config-loader.js';
 import { createBedrockProvider } from '../providers/bedrock.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
 import * as MCPManager from './mcp-manager.js';
+import { resolveConfiguredModelId } from './runtime-provider-resolution.js';
 import type {
   AgentCreationConfig,
   IAgent,
@@ -147,11 +148,7 @@ export class VoltAgentFramework {
     config: AgentCreationConfig,
     opts: CreateAgentOptions,
   ): Promise<AgentBundle> {
-    // Create Bedrock model
-    const modelId = spec.model || config.appConfig.defaultModel;
-    const resolvedModel = config.modelCatalog
-      ? await config.modelCatalog.resolveModelId(modelId)
-      : modelId;
+    const resolvedModel = await resolveConfiguredModelId(spec, config);
     const model = createBedrockProvider({
       appConfig: config.appConfig,
       agentSpec: { ...spec, model: resolvedModel },
@@ -318,10 +315,7 @@ export class VoltAgentFramework {
     spec: AgentSpec,
     config: AgentCreationConfig,
   ): Promise<any> {
-    const modelId = spec.model || config.appConfig.defaultModel;
-    const resolvedModel = config.modelCatalog
-      ? await config.modelCatalog.resolveModelId(modelId)
-      : modelId;
+    const resolvedModel = await resolveConfiguredModelId(spec, config);
     return createBedrockProvider({
       appConfig: config.appConfig,
       agentSpec: { ...spec, model: resolvedModel },

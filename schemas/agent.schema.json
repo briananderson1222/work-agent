@@ -14,8 +14,7 @@
     },
     "prompt": {
       "type": "string",
-      "description": "System instructions for the agent",
-      "minLength": 1
+      "description": "System instructions for the agent"
     },
     "description": {
       "type": ["string", "null"],

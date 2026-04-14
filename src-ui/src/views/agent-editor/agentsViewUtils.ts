@@ -1,3 +1,4 @@
+import { requiresAgentPromptForRuntime } from '@stallion-ai/shared';
 import type { Tool } from '../../types';
 import type { AgentFormData } from './types';
 
@@ -116,7 +117,13 @@ export function validateAgentForm(
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!form.name.trim()) errors.name = 'Name is required';
-  if (agentType !== 'connected' && agentType !== 'acp') {
+  if (
+    (agentType === 'managed' ||
+      (agentType !== 'connected' &&
+        agentType !== 'acp' &&
+        requiresAgentPromptForRuntime(form.execution.runtimeConnectionId))) &&
+    !form.prompt.trim()
+  ) {
     if (!form.prompt.trim()) errors.prompt = 'System prompt is required';
   }
   if (isCreating) {
@@ -132,7 +139,7 @@ export function buildAgentPayload(form: AgentFormData) {
     slug: form.slug,
     name: form.name,
     description: form.description || undefined,
-    prompt: form.prompt || undefined,
+    prompt: form.prompt,
     model: form.modelId || undefined,
     region: form.region || undefined,
     guardrails: form.guardrails || undefined,
