@@ -11,6 +11,7 @@ export default defineConfig({
       'packages/**/node_modules/**',
       'examples/**/node_modules/**',
       'packages/connect/src/__tests__/qr-round-trip.test.ts',
+      '.omx/**',
       '.stallion-ai/**',
       '.work-agent/**',
     ],

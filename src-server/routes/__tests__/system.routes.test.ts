@@ -204,4 +204,20 @@ describe('System Routes', () => {
     const body = await json(await app.request('/terminal-port'));
     expect(body.port).toBe(3142);
   });
+
+  test('POST /verify-managed-runtime remains available as a compatibility alias', async () => {
+    const app = createSystemRoutes(createMockDeps() as any, mockLogger);
+    const aliasResponse = await app.request('/verify-managed-runtime', {
+      method: 'POST',
+      body: JSON.stringify({ region: 'us-east-1' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const canonicalResponse = await app.request('/verify-bedrock', {
+      method: 'POST',
+      body: JSON.stringify({ region: 'us-east-1' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    expect(aliasResponse.status).toBe(canonicalResponse.status);
+    expect(await json(aliasResponse)).toEqual(await json(canonicalResponse));
+  });
 });

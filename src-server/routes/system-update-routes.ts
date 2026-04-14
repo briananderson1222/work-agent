@@ -1,5 +1,11 @@
 import { execFile as execFileCb, spawn } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
@@ -10,6 +16,292 @@ import { errorMessage } from './schemas.js';
 import type { SystemStatusDeps } from './system-route-types.js';
 
 const execFileAsync = promisify(execFileCb);
+const DEFAULT_INSTANCE_ID = 'default';
+
+interface InstanceStateRecord {
+  baseDir: string;
+  instanceId: string;
+  serverPid: number | null;
+  serverPort: number;
+  startedAt: string;
+  statePath: string;
+  uiPid: number | null;
+  uiPort: number;
+}
+
+function isRecord(
+  value: unknown,
+): value is Record<string, string | number | boolean | null | unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function parsePidList(raw: string): Array<number | null> {
+  return raw
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((value) => {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : null;
+    });
+}
+
+function isProcessAlive(pid: number | null | undefined): boolean {
+  if (!pid) return false;
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isInstanceRunning(record: InstanceStateRecord): boolean {
+  return isProcessAlive(record.serverPid) || isProcessAlive(record.uiPid);
+}
+
+function readInstanceStateFile(path: string): InstanceStateRecord | null {
+  try {
+    const parsed = JSON.parse(
+      readFileSync(path, 'utf-8'),
+    ) as Partial<InstanceStateRecord>;
+    if (typeof parsed.instanceId !== 'string' || !parsed.instanceId) {
+      return null;
+    }
+
+    return {
+      instanceId: parsed.instanceId,
+      serverPid: parsed.serverPid ?? null,
+      uiPid: parsed.uiPid ?? null,
+      serverPort: parsed.serverPort ?? 3141,
+      uiPort: parsed.uiPort ?? 3000,
+      baseDir:
+        typeof parsed.baseDir === 'string' && parsed.baseDir
+          ? parsed.baseDir
+          : '',
+      startedAt:
+        typeof parsed.startedAt === 'string' && parsed.startedAt
+          ? parsed.startedAt
+          : new Date(0).toISOString(),
+      statePath: path,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function readLegacyInstanceState(gitRoot: string): InstanceStateRecord | null {
+  const pidFile = join(gitRoot, '.stallion.pids');
+  if (!existsSync(pidFile)) return null;
+
+  const [serverPid, uiPid] = parsePidList(readFileSync(pidFile, 'utf-8'));
+  const record: InstanceStateRecord = {
+    instanceId: DEFAULT_INSTANCE_ID,
+    serverPid,
+    uiPid,
+    serverPort: 3141,
+    uiPort: 3000,
+    baseDir: '',
+    startedAt: new Date(0).toISOString(),
+    statePath: pidFile,
+  };
+
+  if (!isInstanceRunning(record)) {
+    rmSync(pidFile, { force: true });
+    return null;
+  }
+
+  return record;
+}
+
+function listRunningInstances(gitRoot: string): InstanceStateRecord[] {
+  const records: InstanceStateRecord[] = [];
+  const instanceStateDir = join(gitRoot, '.stallion', 'instances');
+
+  if (existsSync(instanceStateDir)) {
+    for (const entry of readdirSync(instanceStateDir)) {
+      if (!entry.endsWith('.json')) continue;
+      const statePath = join(instanceStateDir, entry);
+      const record = readInstanceStateFile(statePath);
+      if (!record || !isInstanceRunning(record)) {
+        rmSync(statePath, { force: true });
+        continue;
+      }
+      records.push(record);
+    }
+  }
+
+  const hasDefaultRecord = records.some(
+    (record) => record.instanceId === DEFAULT_INSTANCE_ID,
+  );
+  const legacyRecord = readLegacyInstanceState(gitRoot);
+  if (legacyRecord && !hasDefaultRecord) {
+    records.push(legacyRecord);
+  } else if (legacyRecord && hasDefaultRecord) {
+    rmSync(legacyRecord.statePath, { force: true });
+  }
+
+  return records.sort((left, right) =>
+    left.startedAt.localeCompare(right.startedAt),
+  );
+}
+
+function describeInstance(record: InstanceStateRecord): string {
+  const home = record.baseDir || '(unknown home)';
+  return `${record.instanceId} — server ${record.serverPort}, ui ${record.uiPort}, home ${home}`;
+}
+
+function getSelfUpdateConflictError(
+  gitRoot: string,
+  currentInstanceId: string,
+): string | null {
+  const siblings = listRunningInstances(gitRoot).filter(
+    (record) => record.instanceId !== currentInstanceId,
+  );
+  if (siblings.length === 0) return null;
+
+  return [
+    'Core update is blocked because this checkout shares build artifacts with other live Stallion instances.',
+    'Stop the sibling instance(s) first or rerun the update from a different checkout.',
+    ...siblings.map((record) => `  - ${describeInstance(record)}`),
+  ].join('\n');
+}
+
+function updateInstanceRecord(
+  record: Record<string, string | number | boolean | null | unknown>,
+  serverPid: number,
+) {
+  const nextRecord = { ...record };
+
+  nextRecord.serverPid = serverPid;
+  if ('pid' in nextRecord) {
+    nextRecord.pid = serverPid;
+  }
+  if (Array.isArray(nextRecord.pids)) {
+    const nextPids = [...nextRecord.pids];
+    nextPids[0] = serverPid;
+    nextRecord.pids = nextPids;
+  }
+  if (isRecord(nextRecord.server)) {
+    nextRecord.server = {
+      ...nextRecord.server,
+      pid: serverPid,
+    };
+  }
+  nextRecord.updatedAt = new Date().toISOString();
+
+  return nextRecord;
+}
+
+function updateInstanceStatePayload(
+  payload: unknown,
+  instanceId: string | undefined,
+  serverPid: number,
+): unknown {
+  if (Array.isArray(payload)) {
+    if (!instanceId) return payload;
+    return payload.map((entry) => {
+      if (
+        isRecord(entry) &&
+        typeof entry.instanceId === 'string' &&
+        entry.instanceId === instanceId
+      ) {
+        return updateInstanceRecord(entry, serverPid);
+      }
+      return entry;
+    });
+  }
+
+  if (!isRecord(payload)) {
+    return payload;
+  }
+
+  if (instanceId && Array.isArray(payload.instances)) {
+    return {
+      ...payload,
+      instances: payload.instances.map((entry) => {
+        if (
+          isRecord(entry) &&
+          typeof entry.instanceId === 'string' &&
+          entry.instanceId === instanceId
+        ) {
+          return updateInstanceRecord(entry, serverPid);
+        }
+        return entry;
+      }),
+    };
+  }
+
+  if (
+    instanceId &&
+    isRecord(payload.instances) &&
+    isRecord(payload.instances[instanceId])
+  ) {
+    return {
+      ...payload,
+      instances: {
+        ...payload.instances,
+        [instanceId]: updateInstanceRecord(
+          payload.instances[instanceId] as Record<
+            string,
+            string | number | boolean | null | unknown
+          >,
+          serverPid,
+        ),
+      },
+    };
+  }
+
+  if (
+    instanceId &&
+    typeof payload.instanceId === 'string' &&
+    payload.instanceId !== instanceId
+  ) {
+    return payload;
+  }
+
+  return updateInstanceRecord(payload, serverPid);
+}
+
+function updateRestartState(logger: any, gitRoot: string, serverPid: number) {
+  const instanceStatePath = process.env.STALLION_INSTANCE_STATE_PATH;
+  const instanceId = process.env.STALLION_INSTANCE_ID;
+
+  if (instanceStatePath && existsSync(instanceStatePath)) {
+    try {
+      const rawState = readFileSync(instanceStatePath, 'utf-8').trim();
+      if (rawState) {
+        const nextState = updateInstanceStatePayload(
+          JSON.parse(rawState) as unknown,
+          instanceId,
+          serverPid,
+        );
+        writeFileSync(
+          instanceStatePath,
+          `${JSON.stringify(nextState, null, 2)}\n`,
+        );
+        return;
+      }
+    } catch (error) {
+      logger.warn(
+        'Core restart: failed to rewrite instance state, falling back to legacy pidfile',
+        {
+          error: errorMessage(error),
+          instanceId,
+          instanceStatePath,
+        },
+      );
+    }
+  }
+
+  const pidFile = join(gitRoot, '.stallion.pids');
+  if (existsSync(pidFile)) {
+    const pids = readFileSync(pidFile, 'utf-8').trim().split(' ');
+    const uiPid = pids[1] || '';
+    writeFileSync(pidFile, `${serverPid} ${uiPid}`);
+  }
+}
 
 export function createSystemUpdateRoutes(deps: SystemStatusDeps, logger: any) {
   const app = new Hono();
@@ -148,6 +440,16 @@ export function createSystemUpdateRoutes(deps: SystemStatusDeps, logger: any) {
       const { gitRoot } = resolveGitInfo(
         dirname(fileURLToPath(import.meta.url)),
       );
+      const currentInstanceId =
+        process.env.STALLION_INSTANCE_ID || DEFAULT_INSTANCE_ID;
+      const conflictError = getSelfUpdateConflictError(
+        gitRoot,
+        currentInstanceId,
+      );
+
+      if (conflictError) {
+        return c.json({ success: false, error: conflictError }, 409);
+      }
 
       await execFileAsync('git', ['pull', '--ff-only'], {
         cwd: gitRoot,
@@ -174,7 +476,6 @@ export function createSystemUpdateRoutes(deps: SystemStatusDeps, logger: any) {
       deps.eventBus?.emit('core:updated', { hash: newHash });
 
       const port = process.env.PORT || '3141';
-      const pidFile = join(gitRoot, '.stallion.pids');
 
       setTimeout(() => {
         const serverEnv: Record<string, string> = {
@@ -190,10 +491,8 @@ export function createSystemUpdateRoutes(deps: SystemStatusDeps, logger: any) {
         });
         child.unref();
 
-        if (existsSync(pidFile)) {
-          const pids = readFileSync(pidFile, 'utf-8').trim().split(' ');
-          const uiPid = pids[1] || '';
-          writeFileSync(pidFile, `${child.pid} ${uiPid}`);
+        if (child.pid) {
+          updateRestartState(logger, gitRoot, child.pid);
         }
 
         logger.info('Core restart: new server spawned', {

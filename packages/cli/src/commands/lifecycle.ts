@@ -1,14 +1,30 @@
 import { execSync, spawn } from 'node:child_process';
 import {
   existsSync,
+  mkdirSync,
   openSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { resolveGitInfo } from '@stallion-ai/shared/git';
-import { CWD, PIDFILE, PROJECT_HOME } from './helpers.js';
+import {
+  CWD,
+  DEFAULT_INSTANCE_ID,
+  DEFAULT_PROJECT_HOME,
+  DEFAULT_SERVER_PORT,
+  DEFAULT_UI_PORT,
+  getInstanceStatePath,
+  INSTANCE_STATE_DIR,
+  type LifecycleHomeSource,
+  normalizeHomePath,
+  normalizeInstanceName,
+  PIDFILE,
+  resolveLifecycleHomeTarget,
+  resolveLifecycleInstanceId,
+} from './helpers.js';
 import {
   createAppShortcut,
   createPathLink,
@@ -17,15 +33,332 @@ import {
   sleepSync,
 } from './platform.js';
 
-export function isRunning(): boolean {
-  if (!existsSync(PIDFILE)) return false;
-  const [pid] = readFileSync(PIDFILE, 'utf-8').trim().split(' ');
+interface InstanceStateRecord {
+  baseDir: string;
+  cwd: string;
+  homeSource: LifecycleHomeSource;
+  instanceId: string;
+  legacy?: boolean;
+  serverPid: number | null;
+  serverPort: number;
+  startedAt: string;
+  statePath: string;
+  uiPid: number | null;
+  uiPort: number;
+}
+
+interface InstanceSelector {
+  baseDir?: string;
+  instanceId?: string;
+  instanceName?: string;
+  serverPort?: number;
+  uiPort?: number;
+}
+
+export interface StartOptions extends InstanceSelector {
+  build?: boolean;
+  features?: string;
+  homeSource?: LifecycleHomeSource;
+  logFile?: string;
+}
+
+export interface StopOptions extends InstanceSelector {}
+
+export interface CleanOptions extends InstanceSelector {
+  actionLabel?: string;
+  allowDefaultHomeClean?: boolean;
+  force?: boolean;
+  homeSource?: LifecycleHomeSource;
+  projectHome?: string;
+}
+
+function parsePidList(raw: string): Array<number | null> {
+  return raw
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((value) => {
+      const parsed = Number.parseInt(value, 10);
+      return Number.isFinite(parsed) ? parsed : null;
+    });
+}
+
+function isProcessAlive(pid: number | null | undefined): boolean {
+  if (!pid) return false;
   try {
-    process.kill(parseInt(pid, 10), 0);
+    process.kill(pid, 0);
     return true;
   } catch {
     return false;
   }
+}
+
+function isInstanceRunning(record: InstanceStateRecord): boolean {
+  return isProcessAlive(record.serverPid) || isProcessAlive(record.uiPid);
+}
+
+function removeStateRecord(record: InstanceStateRecord): void {
+  rmSync(record.statePath, { force: true });
+}
+
+function readLegacyInstanceState(): InstanceStateRecord | null {
+  if (!existsSync(PIDFILE)) return null;
+
+  const [serverPid, uiPid] = parsePidList(readFileSync(PIDFILE, 'utf-8'));
+  const record: InstanceStateRecord = {
+    instanceId: DEFAULT_INSTANCE_ID,
+    serverPid,
+    uiPid,
+    serverPort: DEFAULT_SERVER_PORT,
+    uiPort: DEFAULT_UI_PORT,
+    baseDir: DEFAULT_PROJECT_HOME,
+    homeSource: 'default',
+    startedAt: new Date(0).toISOString(),
+    cwd: CWD,
+    statePath: PIDFILE,
+    legacy: true,
+  };
+
+  if (!isInstanceRunning(record)) {
+    removeStateRecord(record);
+    return null;
+  }
+
+  return record;
+}
+
+function readInstanceStateFile(path: string): InstanceStateRecord | null {
+  try {
+    const parsed = JSON.parse(
+      readFileSync(path, 'utf-8'),
+    ) as Partial<InstanceStateRecord>;
+    const instanceId = parsed.instanceId;
+    if (!instanceId) return null;
+
+    return {
+      instanceId,
+      serverPid: parsed.serverPid ?? null,
+      uiPid: parsed.uiPid ?? null,
+      serverPort: parsed.serverPort ?? DEFAULT_SERVER_PORT,
+      uiPort: parsed.uiPort ?? DEFAULT_UI_PORT,
+      baseDir: normalizeHomePath(parsed.baseDir || DEFAULT_PROJECT_HOME),
+      homeSource: parsed.homeSource || 'default',
+      startedAt: parsed.startedAt || new Date(0).toISOString(),
+      cwd: parsed.cwd || CWD,
+      statePath: path,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function listRunningInstances(): InstanceStateRecord[] {
+  const records: InstanceStateRecord[] = [];
+
+  if (existsSync(INSTANCE_STATE_DIR)) {
+    for (const entry of readdirSync(INSTANCE_STATE_DIR)) {
+      if (!entry.endsWith('.json')) continue;
+      const path = join(INSTANCE_STATE_DIR, entry);
+      const record = readInstanceStateFile(path);
+      if (!record || !isInstanceRunning(record)) {
+        rmSync(path, { force: true });
+        continue;
+      }
+      records.push(record);
+    }
+  }
+
+  const hasDefaultRecord = records.some(
+    (record) => record.instanceId === DEFAULT_INSTANCE_ID,
+  );
+  const legacyRecord = readLegacyInstanceState();
+  if (legacyRecord && !hasDefaultRecord) {
+    records.push(legacyRecord);
+  } else if (legacyRecord && hasDefaultRecord) {
+    removeStateRecord(legacyRecord);
+  }
+
+  return records.sort((left, right) =>
+    left.startedAt.localeCompare(right.startedAt),
+  );
+}
+
+function normalizeSelector(
+  selector: InstanceSelector = {},
+): Required<Pick<InstanceSelector, never>> & InstanceSelector {
+  return {
+    ...selector,
+    baseDir: selector.baseDir ? normalizeHomePath(selector.baseDir) : undefined,
+    instanceId:
+      selector.instanceId ||
+      (selector.instanceName
+        ? normalizeInstanceName(selector.instanceName)
+        : undefined),
+  };
+}
+
+function matchesSelector(
+  record: InstanceStateRecord,
+  selector: InstanceSelector,
+): boolean {
+  if (selector.instanceId && record.instanceId !== selector.instanceId) {
+    return false;
+  }
+  if (selector.baseDir && record.baseDir !== selector.baseDir) {
+    return false;
+  }
+  if (
+    selector.serverPort !== undefined &&
+    record.serverPort !== selector.serverPort
+  ) {
+    return false;
+  }
+  if (selector.uiPort !== undefined && record.uiPort !== selector.uiPort) {
+    return false;
+  }
+  return true;
+}
+
+function describeInstance(record: InstanceStateRecord): string {
+  return `${record.instanceId} — server ${record.serverPort}, ui ${record.uiPort}, home ${record.baseDir}`;
+}
+
+function stopRecord(record: InstanceStateRecord, announce = true): void {
+  const pids = new Set(
+    [record.serverPid, record.uiPid].filter(
+      (value): value is number => value != null,
+    ),
+  );
+  for (const pid of pids) {
+    killProcessTree(pid);
+  }
+  removeStateRecord(record);
+  if (announce) {
+    console.log('  ✓ Stopped');
+  }
+}
+
+function ensureSingleMatch(
+  matches: InstanceStateRecord[],
+  action: string,
+): InstanceStateRecord | null {
+  if (matches.length === 0) return null;
+  if (matches.length === 1) return matches[0];
+
+  throw new Error(
+    [
+      `${action} matched multiple running Stallion instances in this checkout.`,
+      'Use --instance, --base, --port, or --ui-port to disambiguate.',
+      ...matches.map((record) => `  - ${describeInstance(record)}`),
+    ].join('\n'),
+  );
+}
+
+function assertNoSiblingConflicts(
+  instanceId: string,
+  actionLabel: string,
+): void {
+  const siblings = listRunningInstances().filter(
+    (record) => record.instanceId !== instanceId,
+  );
+  if (siblings.length === 0) return;
+
+  throw new Error(
+    [
+      `${actionLabel} is blocked because this checkout uses shared build artifacts and other Stallion instances are still live.`,
+      'Stop the sibling instance(s) first or rerun the action from a different checkout.',
+      ...siblings.map((record) => `  - ${describeInstance(record)}`),
+    ].join('\n'),
+  );
+}
+
+function writeInstanceState(record: InstanceStateRecord): void {
+  mkdirSync(INSTANCE_STATE_DIR, { recursive: true });
+  writeFileSync(
+    record.statePath,
+    JSON.stringify(
+      {
+        instanceId: record.instanceId,
+        serverPid: record.serverPid,
+        uiPid: record.uiPid,
+        serverPort: record.serverPort,
+        uiPort: record.uiPort,
+        baseDir: record.baseDir,
+        homeSource: record.homeSource,
+        startedAt: record.startedAt,
+        cwd: record.cwd,
+      },
+      null,
+      2,
+    ),
+  );
+  rmSync(PIDFILE, { force: true });
+}
+
+function announceHome(projectHome: string, source: LifecycleHomeSource): void {
+  if (source === '--temp-home') {
+    console.log(`Using temporary Stallion home: ${projectHome}`);
+  }
+}
+
+function resolveStartTarget(options: StartOptions) {
+  const serverPort = options.serverPort ?? DEFAULT_SERVER_PORT;
+  const uiPort = options.uiPort ?? DEFAULT_UI_PORT;
+  const homeTarget = resolveLifecycleHomeTarget({ baseDir: options.baseDir });
+  const projectHome = homeTarget.projectHome;
+  const homeSource = options.homeSource ?? homeTarget.source;
+  const instanceId =
+    options.instanceId ||
+    resolveLifecycleInstanceId({
+      instanceName: options.instanceName,
+      projectHome,
+      serverPort,
+      uiPort,
+    });
+
+  return {
+    serverPort,
+    uiPort,
+    projectHome,
+    homeSource,
+    instanceId,
+    statePath: getInstanceStatePath(instanceId),
+  };
+}
+
+function resolveCleanTarget(options: CleanOptions) {
+  const homeTarget = resolveLifecycleHomeTarget({
+    baseDir: options.projectHome ?? options.baseDir,
+  });
+  const projectHome = homeTarget.projectHome;
+  const homeSource = options.homeSource ?? homeTarget.source;
+  const serverPort = options.serverPort ?? DEFAULT_SERVER_PORT;
+  const uiPort = options.uiPort ?? DEFAULT_UI_PORT;
+  const instanceId =
+    options.instanceId ||
+    resolveLifecycleInstanceId({
+      instanceName: options.instanceName,
+      projectHome,
+      serverPort,
+      uiPort,
+    });
+
+  return {
+    projectHome,
+    homeSource,
+    isDefaultHome: homeTarget.isDefaultHome,
+    serverPort,
+    uiPort,
+    instanceId,
+  };
+}
+
+export function isRunning(selector: StopOptions = {}): boolean {
+  const normalizedSelector = normalizeSelector(selector);
+  return listRunningInstances().some((record) =>
+    matchesSelector(record, normalizedSelector),
+  );
 }
 
 export function isInstalled(): boolean {
@@ -34,42 +367,35 @@ export function isInstalled(): boolean {
   );
 }
 
-export interface StartOptions {
-  serverPort?: number;
-  uiPort?: number;
-  logFile?: string;
-  build?: boolean;
-  baseDir?: string;
-  features?: string;
-}
-
 export function start(opts: StartOptions = {}): void {
-  const {
-    serverPort = 3141,
-    uiPort = 3000,
-    logFile,
-    build,
-    baseDir,
-    features,
-  } = opts;
+  const { logFile, build, features } = opts;
+  const { serverPort, uiPort, projectHome, homeSource, instanceId, statePath } =
+    resolveStartTarget(opts);
+  const normalizedSelector = normalizeSelector({ instanceId });
+  const runningMatch = ensureSingleMatch(
+    listRunningInstances().filter((record) =>
+      matchesSelector(record, normalizedSelector),
+    ),
+    'start',
+  );
+  const needsBuild = Boolean(build) || !isInstalled();
 
-  if (build) {
+  if (needsBuild) {
+    assertNoSiblingConflicts(instanceId, build ? 'start --build' : 'start');
+    if (runningMatch) {
+      stopRecord(runningMatch, false);
+    }
     console.log('Building application...');
-    if (isRunning()) stop();
     execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
     execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });
-  } else if (isRunning()) {
+  } else if (runningMatch) {
     console.log(
-      `✓ Already running\n  UI:   http://localhost:${uiPort}\n  Stop: stallion stop`,
+      `✓ Already running\n  UI:   http://localhost:${runningMatch.uiPort}\n  Stop: stallion stop --instance=${runningMatch.instanceId}`,
     );
     return;
-  } else if (!isInstalled()) {
-    console.log('Building application...');
-    execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
-    execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });
   }
 
-  stop();
+  announceHome(projectHome, homeSource);
 
   let serverStdio: any = 'ignore';
   if (logFile) {
@@ -78,10 +404,12 @@ export function start(opts: StartOptions = {}): void {
   }
 
   const serverEnv: Record<string, string> = {
-    ...(process.env as any),
+    ...(process.env as Record<string, string>),
     PORT: String(serverPort),
+    STALLION_AI_DIR: projectHome,
+    STALLION_INSTANCE_ID: instanceId,
+    STALLION_INSTANCE_STATE_PATH: statePath,
   };
-  if (baseDir) serverEnv.STALLION_AI_DIR = baseDir;
   if (features) serverEnv.STALLION_FEATURES = features;
 
   const serverProc = spawn('node', ['dist-server/index.js'], {
@@ -130,7 +458,18 @@ export function start(opts: StartOptions = {}): void {
   );
   uiProc.unref();
 
-  writeFileSync(PIDFILE, `${serverProc.pid} ${uiProc.pid}`);
+  writeInstanceState({
+    instanceId,
+    serverPid: serverProc.pid ?? null,
+    uiPid: uiProc.pid ?? null,
+    serverPort,
+    uiPort,
+    baseDir: projectHome,
+    homeSource,
+    startedAt: new Date().toISOString(),
+    cwd: CWD,
+    statePath,
+  });
 
   sleepSync(1000);
   try {
@@ -138,27 +477,28 @@ export function start(opts: StartOptions = {}): void {
     process.kill(uiProc.pid!, 0);
     console.log(`\n  ✓ Server: http://localhost:${serverPort}`);
     console.log(`  ✓ UI:     http://localhost:${uiPort}`);
-    console.log('\n  Stop with: stallion stop');
+    if (homeSource === '--temp-home') {
+      console.log(`  ✓ Home:   ${projectHome}`);
+    }
+    console.log(`  ✓ Instance: ${instanceId}`);
+    console.log(`\n  Stop with: stallion stop --instance=${instanceId}`);
   } catch {
     console.error(
       `Failed to start. Check that ports ${serverPort} and ${uiPort} are free.`,
     );
-    stop();
+    stop({ instanceId });
     process.exit(1);
   }
 }
 
-export function stop(): void {
-  if (!existsSync(PIDFILE)) return;
-  const pids = readFileSync(PIDFILE, 'utf-8')
-    .trim()
-    .split(' ')
-    .map((p) => parseInt(p, 10));
-  for (const pid of pids) {
-    killProcessTree(pid);
-  }
-  rmSync(PIDFILE, { force: true });
-  console.log('  ✓ Stopped');
+export function stop(opts: StopOptions = {}): void {
+  const normalizedSelector = normalizeSelector(opts);
+  const matches = listRunningInstances().filter((record) =>
+    matchesSelector(record, normalizedSelector),
+  );
+  const match = ensureSingleMatch(matches, 'stop');
+  if (!match) return;
+  stopRecord(match);
 }
 
 export { collectDoctorReport, doctor } from './lifecycle-doctor.js';
@@ -171,9 +511,33 @@ export function shortcut(): void {
   createAppShortcut(CWD);
 }
 
-export async function clean(force = false): Promise<void> {
-  if (!force) {
-    console.log(`\n⚠️  This will delete ${PROJECT_HOME} which includes:`);
+export async function clean(
+  forceOrOptions: boolean | CleanOptions = false,
+): Promise<void> {
+  const options =
+    typeof forceOrOptions === 'boolean'
+      ? { force: forceOrOptions }
+      : forceOrOptions;
+  const {
+    projectHome,
+    homeSource,
+    isDefaultHome,
+    instanceId,
+    serverPort,
+    uiPort,
+  } = resolveCleanTarget(options);
+
+  if (isDefaultHome && !options.allowDefaultHomeClean) {
+    throw new Error(
+      'Refusing to clean the default Stallion home. Use --temp-home for hermetic runs, or pass --allow-default-home-clean when you truly intend to delete ~/.stallion-ai.',
+    );
+  }
+
+  assertNoSiblingConflicts(instanceId, options.actionLabel ?? 'clean');
+  announceHome(projectHome, homeSource);
+
+  if (!options.force) {
+    console.log(`\n⚠️  This will delete ${projectHome} which includes:`);
     console.log('   - All installed plugins');
     console.log('   - Conversation history');
     console.log('   - Tool configurations\n');
@@ -186,21 +550,30 @@ export async function clean(force = false): Promise<void> {
     }
   }
 
-  stop();
-  rmSync(PROJECT_HOME, { recursive: true, force: true });
+  stop({ instanceId, serverPort, uiPort, baseDir: projectHome });
+  rmSync(projectHome, { recursive: true, force: true });
   rmSync(join(CWD, 'dist-server'), { recursive: true, force: true });
   rmSync(join(CWD, 'dist-ui'), { recursive: true, force: true });
   console.log('  ✓ Cleaned');
 }
 
 export function upgrade(): void {
-  if (isRunning()) {
-    stop();
+  const liveInstances = listRunningInstances();
+  if (liveInstances.length > 1) {
+    throw new Error(
+      [
+        'stallion upgrade is blocked because this checkout has multiple live Stallion instances sharing build artifacts.',
+        'Stop the sibling instances first or rerun from a different checkout.',
+        ...liveInstances.map((record) => `  - ${describeInstance(record)}`),
+      ].join('\n'),
+    );
+  }
+  if (liveInstances.length === 1) {
+    stopRecord(liveInstances[0], false);
   }
 
   const { gitRoot, branch } = resolveGitInfo(CWD);
 
-  // Auto-configure upstream tracking if missing but origin exists
   try {
     execSync(`git rev-parse --abbrev-ref ${branch}@{u}`, {
       cwd: gitRoot,

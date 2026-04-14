@@ -62,21 +62,22 @@ Never skip these gates. If a gate fails, fix the issue before marking done.
 Always use `./stallion` to manage the app — never raw npm scripts, `node esbuild.config.mjs`, or `npx vite build` directly. The CLI handles build orchestration (server + UI) in the correct order.
 
 ```bash
-./stallion --help              # Discover all commands and flags
-./stallion start               # Start (auto-builds if needed)
-./stallion start --clean --force  # Wipe and rebuild from scratch
-./stallion stop                # Stop running processes
+./stallion --help
+./stallion start --instance=agent-smoke --temp-home --clean --force --port=3242 --ui-port=5274
+./stallion stop --instance=agent-smoke
 ```
+
+Use `--temp-home` for routine agent smoke runs so cleanup stays out of your main `~/.stallion-ai` home. Deleting the default home now requires `--allow-default-home-clean` in addition to `--force`.
 
 ### Port rules
 
-Default ports (3141 server, 3000 UI) are **reserved for user testing**. Agents must always use unique ports:
+Default ports (3141 server, 3000 UI) are **reserved for user testing**. Agents must always use unique ports and a stable instance name:
 
 ```bash
-./stallion start --clean --force --port=3242 --ui-port=5274
+./stallion start --instance=agent-smoke --temp-home --clean --force --port=3242 --ui-port=5274
 ```
 
-Pick ports that won't collide with other agents running concurrently.
+Pick ports that won't collide with other agents running concurrently. Shared-build actions (`--clean`, `fresh`, `--build`, and self-update) will refuse to run while sibling instances from the same checkout are still live.
 
 ### Playwright tests
 

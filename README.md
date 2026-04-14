@@ -57,10 +57,12 @@ Use `./stallion --help` to see all available commands.
 For development:
 
 ```bash
-./stallion start --clean --force   # Wipe and rebuild from scratch
-./stallion stop                    # Stop running processes
-./stallion doctor                  # Check prerequisites
+./stallion start --instance=dev-smoke --temp-home --clean --force --port=3242 --ui-port=5274
+./stallion stop --instance=dev-smoke
+./stallion doctor
 ```
+
+Use `--temp-home` for routine smoke runs so cleanup stays out of your main `~/.stallion-ai` home. If you really need to delete the default home, pass `--allow-default-home-clean` in addition to `--force`. Shared-build actions (`--clean`, `fresh`, `--build`, and self-update) will refuse to run while sibling instances from the same checkout are live.
 
 ### Data Directory
 
@@ -81,7 +83,7 @@ All runtime data lives in `~/.stallion-ai/`:
 └── scheduler/            # Scheduled job state (created by BuiltinScheduler)
 ```
 
-Set `STALLION_AI_DIR` to override the default location.
+Set `STALLION_AI_DIR` to override the default location, or use `./stallion start --base=<dir>` / `./stallion start --temp-home` for lifecycle commands.
 
 ## Self-Configuring Agents
 

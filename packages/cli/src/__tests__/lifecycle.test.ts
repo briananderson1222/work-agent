@@ -1,86 +1,245 @@
-import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { spawn as spawnProcess } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from 'vitest';
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, resolve } from 'node:path';
+import { afterEach, describe, expect, it, type Mock, vi } from 'vitest';
 
-// ─── temp path constants ──────────────────────────────────────────────────────
-// Use a unique dir per test run so parallel runs don't collide.
-const TEST_CWD = join(tmpdir(), `stallion-lifecycle-${process.pid}`);
-const TEST_PROJECT_HOME = join(TEST_CWD, '.stallion-ai');
+type LifecycleModule = typeof import('../commands/lifecycle.js');
+type PlatformModule = typeof import('../commands/platform.js');
+
+const TEST_ROOT = join(
+  tmpdir(),
+  `stallion-lifecycle-${process.pid}-${Date.now()}`,
+);
+const TEST_CWD = join(TEST_ROOT, 'cwd');
+const TEST_DEFAULT_HOME = join(TEST_ROOT, 'default-home');
+const TEST_ALT_HOME = join(TEST_ROOT, 'alt-home');
+const TEST_SECOND_HOME = join(TEST_ROOT, 'second-home');
 const TEST_PIDFILE = join(TEST_CWD, '.stallion.pids');
+const TEST_INSTANCE_STATE_DIR = join(TEST_CWD, '.stallion', 'instances');
 
-// ─── dynamically loaded lifecycle under mocked helpers ────────────────────────
-// vi.doMock (not hoisted) + resetModules ensures lifecycle.ts binds to our
-// temp paths instead of the real ~/.stallion-ai and repo CWD.
-//
-// platformModule MUST be imported after the reset so that lifecycle.js and the
-// test share the same module instance — required for vi.spyOn to intercept calls
-// made from inside lifecycle.
-let isRunning: () => boolean;
-let stop: () => void;
-let clean: (force?: boolean) => Promise<void>;
-let collectDoctorReport: typeof import('../commands/lifecycle.js').collectDoctorReport;
-let platformModule: typeof import('../commands/platform.js');
+function normalizeInstanceName(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || 'default';
+}
 
-beforeAll(async () => {
-  mkdirSync(TEST_CWD, { recursive: true });
+function resolveInstanceId(
+  options: {
+    cwd?: string;
+    instanceName?: string;
+    projectHome?: string;
+    serverPort?: number;
+    uiPort?: number;
+  } = {},
+): string {
+  if (options.instanceName?.trim()) {
+    return normalizeInstanceName(options.instanceName);
+  }
 
+  const projectHome = resolve(options.projectHome || TEST_DEFAULT_HOME);
+  const serverPort = options.serverPort ?? 3141;
+  const uiPort = options.uiPort ?? 3000;
+
+  if (
+    projectHome === TEST_DEFAULT_HOME &&
+    serverPort === 3141 &&
+    uiPort === 3000
+  ) {
+    return 'default';
+  }
+
+  const hash = createHash('sha1')
+    .update(
+      JSON.stringify({
+        cwd: options.cwd || TEST_CWD,
+        projectHome,
+        serverPort,
+        uiPort,
+      }),
+    )
+    .digest('hex')
+    .slice(0, 12);
+
+  return `instance-${hash}`;
+}
+
+function getInstanceStatePath(instanceId: string, cwd = TEST_CWD): string {
+  return join(cwd, '.stallion', 'instances', `${instanceId}.json`);
+}
+
+async function loadLifecycleModule(
+  options: {
+    childProcessMock?: {
+      execSync?: Mock;
+      spawn?: Mock;
+    };
+    platformOverrides?: Partial<PlatformModule>;
+  } = {},
+): Promise<{
+  lifecycle: LifecycleModule;
+  platform: PlatformModule;
+}> {
   vi.resetModules();
+
   vi.doMock('../commands/helpers.js', () => ({
+    AGENTS_DIR: join(TEST_DEFAULT_HOME, 'agents'),
     CWD: TEST_CWD,
-    PROJECT_HOME: TEST_PROJECT_HOME,
+    DEFAULT_INSTANCE_ID: 'default',
+    DEFAULT_PROJECT_HOME: TEST_DEFAULT_HOME,
+    DEFAULT_SERVER_PORT: 3141,
+    DEFAULT_UI_PORT: 3000,
+    INSTANCE_STATE_DIR: TEST_INSTANCE_STATE_DIR,
     PIDFILE: TEST_PIDFILE,
-    PLUGINS_DIR: join(TEST_PROJECT_HOME, 'plugins'),
-    AGENTS_DIR: join(TEST_PROJECT_HOME, 'agents'),
-    LAYOUTS_DIR: join(TEST_PROJECT_HOME, 'layouts'),
-    readManifest: vi.fn(),
-    isGitUrl: () => false,
-    parseGitSource: () => ({ url: '', branch: 'main' }),
+    PLUGINS_DIR: join(TEST_DEFAULT_HOME, 'plugins'),
+    PROJECT_HOME: TEST_DEFAULT_HOME,
     extractPluginName: () => '',
+    getInstanceStatePath,
+    isGitUrl: () => false,
     lookupDepInRegistries: () => null,
+    normalizeHomePath: (path: string) => resolve(path),
+    normalizeInstanceName,
+    parseGitSource: () => ({ branch: 'main', url: '' }),
+    readManifest: vi.fn(),
+    resolveLifecycleHomeTarget: ({
+      baseDir,
+      env,
+      tempHome,
+    }: {
+      baseDir?: string;
+      env?: NodeJS.ProcessEnv;
+      tempHome?: boolean;
+    } = {}) => {
+      const resolvedEnv = env ?? process.env;
+
+      if (tempHome) {
+        const projectHome = mkdtempSync(join(tmpdir(), 'stallion-dev-home-'));
+        return {
+          isDefaultHome: false,
+          projectHome,
+          source: '--temp-home' as const,
+        };
+      }
+
+      if (baseDir) {
+        const projectHome = resolve(baseDir);
+        return {
+          isDefaultHome: projectHome === TEST_DEFAULT_HOME,
+          projectHome,
+          source: '--base' as const,
+        };
+      }
+
+      if (resolvedEnv.STALLION_AI_DIR) {
+        const projectHome = resolve(resolvedEnv.STALLION_AI_DIR);
+        return {
+          isDefaultHome: projectHome === TEST_DEFAULT_HOME,
+          projectHome,
+          source: 'env' as const,
+        };
+      }
+
+      return {
+        isDefaultHome: true,
+        projectHome: TEST_DEFAULT_HOME,
+        source: 'default' as const,
+      };
+    },
+    resolveLifecycleInstanceId: resolveInstanceId,
   }));
 
-  // lifecycle.js is imported first — it loads and caches the fresh platform.js
-  const mod = await import('../commands/lifecycle.js');
-  isRunning = mod.isRunning;
-  stop = mod.stop;
-  clean = mod.clean;
-  collectDoctorReport = mod.collectDoctorReport;
+  if (options.childProcessMock) {
+    vi.doMock('node:child_process', () => ({
+      execSync: options.childProcessMock.execSync ?? vi.fn(),
+      spawn: options.childProcessMock.spawn ?? vi.fn(),
+    }));
+  }
 
-  // Importing platform.js now hits the same cached fresh instance
-  platformModule = await import('../commands/platform.js');
-});
+  if (options.platformOverrides) {
+    vi.doMock('../commands/platform.js', async () => {
+      const actual = await vi.importActual<PlatformModule>(
+        '../commands/platform.js',
+      );
+      return { ...actual, ...options.platformOverrides };
+    });
+  }
 
-afterAll(() => {
-  vi.doUnmock('../commands/helpers.js');
-  vi.resetModules();
-  rmSync(TEST_CWD, { recursive: true, force: true });
-});
+  const lifecycle = await import('../commands/lifecycle.js');
+  const platform = await import('../commands/platform.js');
+  return { lifecycle, platform };
+}
 
-// ─── helpers ──────────────────────────────────────────────────────────────────
+function ensureDir(path: string): void {
+  mkdirSync(path, { recursive: true });
+}
 
-function ensureNoPidfile() {
-  if (existsSync(TEST_PIDFILE)) rmSync(TEST_PIDFILE, { force: true });
+function ensureBuildOutputs(): void {
+  ensureDir(join(TEST_CWD, 'dist-server'));
+  ensureDir(join(TEST_CWD, 'dist-ui'));
+}
+
+function writeInstanceState(options: {
+  baseDir?: string;
+  instanceId?: string;
+  instanceName?: string;
+  serverPid: number | null;
+  serverPort?: number;
+  startedAt?: string;
+  uiPid: number | null;
+  uiPort?: number;
+}): string {
+  const instanceId =
+    options.instanceId ||
+    resolveInstanceId({
+      instanceName: options.instanceName,
+      projectHome: options.baseDir,
+      serverPort: options.serverPort,
+      uiPort: options.uiPort,
+    });
+  const statePath = getInstanceStatePath(instanceId);
+
+  ensureDir(TEST_INSTANCE_STATE_DIR);
+  writeFileSync(
+    statePath,
+    JSON.stringify(
+      {
+        baseDir: resolve(options.baseDir || TEST_DEFAULT_HOME),
+        cwd: TEST_CWD,
+        homeSource: 'default',
+        instanceId,
+        serverPid: options.serverPid,
+        serverPort: options.serverPort ?? 3141,
+        startedAt: options.startedAt ?? new Date().toISOString(),
+        uiPid: options.uiPid,
+        uiPort: options.uiPort ?? 3000,
+      },
+      null,
+      2,
+    ),
+  );
+
+  return statePath;
 }
 
 async function spawnLongRunning(): Promise<number> {
-  const proc = spawn('node', ['-e', 'setInterval(() => {}, 10000)'], {
+  const proc = spawnProcess('node', ['-e', 'setInterval(() => {}, 10000)'], {
     detached: true,
     stdio: 'ignore',
     windowsHide: true,
   });
   proc.unref();
-  await new Promise((r) => setTimeout(r, 150));
+  await new Promise((resolvePromise) => setTimeout(resolvePromise, 150));
   return proc.pid!;
 }
 
@@ -93,148 +252,234 @@ function isAlive(pid: number): boolean {
   }
 }
 
-beforeEach(ensureNoPidfile);
-afterEach(ensureNoPidfile);
+afterEach(() => {
+  vi.resetModules();
+  vi.restoreAllMocks();
+  vi.doUnmock('../commands/helpers.js');
+  vi.doUnmock('../commands/platform.js');
+  vi.doUnmock('node:child_process');
+  rmSync(TEST_ROOT, { force: true, recursive: true });
+});
 
-// ─── isRunning ────────────────────────────────────────────────────────────────
-
-describe('isRunning', () => {
-  it('returns false when no pidfile exists', () => {
-    expect(isRunning()).toBe(false);
-  });
-
-  it('returns false when pidfile contains a dead PID', () => {
+describe('lifecycle instance state', () => {
+  it('recognizes and cleans up stale legacy pidfiles', async () => {
+    ensureDir(TEST_CWD);
     writeFileSync(TEST_PIDFILE, '99999');
-    expect(isRunning()).toBe(false);
-  });
 
-  it('returns true when pidfile contains a live PID', async () => {
-    const pid = await spawnLongRunning();
-    try {
-      writeFileSync(TEST_PIDFILE, String(pid));
-      expect(isRunning()).toBe(true);
-    } finally {
-      try {
-        process.kill(pid, 'SIGKILL');
-      } catch {}
-    }
-  });
-});
+    const { lifecycle } = await loadLifecycleModule();
 
-// ─── stop ─────────────────────────────────────────────────────────────────────
-
-describe('stop', () => {
-  it('is a noop when no pidfile exists', () => {
-    expect(() => stop()).not.toThrow();
+    expect(lifecycle.isRunning()).toBe(false);
     expect(existsSync(TEST_PIDFILE)).toBe(false);
   });
 
-  it('kills a single process and removes the pidfile', async () => {
-    const pid = await spawnLongRunning();
-    writeFileSync(TEST_PIDFILE, String(pid));
+  it('stops only the targeted named instance when multiple instances are live', async () => {
+    ensureDir(TEST_CWD);
+    ensureDir(TEST_DEFAULT_HOME);
+    ensureDir(TEST_ALT_HOME);
 
-    stop();
+    const alphaPid = await spawnLongRunning();
+    const betaPid = await spawnLongRunning();
+    writeInstanceState({
+      baseDir: TEST_ALT_HOME,
+      instanceName: 'alpha',
+      serverPid: alphaPid,
+      serverPort: 3242,
+      uiPid: null,
+      uiPort: 5274,
+    });
+    const betaStatePath = writeInstanceState({
+      baseDir: TEST_SECOND_HOME,
+      instanceName: 'beta',
+      serverPid: betaPid,
+      serverPort: 3243,
+      uiPid: null,
+      uiPort: 5275,
+    });
 
-    expect(existsSync(TEST_PIDFILE)).toBe(false);
-    await new Promise((r) => setTimeout(r, 500));
-    expect(isAlive(pid)).toBe(false);
+    const { lifecycle } = await loadLifecycleModule();
+
+    lifecycle.stop({ instanceName: 'alpha' });
+
+    await new Promise((resolvePromise) => setTimeout(resolvePromise, 500));
+    expect(isAlive(alphaPid)).toBe(false);
+    expect(isAlive(betaPid)).toBe(true);
+    expect(existsSync(getInstanceStatePath('alpha'))).toBe(false);
+    expect(existsSync(betaStatePath)).toBe(true);
+
+    process.kill(betaPid, 'SIGKILL');
   }, 15_000);
 
-  it('kills multiple processes listed in the pidfile', async () => {
-    const pid1 = await spawnLongRunning();
-    const pid2 = await spawnLongRunning();
-    writeFileSync(TEST_PIDFILE, `${pid1} ${pid2}`);
+  it('writes per-instance state and injects instance env on start', async () => {
+    ensureDir(TEST_CWD);
+    ensureBuildOutputs();
+    ensureDir(TEST_ALT_HOME);
 
-    stop();
+    const execSync = vi.fn();
+    const spawn = vi
+      .fn()
+      .mockReturnValueOnce({ pid: 41001, unref: vi.fn() })
+      .mockReturnValueOnce({ pid: 41002, unref: vi.fn() });
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(((
+      pid: number,
+      signal?: NodeJS.Signals | number,
+    ) => {
+      if (signal === 0 && (pid === 41001 || pid === 41002)) {
+        return true;
+      }
+      throw new Error(`unexpected process.kill(${pid}, ${String(signal)})`);
+    }) as typeof process.kill);
 
-    expect(existsSync(TEST_PIDFILE)).toBe(false);
-    await new Promise((r) => setTimeout(r, 500));
-    expect(isAlive(pid1)).toBe(false);
-    expect(isAlive(pid2)).toBe(false);
-  }, 15_000);
+    const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const { lifecycle } = await loadLifecycleModule({
+      childProcessMock: { execSync, spawn },
+      platformOverrides: { sleepSync: vi.fn() },
+    });
 
-  it('handles a pidfile containing only dead PIDs without throwing', () => {
-    writeFileSync(TEST_PIDFILE, '99998 99999');
-    expect(() => stop()).not.toThrow();
-    expect(existsSync(TEST_PIDFILE)).toBe(false);
+    lifecycle.start({
+      baseDir: TEST_ALT_HOME,
+      homeSource: '--base',
+      instanceName: 'smoke-a',
+      serverPort: 3242,
+      uiPort: 5274,
+    });
+
+    const statePath = getInstanceStatePath('smoke-a');
+    const state = JSON.parse(readFileSync(statePath, 'utf-8')) as {
+      baseDir: string;
+      instanceId: string;
+      serverPid: number;
+      serverPort: number;
+      uiPid: number;
+      uiPort: number;
+    };
+
+    expect(execSync).not.toHaveBeenCalled();
+    expect(spawn).toHaveBeenCalledTimes(2);
+    expect(spawn.mock.calls[0][2]?.env).toEqual(
+      expect.objectContaining({
+        PORT: '3242',
+        STALLION_AI_DIR: TEST_ALT_HOME,
+        STALLION_INSTANCE_ID: 'smoke-a',
+        STALLION_INSTANCE_STATE_PATH: statePath,
+      }),
+    );
+    expect(state).toMatchObject({
+      baseDir: TEST_ALT_HOME,
+      instanceId: 'smoke-a',
+      serverPid: 41001,
+      serverPort: 3242,
+      uiPid: 41002,
+      uiPort: 5274,
+    });
+    expect(consoleLog).toHaveBeenCalledWith(
+      '\n  Stop with: stallion stop --instance=smoke-a',
+    );
+
+    killSpy.mockRestore();
   });
 });
-
-// ─── clean ────────────────────────────────────────────────────────────────────
 
 describe('clean', () => {
-  // Re-create the three dirs that clean() deletes before each test
-  beforeEach(() => {
-    mkdirSync(TEST_PROJECT_HOME, { recursive: true });
-    mkdirSync(join(TEST_CWD, 'dist-server'), { recursive: true });
-    mkdirSync(join(TEST_CWD, 'dist-ui'), { recursive: true });
-  });
+  it('removes only the explicit base directory and leaves the default home intact', async () => {
+    ensureDir(TEST_CWD);
+    ensureDir(TEST_DEFAULT_HOME);
+    ensureDir(TEST_ALT_HOME);
+    ensureBuildOutputs();
 
-  it('--force: removes PROJECT_HOME, dist-server, and dist-ui', async () => {
-    await clean(true);
+    const { lifecycle } = await loadLifecycleModule();
 
-    expect(existsSync(TEST_PROJECT_HOME)).toBe(false);
+    await lifecycle.clean({
+      allowDefaultHomeClean: false,
+      force: true,
+      homeSource: '--base',
+      projectHome: TEST_ALT_HOME,
+      serverPort: 3242,
+      uiPort: 5274,
+    });
+
+    expect(existsSync(TEST_ALT_HOME)).toBe(false);
+    expect(existsSync(TEST_DEFAULT_HOME)).toBe(true);
     expect(existsSync(join(TEST_CWD, 'dist-server'))).toBe(false);
     expect(existsSync(join(TEST_CWD, 'dist-ui'))).toBe(false);
   });
 
-  it('--force: does not call promptYN', async () => {
-    const promptSpy = vi
-      .spyOn(platformModule, 'promptYN')
-      .mockResolvedValue(false);
-    try {
-      await clean(true);
-      expect(promptSpy).not.toHaveBeenCalled();
-    } finally {
-      promptSpy.mockRestore();
-    }
+  it('refuses to clean the default home without explicit acknowledgement', async () => {
+    ensureDir(TEST_CWD);
+    ensureDir(TEST_DEFAULT_HOME);
+
+    const { lifecycle } = await loadLifecycleModule();
+
+    await expect(
+      lifecycle.clean({
+        force: true,
+        homeSource: 'default',
+        projectHome: TEST_DEFAULT_HOME,
+      }),
+    ).rejects.toThrow(
+      'Refusing to clean the default Stallion home. Use --temp-home for hermetic runs, or pass --allow-default-home-clean when you truly intend to delete ~/.stallion-ai.',
+    );
+    expect(existsSync(TEST_DEFAULT_HOME)).toBe(true);
   });
 
-  it('interactive: exits without cleaning when user says no', async () => {
-    const promptSpy = vi
-      .spyOn(platformModule, 'promptYN')
-      .mockResolvedValue(false);
-    // Throw on exit so execution doesn't fall through past process.exit(0),
-    // matching real behaviour where exit() terminates the process.
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((
-      code?: number,
-    ) => {
-      throw new Error(`process.exit(${code})`);
-    }) as never);
-    try {
-      await expect(clean(false)).rejects.toThrow('process.exit(0)');
+  it('allows intentional default-home cleanup when explicitly acknowledged', async () => {
+    ensureDir(TEST_CWD);
+    ensureDir(TEST_DEFAULT_HOME);
+    ensureBuildOutputs();
 
-      expect(promptSpy).toHaveBeenCalledOnce();
-      // Directories must still exist — clean was aborted before rmSync calls
-      expect(existsSync(TEST_PROJECT_HOME)).toBe(true);
-      expect(existsSync(join(TEST_CWD, 'dist-server'))).toBe(true);
-      expect(existsSync(join(TEST_CWD, 'dist-ui'))).toBe(true);
-    } finally {
-      promptSpy.mockRestore();
-      exitSpy.mockRestore();
-    }
+    const { lifecycle } = await loadLifecycleModule();
+
+    await lifecycle.clean({
+      allowDefaultHomeClean: true,
+      force: true,
+      homeSource: 'default',
+      projectHome: TEST_DEFAULT_HOME,
+    });
+
+    expect(existsSync(TEST_DEFAULT_HOME)).toBe(false);
   });
 
-  it('interactive: proceeds with cleaning when user says yes', async () => {
-    const promptSpy = vi
-      .spyOn(platformModule, 'promptYN')
-      .mockResolvedValue(true);
-    try {
-      await clean(false);
+  it('blocks shared-build cleanup when a sibling instance is still live', async () => {
+    ensureDir(TEST_CWD);
+    ensureDir(TEST_ALT_HOME);
+    ensureDir(TEST_SECOND_HOME);
+    ensureBuildOutputs();
 
-      expect(promptSpy).toHaveBeenCalledOnce();
-      expect(existsSync(TEST_PROJECT_HOME)).toBe(false);
-      expect(existsSync(join(TEST_CWD, 'dist-server'))).toBe(false);
-      expect(existsSync(join(TEST_CWD, 'dist-ui'))).toBe(false);
-    } finally {
-      promptSpy.mockRestore();
-    }
-  });
+    const siblingPid = await spawnLongRunning();
+    writeInstanceState({
+      baseDir: TEST_SECOND_HOME,
+      instanceName: 'sibling',
+      serverPid: siblingPid,
+      serverPort: 3243,
+      uiPid: null,
+      uiPort: 5275,
+    });
+
+    const { lifecycle } = await loadLifecycleModule();
+
+    await expect(
+      lifecycle.clean({
+        force: true,
+        homeSource: '--base',
+        projectHome: TEST_ALT_HOME,
+        serverPort: 3242,
+        uiPort: 5274,
+      }),
+    ).rejects.toThrow(
+      'clean is blocked because this checkout uses shared build artifacts and other Stallion instances are still live.',
+    );
+    expect(isAlive(siblingPid)).toBe(true);
+
+    process.kill(siblingPid, 'SIGKILL');
+  }, 15_000);
 });
 
 describe('collectDoctorReport', () => {
   it('reports a first-run-ready path when Ollama is reachable locally', async () => {
-    const report = await collectDoctorReport({
+    const { lifecycle } = await loadLifecycleModule();
+
+    const report = await lifecycle.collectDoctorReport({
+      checkOllama: async () => true,
+      env: {},
       exec: (command) => {
         if (command === 'node -v') return 'v22.0.0';
         if (command === 'npm -v') return '10.0.0';
@@ -242,10 +487,8 @@ describe('collectDoctorReport', () => {
         if (command === 'tsx --version') return 'tsx v4.0.0';
         return null;
       },
-      checkOllama: async () => true,
       exists: () => false,
       readJson: (_path, fallback) => fallback,
-      env: {},
     });
 
     expect(report.chatReady).toBe(true);
@@ -262,7 +505,11 @@ describe('collectDoctorReport', () => {
   });
 
   it('prefers configured chat providers over hard-coded defaults', async () => {
-    const report = await collectDoctorReport({
+    const { lifecycle } = await loadLifecycleModule();
+
+    const report = await lifecycle.collectDoctorReport({
+      checkOllama: async () => false,
+      env: {},
       exec: (command) => {
         if (command === 'node -v') return 'v22.0.0';
         if (command === 'npm -v') return '10.0.0';
@@ -271,7 +518,6 @@ describe('collectDoctorReport', () => {
         if (command === 'codex --version') return 'codex 1.0.0';
         return null;
       },
-      checkOllama: async () => false,
       exists: (path) =>
         path.endsWith('app.json') || path.endsWith('providers.json'),
       readJson: (path, fallback) => {
@@ -284,15 +530,14 @@ describe('collectDoctorReport', () => {
         if (path.endsWith('providers.json')) {
           return [
             {
-              id: 'ollama-local',
-              enabled: true,
               capabilities: ['llm'],
+              enabled: true,
+              id: 'ollama-local',
             },
           ] as typeof fallback;
         }
         return fallback;
       },
-      env: {},
     });
 
     expect(report.chatReady).toBe(true);
@@ -306,4 +551,46 @@ describe('collectDoctorReport', () => {
       ]),
     );
   });
+});
+
+describe('upgrade', () => {
+  it('blocks shared-build upgrades when multiple instances are still live', async () => {
+    ensureDir(TEST_CWD);
+    ensureDir(TEST_ALT_HOME);
+    ensureDir(TEST_SECOND_HOME);
+
+    const alphaPid = await spawnLongRunning();
+    const betaPid = await spawnLongRunning();
+    writeInstanceState({
+      baseDir: TEST_ALT_HOME,
+      instanceName: 'alpha',
+      serverPid: alphaPid,
+      serverPort: 3242,
+      uiPid: null,
+      uiPort: 5274,
+    });
+    writeInstanceState({
+      baseDir: TEST_SECOND_HOME,
+      instanceName: 'beta',
+      serverPid: betaPid,
+      serverPort: 3243,
+      uiPid: null,
+      uiPort: 5275,
+    });
+
+    const execSync = vi.fn();
+    const { lifecycle } = await loadLifecycleModule({
+      childProcessMock: { execSync },
+    });
+
+    expect(() => lifecycle.upgrade()).toThrow(
+      'stallion upgrade is blocked because this checkout has multiple live Stallion instances sharing build artifacts.',
+    );
+    expect(execSync).not.toHaveBeenCalled();
+    expect(isAlive(alphaPid)).toBe(true);
+    expect(isAlive(betaPid)).toBe(true);
+
+    process.kill(alphaPid, 'SIGKILL');
+    process.kill(betaPid, 'SIGKILL');
+  }, 15_000);
 });

@@ -1,15 +1,140 @@
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
-import { basename, join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdtempSync, readdirSync, readFileSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
+import { basename, join, resolve } from 'node:path';
 import type { PluginManifest } from '@stallion-ai/contracts/plugin';
 import { readPluginManifest } from '@stallion-ai/shared/parsers';
 
-export const PROJECT_HOME =
-  process.env.STALLION_AI_DIR || join(homedir(), '.stallion-ai');
+export const DEFAULT_SERVER_PORT = 3141;
+export const DEFAULT_UI_PORT = 3000;
+export const DEFAULT_INSTANCE_ID = 'default';
+export const DEFAULT_PROJECT_HOME = join(homedir(), '.stallion-ai');
+export const PROJECT_HOME = resolve(
+  process.env.STALLION_AI_DIR || DEFAULT_PROJECT_HOME,
+);
 export const PLUGINS_DIR = join(PROJECT_HOME, 'plugins');
 export const AGENTS_DIR = join(PROJECT_HOME, 'agents');
 export const CWD = process.cwd();
 export const PIDFILE = join(CWD, '.stallion.pids');
+export const INSTANCE_STATE_DIR = join(CWD, '.stallion', 'instances');
+
+export type LifecycleHomeSource = 'env' | '--base' | '--temp-home' | 'default';
+
+export interface LifecycleHomeTarget {
+  projectHome: string;
+  isDefaultHome: boolean;
+  source: LifecycleHomeSource;
+}
+
+export interface LifecycleHomeOptions {
+  baseDir?: string;
+  env?: NodeJS.ProcessEnv;
+  tempHome?: boolean;
+}
+
+export interface LifecycleInstanceIdentityOptions {
+  cwd?: string;
+  instanceName?: string;
+  projectHome?: string;
+  serverPort?: number;
+  uiPort?: number;
+}
+
+export function getDefaultProjectHome(): string {
+  return DEFAULT_PROJECT_HOME;
+}
+
+export function normalizeHomePath(path: string): string {
+  return resolve(path);
+}
+
+export function resolveLifecycleHomeTarget(
+  options: LifecycleHomeOptions = {},
+): LifecycleHomeTarget {
+  const env = options.env ?? process.env;
+
+  if (options.tempHome) {
+    const projectHome = mkdtempSync(join(tmpdir(), 'stallion-dev-home-'));
+    return {
+      projectHome,
+      isDefaultHome: false,
+      source: '--temp-home',
+    };
+  }
+
+  if (options.baseDir) {
+    const projectHome = normalizeHomePath(options.baseDir);
+    return {
+      projectHome,
+      isDefaultHome: projectHome === DEFAULT_PROJECT_HOME,
+      source: '--base',
+    };
+  }
+
+  if (env.STALLION_AI_DIR) {
+    const projectHome = normalizeHomePath(env.STALLION_AI_DIR);
+    return {
+      projectHome,
+      isDefaultHome: projectHome === DEFAULT_PROJECT_HOME,
+      source: 'env',
+    };
+  }
+
+  return {
+    projectHome: DEFAULT_PROJECT_HOME,
+    isDefaultHome: true,
+    source: 'default',
+  };
+}
+
+export function normalizeInstanceName(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return normalized || DEFAULT_INSTANCE_ID;
+}
+
+export function resolveLifecycleInstanceId(
+  options: LifecycleInstanceIdentityOptions = {},
+): string {
+  if (options.instanceName?.trim()) {
+    return normalizeInstanceName(options.instanceName);
+  }
+
+  const projectHome = normalizeHomePath(
+    options.projectHome || DEFAULT_PROJECT_HOME,
+  );
+  const serverPort = options.serverPort ?? DEFAULT_SERVER_PORT;
+  const uiPort = options.uiPort ?? DEFAULT_UI_PORT;
+
+  if (
+    projectHome === DEFAULT_PROJECT_HOME &&
+    serverPort === DEFAULT_SERVER_PORT &&
+    uiPort === DEFAULT_UI_PORT
+  ) {
+    return DEFAULT_INSTANCE_ID;
+  }
+
+  const hash = createHash('sha1')
+    .update(
+      JSON.stringify({
+        cwd: options.cwd || CWD,
+        projectHome,
+        serverPort,
+        uiPort,
+      }),
+    )
+    .digest('hex')
+    .slice(0, 12);
+
+  return `instance-${hash}`;
+}
+
+export function getInstanceStatePath(instanceId: string, cwd = CWD): string {
+  return join(cwd, '.stallion', 'instances', `${instanceId}.json`);
+}
 
 export function readManifest(dir = CWD): PluginManifest {
   return readPluginManifest(dir);

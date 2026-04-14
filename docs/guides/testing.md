@@ -33,7 +33,7 @@ For roadmap work that changes product behavior, prefer adding or extending a nam
 Recommended lane types:
 
 1. **Hermetic startup smoke**
-   - run with a temporary `STALLION_AI_DIR`
+   - prefer `./stallion start --temp-home` (or a temporary `STALLION_AI_DIR` when you need an explicit path)
    - scrub env vars in the child process instead of changing the developer's shell
    - prove first-run behavior without depending on the current machine state
 
@@ -77,13 +77,16 @@ PW_BASE_URL=http://localhost:5274 PLAYWRIGHT_BROWSERS_PATH=0 \
 Live local gate:
 
 ```bash
-./stallion start --clean --force --port=3242 --ui-port=5274
+./stallion start --instance=connected-agents-smoke --temp-home --clean --force --port=3242 --ui-port=5274
 PW_BASE_URL=http://localhost:5274 PLAYWRIGHT_BROWSERS_PATH=0 \
   npx playwright test \
   tests/orchestration-provider-picker.spec.ts \
   tests/orchestration-chat-flow.spec.ts \
   tests/orchestration-recovery.spec.ts
+./stallion stop --instance=connected-agents-smoke
 ```
+
+Use `--temp-home` for routine local gates. Shared-build actions (`--clean`, `fresh`, `--build`, and self-update) will refuse while sibling instances from the same checkout are still live.
 
 ## Shared Test Utilities
 

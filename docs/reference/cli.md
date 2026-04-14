@@ -23,39 +23,48 @@ After running `stallion link`, the `stallion` command is available globally from
 Start the application server and UI. Builds automatically on first run if `dist-server/` or `dist-ui/` are missing.
 
 ```
-stallion start [--port=<n>] [--ui-port=<n>] [--clean] [--force] [--build] [--base=<dir>] [--features=<flags>] [--log[=<path>]]
+stallion start [--port=<n>] [--ui-port=<n>] [--clean] [--force] [--allow-default-home-clean] [--build] [--base=<dir>] [--temp-home] [--instance=<name>] [--features=<flags>] [--log[=<path>]]
 ```
 
 | Flag | Default | Description |
 |------|---------|-------------|
 | `--port=<n>` | `3141` | API server port |
 | `--ui-port=<n>` | `3000` | UI static file server port |
-| `--clean` | — | Wipe `~/.stallion-ai` and rebuild before starting |
-| `--force` | — | Skip confirmation prompt when used with `--clean` |
+| `--clean` | — | Clean the selected Stallion home before starting |
+| `--force` | — | Skip the confirmation prompt for destructive cleanup |
+| `--allow-default-home-clean` | — | Required together with `--force` to delete the default `~/.stallion-ai` home |
 | `--build` | — | Force rebuild before starting (even if dist exists) |
-| `--base=<dir>` | `~/.stallion-ai` | Data directory override |
+| `--base=<dir>` | current `STALLION_AI_DIR` or `~/.stallion-ai` | Data directory override for this instance |
+| `--temp-home` | — | Create and use a temporary home under the system temp directory |
+| `--instance=<name>` | derived from `{cwd, base, ports}` | Stable instance name for targeted stop/restart flows |
 | `--features=<flags>` | — | Comma-separated feature flags (e.g. `strands-runtime`) |
 | `--log[=<path>]` | `/tmp/stallion-server.log` | Redirect server stdout/stderr to a log file |
 
-Both processes are spawned detached. Their PIDs are written to `.stallion.pids` in the working directory (see [PIDFILE mechanism](#pidfile-mechanism)).
+Detached processes are tracked per instance in `.stallion/instances/<instance-id>.json` (see [Instance State Mechanism](#instance-state-mechanism)). During migration, legacy `.stallion.pids` state is still recognized when present.
 
 ```bash
 stallion start
-stallion start --port=8080 --ui-port=4000
-stallion start --clean --force
+stallion start --instance=smoke-a --temp-home --clean --force --port=3242 --ui-port=5274
+stallion start --base=/tmp/stallion-a --port=8080 --ui-port=4000
 stallion start --log=/var/log/stallion.log
 ```
 
+Routine smoke and agent runs should prefer `--temp-home`. Shared-build actions (`--clean`, `fresh`, `--build`, and self-update) refuse to run while sibling instances from the same checkout are still live.
+
 ### `stop`
 
-Stop the running application by sending SIGTERM to the PIDs stored in `.stallion.pids`, then deletes the file.
+Stop the matching Stallion instance.
 
 ```
-stallion stop
+stallion stop [--instance=<name>] [--base=<dir>] [--port=<n>] [--ui-port=<n>]
 ```
+
+If multiple instances are live from the same checkout, bare `stallion stop` refuses and tells you how to disambiguate.
 
 ```bash
 stallion stop
+stallion stop --instance=smoke-a
+stallion stop --base=/tmp/stallion-a
 ```
 
 ### `upgrade`
@@ -73,19 +82,24 @@ stallion upgrade
 
 ### `fresh`
 
-Wipe `~/.stallion-ai` data directory. Alias for the `--clean` flag without starting.
+Clean the selected Stallion home without starting the app.
 
 ```
-stallion fresh [--force]
+stallion fresh [--force] [--allow-default-home-clean] [--base=<dir>] [--temp-home] [--instance=<name>] [--port=<n>] [--ui-port=<n>]
 ```
 
 | Flag | Description |
 |------|-------------|
-| `--force` | Skip confirmation prompt |
+| `--force` | Skip the confirmation prompt |
+| `--allow-default-home-clean` | Required together with `--force` to delete the default `~/.stallion-ai` home |
+| `--base=<dir>` | Clean a specific home directory |
+| `--temp-home` | Create and clean a temporary home under the system temp directory |
+| `--instance=<name>` / `--port=<n>` / `--ui-port=<n>` | Match the instance identity used for shared-build safety checks |
 
 ```bash
-stallion fresh
-stallion fresh --force
+stallion fresh --temp-home --force
+stallion fresh --base=/tmp/stallion-a --force
+stallion fresh --force --allow-default-home-clean
 ```
 
 ### `doctor`
@@ -402,17 +416,13 @@ stallion dev 3333 --tools-dir=./my-tools
 
 ---
 
-## PIDFILE Mechanism
+## Instance State Mechanism
 
-When `stallion start` launches the server and UI processes, it writes their PIDs to `.stallion.pids` in the current working directory:
+When `stallion start` launches the server and UI processes, it writes per-instance state to `.stallion/instances/<instance-id>.json` in the current working directory. Each record includes the instance id, home directory, ports, and current server/UI PIDs.
 
-```
-<server-pid> <ui-pid>
-```
+`stallion stop` resolves the matching instance from `--instance`, `--base`, `--port`, or `--ui-port`, then terminates only that instance. If multiple instances are live and the selector is ambiguous, the CLI refuses and prints the matching records so you can choose the intended one.
 
-`stallion stop` reads this file, sends SIGTERM to both PIDs, and deletes the file. `stallion start` checks for this file (and whether the PIDs are still alive) to detect if the app is already running.
-
-The PIDFILE path is: `<cwd>/.stallion.pids`
+During rollout, Stallion still recognizes the legacy `<cwd>/.stallion.pids` file when present and migrates away from it as new-format state is written.
 
 ---
 
@@ -421,5 +431,8 @@ The PIDFILE path is: `<cwd>/.stallion.pids`
 | Variable | Used by | Description |
 |----------|---------|-------------|
 | `PORT` | `start` | Overridden by `--port=<n>`. Sets the API server listen port. |
+| `STALLION_AI_DIR` | lifecycle + server runtime | Base Stallion home. Lifecycle commands also accept `--base=<dir>` and `--temp-home`. |
+| `STALLION_INSTANCE_ID` | server runtime | Stable instance identity injected by the CLI for targeted restart/update flows. |
+| `STALLION_INSTANCE_STATE_PATH` | server runtime | Path to the per-instance state record that restart/update rewrites in place. |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | server runtime | OpenTelemetry collector endpoint for tracing/metrics export. |
 | `VITE_API_BASE` | UI build | Base URL for API calls from the UI. Set at build time. |

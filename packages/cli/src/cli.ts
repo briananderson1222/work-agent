@@ -32,6 +32,7 @@ import { pathToFileURL } from 'node:url';
 import { build } from './commands/build.js';
 import { configGet, configSet } from './commands/config.js';
 import { exportConfig } from './commands/export.js';
+import { resolveLifecycleHomeTarget } from './commands/helpers.js';
 import { importConfig } from './commands/import.js';
 import { createPlugin, init, type PluginTemplate } from './commands/init.js';
 import {
@@ -70,13 +71,30 @@ Usage:
   stallion start                Start the application (auto-builds if needed)
     --clean               Wipe and rebuild before starting
     --force               Skip confirmation prompt (use with --clean)
+    --allow-default-home-clean
+                          Explicitly allow deleting ~/.stallion-ai
     --build               Force rebuild before starting
     --base=<dir>          Data directory (default: ~/.stallion-ai)
+    --temp-home           Create and use a throwaway home under the system temp dir
+    --instance=<name>     Stable instance name for targeted stop/restart flows
     --port=<n>            Server port (default: 3141)
     --ui-port=<n>         UI port (default: 3000)
     --features=<flags>    Comma-separated feature flags (e.g. strands-runtime)
     --log[=<path>]        Redirect server output to log file
-  stallion stop                 Stop running application
+  stallion stop                 Stop a running application instance
+    --instance=<name>     Stop a named instance
+    --base=<dir>          Stop the instance using a specific home
+    --port=<n>            Match by server port
+    --ui-port=<n>         Match by UI port
+  stallion fresh               Remove the selected home + shared build output
+    --force               Skip confirmation prompt
+    --allow-default-home-clean
+                          Explicitly allow deleting ~/.stallion-ai
+    --base=<dir>          Data directory (default: ~/.stallion-ai)
+    --temp-home           Create and clean a throwaway home under the system temp dir
+    --instance=<name>     Stable instance name for targeted cleanup
+    --port=<n>            Server port used for instance targeting
+    --ui-port=<n>         UI port used for instance targeting
   stallion upgrade              Pull latest + rebuild (keeps plugins)
 
 Configuration:
@@ -112,11 +130,86 @@ Plugin Development:
 `;
 }
 
+interface ParsedLifecycleArgs {
+  allowDefaultHomeClean: boolean;
+  baseDir: string;
+  buildFlag: boolean;
+  features?: string;
+  force: boolean;
+  homeSource: 'env' | '--base' | '--temp-home' | 'default';
+  instanceName?: string;
+  logFile?: string;
+  serverPort: number;
+  uiPort: number;
+}
+
+function parseLifecycleArgs(args: string[]): ParsedLifecycleArgs {
+  let serverPort = 3141;
+  let uiPort = 3000;
+  let logFile: string | undefined;
+  let buildFlag = false;
+  let baseDir: string | undefined;
+  let features: string | undefined;
+  let instanceName: string | undefined;
+  const tempHome = args.includes('--temp-home');
+
+  for (const arg of args) {
+    if (arg.startsWith('--port=')) {
+      serverPort = parseInt(arg.split('=')[1], 10);
+    } else if (arg.startsWith('--ui-port=')) {
+      uiPort = parseInt(arg.split('=')[1], 10);
+    } else if (arg.startsWith('--log=')) {
+      logFile = arg.split('=')[1];
+    } else if (arg === '--log') {
+      logFile = join(tmpdir(), 'stallion-server.log');
+    } else if (arg === '--build') {
+      buildFlag = true;
+    } else if (arg.startsWith('--base=')) {
+      baseDir = arg.split('=')[1];
+    } else if (arg.startsWith('--features=')) {
+      features = arg.split('=')[1];
+    } else if (arg.startsWith('--instance=')) {
+      instanceName = arg.split('=')[1];
+    }
+  }
+
+  if (tempHome && baseDir) {
+    throw new Error('--temp-home cannot be combined with --base.');
+  }
+
+  const homeTarget = resolveLifecycleHomeTarget({ baseDir, tempHome });
+
+  return {
+    serverPort,
+    uiPort,
+    logFile,
+    buildFlag,
+    baseDir: homeTarget.projectHome,
+    homeSource: homeTarget.source,
+    features,
+    instanceName,
+    force: args.includes('--force'),
+    allowDefaultHomeClean: args.includes('--allow-default-home-clean'),
+  };
+}
+
 export async function runCli(argv: string[]): Promise<void> {
   const [command, ...args] = argv;
   switch (command) {
     case 'install': {
-      if (args.includes('--clean')) clean();
+      if (args.includes('--clean')) {
+        const lifecycleArgs = parseLifecycleArgs(args);
+        await clean({
+          actionLabel: 'install --clean',
+          allowDefaultHomeClean: lifecycleArgs.allowDefaultHomeClean,
+          force: lifecycleArgs.force,
+          homeSource: lifecycleArgs.homeSource,
+          instanceName: lifecycleArgs.instanceName,
+          projectHome: lifecycleArgs.baseDir,
+          serverPort: lifecycleArgs.serverPort,
+          uiPort: lifecycleArgs.uiPort,
+        });
+      }
       const skipArg = args.find((a) => a.startsWith('--skip='));
       const skipList = skipArg ? skipArg.replace('--skip=', '').split(',') : [];
       const source = args.find((a) => !a.startsWith('--'));
@@ -162,40 +255,59 @@ export async function runCli(argv: string[]): Promise<void> {
       await build();
       break;
     case 'start': {
-      if (args.includes('--clean')) await clean(args.includes('--force'));
-      let serverPort = 3141;
-      let uiPort = 3000;
-      let logFile: string | undefined;
-      let buildFlag = false;
-      let baseDir: string | undefined;
-      let features: string | undefined;
-      for (const arg of args) {
-        if (arg.startsWith('--port='))
-          serverPort = parseInt(arg.split('=')[1], 10);
-        else if (arg.startsWith('--ui-port='))
-          uiPort = parseInt(arg.split('=')[1], 10);
-        else if (arg.startsWith('--log=')) logFile = arg.split('=')[1];
-        else if (arg === '--log')
-          logFile = join(tmpdir(), 'stallion-server.log');
-        else if (arg === '--build') buildFlag = true;
-        else if (arg.startsWith('--base=')) baseDir = arg.split('=')[1];
-        else if (arg.startsWith('--features=')) features = arg.split('=')[1];
+      const lifecycleArgs = parseLifecycleArgs(args);
+      if (args.includes('--clean')) {
+        await clean({
+          actionLabel: 'start --clean',
+          allowDefaultHomeClean: lifecycleArgs.allowDefaultHomeClean,
+          force: lifecycleArgs.force,
+          homeSource: lifecycleArgs.homeSource,
+          instanceName: lifecycleArgs.instanceName,
+          projectHome: lifecycleArgs.baseDir,
+          serverPort: lifecycleArgs.serverPort,
+          uiPort: lifecycleArgs.uiPort,
+        });
       }
       start({
-        serverPort,
-        uiPort,
-        logFile,
-        build: buildFlag,
-        baseDir,
-        features,
+        serverPort: lifecycleArgs.serverPort,
+        uiPort: lifecycleArgs.uiPort,
+        logFile: lifecycleArgs.logFile,
+        build: lifecycleArgs.buildFlag,
+        baseDir: lifecycleArgs.baseDir,
+        homeSource: lifecycleArgs.homeSource,
+        instanceName: lifecycleArgs.instanceName,
+        features: lifecycleArgs.features,
       });
       break;
     }
-    case 'stop':
-      stop();
+    case 'stop': {
+      const lifecycleArgs = parseLifecycleArgs(args);
+      stop({
+        baseDir: lifecycleArgs.baseDir,
+        instanceName: lifecycleArgs.instanceName,
+        serverPort: args.some((arg) => arg.startsWith('--port='))
+          ? lifecycleArgs.serverPort
+          : undefined,
+        uiPort: args.some((arg) => arg.startsWith('--ui-port='))
+          ? lifecycleArgs.uiPort
+          : undefined,
+      });
       break;
+    }
     case 'fresh':
-      await clean(args.includes('--force'));
+      {
+        const lifecycleArgs = parseLifecycleArgs(args);
+        await clean({
+          actionLabel: 'fresh',
+          allowDefaultHomeClean: lifecycleArgs.allowDefaultHomeClean,
+          force: lifecycleArgs.force,
+          homeSource: lifecycleArgs.homeSource,
+          instanceName: lifecycleArgs.instanceName,
+          projectHome: lifecycleArgs.baseDir,
+          serverPort: lifecycleArgs.serverPort,
+          uiPort: lifecycleArgs.uiPort,
+        });
+      }
       break;
     case 'upgrade':
       upgrade();
