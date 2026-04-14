@@ -42,7 +42,7 @@ export default defineConfig({
     },
   },
   build: {
-    outDir: '../dist-ui',
+    outDir: `../${process.env.STALLION_BUILD_UI_DIR || 'dist-ui'}`,
     emptyOutDir: true,
   },
   server: {

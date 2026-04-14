@@ -370,10 +370,24 @@ export function isRunning(selector: StopOptions = {}): boolean {
   );
 }
 
-export function isInstalled(): boolean {
-  return (
-    existsSync(join(CWD, 'dist-server')) && existsSync(join(CWD, 'dist-ui'))
-  );
+interface BuildPaths {
+  server: string;
+  ui: string;
+}
+
+function resolveBuildPaths(instanceId: string): BuildPaths {
+  if (instanceId === DEFAULT_INSTANCE_ID) {
+    return { server: 'dist-server', ui: 'dist-ui' };
+  }
+  return {
+    server: `dist-server-${instanceId}`,
+    ui: `dist-ui-${instanceId}`,
+  };
+}
+
+export function isInstalled(instanceId = DEFAULT_INSTANCE_ID): boolean {
+  const { server, ui } = resolveBuildPaths(instanceId);
+  return existsSync(join(CWD, server)) && existsSync(join(CWD, ui));
 }
 
 export function start(opts: StartOptions = {}): void {
@@ -387,20 +401,31 @@ export function start(opts: StartOptions = {}): void {
     ),
     'start',
   );
-  const needsBuild = Boolean(build) || !isInstalled();
+  const buildPaths = resolveBuildPaths(instanceId);
+  const needsBuild = Boolean(build) || !isInstalled(instanceId);
 
   if (needsBuild) {
     if (runningMatch) {
       stopRecord(runningMatch, false);
     }
     console.log('Building application...');
-    execSync('npm run build:server', { cwd: CWD, stdio: 'inherit' });
-    execSync('npm run build:ui', { cwd: CWD, stdio: 'inherit' });
-    const siblings = listRunningInstances().filter(
-      (record) => record.instanceId !== instanceId,
-    );
-    for (const sibling of siblings) {
-      notifyBuildUpdated(sibling.serverPort);
+    const buildEnv = {
+      ...process.env,
+      STALLION_BUILD_SERVER_DIR: buildPaths.server,
+      STALLION_BUILD_UI_DIR: buildPaths.ui,
+    };
+    execSync('npm run build:server', {
+      cwd: CWD,
+      stdio: 'inherit',
+      env: buildEnv,
+    });
+    execSync('npm run build:ui', {
+      cwd: CWD,
+      stdio: 'inherit',
+      env: buildEnv,
+    });
+    if (runningMatch) {
+      notifyBuildUpdated(runningMatch.serverPort);
     }
   } else if (runningMatch) {
     console.log(
@@ -426,7 +451,7 @@ export function start(opts: StartOptions = {}): void {
   };
   if (features) serverEnv.STALLION_FEATURES = features;
 
-  const serverProc = spawn('node', ['dist-server/index.js'], {
+  const serverProc = spawn('node', [`${buildPaths.server}/index.js`], {
     cwd: CWD,
     stdio: serverStdio,
     detached: true,
@@ -442,7 +467,7 @@ export function start(opts: StartOptions = {}): void {
       '-e',
       `
     const http=require('http'),fs=require('fs'),path=require('path');
-    const dir=path.join(process.cwd(),'dist-ui');
+    const dir=path.join(process.cwd(),'${buildPaths.ui}');
     const mime={'.html':'text/html','.js':'application/javascript','.css':'text/css','.json':'application/json','.png':'image/png','.svg':'image/svg+xml','.ico':'image/x-icon','.woff2':'font/woff2','.woff':'font/woff','.ttf':'font/ttf','.map':'application/json'};
     const inject='<script>window.__API_BASE__=${JSON.stringify(apiBase)}</script>';
     http.createServer((req,res)=>{
@@ -566,8 +591,9 @@ export async function clean(
 
   stop({ instanceId, serverPort, uiPort, baseDir: projectHome });
   rmSync(projectHome, { recursive: true, force: true });
-  rmSync(join(CWD, 'dist-server'), { recursive: true, force: true });
-  rmSync(join(CWD, 'dist-ui'), { recursive: true, force: true });
+  const buildPaths = resolveBuildPaths(instanceId);
+  rmSync(join(CWD, buildPaths.server), { recursive: true, force: true });
+  rmSync(join(CWD, buildPaths.ui), { recursive: true, force: true });
   console.log('  ✓ Cleaned');
 }
 

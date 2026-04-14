@@ -184,9 +184,12 @@ function ensureDir(path: string): void {
   mkdirSync(path, { recursive: true });
 }
 
-function ensureBuildOutputs(): void {
-  ensureDir(join(TEST_CWD, 'dist-server'));
-  ensureDir(join(TEST_CWD, 'dist-ui'));
+function ensureBuildOutputs(instanceId = 'default'): void {
+  const server =
+    instanceId === 'default' ? 'dist-server' : `dist-server-${instanceId}`;
+  const ui = instanceId === 'default' ? 'dist-ui' : `dist-ui-${instanceId}`;
+  ensureDir(join(TEST_CWD, server));
+  ensureDir(join(TEST_CWD, ui));
 }
 
 function writeInstanceState(options: {
@@ -311,7 +314,7 @@ describe('lifecycle instance state', () => {
 
   it('writes per-instance state and injects instance env on start', async () => {
     ensureDir(TEST_CWD);
-    ensureBuildOutputs();
+    ensureBuildOutputs('smoke-a');
     ensureDir(TEST_ALT_HOME);
 
     const execSync = vi.fn();
@@ -355,6 +358,7 @@ describe('lifecycle instance state', () => {
 
     expect(execSync).not.toHaveBeenCalled();
     expect(spawn).toHaveBeenCalledTimes(2);
+    expect(spawn.mock.calls[0][1]).toEqual(['dist-server-smoke-a/index.js']);
     expect(spawn.mock.calls[0][2]?.env).toEqual(
       expect.objectContaining({
         PORT: '3242',
@@ -384,7 +388,7 @@ describe('clean', () => {
     ensureDir(TEST_CWD);
     ensureDir(TEST_DEFAULT_HOME);
     ensureDir(TEST_ALT_HOME);
-    ensureBuildOutputs();
+    ensureBuildOutputs('smoke-a');
 
     const { lifecycle } = await loadLifecycleModule();
 
@@ -392,6 +396,7 @@ describe('clean', () => {
       allowDefaultHomeClean: false,
       force: true,
       homeSource: '--base',
+      instanceName: 'smoke-a',
       projectHome: TEST_ALT_HOME,
       serverPort: 3242,
       uiPort: 5274,
@@ -399,8 +404,8 @@ describe('clean', () => {
 
     expect(existsSync(TEST_ALT_HOME)).toBe(false);
     expect(existsSync(TEST_DEFAULT_HOME)).toBe(true);
-    expect(existsSync(join(TEST_CWD, 'dist-server'))).toBe(false);
-    expect(existsSync(join(TEST_CWD, 'dist-ui'))).toBe(false);
+    expect(existsSync(join(TEST_CWD, 'dist-server-smoke-a'))).toBe(false);
+    expect(existsSync(join(TEST_CWD, 'dist-ui-smoke-a'))).toBe(false);
   });
 
   it('refuses to clean the default home without explicit acknowledgement', async () => {

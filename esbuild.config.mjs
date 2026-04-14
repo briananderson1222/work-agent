@@ -6,21 +6,28 @@ const shared = {
   target: 'node20',
   format: 'esm',
   sourcemap: true,
-  external: ['fsevents', 'esbuild', 'node-pty', '@anthropic-ai/claude-agent-sdk'],
+  external: [
+    'fsevents',
+    'esbuild',
+    'node-pty',
+    '@anthropic-ai/claude-agent-sdk',
+  ],
   banner: {
     js: "import { createRequire as __stallionCreateRequire } from 'node:module'; const require = __stallionCreateRequire(import.meta.url);",
   },
 };
 
+const serverDir = process.env.STALLION_BUILD_SERVER_DIR || 'dist-server';
+
 await Promise.all([
   esbuild.build({
     ...shared,
     entryPoints: ['./src-server/index.ts'],
-    outfile: 'dist-server/index.js',
+    outfile: `${serverDir}/index.js`,
   }),
   esbuild.build({
     ...shared,
     entryPoints: ['./src-server/tools/stallion-control-server.ts'],
-    outfile: 'dist-server/stallion-control.js',
+    outfile: `${serverDir}/stallion-control.js`,
   }),
 ]);
