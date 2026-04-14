@@ -16,6 +16,7 @@ let runtimeConnections = [
     enabled: true,
     capabilities: ['agent-runtime'],
     config: { executionClass: 'managed' },
+    status: 'ready',
   },
   {
     id: 'codex-runtime',
@@ -25,6 +26,7 @@ let runtimeConnections = [
     enabled: true,
     capabilities: ['agent-runtime'],
     config: { executionClass: 'connected' },
+    status: 'ready',
   },
 ];
 
@@ -64,6 +66,8 @@ function createForm(): AgentFormData {
   };
 }
 
+const noop = () => {};
+
 describe('AgentEditorBasicTab', () => {
   test('switches new agents to the preferred connected runtime', () => {
     runtimeConnections = [
@@ -75,6 +79,7 @@ describe('AgentEditorBasicTab', () => {
         enabled: true,
         capabilities: ['agent-runtime'],
         config: { executionClass: 'managed' },
+        status: 'ready',
       },
       {
         id: 'codex-runtime',
@@ -84,6 +89,7 @@ describe('AgentEditorBasicTab', () => {
         enabled: true,
         capabilities: ['agent-runtime'],
         config: { executionClass: 'connected' },
+        status: 'ready',
       },
     ];
     const setForm = vi.fn();
@@ -99,6 +105,7 @@ describe('AgentEditorBasicTab', () => {
         enrich={vi.fn()}
         isEnriching={false}
         agentType="managed"
+        onSwitchTab={noop}
       />,
     );
 
@@ -127,6 +134,7 @@ describe('AgentEditorBasicTab', () => {
         enabled: true,
         capabilities: ['agent-runtime'],
         config: { executionClass: 'managed' },
+        status: 'ready',
       },
     ];
 
@@ -141,13 +149,13 @@ describe('AgentEditorBasicTab', () => {
         enrich={vi.fn()}
         isEnriching={false}
         agentType="managed"
+        onSwitchTab={noop}
       />,
     );
 
-    expect(
-      screen.getByText(
-        /Add a connected runtime in Connections before switching this agent\./,
-      ),
-    ).toBeTruthy();
+    const option = screen
+      .getByRole('combobox', { name: 'Agent Type' })
+      .querySelector('option[value="connected"]') as HTMLOptionElement;
+    expect(option.disabled).toBe(true);
   });
 });
