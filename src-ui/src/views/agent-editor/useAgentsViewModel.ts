@@ -36,6 +36,7 @@ import {
   validateAgentForm,
 } from './agentsViewUtils';
 import type { AgentFormData } from './types';
+import { getAgentType } from './utils';
 
 interface UseAgentsViewModelArgs {
   agents: AgentData[];
@@ -189,7 +190,11 @@ export function useAgentsViewModel({
   }, [agentTools]);
 
   const validate = (): boolean => {
-    const errors = validateAgentForm(form, isCreating);
+    const agentType = getAgentType(
+      form.execution.runtimeConnectionId,
+      runtimeConnections,
+    );
+    const errors = validateAgentForm(form, isCreating, agentType);
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };

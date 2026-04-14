@@ -112,10 +112,13 @@ export function isAgentFormDirty(
 export function validateAgentForm(
   form: AgentFormData,
   isCreating: boolean,
+  agentType?: 'managed' | 'connected' | 'acp',
 ): Record<string, string> {
   const errors: Record<string, string> = {};
   if (!form.name.trim()) errors.name = 'Name is required';
-  if (!form.prompt.trim()) errors.prompt = 'System prompt is required';
+  if (agentType !== 'connected' && agentType !== 'acp') {
+    if (!form.prompt.trim()) errors.prompt = 'System prompt is required';
+  }
   if (isCreating) {
     if (!form.slug.trim()) errors.slug = 'Slug is required';
     else if (!/^[a-z0-9-]+$/.test(form.slug))

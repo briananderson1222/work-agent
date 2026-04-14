@@ -3,11 +3,13 @@ import { useRuntimeConnectionsQuery } from '@stallion-ai/sdk';
 import { AgentIcon } from '../../components/AgentIcon';
 import { ModelSelector } from '../../components/ModelSelector';
 import {
+  connectionStatusLabel,
   defaultManagedRuntimeConnection,
   isManagedRuntimeConnectionId,
   preferredConnectedRuntime,
+  runtimeConnectionLabel,
 } from '../../utils/execution';
-import type { AgentEditorFormProps, AgentType } from './types';
+import type { AgentEditorFormProps, AgentEditorTab, AgentType } from './types';
 import {
   buildDescriptionPrompt,
   buildSystemPromptPrompt,
@@ -24,6 +26,7 @@ export function AgentEditorBasicTab({
   enrich,
   isEnriching,
   agentType,
+  onSwitchTab,
 }: Pick<
   AgentEditorFormProps,
   | 'form'
@@ -36,6 +39,7 @@ export function AgentEditorBasicTab({
   | 'isEnriching'
 > & {
   agentType: AgentType;
+  onSwitchTab: (tab: AgentEditorTab) => void;
 }) {
   const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery();
   const preferredConnected = preferredConnectedRuntime(
@@ -44,6 +48,15 @@ export function AgentEditorBasicTab({
   const managedRuntime = defaultManagedRuntimeConnection(
     runtimeConnections as ConnectionConfig[],
   );
+
+  const selectedRuntimeId = form.execution.runtimeConnectionId;
+  const selectedRuntime = (runtimeConnections as ConnectionConfig[]).find(
+    (c) => c.id === selectedRuntimeId,
+  );
+  const runtimeLabel = runtimeConnectionLabel(selectedRuntimeId);
+  const runtimeStatus = selectedRuntime
+    ? connectionStatusLabel(selectedRuntime.status)
+    : undefined;
 
   return (
     <>
@@ -90,13 +103,36 @@ export function AgentEditorBasicTab({
                 Connected
               </option>
             </select>
-            <span className="editor-hint">
-              Managed agents use Stallion&apos;s built-in runtime and editor
-              tabs. Connected agents run through Claude, Codex, or another
-              runtime connection.
-              {!preferredConnected &&
-                ' Add a connected runtime in Connections before switching this agent.'}
-            </span>
+          </div>
+        )}
+
+        {agentType !== 'acp' && selectedRuntime && (
+          <div className="agent-runtime-card">
+            <div className="agent-runtime-card__header">
+              <span className="agent-runtime-card__name">{runtimeLabel}</span>
+              {runtimeStatus && (
+                <span className="agent-runtime-card__status">
+                  {runtimeStatus}
+                </span>
+              )}
+            </div>
+            <div className="agent-runtime-card__desc">
+              {selectedRuntime.description ||
+                (selectedRuntimeId === 'claude-runtime'
+                  ? 'Runs via the Claude Agent SDK. Requires ANTHROPIC_API_KEY.'
+                  : selectedRuntimeId === 'codex-runtime'
+                    ? 'Runs via the Codex CLI. Requires Codex installed and OPENAI_API_KEY.'
+                    : 'Runs via Stallion\u2019s built-in managed runtime.')}
+            </div>
+            {agentType === 'connected' && (
+              <button
+                type="button"
+                className="agent-runtime-card__link"
+                onClick={() => onSwitchTab('runtime')}
+              >
+                Configure runtime &rarr;
+              </button>
+            )}
           </div>
         )}
 
@@ -217,46 +253,57 @@ export function AgentEditorBasicTab({
           />
         </div>
 
-        {agentType === 'managed' && (
-          <div className="editor-field">
-            <div className="editor-label-row">
-              <label className="editor-label" htmlFor="ae-prompt">
-                System Prompt <span className="editor-required">*</span>
-              </label>
-              <button
-                type="button"
-                className="editor-enrich-btn"
-                disabled={isEnriching || !form.name || locked}
-                aria-label="Generate system prompt"
-                onClick={async () => {
-                  const text = await enrich(buildSystemPromptPrompt(form));
-                  if (text) {
-                    setForm((current) => ({ ...current, prompt: text.trim() }));
-                  }
-                }}
-              >
-                {isEnriching ? '...' : '✨ Generate'}
-              </button>
-            </div>
-            <textarea
-              id="ae-prompt"
-              className="editor-textarea editor-textarea--tall editor-textarea--mono"
-              name="prompt"
-              value={form.prompt}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  prompt: event.target.value,
-                }))
-              }
-              placeholder="You are a helpful assistant..."
-              disabled={locked}
-            />
-            {validationErrors.prompt && (
-              <span className="editor-error">{validationErrors.prompt}</span>
-            )}
+        <div className="editor-field">
+          <div className="editor-label-row">
+            <label className="editor-label" htmlFor="ae-prompt">
+              System Prompt{' '}
+              {agentType === 'managed' && (
+                <span className="editor-required">*</span>
+              )}
+            </label>
+            <button
+              type="button"
+              className="editor-enrich-btn"
+              disabled={isEnriching || !form.name || locked}
+              aria-label="Generate system prompt"
+              onClick={async () => {
+                const text = await enrich(buildSystemPromptPrompt(form));
+                if (text) {
+                  setForm((current) => ({ ...current, prompt: text.trim() }));
+                }
+              }}
+            >
+              {isEnriching ? '...' : '✨ Generate'}
+            </button>
           </div>
-        )}
+          <textarea
+            id="ae-prompt"
+            className="editor-textarea editor-textarea--tall editor-textarea--mono"
+            name="prompt"
+            value={form.prompt}
+            onChange={(event) =>
+              setForm((current) => ({
+                ...current,
+                prompt: event.target.value,
+              }))
+            }
+            placeholder={
+              agentType === 'connected'
+                ? 'Optional instructions passed to the runtime when starting a session...'
+                : 'You are a helpful assistant...'
+            }
+            disabled={locked}
+          />
+          {agentType === 'connected' && (
+            <span className="editor-hint">
+              Prepend instructions to the runtime&apos;s system prompt. Not all
+              runtimes support this.
+            </span>
+          )}
+          {validationErrors.prompt && (
+            <span className="editor-error">{validationErrors.prompt}</span>
+          )}
+        </div>
       </div>
 
       {agentType === 'managed' && (
