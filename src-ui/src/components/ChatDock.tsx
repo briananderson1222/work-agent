@@ -19,7 +19,7 @@ import { useChatInput } from '../hooks/useChatInput';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { setDockModeOverride } from '../hooks/useDockModePreference';
 import { useDragResize } from '../hooks/useDragResize';
-import { isSessionExecutionActive, providerLabel } from '../utils/execution';
+import { isSessionExecutionActive } from '../utils/execution';
 import { ChatDockHeader } from './ChatDockHeader';
 import { ChatDockTabBar } from './ChatDockTabBar';
 import { ChatDockContentArea } from './chat-dock/ChatDockContentArea';
@@ -109,7 +109,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     agentDefaultModelId,
     bindingStatus,
     effectiveModels,
-    executionSummary,
     gitStatus,
     modelSupportsAttachments,
     sessionCodingLayout,
@@ -245,8 +244,6 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
           setPreviousDockOpen={setPreviousDockOpen}
           setShowChatSettings={setShowChatSettings}
           focusSession={focusSession}
-          autoHideEnabled={autoHideEnabled}
-          setAutoHideEnabled={setAutoHideEnabled}
           isAutoHidden={isAutoHidden}
           resetAutoHide={resetAutoHide}
         />
@@ -322,9 +319,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         showToolDetails={showToolDetails}
         dockMode={dockMode}
         pathname={pathname}
-        activeProviderLabel={providerLabel(executionSummary.provider)}
-        activeModel={executionSummary.model || ''}
-        activeSessionStatus={executionSummary.status}
+        autoHideEnabled={autoHideEnabled}
         onSelectNewChat={(agent, projectSlug, projectName) => {
           openChatForAgent(agent, projectSlug, projectName);
           setShowNewChatModal(false);
@@ -336,6 +331,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
         onChatFontSizeChange={setChatFontSize}
         onShowReasoningChange={setShowReasoning}
         onShowToolDetailsChange={setShowToolDetails}
+        onAutoHideChange={setAutoHideEnabled}
         onDockModeChange={(mode, currentPathname) => {
           const layoutKey =
             currentPathname.startsWith('/projects/') &&

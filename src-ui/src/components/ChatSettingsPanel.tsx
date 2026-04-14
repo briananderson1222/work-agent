@@ -1,5 +1,4 @@
 import type { DockMode } from '../types';
-import { executionStatusLabel } from '../utils/execution';
 import { Toggle } from './Toggle';
 
 interface ChatSettingsPanelProps {
@@ -14,9 +13,8 @@ interface ChatSettingsPanelProps {
   setShowToolDetails: (show: boolean) => void;
   dockMode: DockMode;
   onDockModeChange: (mode: DockMode) => void;
-  activeProviderLabel?: string;
-  activeModel?: string;
-  activeSessionStatus?: string;
+  autoHideEnabled: boolean;
+  setAutoHideEnabled: (v: boolean) => void;
 }
 
 const DOCK_MODE_OPTIONS: { value: DockMode; label: string; desc: string }[] = [
@@ -37,9 +35,8 @@ export function ChatSettingsPanel({
   setShowToolDetails,
   dockMode,
   onDockModeChange,
-  activeProviderLabel,
-  activeModel = '',
-  activeSessionStatus,
+  autoHideEnabled,
+  setAutoHideEnabled,
 }: ChatSettingsPanelProps) {
   if (!isOpen) return null;
 
@@ -47,28 +44,6 @@ export function ChatSettingsPanel({
     <div className="chat-settings-overlay" onClick={onClose}>
       <div className="chat-settings-modal" onClick={(e) => e.stopPropagation()}>
         <h3 className="chat-settings-modal__title">Chat Settings</h3>
-
-        <div className="chat-settings-modal__section">
-          <label className="chat-settings-modal__label">Execution</label>
-          <div className="chat-settings-modal__control">
-            <span className="chat-settings-modal__value">
-              {activeProviderLabel || '—'}
-            </span>
-          </div>
-          <p className="chat-settings-modal__hint">
-            {activeModel
-              ? `Model: ${activeModel}`
-              : activeProviderLabel
-                ? 'Model: app default'
-                : 'No active session'}
-            {activeSessionStatus
-              ? ` · ${executionStatusLabel(activeSessionStatus)}`
-              : ''}
-          </p>
-          <p className="chat-settings-modal__hint">
-            To change execution settings, edit the agent in the Agents view.
-          </p>
-        </div>
 
         <div className="chat-settings-modal__section">
           <label className="chat-settings-modal__label">Dock Position</label>
@@ -100,9 +75,8 @@ export function ChatSettingsPanel({
               A−
             </button>
             <button
-              className="chat-settings-modal__btn"
+              className={`chat-settings-modal__btn${chatFontSize === defaultFontSize ? ' chat-settings-modal__btn--muted' : ''}`}
               onClick={() => setChatFontSize(() => defaultFontSize)}
-              style={{ opacity: chatFontSize === defaultFontSize ? 0.5 : 1 }}
             >
               A
             </button>
@@ -145,6 +119,20 @@ export function ChatSettingsPanel({
           </label>
           <p className="chat-settings-modal__hint">
             Allow expanding tool calls to view arguments and results
+          </p>
+        </div>
+
+        <div className="chat-settings-modal__section">
+          <label className="chat-settings-modal__checkbox">
+            <Toggle
+              checked={autoHideEnabled}
+              onChange={setAutoHideEnabled}
+              size="sm"
+            />
+            <span>Auto-hide dock</span>
+          </label>
+          <p className="chat-settings-modal__hint">
+            Collapse dock after 5 seconds of inactivity
           </p>
         </div>
 

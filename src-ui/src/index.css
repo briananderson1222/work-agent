@@ -1572,32 +1572,32 @@ button:hover {
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: 8px;
-  padding: 24px;
-  min-width: 400px;
-  max-width: 500px;
+  padding: 16px;
+  min-width: 340px;
+  max-width: 440px;
 }
 
 .chat-settings-modal__title {
-  margin: 0 0 20px 0;
-  font-size: var(--text-2xl);
+  margin: 0 0 14px 0;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
 .chat-settings-modal__section {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 .chat-settings-modal__label {
   display: block;
-  margin-bottom: 8px;
-  font-size: var(--text-lg);
+  margin-bottom: 6px;
+  font-size: var(--text-md);
   font-weight: 500;
 }
 
 .chat-settings-modal__control {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .chat-settings-modal__btn {
@@ -1605,9 +1605,9 @@ button:hover {
   border: 1px solid var(--border-primary);
   color: var(--text-primary);
   cursor: pointer;
-  padding: 6px 12px;
+  padding: 4px 10px;
   border-radius: 4px;
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
 }
 
 .chat-settings-modal__btn:disabled {
@@ -1615,10 +1615,14 @@ button:hover {
   cursor: not-allowed;
 }
 
+.chat-settings-modal__btn--muted {
+  opacity: 0.4;
+}
+
 .chat-settings-modal__value {
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
   color: var(--text-secondary);
-  margin-left: 8px;
+  margin-left: 6px;
 }
 
 .chat-settings-modal__checkbox {
@@ -1626,18 +1630,18 @@ button:hover {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  font-size: var(--text-lg);
+  font-size: var(--text-md);
   font-weight: 500;
 }
 
 .chat-settings-modal__checkbox input {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   cursor: pointer;
 }
 
 .chat-settings-modal__hint {
-  margin: 4px 0 0 24px;
+  margin: 3px 0 0 24px;
   font-size: var(--text-base);
   color: var(--text-secondary);
 }
@@ -1645,17 +1649,17 @@ button:hover {
 .chat-settings-modal__actions {
   display: flex;
   justify-content: flex-end;
-  gap: 8px;
-  margin-top: 24px;
+  gap: 6px;
+  margin-top: 16px;
 }
 
 .chat-settings-modal__done {
   background: var(--accent-primary);
   color: white;
   border: none;
-  padding: 8px 16px;
+  padding: 6px 14px;
   border-radius: 4px;
-  font-size: var(--text-lg);
+  font-size: var(--text-base);
   cursor: pointer;
   font-weight: 500;
 }

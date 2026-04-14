@@ -20,9 +20,7 @@ interface ChatDockModalStackProps {
   showToolDetails: boolean;
   dockMode: DockMode;
   pathname: string;
-  activeProviderLabel?: string;
-  activeModel?: string;
-  activeSessionStatus?: string;
+  autoHideEnabled: boolean;
   onSelectNewChat: (
     agent: AgentData,
     projectSlug?: string,
@@ -42,6 +40,7 @@ interface ChatDockModalStackProps {
   onShowReasoningChange: (show: boolean) => void;
   onShowToolDetailsChange: (show: boolean) => void;
   onDockModeChange: (mode: DockMode, pathname: string) => void;
+  onAutoHideChange: (v: boolean) => void;
 }
 
 export function ChatDockModalStack({
@@ -59,9 +58,7 @@ export function ChatDockModalStack({
   showToolDetails,
   dockMode,
   pathname,
-  activeProviderLabel,
-  activeModel,
-  activeSessionStatus,
+  autoHideEnabled,
   onSelectNewChat,
   onCloseNewChat,
   onCloseSettings,
@@ -71,6 +68,7 @@ export function ChatDockModalStack({
   onShowReasoningChange,
   onShowToolDetailsChange,
   onDockModeChange,
+  onAutoHideChange,
 }: ChatDockModalStackProps) {
   return (
     <>
@@ -96,9 +94,8 @@ export function ChatDockModalStack({
         setShowToolDetails={onShowToolDetailsChange}
         dockMode={dockMode}
         onDockModeChange={(mode) => onDockModeChange(mode, pathname)}
-        activeProviderLabel={activeProviderLabel}
-        activeModel={activeModel}
-        activeSessionStatus={activeSessionStatus}
+        autoHideEnabled={autoHideEnabled}
+        setAutoHideEnabled={onAutoHideChange}
       />
 
       {showSessionPicker && (
