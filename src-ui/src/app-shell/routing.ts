@@ -42,7 +42,7 @@ export function resolveViewFromPath(
     return { type: 'playbooks' };
   }
   if (path === '/skills' || path.startsWith('/skills/')) {
-    return { type: 'registry' };
+    return { type: 'skills' };
   }
   if (path === '/registry' || path.startsWith('/registry/')) {
     return { type: 'registry' };

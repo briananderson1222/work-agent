@@ -4,6 +4,7 @@ import { getPathForView, resolveViewFromPath } from '../app-shell/routing';
 describe('app-shell routing', () => {
   test('resolveViewFromPath maps agent, connection, and project routes', () => {
     expect(resolveViewFromPath('/agents/new')).toEqual({ type: 'agent-new' });
+    expect(resolveViewFromPath('/skills')).toEqual({ type: 'skills' });
     expect(resolveViewFromPath('/connections/providers/demo')).toEqual({
       type: 'connections-provider-edit',
       id: 'demo',

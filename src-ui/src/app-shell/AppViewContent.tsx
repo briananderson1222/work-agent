@@ -16,6 +16,7 @@ import { RegistryView } from '../views/RegistryView';
 import { RuntimeConnectionView } from '../views/RuntimeConnectionView';
 import { ScheduleView } from '../views/ScheduleView';
 import { SettingsView } from '../views/SettingsView';
+import { SkillsView } from '../views/SkillsView';
 import { ToolManagementView } from '../views/ToolManagementView';
 import { WorkflowManagementView } from '../views/WorkflowManagementView';
 import { ProjectLayoutRenderer } from './ProjectLayoutRenderer';
@@ -26,7 +27,6 @@ export function AppViewContent({
   apiBase,
   availableModels,
   defaultModel,
-  bedrockReady,
   onNavigate,
   onNavigateHome,
   onSettingsSaved,
@@ -36,7 +36,6 @@ export function AppViewContent({
   apiBase: string;
   availableModels: unknown;
   defaultModel?: string;
-  bedrockReady: boolean;
   onNavigate: (view: NavigationView) => void;
   onNavigateHome: () => void;
   onSettingsSaved: () => void;
@@ -53,7 +52,6 @@ export function AppViewContent({
         apiBase={apiBase}
         availableModels={availableModels}
         defaultModel={defaultModel}
-        bedrockReady={bedrockReady}
         onNavigate={onNavigate}
       />
     );
@@ -61,6 +59,9 @@ export function AppViewContent({
 
   if (currentView.type === 'playbooks' || currentView.type === 'prompts') {
     return <PlaybooksView />;
+  }
+  if (currentView.type === 'skills') {
+    return <SkillsView />;
   }
   if (currentView.type === 'registry') {
     return <RegistryView />;

@@ -52,6 +52,7 @@ export function SkillsView() {
   const selectedId = rawSelectedId === 'new' ? null : rawSelectedId;
   const [search, setSearch] = useState('');
   const [isCreating, setIsCreating] = useState(rawSelectedId === 'new');
+  const splitPaneSelectedId = isCreating ? '__new__' : selectedId;
   const [form, setForm] = useState<SkillForm>(EMPTY_SKILL_FORM);
   const { navigate } = useNavigation();
   const { showToast } = useToast();
@@ -63,14 +64,14 @@ export function SkillsView() {
     ...s,
     name: s.name || s.id,
     installedVersion: s.version,
-    source: 'local',
+    source: s.source || 'local',
     installed: true,
   }));
 
   const registrySkills: Skill[] = registryRaw.map((s: any) => ({
     ...s,
     name: s.id || s.displayName,
-    source: 'registry',
+    source: s.source || 'registry',
     installed: false,
   }));
 
@@ -113,7 +114,7 @@ export function SkillsView() {
     name: asset.name,
     subtitle: asset.packaging?.installed
       ? '✓ Installed'
-      : asset.packaging?.source || asset.source,
+      : asset.packaging?.source || asset.source || 'registry',
   }));
 
   const selected = skills.find((s) => s.name === selectedId);
@@ -134,6 +135,10 @@ export function SkillsView() {
   const { data: skillBody } = useSkillContentQuery(
     selected && !selected.installed ? selected.name : undefined,
   );
+
+  useEffect(() => {
+    setIsCreating(rawSelectedId === 'new');
+  }, [rawSelectedId]);
 
   useEffect(() => {
     if (isCreating) {
@@ -199,7 +204,7 @@ export function SkillsView() {
         subtitle="Capabilities available to agents"
         items={items}
         loading={isLoading}
-        selectedId={selectedId}
+        selectedId={splitPaneSelectedId}
         onSelect={select}
         onDeselect={deselect}
         onSearch={setSearch}

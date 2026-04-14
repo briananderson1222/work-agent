@@ -19,7 +19,6 @@ import { useExternalAuth } from './hooks/useExternalAuth';
 import { useFeatureSettings } from './hooks/useFeatureSettings';
 import { useKeyboardShortcut } from './hooks/useKeyboardShortcut';
 import { useServerEvents } from './hooks/useServerEvents';
-import { useSystemStatus } from './hooks/useSystemStatus';
 import { setAuthCallback } from './lib/apiClient';
 import type { DockMode, NavigationView } from './types';
 
@@ -46,7 +45,6 @@ function App() {
   const { settings: featureSettings } = useFeatureSettings();
   const [showShortcutsCheatsheet, setShowShortcutsCheatsheet] = useState(false);
   useExternalAuth();
-  const { data: systemStatus } = useSystemStatus();
   const [currentView, setCurrentView] = useState<NavigationView>(() => {
     return resolveViewFromPath(window.location.pathname, {
       lastProject,
@@ -297,7 +295,6 @@ function App() {
                 apiBase={API_BASE}
                 availableModels={availableModels}
                 defaultModel={appConfig?.defaultModel}
-                bedrockReady={!!systemStatus?.bedrock.credentialsFound}
                 onNavigate={navigateToView}
                 onNavigateHome={navigateHome}
                 onSettingsSaved={handleSettingsSaved}
