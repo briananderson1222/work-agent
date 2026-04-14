@@ -1,23 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 
 interface UseChatDockStateOptions {
   defaultFontSize: number;
   isDockOpen: boolean;
   isDockMaximized: boolean;
+  activeSessionCount?: number;
 }
+
+const AUTO_HIDE_DELAY_MS = 5000;
 
 export function useChatDockState({
   defaultFontSize,
   isDockOpen,
   isDockMaximized,
+  activeSessionCount = 0,
 }: UseChatDockStateOptions) {
   const { dockMode } = useNavigation();
 
   // Dock sizing
-  const [dockHeight, setDockHeight] = useState(400);
+  const [dockHeight, setDockHeight] = useState(320);
   const [dockWidth, setDockWidth] = useState(400);
-  const [previousDockHeight, setPreviousDockHeight] = useState(400);
+  const [previousDockHeight, setPreviousDockHeight] = useState(320);
   const [previousDockOpen, setPreviousDockOpen] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -37,6 +41,57 @@ export function useChatDockState({
   // Session state
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
+  // Auto-hide state
+  const [autoHideEnabled, setAutoHideEnabled] = useState(
+    () => localStorage.getItem('chatDockAutoHide') === 'true',
+  );
+  const [isAutoHidden, setIsAutoHidden] = useState(false);
+  const autoHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Persist auto-hide preference
+  useEffect(() => {
+    localStorage.setItem('chatDockAutoHide', String(autoHideEnabled));
+  }, [autoHideEnabled]);
+
+  // Auto-hide timer: fires after idle delay when enabled, dock is open, not maximized, and no active sessions
+  useEffect(() => {
+    if (
+      !autoHideEnabled ||
+      !isDockOpen ||
+      isDockMaximized ||
+      activeSessionCount > 0
+    ) {
+      setIsAutoHidden(false);
+      if (autoHideTimerRef.current) {
+        clearTimeout(autoHideTimerRef.current);
+        autoHideTimerRef.current = null;
+      }
+      return;
+    }
+    autoHideTimerRef.current = setTimeout(() => {
+      setIsAutoHidden(true);
+    }, AUTO_HIDE_DELAY_MS);
+    return () => {
+      if (autoHideTimerRef.current) {
+        clearTimeout(autoHideTimerRef.current);
+        autoHideTimerRef.current = null;
+      }
+    };
+  }, [autoHideEnabled, isDockOpen, isDockMaximized, activeSessionCount]);
+
+  // Resets auto-hide timer (call on mouse enter / dock interaction)
+  const resetAutoHide = useCallback(() => {
+    if (!autoHideEnabled) return;
+    setIsAutoHidden(false);
+    if (autoHideTimerRef.current) {
+      clearTimeout(autoHideTimerRef.current);
+      autoHideTimerRef.current = null;
+    }
+    autoHideTimerRef.current = setTimeout(() => {
+      setIsAutoHidden(true);
+    }, AUTO_HIDE_DELAY_MS);
+  }, [autoHideEnabled]);
+
   // Update CSS variables based on dock mode
   useEffect(() => {
     const root = document.documentElement;
@@ -55,14 +110,22 @@ export function useChatDockState({
         styles.getPropertyValue('--app-toolbar-height'),
         10,
       );
-      const height = !isDockOpen
-        ? headerHeight
-        : isDockMaximized
-          ? window.innerHeight - toolbarHeight
-          : dockHeight;
+      const height =
+        !isDockOpen || isAutoHidden
+          ? headerHeight
+          : isDockMaximized
+            ? window.innerHeight - toolbarHeight
+            : dockHeight;
       root.style.setProperty('--chat-dock-height', `${height}px`);
     }
-  }, [dockMode, dockWidth, isDockOpen, isDockMaximized, dockHeight]);
+  }, [
+    dockMode,
+    dockWidth,
+    isDockOpen,
+    isDockMaximized,
+    dockHeight,
+    isAutoHidden,
+  ]);
 
   return {
     dockHeight,
@@ -91,5 +154,9 @@ export function useChatDockState({
     setShowSessionPicker,
     activeSessionId,
     setActiveSessionId,
+    autoHideEnabled,
+    setAutoHideEnabled,
+    isAutoHidden,
+    resetAutoHide,
   };
 }

@@ -247,14 +247,14 @@
 
 .drill-down-header h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--text-2xl);
   font-weight: 600;
 }
 
 .drill-down-close {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: var(--text-5xl);
   cursor: pointer;
   color: var(--text-secondary);
   padding: 0;
@@ -293,7 +293,7 @@
 
 .drill-down-section h4 {
   margin: 0 0 12px 0;
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -311,7 +311,7 @@
   padding: 12px;
   background: var(--bg-secondary);
   border-radius: 8px;
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .drill-down-list-name {
@@ -320,14 +320,14 @@
 
 .drill-down-list-stats {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 
 .drill-down-details {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .drill-down-details div {
@@ -342,7 +342,7 @@
 }
 
 .usage-stats-reset-btn {
-  font-size: 11px;
+  font-size: var(--text-sm);
   padding: 3px 8px;
   border: 1px solid var(--border-primary);
   border-radius: 4px;

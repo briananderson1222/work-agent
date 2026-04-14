@@ -28,7 +28,7 @@
 }
 
 .import-modal__preview-title {
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .import-modal__preview-list {
@@ -58,15 +58,15 @@
 }
 
 .import-modal__slash {
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 
 .import-modal__name-input {
   padding: 2px 4px;
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 600;
-  font-family: monospace;
+  font-family: var(--font-mono);
   color: var(--color-primary);
   border: 1px solid transparent;
   border-radius: 3px;
@@ -81,7 +81,7 @@
 }
 
 .import-modal__file-label {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
   margin-left: auto;
 }
@@ -89,7 +89,7 @@
 .import-modal__desc-input {
   width: 100%;
   padding: 2px 4px;
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-secondary);
   border: 1px solid transparent;
   border-radius: 3px;

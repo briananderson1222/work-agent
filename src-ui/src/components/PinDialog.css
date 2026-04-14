@@ -20,14 +20,14 @@
 .pin-dialog__title {
   margin: 0 0 16px;
   color: var(--color-text);
-  font-size: 16px;
+  font-size: var(--text-xl);
 }
 
 .pin-dialog__input {
   width: 100%;
   padding: 8px;
   margin-bottom: 8px;
-  font-size: 14px;
+  font-size: var(--text-lg);
   background: var(--color-bg-secondary);
   color: var(--color-text);
   border: 1px solid var(--color-border);
@@ -37,12 +37,12 @@
 
 .pin-dialog__error {
   color: var(--color-error);
-  font-size: 12px;
+  font-size: var(--text-base);
   margin: 4px 0;
 }
 
 .pin-dialog__hint {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--color-text-secondary);
   margin: 4px 0;
 }
@@ -50,7 +50,7 @@
 .pin-dialog__output {
   background: var(--color-bg-secondary);
   color: var(--color-text-secondary);
-  font-size: 11px;
+  font-size: var(--text-sm);
   padding: 8px;
   border-radius: 4px;
   max-height: 120px;
@@ -70,7 +70,7 @@
   flex: 1;
   padding: 10px 16px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 500;
   cursor: pointer;
   border: none;

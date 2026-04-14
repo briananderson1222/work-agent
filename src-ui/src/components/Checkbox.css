@@ -52,7 +52,7 @@
 }
 
 .cb__label {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-primary);
 }
 

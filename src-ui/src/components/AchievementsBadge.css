@@ -146,7 +146,7 @@
 }
 
 .achievements-link {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--accent-primary);
   text-decoration: none;
   display: flex;

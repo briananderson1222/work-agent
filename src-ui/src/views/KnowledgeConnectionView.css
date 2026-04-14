@@ -17,14 +17,14 @@
 }
 
 .knowledge-view__title {
-  font-size: 22px;
+  font-size: var(--text-4xl);
   font-weight: 700;
   color: var(--text-primary);
   margin: 0 0 4px;
 }
 
 .knowledge-view__desc {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
   margin: 0;
 }
@@ -36,7 +36,7 @@
 }
 
 .knowledge-view__section-label {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -67,13 +67,13 @@
 }
 
 .knowledge-view__card-name {
-  font-size: 15px;
+  font-size: var(--text-15);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .knowledge-view__card-type {
-  font-size: 11px;
+  font-size: var(--text-sm);
   padding: 2px 7px;
   border-radius: 3px;
   background: var(--bg-tertiary);
@@ -85,7 +85,7 @@
 }
 
 .knowledge-view__card-desc {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
   margin: 0;
   line-height: 1.5;
@@ -94,7 +94,7 @@
 /* ── Status ─────────────────────────────────────────────────────── */
 
 .knowledge-view__status {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 500;
   padding: 2px 8px;
   border-radius: 4px;
@@ -126,7 +126,7 @@
 }
 
 .knowledge-view__test-result {
-  font-size: 13px;
+  font-size: var(--text-md);
   margin-left: 4px;
 }
 
@@ -151,13 +151,13 @@
 }
 
 .knowledge-view__stat-value {
-  font-size: 20px;
+  font-size: var(--text-3xl);
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .knowledge-view__stat-label {
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   margin-top: 2px;
 }
@@ -165,7 +165,7 @@
 /* ── Empty / Link ───────────────────────────────────────────────── */
 
 .knowledge-view__empty {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
   padding: 16px 0;
   margin: 0;

@@ -11,7 +11,7 @@
   background: transparent;
   color: var(--text-muted);
   cursor: pointer;
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.7rem;
   font-weight: 500;
   transition: all 0.15s;

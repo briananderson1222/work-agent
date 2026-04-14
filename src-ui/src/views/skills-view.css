@@ -22,7 +22,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 22px;
+  font-size: var(--text-4xl);
   flex-shrink: 0;
   border: 1px solid var(--border-primary);
 }
@@ -33,7 +33,7 @@
 }
 
 .skill-detail__name {
-  font-size: 20px;
+  font-size: var(--text-3xl);
   font-weight: 600;
   color: var(--text-primary);
   margin: 0 0 6px;
@@ -51,7 +51,7 @@
   align-items: center;
   padding: 2px 8px;
   border-radius: 4px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 500;
   letter-spacing: 0.02em;
   text-transform: uppercase;
@@ -89,7 +89,7 @@
   gap: 6px;
   padding: 8px 18px;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 500;
   font-family: inherit;
   cursor: pointer;
@@ -124,7 +124,7 @@
 }
 
 .skill-detail__btn-icon {
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 700;
 }
 
@@ -138,13 +138,13 @@
 
 .skill-detail__description {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-lg);
   line-height: 1.65;
   color: var(--text-secondary);
 }
 
 .skill-detail__label {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -153,7 +153,7 @@
 }
 
 .skill-detail__path {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-tertiary);
   word-break: break-all;
   background: var(--bg-tertiary);
@@ -163,7 +163,7 @@
 
 /* Hint */
 .skill-detail__hint {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
   padding: 12px 16px;
   border-left: 2px solid var(--accent-primary);
@@ -183,7 +183,7 @@
   align-items: center;
   padding: 2px 10px;
   border-radius: 12px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 500;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
@@ -199,7 +199,7 @@
 
 /* SKILL.md body */
 .skill-detail__body {
-  font-size: 14px;
+  font-size: var(--text-lg);
   line-height: 1.65;
   color: var(--text-secondary);
 }
@@ -212,13 +212,13 @@
 }
 
 .skill-detail__body h1 {
-  font-size: 18px;
+  font-size: var(--text-2xl);
 }
 .skill-detail__body h2 {
-  font-size: 16px;
+  font-size: var(--text-xl);
 }
 .skill-detail__body h3 {
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .skill-detail__body p {
@@ -229,7 +229,7 @@
   background: var(--bg-tertiary);
   padding: 1px 5px;
   border-radius: 3px;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .skill-detail__body pre {
@@ -272,6 +272,6 @@
   }
 
   .skill-detail__name {
-    font-size: 18px;
+    font-size: var(--text-2xl);
   }
 }

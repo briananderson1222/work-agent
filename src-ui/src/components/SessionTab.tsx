@@ -71,7 +71,7 @@ export function SessionTab({
       {agent && (
         <AgentIcon agent={agent} size={20} style={{ marginRight: '8px' }} />
       )}
-      <div style={{ flex: 1, minWidth: 0 }}>
+      <div className="chat-dock__tab-content">
         <div className="chat-dock__tab-title">
           {session.projectName && (
             <span className="chat-dock__tab-project">
@@ -89,28 +89,13 @@ export function SessionTab({
           />
         </div>
         {modelInfo && (
-          <div
-            style={{
-              fontSize: '9px',
-              color: 'var(--text-muted)',
-              fontStyle: 'italic',
-              marginTop: '2px',
-            }}
-          >
+          <div className="chat-dock__tab-model">
             {modelInfo.name || 'Custom'}
           </div>
         )}
       </div>
       {index < 9 && (
-        <span
-          style={{
-            fontSize: '10px',
-            color: 'var(--text-muted)',
-            flexShrink: 0,
-          }}
-        >
-          ⌘{index + 1}
-        </span>
+        <span className="chat-dock__tab-shortcut">⌘{index + 1}</span>
       )}
       <span
         className="chat-dock__tab-close"
@@ -128,7 +113,6 @@ export function SessionTab({
           }
         }}
         title={`Close (${closeTabShortcut})`}
-        style={{ flexShrink: 0 }}
       >
         ×
       </span>

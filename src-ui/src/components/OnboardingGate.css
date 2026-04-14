@@ -9,7 +9,7 @@
   height: 100vh;
   background: var(--bg-primary, #0a0a0a);
   color: var(--text-secondary, #999);
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   position: relative;
   overflow: hidden;
 }
@@ -106,7 +106,7 @@
 
 /* Text */
 .onboarding-loading__label {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.15em;
@@ -159,7 +159,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 13px;
+  font-size: var(--text-md);
   gap: 8px;
 }
 
@@ -189,13 +189,13 @@
 }
 
 .onboarding-setup-banner__title {
-  font-size: 15px;
+  font-size: var(--text-15);
   font-weight: 600;
   margin-bottom: 6px;
 }
 
 .onboarding-setup-banner__description {
-  font-size: 13px;
+  font-size: var(--text-md);
   line-height: 1.5;
   color: rgba(229, 238, 252, 0.78);
 }
@@ -205,7 +205,7 @@
   background: transparent;
   color: rgba(229, 238, 252, 0.7);
   cursor: pointer;
-  font-size: 18px;
+  font-size: var(--text-2xl);
   line-height: 1;
   padding: 0;
 }
@@ -222,7 +222,7 @@
   border-radius: 999px;
   background: rgba(37, 99, 235, 0.14);
   color: #bfdbfe;
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 600;
   padding: 4px 8px;
 }
@@ -270,7 +270,7 @@
 }
 
 .onboarding-setup-launcher__eyebrow {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -286,14 +286,14 @@
 }
 
 .onboarding-setup-launcher__title {
-  font-size: 24px;
+  font-size: var(--text-5xl);
   font-weight: 650;
   line-height: 1.15;
   margin-bottom: 10px;
 }
 
 .onboarding-setup-launcher__description {
-  font-size: 14px;
+  font-size: var(--text-lg);
   line-height: 1.6;
   color: rgba(229, 238, 252, 0.82);
   max-width: 52ch;
@@ -304,7 +304,7 @@
   background: transparent;
   color: rgba(229, 238, 252, 0.72);
   cursor: pointer;
-  font-size: 22px;
+  font-size: var(--text-4xl);
   line-height: 1;
   padding: 0;
 }
@@ -321,7 +321,7 @@
   border-radius: 999px;
   background: rgba(37, 99, 235, 0.14);
   color: #bfdbfe;
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 600;
   padding: 4px 8px;
 }
@@ -351,19 +351,19 @@
   border-radius: 999px;
   background: rgba(37, 99, 235, 0.18);
   color: #bfdbfe;
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 700;
   flex-shrink: 0;
 }
 
 .onboarding-setup-launcher__step-title {
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 600;
   margin-bottom: 4px;
 }
 
 .onboarding-setup-launcher__step-desc {
-  font-size: 13px;
+  font-size: var(--text-md);
   line-height: 1.5;
   color: rgba(229, 238, 252, 0.72);
 }
@@ -376,7 +376,7 @@
   background: linear-gradient(180deg, #3b82f6, #2563eb);
   color: white;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 650;
   padding: 13px 14px;
 }

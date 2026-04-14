@@ -1,7 +1,8 @@
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=DM+Sans:wght@400;500;600;700&display=swap");
+@import url("./tokens.css");
 
 :root {
-  --chat-dock-header-height: 55px;
+  --chat-dock-header-height: 38px;
   --app-toolbar-height: 46px;
   /* Safe area insets for mobile/APK */
   --safe-top: env(safe-area-inset-top, 0px);
@@ -221,7 +222,7 @@
 }
 
 body {
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background: var(--bg-primary);
@@ -310,7 +311,7 @@ button:hover {
   color: var(--text-secondary);
   padding: 6px 12px;
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s;
@@ -353,7 +354,7 @@ button:hover {
     background: none;
     border: none;
     color: var(--text-primary);
-    font-size: 20px;
+    font-size: var(--text-3xl);
     padding: 4px;
     cursor: pointer;
     min-width: 44px;
@@ -369,7 +370,7 @@ button:hover {
 
   .app-toolbar__brand {
     display: block;
-    font-size: 15px;
+    font-size: var(--text-15);
     font-weight: 600;
     color: var(--text-primary);
     cursor: pointer;
@@ -420,7 +421,7 @@ button:hover {
   background: transparent;
   color: var(--text-secondary);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--text-lg);
   transition:
     border-color 0.15s,
     color 0.15s;
@@ -439,7 +440,7 @@ button:hover {
   padding: 12px 24px;
   background: var(--bg-tertiary);
   border-bottom: 1px solid var(--border-primary);
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-secondary);
 }
 
@@ -465,7 +466,7 @@ button:hover {
   background: var(--error-bg);
   border-bottom: 1px solid var(--error-border);
   color: var(--error-text);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 
 .global-error button {
@@ -505,7 +506,7 @@ button:hover {
   background: transparent;
   color: inherit;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .toast button:hover {
@@ -540,24 +541,24 @@ button:hover {
 }
 
 .agent-selector__current-label {
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
 
 .agent-selector__current-name {
-  font-size: 16px;
+  font-size: var(--text-xl);
   font-weight: 600;
 }
 
 .agent-selector__current-model {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
 }
 
 .agent-selector__chevron {
-  font-size: 18px;
+  font-size: var(--text-2xl);
 }
 
 .agent-selector__menu {
@@ -578,7 +579,7 @@ button:hover {
 
 .agent-selector__section-title {
   display: block;
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
@@ -587,7 +588,7 @@ button:hover {
 }
 
 .agent-selector__empty {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
 }
 
@@ -611,12 +612,12 @@ button:hover {
 }
 
 .agent-selector__option-name {
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 600;
 }
 
 .agent-selector__option-meta {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
 }
 
@@ -655,7 +656,7 @@ button:hover {
 
 .quick-actions--placeholder {
   justify-content: center;
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
 }
 
@@ -667,7 +668,7 @@ button:hover {
 }
 
 .quick-actions__label {
-  font-size: 12px;
+  font-size: var(--text-base);
   text-transform: uppercase;
   letter-spacing: 0.08em;
   color: var(--text-muted);
@@ -686,7 +687,7 @@ button:hover {
   background: transparent;
   color: var(--accent-primary);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 
 .quick-actions__button:hover {
@@ -704,7 +705,7 @@ button:hover {
 }
 
 .quick-actions__helper {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-disabled);
 }
 
@@ -731,13 +732,13 @@ button:hover {
 }
 
 .sidebar-header h1 {
-  font-size: 20px;
+  font-size: var(--text-3xl);
   font-weight: 600;
   margin-bottom: 8px;
 }
 
 .sidebar-header p {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
 }
 
@@ -767,13 +768,13 @@ button:hover {
 }
 
 .agent-item h3 {
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 500;
   margin-bottom: 4px;
 }
 
 .agent-item p {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -910,7 +911,7 @@ button:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 20px;
+  padding: var(--space-2) var(--space-6);
   border-bottom: 1px solid var(--border-primary);
   background: var(--bg-tertiary);
   cursor: pointer;
@@ -924,12 +925,12 @@ button:hover {
 .chat-dock__title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-3);
   font-weight: 600;
 }
 
 .chat-dock__subtitle {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-tertiary);
   font-weight: 400;
 }
@@ -937,13 +938,13 @@ button:hover {
 .chat-dock__header-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
-  font-size: 12px;
+  gap: var(--space-4);
+  font-size: var(--text-base);
   color: var(--text-tertiary);
 }
 
 .chat-dock__counter {
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .chat-dock__badge {
@@ -956,7 +957,7 @@ button:hover {
   border-radius: 999px;
   background: var(--accent-primary);
   color: var(--text-inverted);
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 
@@ -977,9 +978,9 @@ button:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 6px 12px;
+  padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--border-primary);
-  gap: 16px;
+  gap: var(--space-4);
   position: relative;
 }
 
@@ -1000,17 +1001,17 @@ button:hover {
 .chat-dock__tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 4px 8px;
-  border-radius: 999px;
+  gap: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
   background: var(--bg-tertiary);
   color: var(--text-secondary);
   cursor: pointer;
   position: relative;
-  min-width: 180px;
+  min-width: 140px;
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: var(--text-base);
 }
 
 .chat-dock__tab.is-active {
@@ -1042,18 +1043,18 @@ button:hover {
   display: inline-block;
   margin-left: 6px;
   color: var(--accent-primary);
-  font-size: 10px;
+  font-size: var(--text-xs);
   animation: loading-pulse 1.4s infinite;
 }
 
 .chat-dock__tab-title {
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 600;
 }
 
 /* Project badge on session tabs */
 .chat-dock__tab-project {
-  font-size: 9px;
+  font-size: var(--text-2xs);
   color: var(--accent-primary);
   background: color-mix(in srgb, var(--accent-primary) 12%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent-primary) 25%, transparent);
@@ -1071,7 +1072,7 @@ button:hover {
   align-items: center;
   gap: 6px;
   padding: 4px 12px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   background: color-mix(in srgb, var(--accent-primary) 4%, var(--bg-primary));
   border-bottom: 1px solid var(--border-primary);
@@ -1088,8 +1089,8 @@ button:hover {
 }
 .chat-dock__project-dir {
   display: flex;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   opacity: 0.7;
   overflow: hidden;
   white-space: nowrap;
@@ -1130,8 +1131,8 @@ button:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
 }
 .git-badge__branch {
   color: var(--text-secondary);
@@ -1154,7 +1155,7 @@ button:hover {
   min-width: 240px;
   max-width: 320px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-primary);
 }
 .git-tooltip__section {
@@ -1166,7 +1167,7 @@ button:hover {
   padding-top: 8px;
 }
 .git-tooltip__label {
-  font-size: 9px;
+  font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--text-muted);
@@ -1179,10 +1180,10 @@ button:hover {
   text-overflow: ellipsis;
 }
 .git-tooltip__commit-meta {
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   margin-top: 2px;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 .git-tooltip__changes {
   display: flex;
@@ -1190,8 +1191,8 @@ button:hover {
   flex-wrap: wrap;
 }
 .git-tooltip__stat {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   color: var(--text-secondary);
 }
 .git-tooltip__stat--staged {
@@ -1205,16 +1206,16 @@ button:hover {
 }
 .git-tooltip__clean {
   color: var(--success, #98c379);
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .chat-dock__tab-agent {
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-tertiary);
 }
 
 .chat-dock__tab-close {
-  font-size: 14px;
+  font-size: var(--text-lg);
   color: var(--text-disabled);
   cursor: pointer;
   display: inline-flex;
@@ -1237,13 +1238,59 @@ button:hover {
 .chat-dock__new {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 12px;
-  border-radius: 8px;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-lg);
   border: 1px solid var(--border-secondary);
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
+}
+
+/* SessionTab utility classes (replaces inline styles) */
+.chat-dock__tab-content {
+  flex: 1;
+  min-width: 0;
+}
+
+.chat-dock__tab-model {
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+  font-style: italic;
+  margin-top: var(--space-1);
+}
+
+.chat-dock__tab-shortcut {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* ChatDockHeader icon classes (replaces inline styles) */
+.chat-dock__icon-svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+}
+
+.chat-dock__chevron-svg {
+  width: 14px;
+  height: 14px;
+  display: block;
+  transition: transform 0.2s;
+}
+
+.chat-dock__chevron-svg.is-open {
+  transform: rotate(0deg);
+}
+.chat-dock__chevron-svg.is-closed {
+  transform: rotate(180deg);
+}
+.chat-dock__chevron-svg.is-right-open {
+  transform: rotate(270deg);
+}
+.chat-dock__chevron-svg.is-right-closed {
+  transform: rotate(90deg);
 }
 
 .chat-dock__new:disabled {
@@ -1304,6 +1351,15 @@ button:hover {
   opacity: 0.7;
 }
 
+.chat-dock__icon-btn.is-active {
+  color: var(--accent-primary);
+  opacity: 1;
+}
+
+.chat-dock__icon-btn.is-active:hover {
+  opacity: 0.8;
+}
+
 /* Activity indicator */
 .chat-dock__activity {
   position: relative;
@@ -1356,7 +1412,7 @@ button:hover {
   text-align: left;
   cursor: pointer;
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--text-lg);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1369,6 +1425,21 @@ button:hover {
 
 .chat-dock__activity-item:hover {
   background: var(--bg-hover);
+}
+
+.chat-dock__activity-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Auto-hide: hides tabs + body while keeping header visible */
+.chat-dock.is-auto-hidden .chat-dock__tabs,
+.chat-dock.is-auto-hidden .chat-dock__body,
+.chat-dock.is-auto-hidden .chat-dock__project-context,
+.chat-dock.is-auto-hidden .chat-dock__content-area {
+  display: none;
 }
 
 /* Maximize button */
@@ -1453,7 +1524,7 @@ button:hover {
 }
 
 .chat-dock__settings-label {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
 }
 
@@ -1470,7 +1541,7 @@ button:hover {
   padding: 4px 8px;
   cursor: pointer;
   color: var(--text-primary);
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .chat-dock__settings-btn:hover {
@@ -1480,7 +1551,7 @@ button:hover {
 .chat-dock__settings-value {
   min-width: 32px;
   text-align: center;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 /* Chat Settings Modal */
@@ -1508,7 +1579,7 @@ button:hover {
 
 .chat-settings-modal__title {
   margin: 0 0 20px 0;
-  font-size: 18px;
+  font-size: var(--text-2xl);
   font-weight: 600;
 }
 
@@ -1519,7 +1590,7 @@ button:hover {
 .chat-settings-modal__label {
   display: block;
   margin-bottom: 8px;
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 500;
 }
 
@@ -1536,7 +1607,7 @@ button:hover {
   cursor: pointer;
   padding: 6px 12px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .chat-settings-modal__btn:disabled {
@@ -1545,7 +1616,7 @@ button:hover {
 }
 
 .chat-settings-modal__value {
-  font-size: 14px;
+  font-size: var(--text-lg);
   color: var(--text-secondary);
   margin-left: 8px;
 }
@@ -1555,7 +1626,7 @@ button:hover {
   align-items: center;
   gap: 8px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 500;
 }
 
@@ -1567,7 +1638,7 @@ button:hover {
 
 .chat-settings-modal__hint {
   margin: 4px 0 0 24px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
 }
 
@@ -1584,7 +1655,7 @@ button:hover {
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: var(--text-lg);
   cursor: pointer;
   font-weight: 500;
 }
@@ -1602,7 +1673,7 @@ button:hover {
 }
 
 .chat-header h2 {
-  font-size: 18px;
+  font-size: var(--text-2xl);
   font-weight: 600;
 }
 
@@ -1638,7 +1709,7 @@ button:hover {
   align-self: center;
   background: var(--bg-secondary);
   border: 1px solid var(--border-secondary);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
   font-style: italic;
   max-width: 90%;
@@ -1693,7 +1764,7 @@ button:hover {
 .loading-dots {
   display: inline-flex;
   gap: 4px;
-  font-size: 8px;
+  font-size: var(--text-micro);
   color: var(--color-primary);
 }
 
@@ -1804,7 +1875,7 @@ button:hover {
 
 .streaming-progress__tool {
   color: var(--text-muted);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.72em;
   margin-top: 2px;
 }
@@ -1855,7 +1926,7 @@ button:hover {
   align-self: center;
   background: var(--bg-elevated);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-md);
   font-style: italic;
 }
 
@@ -1872,7 +1943,7 @@ button:hover {
   padding: 2px 6px;
   border-radius: 4px;
   background: var(--overlay-bg-dark);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
 }
 
@@ -2031,7 +2102,7 @@ button:hover {
   background: var(--color-bg-tertiary);
   color: var(--text-secondary);
   border-radius: 3px;
-  font-family: monospace;
+  font-family: var(--font-mono);
 }
 
 .tool-call__status-badge {
@@ -2074,7 +2145,7 @@ button:hover {
 }
 
 .tool-call__meta code {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 0.9em;
 }
 
@@ -2159,7 +2230,7 @@ button:hover {
 }
 
 .queued-messages__label {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-tertiary);
   margin-bottom: 6px;
@@ -2182,12 +2253,12 @@ button:hover {
   padding: 4px 8px;
   border-radius: 4px;
   background: var(--bg-input);
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-secondary);
 }
 
 .queued-message__order {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-muted);
   min-width: 16px;
@@ -2198,7 +2269,7 @@ button:hover {
   border: none;
   cursor: pointer;
   padding: 2px 4px;
-  font-size: 14px;
+  font-size: var(--text-lg);
   color: var(--text-muted);
   opacity: 0.6;
   transition: opacity 0.15s;
@@ -2304,7 +2375,7 @@ button:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   white-space: nowrap;
   padding: 4px 8px;
@@ -2342,7 +2413,7 @@ button:hover {
 }
 
 .command-name {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-weight: 600;
   color: var(--accent-primary);
   font-size: 0.95em;
@@ -2361,7 +2432,7 @@ button:hover {
   background: var(--bg-input);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--text-lg);
   resize: none;
   min-height: 48px;
   max-height: 120px;
@@ -2405,7 +2476,7 @@ button:hover {
   border: 1px solid var(--error-border);
   border-radius: 6px;
   color: var(--error-text);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 
 .empty-state {
@@ -2421,13 +2492,13 @@ button:hover {
 }
 
 .empty-state h3 {
-  font-size: 18px;
+  font-size: var(--text-2xl);
   margin-bottom: 8px;
   color: var(--text-muted-lighter);
 }
 
 .empty-state p {
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 /* Workspace dashboard styles are provided by plugins via their CSS bundles */
@@ -2452,14 +2523,14 @@ button:hover {
 
 .management-view__header h2 {
   flex: 1;
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 1.25rem;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
 
 .management-view__header-label {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.65rem;
   font-weight: 500;
   letter-spacing: 0.15em;
@@ -2479,7 +2550,7 @@ button:hover {
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .management-view__error {
@@ -2487,7 +2558,7 @@ button:hover {
   background: var(--error-bg);
   border-bottom: 1px solid var(--error-border);
   color: var(--error-text);
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 /* Buttons */
@@ -2495,7 +2566,7 @@ button:hover {
   padding: 10px 16px;
   border-radius: 8px;
   border: 1px solid transparent;
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
@@ -2547,7 +2618,7 @@ button:hover {
 
 .button--small {
   padding: 6px 12px;
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 
 .button--success {
@@ -2567,7 +2638,7 @@ button:hover {
   border: none;
   color: var(--accent-primary);
   padding: 4px 8px;
-  font-size: 13px;
+  font-size: var(--text-md);
   cursor: pointer;
 }
 
@@ -2600,7 +2671,7 @@ button:hover {
 .form-group label {
   display: block;
   margin-bottom: 8px;
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 500;
   color: var(--text-secondary);
 }
@@ -2615,7 +2686,7 @@ button:hover {
   background: var(--bg-hover);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .form-group input::placeholder,
@@ -2658,7 +2729,7 @@ button:hover {
 .form-help {
   display: block;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
 }
 
@@ -2683,13 +2754,13 @@ button:hover {
   border-radius: 6px;
   background: var(--bg-input);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .form-error {
   display: block;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--error-text);
 }
 
@@ -2712,7 +2783,7 @@ button:hover {
   border-radius: 50%;
   background: var(--bg-elevated);
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 600;
   cursor: help;
   text-decoration: none;
@@ -2732,7 +2803,7 @@ button:hover {
   border: 1px solid var(--accent-primary);
   background: transparent;
   color: var(--accent-primary);
-  font-size: 13px;
+  font-size: var(--text-md);
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -2794,7 +2865,7 @@ button:hover {
 }
 
 .modal-header h3 {
-  font-size: 18px;
+  font-size: var(--text-2xl);
   font-weight: 600;
 }
 
@@ -2803,7 +2874,7 @@ button:hover {
 }
 
 .modal-body p {
-  font-size: 14px;
+  font-size: var(--text-lg);
   line-height: 1.6;
   color: var(--text-secondary);
 }
@@ -2838,7 +2909,7 @@ button:hover {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 500;
   cursor: pointer;
   border-bottom: 2px solid transparent;
@@ -2906,18 +2977,18 @@ button:hover {
 }
 
 .tool-name {
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .tool-desc {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
 }
 
 .tool-meta {
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-disabled);
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -2952,7 +3023,7 @@ button:hover {
 }
 
 .new-tool-form h4 {
-  font-size: 16px;
+  font-size: var(--text-xl);
   font-weight: 600;
   margin-bottom: 16px;
   color: var(--accent-primary);
@@ -2975,13 +3046,13 @@ button:hover {
 }
 
 .tool-management__column h3 {
-  font-size: 18px;
+  font-size: var(--text-2xl);
   font-weight: 600;
   margin-bottom: 8px;
 }
 
 .column-help {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
   margin-bottom: 16px;
 }
@@ -3017,13 +3088,13 @@ button:hover {
 }
 
 .tool-card__info h4 {
-  font-size: 15px;
+  font-size: var(--text-15);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .tool-card__info p {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
   line-height: 1.5;
 }
@@ -3037,7 +3108,7 @@ button:hover {
 .tool-badge {
   padding: 4px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 500;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -3056,7 +3127,7 @@ button:hover {
 }
 
 .tool-alias {
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-secondary);
   display: flex;
   align-items: center;
@@ -3084,7 +3155,7 @@ button:hover {
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .tool-param {
@@ -3100,8 +3171,8 @@ button:hover {
 }
 
 .tool-param code {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--accent-primary);
   background: var(--accent-subtle);
@@ -3116,13 +3187,13 @@ button:hover {
 
 .tool-param .param-type {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-style: italic;
 }
 
 .tool-param .param-desc {
   color: var(--text-secondary);
-  font-size: 11px;
+  font-size: var(--text-sm);
   flex: 1;
   min-width: 150px;
 }
@@ -3134,7 +3205,7 @@ button:hover {
 }
 
 .tool-allow-list h4 {
-  font-size: 15px;
+  font-size: var(--text-15);
   font-weight: 600;
   margin-bottom: 8px;
 }
@@ -3193,7 +3264,7 @@ button:hover {
 }
 
 .workflow-card__header h3 {
-  font-size: 16px;
+  font-size: var(--text-xl);
   font-weight: 600;
   color: var(--text-primary);
   flex: 1;
@@ -3202,7 +3273,7 @@ button:hover {
 .workflow-badge {
   padding: 4px 10px;
   border-radius: 999px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 500;
   text-transform: uppercase;
   background: var(--accent-medium);
@@ -3211,7 +3282,7 @@ button:hover {
 }
 
 .workflow-card__meta {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
 }
 
@@ -3244,8 +3315,8 @@ button:hover {
   border-radius: 8px;
   background: var(--bg-hover);
   color: var(--text-primary);
-  font-family: "JetBrains Mono", monospace;
-  font-size: 13px;
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
   line-height: 1.6;
   resize: none;
   overflow-y: auto;
@@ -3258,7 +3329,7 @@ button:hover {
 
 /* App Toolbar Additions */
 .app-toolbar__title {
-  font-size: 18px;
+  font-size: var(--text-2xl);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -3367,9 +3438,9 @@ button:hover {
   background: none;
   border: none;
   cursor: pointer;
-  padding: 8px 12px;
+  padding: var(--space-2) var(--space-4);
   color: var(--text-primary);
-  font-size: 18px;
+  font-size: var(--text-lg);
   line-height: 1;
   display: flex;
   align-items: center;
@@ -3402,7 +3473,7 @@ button:hover {
 
 .conversation-history__title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .conversation-history__actions {
@@ -3417,7 +3488,7 @@ button:hover {
   cursor: pointer;
   padding: 4px 8px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   text-decoration: underline;
 }
 
@@ -3431,7 +3502,7 @@ button:hover {
   cursor: pointer;
   padding: 4px;
   color: var(--text-muted);
-  font-size: 20px;
+  font-size: var(--text-3xl);
   line-height: 1;
 }
 
@@ -3482,7 +3553,7 @@ button:hover {
 }
 
 .session-item__title-row {
-  font-size: 13px;
+  font-size: var(--text-md);
   margin-bottom: 4px;
   display: flex;
   align-items: center;
@@ -3494,19 +3565,19 @@ button:hover {
 }
 
 .session-item__active-dot {
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--accent-primary, #0066cc);
 }
 
 .session-item__id {
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   font-weight: 400;
-  font-family: monospace;
+  font-family: var(--font-mono);
 }
 
 .session-item__meta {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
   display: flex;
   gap: 6px;
@@ -3515,7 +3586,7 @@ button:hover {
 }
 
 .session-item__badge {
-  font-size: 10px;
+  font-size: var(--text-xs);
   padding: 1px 5px;
   border-radius: 3px;
   font-weight: 500;
@@ -3538,7 +3609,7 @@ button:hover {
 }
 
 .session-item__context {
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   display: flex;
   align-items: center;
@@ -3562,7 +3633,7 @@ button:hover {
   position: absolute;
   bottom: 12px;
   right: 16px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -3580,7 +3651,7 @@ button:hover {
   cursor: pointer;
   padding: 4px;
   color: var(--text-muted);
-  font-size: 12px;
+  font-size: var(--text-base);
   opacity: 0.6;
   flex-shrink: 0;
 }
@@ -3590,7 +3661,7 @@ button:hover {
 }
 
 .session-item__action-btn--delete {
-  font-size: 16px;
+  font-size: var(--text-xl);
   line-height: 1;
 }
 
@@ -3601,7 +3672,7 @@ button:hover {
   border-radius: 4px;
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 
 /* File Attachment Input */
@@ -3664,7 +3735,7 @@ button:hover {
   border-radius: 50%;
   width: 14px;
   height: 14px;
-  font-size: 9px;
+  font-size: var(--text-2xs);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3695,7 +3766,7 @@ button:hover {
 }
 
 .attachment-menu__count {
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -3755,7 +3826,7 @@ button:hover {
   justify-content: center;
   background: var(--bg-tertiary);
   border-radius: 4px;
-  font-size: 24px;
+  font-size: var(--text-5xl);
   flex-shrink: 0;
 }
 
@@ -3765,7 +3836,7 @@ button:hover {
 }
 
 .attachment-menu__name {
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 500;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3773,7 +3844,7 @@ button:hover {
 }
 
 .attachment-menu__size {
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--text-muted);
 }
 
@@ -3783,7 +3854,7 @@ button:hover {
   cursor: pointer;
   padding: 4px;
   color: var(--text-muted);
-  font-size: 18px;
+  font-size: var(--text-2xl);
   line-height: 1;
   flex: 0 0 auto !important;
   transform: none !important;
@@ -3800,7 +3871,7 @@ button:hover {
   background: none !important;
   border: none !important;
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--color-primary);
   font-weight: 600;
   padding: 2px 4px;
@@ -3844,7 +3915,7 @@ button:hover {
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
   color: var(--text-primary);
-  font-size: 32px;
+  font-size: var(--text-6xl);
   width: 48px;
   height: 48px;
   border-radius: 50%;
@@ -3881,7 +3952,7 @@ button:hover {
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
   color: var(--text-primary);
-  font-size: 24px;
+  font-size: var(--text-5xl);
   width: 40px;
   height: 40px;
   border-radius: 50%;
@@ -3933,7 +4004,7 @@ button:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 20px;
+  font-size: var(--text-3xl);
   flex-shrink: 0;
 }
 
@@ -4071,7 +4142,7 @@ button:hover {
   flex-shrink: 0;
 }
 .user-detail-badge-pill {
-  font-size: 10px;
+  font-size: var(--text-xs);
   padding: 1px 8px;
   border-radius: 10px;
   color: #fff;
@@ -4196,7 +4267,7 @@ button:hover {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   padding: 4px 8px;
   border-radius: 4px;
   cursor: pointer;
@@ -4236,7 +4307,7 @@ button:hover {
   border: none;
   color: inherit;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-md);
   text-align: left;
 }
 .acp-preset-item:hover {
@@ -4255,7 +4326,7 @@ button:hover {
   flex: 1;
 }
 .acp-preset-item__hint {
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 .acp-preset-divider {
@@ -4274,7 +4345,7 @@ button:hover {
   gap: 12px;
 }
 .acp-custom-modal__label {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
   display: block;
   margin-bottom: 4px;
@@ -4282,7 +4353,7 @@ button:hover {
 .acp-custom-modal__input {
   width: 100%;
   padding: 8px 10px;
-  font-size: 13px;
+  font-size: var(--text-md);
   border-radius: 6px;
   border: 1px solid var(--border-primary);
   background: var(--bg-primary);
@@ -4308,12 +4379,12 @@ button:hover {
 }
 .workspace-onboarding__title {
   margin: 0 0 8px;
-  font-size: 22px;
+  font-size: var(--text-4xl);
   font-weight: 600;
 }
 .workspace-onboarding__desc {
   margin: 0 0 32px;
-  font-size: 14px;
+  font-size: var(--text-lg);
   color: var(--text-secondary);
   line-height: 1.6;
 }
@@ -4341,14 +4412,14 @@ button:hover {
   border-color: var(--accent-primary);
 }
 .workspace-onboarding__card-icon {
-  font-size: 24px;
+  font-size: var(--text-5xl);
 }
 .workspace-onboarding__card-title {
   font-weight: 600;
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 .workspace-onboarding__card-desc {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
   margin-top: 2px;
 }
@@ -4363,12 +4434,12 @@ button:hover {
 }
 .acp-empty__text {
   margin: 0 0 8px;
-  font-size: 14px;
+  font-size: var(--text-lg);
   color: var(--text-secondary);
 }
 .acp-empty__hint {
   margin: 0 0 16px;
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
 }
 
@@ -4385,7 +4456,7 @@ button:hover {
   border-radius: 6px;
   color: var(--text-primary);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-md);
   text-align: left;
 }
 
@@ -4429,14 +4500,14 @@ button:hover {
 }
 
 .knowledge-section__title {
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--text-primary);
   margin: 0;
 }
 
 .knowledge-section__stat {
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
 }
 
@@ -4456,7 +4527,7 @@ button:hover {
 }
 
 .knowledge-section__card-label {
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-secondary);
   text-transform: uppercase;
@@ -4468,7 +4539,7 @@ button:hover {
   border: 1px solid var(--border-primary);
   border-radius: 5px;
   padding: 4px 10px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-secondary);
   cursor: pointer;
 }
@@ -4500,7 +4571,7 @@ button:hover {
 }
 
 .knowledge-section__source-icon {
-  font-size: 16px;
+  font-size: var(--text-xl);
   flex-shrink: 0;
 }
 
@@ -4511,23 +4582,23 @@ button:hover {
 
 .knowledge-section__source-name {
   display: block;
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 500;
   color: var(--text-primary);
 }
 
 .knowledge-section__source-path {
   display: block;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
-  font-family: monospace;
+  font-family: var(--font-mono);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .knowledge-section__badge {
-  font-size: 10px;
+  font-size: var(--text-xs);
   padding: 1px 6px;
   border-radius: 3px;
   background: var(--bg-tertiary, rgba(0, 0, 0, 0.06));
@@ -4537,12 +4608,12 @@ button:hover {
 
 .knowledge-section__scan-result {
   margin-top: 8px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--success-text, #22c55e);
 }
 
 .knowledge-section__empty {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
   margin: 0;
 }
@@ -4552,7 +4623,7 @@ button:hover {
   border-radius: 8px;
   padding: 20px;
   text-align: center;
-  font-size: 13px;
+  font-size: var(--text-md);
   color: var(--text-muted);
   cursor: pointer;
   transition:
@@ -4586,7 +4657,7 @@ button:hover {
   background: var(--bg-primary);
   border: 1px solid var(--border-primary);
   border-radius: 5px;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .knowledge-section__doc-name {
@@ -4602,7 +4673,7 @@ button:hover {
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 16px;
+  font-size: var(--text-xl);
   padding: 0 2px;
   line-height: 1;
 }
@@ -4615,13 +4686,13 @@ button:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   padding-top: 4px;
 }
 
 .knowledge-section__status-item {
-  font-family: monospace;
+  font-family: var(--font-mono);
 }
 
 .knowledge-section__clear-btn {
@@ -4629,7 +4700,7 @@ button:hover {
   border: none;
   color: var(--error-text);
   cursor: pointer;
-  font-size: 11px;
+  font-size: var(--text-sm);
   padding: 2px 6px;
 }
 
@@ -4653,7 +4724,7 @@ button:hover {
   border: 1px solid var(--border-primary);
   border-radius: 12px;
   padding: 2px 10px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   cursor: pointer;
   white-space: nowrap;
@@ -4682,7 +4753,7 @@ button:hover {
   display: flex;
   align-items: center;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
   margin-right: 8px;
 }
@@ -4712,7 +4783,7 @@ button:hover {
   gap: 8px;
   padding: 4px 12px;
   border-bottom: 1px solid var(--border-primary);
-  font-size: 11px;
+  font-size: var(--text-sm);
   color: var(--text-muted);
   flex-shrink: 0;
 }
@@ -4722,7 +4793,7 @@ button:hover {
   border: 1px solid var(--border-primary);
   border-radius: 4px;
   padding: 2px 8px;
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
   cursor: pointer;
   display: flex;
@@ -4736,23 +4807,23 @@ button:hover {
 }
 
 .chat-dock__model-icon {
-  font-size: 9px;
+  font-size: var(--text-2xs);
 }
 
 .chat-dock__model-chevron {
-  font-size: 8px;
+  font-size: var(--text-micro);
 }
 
 .chat-dock__session-project {
   background: var(--bg-subtle, rgba(0, 0, 0, 0.06));
   border-radius: 3px;
   padding: 1px 6px;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 .chat-dock__session-count {
   margin-left: auto;
-  font-size: 10px;
+  font-size: var(--text-xs);
 }
 
 /* ── Dock Mode: Right Split ─────────────────────────────────────── */
@@ -4877,7 +4948,7 @@ button:hover {
   }
 
   .app__main--dock-right > .chat-dock .chat-dock__title {
-    font-size: 13px;
+    font-size: var(--text-md);
   }
 
   .app__main--dock-right > .chat-dock .chat-dock__subtitle {
@@ -4919,7 +4990,7 @@ button:hover {
     min-width: 0;
     width: 100%;
     padding: 4px 8px;
-    font-size: 12px;
+    font-size: var(--text-base);
     border-radius: 6px;
     gap: 4px;
   }
@@ -4931,7 +5002,7 @@ button:hover {
   }
 
   .app__main--dock-right > .chat-dock .chat-dock__tab-title {
-    font-size: 12px;
+    font-size: var(--text-base);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -4947,7 +5018,7 @@ button:hover {
 
   .app__main--dock-right > .chat-dock .chat-dock__tab-actions .chat-dock__new {
     padding: 4px 8px;
-    font-size: 11px;
+    font-size: var(--text-sm);
     width: 100%;
     flex: 1;
     text-align: center;
@@ -4975,7 +5046,7 @@ button:hover {
   .app__main--dock-right > .chat-dock .chat-input textarea {
     min-height: 40px;
     max-height: 80px;
-    font-size: 13px;
+    font-size: var(--text-md);
     padding: 8px 10px;
   }
 
@@ -4985,14 +5056,14 @@ button:hover {
 
   /* Compact context indicator in right mode */
   .app__main--dock-right > .chat-dock .context-indicator-content {
-    font-size: 9px;
+    font-size: var(--text-2xs);
     padding: 2px 4px;
   }
 
   /* Right-mode session info bar */
   .app__main--dock-right > .chat-dock .chat-dock__session-info {
     padding: 2px 8px;
-    font-size: 10px;
+    font-size: var(--text-xs);
   }
 
   /* Right-mode project filter pills */
@@ -5002,7 +5073,7 @@ button:hover {
 
   .app__main--dock-right > .chat-dock .chat-dock__filter-pill {
     padding: 1px 6px;
-    font-size: 10px;
+    font-size: var(--text-xs);
   }
 
   /* Right-mode messages: right-aligned conversation flow */
@@ -5162,7 +5233,7 @@ button:hover {
 }
 
 .provider-overview__card-label {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.65rem;
   font-weight: 600;
   letter-spacing: 0.1em;
@@ -5331,7 +5402,7 @@ button:hover {
 
 .new-chat-modal__context-label-text {
   display: block;
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -5348,7 +5419,7 @@ button:hover {
   border-radius: 8px;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--text-md);
   cursor: pointer;
   width: 100%;
   font-family: inherit;
@@ -5366,8 +5437,8 @@ button:hover {
 
 .new-chat-modal__context-dir {
   display: flex;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   opacity: 0.6;
   overflow: hidden;
   white-space: nowrap;
@@ -5382,7 +5453,7 @@ button:hover {
 
 .new-chat-modal__chevron {
   color: var(--text-muted);
-  font-size: 11px;
+  font-size: var(--text-sm);
   margin-left: auto;
   flex-shrink: 0;
 }
@@ -5409,7 +5480,7 @@ button:hover {
   border-bottom: 1px solid var(--border-primary);
   background: transparent;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--text-md);
   font-family: inherit;
   outline: none;
 }
@@ -5423,7 +5494,7 @@ button:hover {
   border: none;
   background: transparent;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: var(--text-md);
   cursor: pointer;
   text-align: left;
   font-family: inherit;
@@ -5449,8 +5520,8 @@ button:hover {
 
 .new-chat-modal__dropdown-item-dir {
   display: flex;
-  font-family: "JetBrains Mono", monospace;
-  font-size: 10px;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
   opacity: 0.5;
   overflow: hidden;
   white-space: nowrap;
@@ -5458,7 +5529,7 @@ button:hover {
 }
 
 .new-chat-modal__no-cwd-badge {
-  font-size: 10px;
+  font-size: var(--text-xs);
   color: var(--text-muted);
   background: var(--bg-tertiary, var(--bg-secondary));
   padding: 1px 6px;
@@ -5489,7 +5560,7 @@ button:hover {
   border-radius: 8px;
   background: var(--bg-secondary);
   color: var(--text-primary);
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-family: inherit;
 }
 
@@ -5501,13 +5572,13 @@ button:hover {
 }
 
 .new-chat-modal__draft-context-title {
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .new-chat-modal__draft-context-desc {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-secondary);
   line-height: 1.5;
 }
@@ -5528,7 +5599,7 @@ button:hover {
   align-items: center;
   gap: 6px;
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--text-base);
 }
 
 .new-chat-modal__draft-chip--selected {
@@ -5556,7 +5627,7 @@ button:hover {
 
 .new-chat-modal__group-label {
   padding: 8px 20px 4px;
-  font-size: 11px;
+  font-size: var(--text-sm);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -5594,7 +5665,7 @@ button:hover {
 }
 
 .new-chat-modal__agent-desc {
-  font-size: 12px;
+  font-size: var(--text-base);
   opacity: 0.7;
   margin-top: 2px;
 }

@@ -55,7 +55,7 @@
 }
 
 .sidebar__brand-name {
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 600;
   color: var(--text-primary);
 }
@@ -117,7 +117,7 @@
   border: none;
   color: var(--text-primary);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-md);
   text-align: left;
   border-radius: 4px;
 }
@@ -189,7 +189,7 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--text-base);
   text-align: left;
   border-radius: 4px;
 }
@@ -221,7 +221,7 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--text-base);
   text-align: left;
   border-radius: 4px;
 }
@@ -268,7 +268,7 @@
   border: none;
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-md);
   text-align: left;
   border-radius: 4px;
 }

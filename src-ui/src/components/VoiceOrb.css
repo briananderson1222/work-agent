@@ -24,7 +24,7 @@
   align-items: center;
   justify-content: center;
   flex: 0 0 auto !important;
-  font-size: 16px;
+  font-size: var(--text-xl);
   user-select: none;
   background: var(--vo-idle-bg);
   color: var(--text-muted);

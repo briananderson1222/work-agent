@@ -19,7 +19,7 @@ import { useChatInput } from '../hooks/useChatInput';
 import { useDerivedSessions } from '../hooks/useDerivedSessions';
 import { setDockModeOverride } from '../hooks/useDockModePreference';
 import { useDragResize } from '../hooks/useDragResize';
-import { providerLabel } from '../utils/execution';
+import { isSessionExecutionActive, providerLabel } from '../utils/execution';
 import { ChatDockHeader } from './ChatDockHeader';
 import { ChatDockTabBar } from './ChatDockTabBar';
 import { ChatDockContentArea } from './chat-dock/ChatDockContentArea';
@@ -57,6 +57,11 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   const defaultFontSize =
     appConfig?.defaultChatFontSize ?? CONFIG_DEFAULTS.defaultChatFontSize;
 
+  // Derive sessions first so activeSessionCount is available for useChatDockState
+  const [projectFilter, _setProjectFilter] = useState<string | null>(null);
+  const sessions = useDerivedSessions(apiBase, selectedAgent, projectFilter);
+  const activeSessionCount = sessions.filter(isSessionExecutionActive).length;
+
   // Consolidated UI state
   const {
     dockHeight,
@@ -85,13 +90,18 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
     setShowSessionPicker,
     activeSessionId,
     setActiveSessionId,
-  } = useChatDockState({ defaultFontSize, isDockOpen, isDockMaximized });
+    autoHideEnabled,
+    setAutoHideEnabled,
+    isAutoHidden,
+    resetAutoHide,
+  } = useChatDockState({
+    defaultFontSize,
+    isDockOpen,
+    isDockMaximized,
+    activeSessionCount,
+  });
 
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-
-  // Derive sessions from contexts (includes messages for all sessions)
-  const [projectFilter, _setProjectFilter] = useState<string | null>(null);
-  const sessions = useDerivedSessions(apiBase, selectedAgent, projectFilter);
   const rehydrateSessions = useRehydrateSessions(apiBase);
   const {
     activeSession,
@@ -197,7 +207,7 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
   return (
     <>
       <div
-        className={`chat-dock ${!isDockOpen ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''} ${isDragging ? 'is-dragging' : ''} ${dockMode !== 'bottom' ? `chat-dock--${dockMode}` : ''}`}
+        className={`chat-dock ${!isDockOpen ? 'is-collapsed' : ''} ${isDockMaximized ? 'is-maximized' : ''} ${isDragging ? 'is-dragging' : ''} ${dockMode !== 'bottom' ? `chat-dock--${dockMode}` : ''} ${isAutoHidden ? 'is-auto-hidden' : ''}`}
         style={
           isRight
             ? { width: isDockMaximized ? '100%' : undefined }
@@ -210,6 +220,8 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
               }
         }
         ref={chatSectionRef}
+        onMouseEnter={resetAutoHide}
+        onFocusCapture={resetAutoHide}
       >
         {isDockOpen && !isDockMaximized && (
           <div
@@ -233,6 +245,10 @@ export function ChatDock({ onRequestAuth }: ChatDockProps) {
           setPreviousDockOpen={setPreviousDockOpen}
           setShowChatSettings={setShowChatSettings}
           focusSession={focusSession}
+          autoHideEnabled={autoHideEnabled}
+          setAutoHideEnabled={setAutoHideEnabled}
+          isAutoHidden={isAutoHidden}
+          resetAutoHide={resetAutoHide}
         />
 
         {isDockOpen && (

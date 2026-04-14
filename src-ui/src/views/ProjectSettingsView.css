@@ -10,7 +10,7 @@
   justify-content: center;
   height: 100%;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 .project-settings__body {
   flex: 1;
@@ -23,7 +23,7 @@
   border: 1px solid var(--error-border);
   border-radius: 6px;
   color: var(--error-text);
-  font-size: 13px;
+  font-size: var(--text-md);
 }
 .project-settings__section {
   padding: 20px 24px;
@@ -33,7 +33,7 @@
   border-bottom: none;
 }
 .project-settings__section-title {
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 600;
   color: var(--text-primary);
   margin-bottom: 16px;

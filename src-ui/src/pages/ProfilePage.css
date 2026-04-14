@@ -128,7 +128,7 @@
 }
 
 .profile-card__alias {
-  font-size: 14px;
+  font-size: var(--text-lg);
   font-weight: 400;
   color: var(--text-muted);
 }
@@ -139,7 +139,7 @@
   cursor: pointer;
   color: var(--text-muted);
   font-size: inherit;
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   padding: 0;
   text-decoration: none;
   border-bottom: 1px dashed var(--border-primary);
@@ -168,7 +168,7 @@
 }
 
 .profile-card__title {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.7rem;
   font-weight: 500;
   letter-spacing: 0.04em;
@@ -182,14 +182,14 @@
 }
 
 .profile-card__detail--muted {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   color: var(--text-muted);
   letter-spacing: 0.02em;
 }
 
 .profile-card__section-title {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.6rem;
   font-weight: 600;
   letter-spacing: 0.14em;
@@ -226,7 +226,7 @@
 .profile-usage-graph__caption {
   font-size: 0.72rem;
   color: var(--text-muted);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
 }
 
 .profile-usage-graph__bars {
@@ -265,7 +265,7 @@
   max-width: 100%;
   font-size: 0.65rem;
   color: var(--text-muted);
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   text-align: center;
   white-space: nowrap;
   overflow: hidden;
@@ -314,7 +314,7 @@
 }
 
 .profile-badge {
-  font-family: "JetBrains Mono", monospace;
+  font-family: var(--font-mono);
   font-size: 0.75rem;
   font-weight: 500;
   padding: 0.35rem 0.85rem;

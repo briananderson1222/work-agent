@@ -4,7 +4,7 @@
   padding: 3rem 2rem;
   max-width: 800px;
   margin: 0 auto;
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   animation: page-fade-in 0.6s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
@@ -59,7 +59,7 @@
 }
 
 .notifications-page__clear-btn {
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   padding: 10px 20px;
   background: linear-gradient(
     135deg,
@@ -69,7 +69,7 @@
   border: 1px solid var(--border-primary);
   border-radius: 8px;
   cursor: pointer;
-  font-size: 13px;
+  font-size: var(--text-md);
   font-weight: 500;
   color: var(--text-primary);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -91,7 +91,7 @@
   text-align: center;
   padding: 80px 20px;
   color: var(--text-muted);
-  font-size: 14px;
+  font-size: var(--text-lg);
 }
 
 .notifications-page__empty-icon {
@@ -178,8 +178,8 @@
 }
 
 .notification-card__type {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   color: var(--text-muted);
   margin-bottom: 6px;
   text-transform: uppercase;
@@ -188,18 +188,18 @@
 }
 
 .notification-card__message {
-  font-size: 14px;
+  font-size: var(--text-lg);
   margin-bottom: 8px;
 }
 
 .notification-card__detail {
-  font-size: 12px;
+  font-size: var(--text-base);
   color: var(--text-muted);
 }
 
 .notification-card__time {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
+  font-family: var(--font-mono);
+  font-size: var(--text-base);
   color: var(--text-muted);
   white-space: nowrap;
   margin-left: 16px;
@@ -216,8 +216,8 @@
 }
 
 .notification-card__status {
-  font-family: "JetBrains Mono", monospace;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
@@ -232,7 +232,7 @@
 }
 
 .notification-card__action {
-  font-family: "DM Sans", system-ui, sans-serif;
+  font-family: var(--font-sans);
   min-height: 34px;
   padding: 7px 12px;
   border-radius: 8px;
@@ -240,7 +240,7 @@
   background: var(--bg-tertiary);
   color: var(--text-primary);
   cursor: pointer;
-  font-size: 12px;
+  font-size: var(--text-base);
   font-weight: 600;
   transition: all 0.15s ease;
 }

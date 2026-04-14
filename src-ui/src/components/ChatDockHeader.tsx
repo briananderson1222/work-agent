@@ -35,6 +35,10 @@ interface ChatDockHeaderProps {
   setPreviousDockOpen: (o: boolean) => void;
   setShowChatSettings: (fn: (prev: boolean) => boolean) => void;
   focusSession: (id: string) => void;
+  autoHideEnabled: boolean;
+  setAutoHideEnabled: (v: boolean) => void;
+  isAutoHidden: boolean;
+  resetAutoHide: () => void;
 }
 
 export function ChatDockHeader({
@@ -50,6 +54,10 @@ export function ChatDockHeader({
   setPreviousDockOpen,
   setShowChatSettings,
   focusSession,
+  autoHideEnabled,
+  setAutoHideEnabled,
+  isAutoHidden,
+  resetAutoHide,
 }: ChatDockHeaderProps) {
   const { isDockOpen, isDockMaximized, setDockState, dockMode } =
     useNavigation();
@@ -83,6 +91,10 @@ export function ChatDockHeader({
   );
 
   const handleHeaderClick = () => {
+    if (isAutoHidden) {
+      resetAutoHide();
+      return;
+    }
     if (isDockMaximized) {
       setDockHeight(previousDockHeight);
       setDockState(!isDockOpen, false);
@@ -129,7 +141,7 @@ export function ChatDockHeader({
           title="Chat settings"
         >
           <svg
-            style={{ width: '14px', height: '14px' }}
+            className="chat-dock__icon-svg"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -172,14 +184,7 @@ export function ChatDockHeader({
                     className="chat-dock__activity-item"
                     onClick={() => focusSession(session.id)}
                   >
-                    <span
-                      style={{
-                        flex: 1,
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
+                    <span className="chat-dock__activity-label">
                       {session.title}
                     </span>
                     {idx < 9 && (
@@ -197,6 +202,36 @@ export function ChatDockHeader({
         {unreadCount > 0 && (
           <span className="chat-dock__badge">{unreadCount}</span>
         )}
+        <button
+          className={`chat-dock__icon-btn${autoHideEnabled ? ' is-active' : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            setAutoHideEnabled(!autoHideEnabled);
+          }}
+          title={
+            autoHideEnabled
+              ? 'Auto-hide: on (click to disable)'
+              : 'Auto-hide: off (click to enable)'
+          }
+        >
+          <svg
+            className="chat-dock__icon-svg"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d={
+                autoHideEnabled
+                  ? 'M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21'
+                  : 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z'
+              }
+            />
+          </svg>
+        </button>
         <button
           className="chat-dock__maximize-btn"
           onClick={handleMaximize}
@@ -224,18 +259,7 @@ export function ChatDockHeader({
           title={!isDockOpen ? 'Expand' : 'Collapse'}
         >
           <svg
-            style={{
-              width: '16px',
-              height: '16px',
-              transform: effectiveRight
-                ? isDockOpen
-                  ? 'rotate(270deg)'
-                  : 'rotate(90deg)'
-                : isDockOpen
-                  ? 'rotate(0deg)'
-                  : 'rotate(180deg)',
-              transition: 'transform 0.2s',
-            }}
+            className={`chat-dock__chevron-svg ${effectiveRight ? (isDockOpen ? 'is-right-open' : 'is-right-closed') : isDockOpen ? 'is-open' : 'is-closed'}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
