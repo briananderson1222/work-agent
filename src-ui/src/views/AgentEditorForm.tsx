@@ -1,12 +1,16 @@
 import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import { useRuntimeConnectionsQuery } from '@stallion-ai/sdk';
 import { useState } from 'react';
+import { Tabs } from '../components/Tabs';
 import { AgentEditorAdvancedSection } from './agent-editor/AgentEditorAdvancedSection';
 import { AgentEditorBasicTab } from './agent-editor/AgentEditorBasicTab';
 import { AgentEditorRuntimeTab } from './agent-editor/AgentEditorRuntimeTab';
 import { AgentEditorSkillsTab } from './agent-editor/AgentEditorSkillsTab';
 import { AgentEditorToolsTab } from './agent-editor/AgentEditorToolsTab';
-import type { AgentEditorFormProps } from './agent-editor/types';
+import type {
+  AgentEditorFormProps,
+  AgentEditorTab,
+} from './agent-editor/types';
 import { getAgentType, getEditorTabs } from './agent-editor/utils';
 import './editor-layout.css';
 
@@ -38,25 +42,22 @@ export function AgentEditorForm(props: AgentEditorFormProps) {
     runtimeConnections,
   );
   const tabs = getEditorTabs(agentType);
-  const [activeTab, setActiveTab] = useState(tabs[0].key);
+  const [activeTab, setActiveTab] = useState<AgentEditorTab>(tabs[0].key);
 
   return (
     <>
-      <div className="page-layout__tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            className={`page-layout__tab${activeTab === tab.key ? ' page-layout__tab--active' : ''}`}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        tabs={tabs}
+        activeTab={activeTab}
+        onTabChange={(key) => setActiveTab(key as AgentEditorTab)}
+      />
 
       {activeTab === 'basic' && (
-        <AgentEditorBasicTab {...props} agentType={agentType} />
+        <AgentEditorBasicTab
+          {...props}
+          agentType={agentType}
+          onSwitchTab={(tab) => setActiveTab(tab)}
+        />
       )}
 
       {activeTab === 'runtime' && <AgentEditorRuntimeTab {...props} />}
