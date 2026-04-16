@@ -294,6 +294,20 @@ describe('runCli', () => {
     });
   });
 
+  test('does not inject the resolved default home when stopping a named instance', async () => {
+    process.env.STALLION_AI_DIR = '/tmp/env-home';
+    const { lifecycle, runCli } = await loadCliWithLifecycleMocks();
+
+    await runCli(['stop', '--instance=smoke-a']);
+
+    expect(lifecycle.stop).toHaveBeenCalledWith({
+      baseDir: undefined,
+      instanceName: 'smoke-a',
+      serverPort: undefined,
+      uiPort: undefined,
+    });
+  });
+
   test('awaits guarded clean before install when --clean is requested', async () => {
     const { lifecycle } = await loadCliWithLifecycleMocks();
     const install = vi.fn().mockResolvedValue({
@@ -333,5 +347,62 @@ describe('runCli', () => {
       uiPort: 3000,
     });
     expect(install).toHaveBeenCalledWith('./examples/demo-layout', []);
+  });
+
+  test('dispatches core resource commands through the shared core command handler', async () => {
+    const runCoreCommand = vi.fn().mockResolvedValue(undefined);
+
+    vi.doMock('../commands/build.js', () => ({ build: vi.fn() }));
+    vi.doMock('../commands/config.js', () => ({
+      configGet: vi.fn(),
+      configSet: vi.fn(),
+    }));
+    vi.doMock('../commands/export.js', () => ({ exportConfig: vi.fn() }));
+    vi.doMock('../commands/import.js', () => ({ importConfig: vi.fn() }));
+    vi.doMock('../commands/init.js', () => ({
+      createPlugin: vi.fn(),
+      init: vi.fn(),
+    }));
+    vi.doMock('../commands/install-registry.js', () => ({
+      recordRegistryInstall: vi.fn(),
+      resolveRegistryPluginSource: vi.fn(),
+    }));
+    vi.doMock('../commands/install.js', () => ({
+      info: vi.fn(),
+      install: vi.fn(),
+      list: vi.fn(),
+      preview: vi.fn(),
+      registry: vi.fn(),
+      remove: vi.fn(),
+      update: vi.fn(),
+    }));
+    vi.doMock('../commands/lifecycle.js', () => ({
+      clean: vi.fn(),
+      doctor: vi.fn(),
+      link: vi.fn(),
+      shortcut: vi.fn(),
+      start: vi.fn(),
+      stop: vi.fn(),
+      upgrade: vi.fn(),
+    }));
+    vi.doMock('../commands/core.js', () => ({
+      runCoreCommand,
+    }));
+    vi.doMock('../dev/server.js', () => ({
+      startDevServer: vi.fn(),
+    }));
+
+    const { runCli } = await import('../cli.js');
+    await runCli(['agents', 'list', '--json']);
+    await runCli(['chat', 'default', 'hello']);
+
+    expect(runCoreCommand).toHaveBeenNthCalledWith(1, 'agents', [
+      'list',
+      '--json',
+    ]);
+    expect(runCoreCommand).toHaveBeenNthCalledWith(2, 'chat', [
+      'default',
+      'hello',
+    ]);
   });
 });

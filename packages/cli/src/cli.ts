@@ -31,6 +31,7 @@ import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { build } from './commands/build.js';
 import { configGet, configSet } from './commands/config.js';
+import { runCoreCommand } from './commands/core.js';
 import { exportConfig } from './commands/export.js';
 import { resolveLifecycleHomeTarget } from './commands/helpers.js';
 import { importConfig } from './commands/import.js';
@@ -103,6 +104,14 @@ Configuration:
   stallion config set <key> <value>  Set a config value (use "null" to unset)
   stallion export --format=<format> [--output=<path>]
   stallion import <file>
+
+Core Workspace:
+  stallion agents <action>      List/get/create/update/delete agents
+  stallion chat <agent> <msg>   Chat with a defined agent
+  stallion projects <action>    CRUD projects and project layouts
+  stallion skills <action>      List/get/create/update/delete/install skills
+  stallion playbooks <action>   CRUD playbooks and record usage/outcomes
+  stallion prompts <action>     Compatibility alias for playbooks
 
 Plugin Management:
   stallion list                 List installed plugins
@@ -268,7 +277,7 @@ export async function runCli(argv: string[]): Promise<void> {
           uiPort: lifecycleArgs.uiPort,
         });
       }
-      start({
+      await start({
         serverPort: lifecycleArgs.serverPort,
         uiPort: lifecycleArgs.uiPort,
         logFile: lifecycleArgs.logFile,
@@ -282,8 +291,14 @@ export async function runCli(argv: string[]): Promise<void> {
     }
     case 'stop': {
       const lifecycleArgs = parseLifecycleArgs(args);
+      const hasExplicitBase = args.some((arg) => arg.startsWith('--base='));
+      const hasSelector =
+        args.some((arg) => arg.startsWith('--instance=')) ||
+        args.some((arg) => arg.startsWith('--port=')) ||
+        args.some((arg) => arg.startsWith('--ui-port='));
       stop({
-        baseDir: lifecycleArgs.baseDir,
+        baseDir:
+          hasExplicitBase || !hasSelector ? lifecycleArgs.baseDir : undefined,
         instanceName: lifecycleArgs.instanceName,
         serverPort: args.some((arg) => arg.startsWith('--port='))
           ? lifecycleArgs.serverPort
@@ -359,6 +374,14 @@ export async function runCli(argv: string[]): Promise<void> {
       await startDevServer(devPort, flags);
       break;
     }
+    case 'agents':
+    case 'projects':
+    case 'skills':
+    case 'playbooks':
+    case 'prompts':
+    case 'chat':
+      await runCoreCommand(command, args);
+      break;
     default:
       console.log(usageText());
   }

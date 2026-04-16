@@ -14,6 +14,124 @@ On first run, `./stallion` bootstraps by running `npm install` if `node_modules`
 
 After running `stallion link`, the `stallion` command is available globally from any directory.
 
+Core workspace commands talk to the running local API server. By default they
+target `http://127.0.0.1:3141`, or `STALLION_API_BASE` when set. Override per
+command with `--api-base=<url>`.
+
+---
+
+## Core Workspace
+
+These commands expose the same agent/project/skill/playbook surfaces used by
+the UI and REST API. Payload-bearing commands accept JSON via:
+
+- `--data='{"key":"value"}'`
+- `--file=/absolute/or/relative/path.json`
+- piped stdin
+
+### `agents`
+
+```
+stallion agents list [--api-base=<url>]
+stallion agents get <slug> [--api-base=<url>]
+stallion agents create --data=<json> [--api-base=<url>]
+stallion agents update <slug> --data=<json> [--api-base=<url>]
+stallion agents delete <slug> [--api-base=<url>]
+stallion agents conversations <slug> [--api-base=<url>]
+stallion agents messages <slug> <conversationId> [--api-base=<url>]
+stallion agents workflows <list|get|create|update|delete> ... [--api-base=<url>]
+stallion agents chat <slug> <message> [--project=<project-slug>] [--conversation=<id>] [--model=<id>] [--api-base=<url>]
+```
+
+Examples:
+
+```bash
+stallion agents list
+stallion agents create --data='{"name":"Planner","slug":"planner","prompt":"Plan carefully."}'
+stallion agents update planner --file=./planner-update.json
+stallion agents workflows list planner
+stallion agents chat planner "Summarize the open work"
+```
+
+### `chat`
+
+Shortcut for chatting with a configured agent.
+
+```
+stallion chat <agent> <message> [--project=<project-slug>] [--conversation=<id>] [--model=<id>] [--title=<title>] [--api-base=<url>]
+```
+
+Examples:
+
+```bash
+stallion chat default "What changed in this repo?"
+printf 'Review the latest project state' | stallion chat planner
+```
+
+### `projects`
+
+```
+stallion projects list [--api-base=<url>]
+stallion projects get <slug> [--api-base=<url>]
+stallion projects create --data=<json> [--api-base=<url>]
+stallion projects update <slug> --data=<json> [--api-base=<url>]
+stallion projects delete <slug> [--api-base=<url>]
+stallion projects layouts available [--api-base=<url>]
+stallion projects layouts list <project> [--api-base=<url>]
+stallion projects layouts get <project> <layout> [--api-base=<url>]
+stallion projects layouts create <project> --data=<json> [--api-base=<url>]
+stallion projects layouts update <project> <layout> --data=<json> [--api-base=<url>]
+stallion projects layouts delete <project> <layout> [--api-base=<url>]
+stallion projects layouts from-plugin <project> <plugin> [--api-base=<url>]
+```
+
+Example:
+
+```bash
+stallion projects create --data='{"name":"Launchpad","slug":"launchpad"}'
+stallion projects layouts available
+stallion projects layouts create launchpad --data='{"name":"Code","slug":"code","type":"coding"}'
+```
+
+### `skills`
+
+```
+stallion skills list [--api-base=<url>]
+stallion skills get <name> [--api-base=<url>]
+stallion skills create --data=<json> [--api-base=<url>]
+stallion skills update <name> --data=<json> [--api-base=<url>]
+stallion skills delete <name> [--api-base=<url>]
+stallion skills install <name> [--api-base=<url>]
+```
+
+Example:
+
+```bash
+stallion skills create --data='{"name":"ship-it","body":"Execute the task."}'
+stallion skills install code-review
+```
+
+### `playbooks`
+
+`prompts` remains a compatibility alias.
+
+```
+stallion playbooks list [--api-base=<url>]
+stallion playbooks get <id> [--api-base=<url>]
+stallion playbooks create --data=<json> [--api-base=<url>]
+stallion playbooks update <id> --data=<json> [--api-base=<url>]
+stallion playbooks delete <id> [--api-base=<url>]
+stallion playbooks run <id> [--api-base=<url>]
+stallion playbooks outcome <id> <success|failure> [--api-base=<url>]
+```
+
+Example:
+
+```bash
+stallion playbooks create --data='{"name":"Triage","content":"Sort inbox items."}'
+stallion prompts outcome 123e4567 success
+```
+
 ---
 
 ## Application Lifecycle
