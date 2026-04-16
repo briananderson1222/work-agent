@@ -19,9 +19,11 @@ export function connectionTypeLabel(type: string): string {
     case 'bedrock-runtime':
       return 'Managed';
     case 'claude-runtime':
-      return 'Claude';
+      return 'Claude Code';
     case 'codex-runtime':
       return 'Codex';
+    case 'ollama-runtime':
+      return 'Ollama';
     case 'acp':
       return 'ACP';
     default:
@@ -466,9 +468,11 @@ export function runtimeConnectionLabel(
     case 'bedrock-runtime':
       return 'Managed Runtime';
     case 'claude-runtime':
-      return 'Claude Runtime';
+      return 'Claude Code';
     case 'codex-runtime':
-      return 'Codex Runtime';
+      return 'Codex';
+    case 'ollama-runtime':
+      return 'Ollama';
     case 'acp':
       return 'ACP';
     default:

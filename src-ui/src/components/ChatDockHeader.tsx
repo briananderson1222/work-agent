@@ -207,13 +207,15 @@ export function ChatDockHeader({
               : `Maximize (${maximizeShortcut})`
           }
         >
-          {isDockMaximized
-            ? effectiveRight
-              ? '➡'
-              : '⬇'
-            : effectiveRight
-              ? '⬅'
-              : '⬆'}
+          <span className="chat-dock__maximize-glyph" aria-hidden="true">
+            {isDockMaximized
+              ? effectiveRight
+                ? '➡'
+                : '⬇'
+              : effectiveRight
+                ? '⬅'
+                : '⬆'}
+          </span>
           <span className="chat-dock__subtitle">{maximizeShortcut}</span>
         </button>
         <button

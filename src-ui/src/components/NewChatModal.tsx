@@ -406,8 +406,8 @@ export function NewChatModal({
 
         <div className="new-chat-modal__list">
           {compatibilityMessage && (
-            <div className="new-chat-modal__group-label">
-              Runtime status: {compatibilityMessage}
+            <div className="new-chat-modal__compat-warning">
+              ⚠ {compatibilityMessage}
             </div>
           )}
           {flatList.length === 0 && (

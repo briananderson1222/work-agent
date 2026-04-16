@@ -1,7 +1,9 @@
 node_modules/
 dist/
 dist-ui/
+dist-ui-*/
 dist-server/
+dist-server-*/
 dist-desktop/
 coverage/
 

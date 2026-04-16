@@ -36,7 +36,7 @@ export function wireStrandsAgentHooks(options: {
   let toolCallCount = 0;
 
   if (hooks?.beforeToolCall) {
-    strandsAgent.hooks.addCallback(BeforeToolCallEvent, async (event) => {
+    strandsAgent.addHook(BeforeToolCallEvent, async (event) => {
       const approved = await hooks.beforeToolCall!(
         {
           toolName: event.toolUse.name,
@@ -52,7 +52,7 @@ export function wireStrandsAgentHooks(options: {
   }
 
   if (hooks?.afterToolCall) {
-    strandsAgent.hooks.addCallback(AfterToolCallEvent, (event) => {
+    strandsAgent.addHook(AfterToolCallEvent, (event) => {
       toolCallCount++;
       hooks.afterToolCall!(
         {
@@ -69,7 +69,7 @@ export function wireStrandsAgentHooks(options: {
     });
   }
 
-  strandsAgent.hooks.addCallback(AfterInvocationEvent, async (event) => {
+  strandsAgent.addHook(AfterInvocationEvent, async (event) => {
     logger.info('[Strands] AfterInvocationEvent fired', {
       hasMessages: !!(event as any).agent?.messages?.length,
       messageCount: (event as any).agent?.messages?.length || 0,

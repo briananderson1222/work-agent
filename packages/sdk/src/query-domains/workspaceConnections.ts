@@ -133,6 +133,8 @@ export function useSaveConnectionMutation(
     },
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['connections'] });
+      queryClient.invalidateQueries({ queryKey: ['connections', 'models'] });
+      queryClient.invalidateQueries({ queryKey: ['connections', 'runtimes'] });
       queryClient.invalidateQueries({ queryKey: ['connections', data.id] });
       options?.onSuccess?.(data, variables);
     },
@@ -161,6 +163,8 @@ export function useDeleteConnectionMutation(
     },
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: ['connections'] });
+      queryClient.invalidateQueries({ queryKey: ['connections', 'models'] });
+      queryClient.invalidateQueries({ queryKey: ['connections', 'runtimes'] });
       queryClient.removeQueries({ queryKey: ['connections', id] });
       options?.onSuccess?.(undefined, id);
     },
@@ -190,6 +194,8 @@ export function useTestConnectionMutation(
     },
     onSuccess: (data, id) => {
       queryClient.invalidateQueries({ queryKey: ['connections'] });
+      queryClient.invalidateQueries({ queryKey: ['connections', 'models'] });
+      queryClient.invalidateQueries({ queryKey: ['connections', 'runtimes'] });
       queryClient.invalidateQueries({ queryKey: ['connections', id] });
       options?.onSuccess?.(data, id);
     },

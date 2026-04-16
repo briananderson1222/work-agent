@@ -9,7 +9,11 @@ vi.mock('../../providers/connection-factories.js', () => ({
             { id: 'gpt-4o-mini', name: 'gpt-4o-mini' },
           ]),
         }
-      : null,
+      : connection.type === 'slow-llm'
+        ? {
+            listModels: vi.fn(() => new Promise(() => {})),
+          }
+        : null,
   ),
   createEmbeddingProvider: vi.fn(() => null),
   createVectorDbProvider: vi.fn(() => null),
@@ -206,6 +210,45 @@ describe('ConnectionService', () => {
         },
       ],
     });
+  });
+
+  test('falls back when a provider catalog never resolves', async () => {
+    vi.useFakeTimers();
+
+    const providerService = {
+      listProviderConnections: vi.fn(() => [
+        {
+          id: 'slow-llm',
+          type: 'slow-llm',
+          name: 'Slow LLM',
+          config: {},
+          enabled: true,
+          capabilities: ['llm'],
+        },
+      ]),
+      saveProviderConnection: vi.fn(),
+      deleteProviderConnection: vi.fn(),
+      checkHealth: vi.fn().mockResolvedValue(true),
+    };
+    const service = new ConnectionService(
+      providerService as any,
+      () => [],
+      async () => [],
+      () => ({ connections: [] }),
+      async () => ({ defaultModel: 'fallback-model' }) as any,
+      vi.fn(async (updates: any) => updates),
+    );
+
+    try {
+      const pending = service.listModelConnections();
+      await vi.advanceTimersByTimeAsync(1500);
+      const [connection] = await pending;
+
+      expect(connection?.id).toBe('slow-llm');
+      expect(connection?.config).not.toHaveProperty('modelOptions');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test('saves and resets runtime connection overrides through app config', async () => {

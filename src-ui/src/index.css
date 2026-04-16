@@ -1238,6 +1238,7 @@ button:hover {
 .chat-dock__new {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-3);
   padding: var(--space-2) var(--space-4);
   border-radius: var(--radius-lg);
@@ -1245,6 +1246,21 @@ button:hover {
   background: transparent;
   color: var(--text-primary);
   cursor: pointer;
+  min-height: 32px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.chat-dock__new-label {
+  font-weight: 500;
+}
+
+.chat-dock__new .chat-dock__subtitle,
+.chat-dock__maximize-btn .chat-dock__subtitle {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
 }
 
 /* SessionTab utility classes (replaces inline styles) */
@@ -1444,15 +1460,20 @@ button:hover {
 
 /* Maximize button */
 .chat-dock__maximize-btn {
-  background: none;
-  border: none;
-  color: inherit;
-  cursor: pointer;
-  padding: 0.25rem 0.5rem;
-  font-size: 1rem;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.chat-dock__maximize-glyph {
+  font-size: 0.95em;
+  line-height: 1;
 }
 
 .chat-dock__maximize-btn:hover {
@@ -5016,12 +5037,15 @@ button:hover {
     flex-direction: column-reverse;
     width: auto;
     justify-content: stretch;
-    gap: 0;
+    gap: 6px;
     padding-top: 0;
+    align-items: stretch;
   }
 
   .app__main--dock-right > .chat-dock .chat-dock__tab-actions .chat-dock__new {
-    padding: 4px 8px;
+    min-width: 76px;
+    min-height: 30px;
+    padding: 6px 10px;
     font-size: var(--text-sm);
     width: 100%;
     flex: 1;
@@ -5640,6 +5664,13 @@ button:hover {
 
 .new-chat-modal__group-label--acp {
   color: var(--accent-acp, var(--text-muted));
+}
+
+.new-chat-modal__compat-warning {
+  padding: 6px 20px;
+  font-size: var(--text-xs);
+  color: var(--color-warning, #f59e0b);
+  letter-spacing: 0.01em;
 }
 
 .new-chat-modal__agent {

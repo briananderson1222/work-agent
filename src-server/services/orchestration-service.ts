@@ -134,6 +134,18 @@ export class OrchestrationService {
     return (await adapter.getCommands?.()) ?? [];
   }
 
+  async getProviderModels(provider: ProviderKind): Promise<
+    Array<{
+      id: string;
+      name: string;
+      originalId: string;
+    }>
+  > {
+    const adapter = this.options.adapterRegistry.get(provider);
+    if (!adapter) return [];
+    return (await adapter.listModels?.()) ?? [];
+  }
+
   async listSessions(): Promise<ProviderSession[]> {
     this.initialize();
     const sessions = (

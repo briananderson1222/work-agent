@@ -213,13 +213,13 @@ export function SkillsView() {
                   Remove
                 </button>
               )}
-                <button
-                  className="editor-btn editor-btn--primary"
-                  onClick={handleSaveLocalSkill}
-                  disabled={
-                    createLocalMutation.isPending || updateLocalMutation.isPending
-                  }
-                >
+              <button
+                className="editor-btn editor-btn--primary"
+                onClick={handleSaveLocalSkill}
+                disabled={
+                  createLocalMutation.isPending || updateLocalMutation.isPending
+                }
+              >
                 {createLocalMutation.isPending || updateLocalMutation.isPending
                   ? 'Saving…'
                   : isCreating

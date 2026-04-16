@@ -13,6 +13,7 @@ import {
   createLLMProvider,
   createVectorDbProvider,
 } from '../providers/connection-factories.js';
+import { safeListModels } from '../providers/model-catalog.js';
 import { configOps } from '../telemetry/metrics.js';
 import {
   type ACPConnectionStatus,
@@ -58,19 +59,13 @@ export class ConnectionService {
       connections.map(async (connection) => {
         const prerequisites = await this.collectModelPrerequisites(connection);
         const base = toModelConnection(connection, prerequisites);
-        const llmProvider = createLLMProvider(connection);
-        const modelOptions = llmProvider
-          ? await llmProvider
-              .listModels()
-              .then((models) =>
-                models.map((model) => ({
-                  id: model.id,
-                  name: model.name,
-                  originalId: model.id,
-                })),
-              )
-              .catch(() => [])
-          : [];
+        const modelOptions = (
+          await safeListModels(createLLMProvider(connection))
+        ).map((model) => ({
+          id: model.id,
+          name: model.name,
+          originalId: model.id,
+        }));
         return {
           ...base,
           config:

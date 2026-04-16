@@ -117,21 +117,30 @@ export function AgentEditorRuntimeTab({
               ? 'Runs via the Claude Agent SDK. Requires ANTHROPIC_API_KEY.'
               : selectedRuntimeId === 'codex-runtime'
                 ? 'Runs via the Codex CLI. Requires Codex installed and OPENAI_API_KEY.'
-                : 'Runs via Stallion’s built-in managed runtime. Requires a configured model connection.')}
-          {selectedRuntime && (
-            <>
-              {' '}
-              Current status: {connectionStatusLabel(selectedRuntime.status)} ·
-              Catalog{' '}
+                : 'Runs via Stallion\u2019s built-in managed runtime using the selected model connection (Bedrock, OpenAI-compatible, or Ollama).')}
+        </span>
+        {selectedRuntime && (
+          <div className="agent-runtime-card__meta">
+            <span
+              className={`agent-runtime-card__badge agent-runtime-card__badge--${selectedRuntime.status === 'ready' ? 'ok' : 'warn'}`}
+            >
+              {connectionStatusLabel(selectedRuntime.status)}
+            </span>
+            <span
+              className={`agent-runtime-card__badge agent-runtime-card__badge--${selectedRuntime.runtimeCatalog?.source === 'live' ? 'ok' : 'muted'}`}
+            >
+              Catalog:{' '}
               {runtimeCatalogSourceLabel(
                 selectedRuntime.runtimeCatalog?.source ?? 'none',
               )}
-              {selectedRuntime.runtimeCatalog?.reason
-                ? ` — ${selectedRuntime.runtimeCatalog.reason}`
-                : ''}
-            </>
-          )}
-        </span>
+            </span>
+            {selectedRuntime.runtimeCatalog?.reason && (
+              <span className="editor-hint">
+                {selectedRuntime.runtimeCatalog.reason}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       {needsModelConnection && (
@@ -187,7 +196,7 @@ export function AgentEditorRuntimeTab({
               : selectedRuntimeId === 'codex-runtime'
                 ? 'e.g. codex-mini'
                 : isManagedRuntimeConnectionId(selectedRuntimeId)
-                  ? 'e.g. anthropic.claude-3-5-sonnet-20241022-v2:0'
+                  ? 'e.g. us.anthropic.claude-sonnet-4-20250514-v1:0 or gpt-4.1'
                   : 'Model ID (leave blank for runtime default)'
           }
           disabled={locked}

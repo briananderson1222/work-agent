@@ -94,8 +94,21 @@ function isProcessAlive(pid: number | null | undefined): boolean {
   }
 }
 
+function getInstanceServicePorts(
+  record: Pick<InstanceStateRecord, 'serverPort' | 'uiPort'>,
+): number[] {
+  return [record.serverPort, record.uiPort];
+}
+
 function isInstanceRunning(record: InstanceStateRecord): boolean {
-  return isProcessAlive(record.serverPid) || isProcessAlive(record.uiPid);
+  if (record.legacy) {
+    return isProcessAlive(record.serverPid) || isProcessAlive(record.uiPid);
+  }
+  return (
+    isProcessAlive(record.serverPid) ||
+    isProcessAlive(record.uiPid) ||
+    findListeningPidsForPorts(getInstanceServicePorts(record)).length > 0
+  );
 }
 
 function notifyBuildUpdated(serverPort: number): void {
@@ -233,6 +246,57 @@ function describeInstance(record: InstanceStateRecord): string {
   return `${record.instanceId} — server ${record.serverPort}, ui ${record.uiPort}, home ${record.baseDir}`;
 }
 
+function findListeningPidsForPorts(ports: number[]): number[] {
+  const results = new Set<number>();
+
+  for (const port of ports) {
+    try {
+      const output = execSync(`lsof -nP -iTCP:${port} -sTCP:LISTEN -t`, {
+        stdio: ['ignore', 'pipe', 'ignore'],
+        encoding: 'utf-8',
+      });
+      for (const line of output.split('\n')) {
+        const value = Number.parseInt(line.trim(), 10);
+        if (Number.isFinite(value)) {
+          results.add(value);
+        }
+      }
+    } catch {
+      // No listener on this port, or lsof unavailable.
+    }
+  }
+
+  return [...results];
+}
+
+function isInstanceFullyStopped(record: InstanceStateRecord): boolean {
+  const pids = [record.serverPid, record.uiPid].filter(
+    (value): value is number => value != null,
+  );
+  const trackedProcessesAlive = pids.some((pid) => isProcessAlive(pid));
+  if (trackedProcessesAlive) {
+    return false;
+  }
+
+  return (
+    findListeningPidsForPorts(getInstanceServicePorts(record)).length === 0
+  );
+}
+
+function waitForInstanceShutdown(
+  record: InstanceStateRecord,
+  timeoutMs = 5000,
+): boolean {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (isInstanceFullyStopped(record)) {
+      return true;
+    }
+    sleepSync(200);
+  }
+  return isInstanceFullyStopped(record);
+}
+
 function stopRecord(record: InstanceStateRecord, announce = true): void {
   const pids = new Set(
     [record.serverPid, record.uiPid].filter(
@@ -242,28 +306,28 @@ function stopRecord(record: InstanceStateRecord, announce = true): void {
   for (const pid of pids) {
     killProcessTree(pid);
   }
+  if (!waitForInstanceShutdown(record, 3000)) {
+    const fallbackPids = findListeningPidsForPorts(
+      getInstanceServicePorts(record),
+    );
+    for (const pid of fallbackPids) {
+      if (!pids.has(pid)) {
+        killProcessTree(pid);
+      }
+    }
+  }
+  if (!waitForInstanceShutdown(record, 3000)) {
+    throw new Error(
+      [
+        `Failed to stop Stallion instance ${record.instanceId}.`,
+        `Lingering ports: ${getInstanceServicePorts(record).join(', ')}`,
+      ].join('\n'),
+    );
+  }
   removeStateRecord(record);
   if (announce) {
     console.log('  ✓ Stopped');
   }
-}
-
-function assertNoSiblingConflicts(
-  instanceId: string,
-  actionLabel: string,
-): void {
-  const siblings = listRunningInstances().filter(
-    (record) => record.instanceId !== instanceId,
-  );
-  if (siblings.length === 0) return;
-
-  throw new Error(
-    [
-      `${actionLabel} is blocked because this checkout uses shared build artifacts and other Stallion instances are still live.`,
-      'Stop the sibling instance(s) first or rerun the action from a different checkout.',
-      ...siblings.map((record) => `  - ${describeInstance(record)}`),
-    ].join('\n'),
-  );
 }
 
 function ensureSingleMatch(
@@ -375,6 +439,53 @@ interface BuildPaths {
   ui: string;
 }
 
+function getReservedPorts(
+  record: Pick<InstanceStateRecord, 'serverPort' | 'uiPort'>,
+) {
+  return [
+    record.serverPort,
+    record.serverPort + 1,
+    record.serverPort + 2,
+    record.uiPort,
+  ];
+}
+
+function formatReservedPorts(
+  record: Pick<InstanceStateRecord, 'serverPort' | 'uiPort'>,
+): string {
+  return `${record.serverPort} (server), ${record.serverPort + 1} (terminal), ${record.serverPort + 2} (voice), ${record.uiPort} (ui)`;
+}
+
+function assertNoPortConflicts(
+  instanceId: string,
+  serverPort: number,
+  uiPort: number,
+): void {
+  const requested = new Set([
+    serverPort,
+    serverPort + 1,
+    serverPort + 2,
+    uiPort,
+  ]);
+  const conflicts = listRunningInstances().filter((record) => {
+    if (record.instanceId === instanceId) return false;
+    return getReservedPorts(record).some((port) => requested.has(port));
+  });
+
+  if (conflicts.length === 0) return;
+
+  throw new Error(
+    [
+      'start is blocked because the requested ports overlap another live Stallion instance.',
+      `Requested: ${serverPort} (server), ${serverPort + 1} (terminal), ${serverPort + 2} (voice), ${uiPort} (ui)`,
+      ...conflicts.map(
+        (record) =>
+          `  - ${record.instanceId} reserves ${formatReservedPorts(record)}`,
+      ),
+    ].join('\n'),
+  );
+}
+
 function resolveBuildPaths(instanceId: string): BuildPaths {
   if (instanceId === DEFAULT_INSTANCE_ID) {
     return { server: 'dist-server', ui: 'dist-ui' };
@@ -390,7 +501,30 @@ export function isInstalled(instanceId = DEFAULT_INSTANCE_ID): boolean {
   return existsSync(join(CWD, server)) && existsSync(join(CWD, ui));
 }
 
-export function start(opts: StartOptions = {}): void {
+async function waitForHttpOk(url: string, timeoutMs = 10_000): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  let lastFailure = 'No response received';
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(url, {
+        headers: { Accept: 'application/json' },
+      });
+      if (response.ok) {
+        return;
+      }
+      lastFailure = `${response.status} ${response.statusText}`.trim();
+    } catch (error) {
+      lastFailure = error instanceof Error ? error.message : String(error);
+    }
+
+    sleepSync(200);
+  }
+
+  throw new Error(`Timed out waiting for ${url} (${lastFailure})`);
+}
+
+export async function start(opts: StartOptions = {}): Promise<void> {
   const { logFile, build, features } = opts;
   const { serverPort, uiPort, projectHome, homeSource, instanceId, statePath } =
     resolveStartTarget(opts);
@@ -403,6 +537,8 @@ export function start(opts: StartOptions = {}): void {
   );
   const buildPaths = resolveBuildPaths(instanceId);
   const needsBuild = Boolean(build) || !isInstalled(instanceId);
+
+  assertNoPortConflicts(instanceId, serverPort, uiPort);
 
   if (needsBuild) {
     if (runningMatch) {
@@ -510,10 +646,11 @@ export function start(opts: StartOptions = {}): void {
     statePath,
   });
 
-  sleepSync(1000);
   try {
     process.kill(serverProc.pid!, 0);
     process.kill(uiProc.pid!, 0);
+    await waitForHttpOk(`http://localhost:${serverPort}/api/system/status`);
+    await waitForHttpOk(`http://localhost:${uiPort}`);
     console.log(`\n  ✓ Server: http://localhost:${serverPort}`);
     console.log(`  ✓ UI:     http://localhost:${uiPort}`);
     if (homeSource === '--temp-home') {
@@ -521,12 +658,10 @@ export function start(opts: StartOptions = {}): void {
     }
     console.log(`  ✓ Instance: ${instanceId}`);
     console.log(`\n  Stop with: stallion stop --instance=${instanceId}`);
-  } catch {
-    console.error(
-      `Failed to start. Check that ports ${serverPort} and ${uiPort} are free.`,
-    );
+  } catch (error) {
     stop({ instanceId });
-    process.exit(1);
+    const message = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to start instance ${instanceId}. ${message}`);
   }
 }
 
@@ -572,7 +707,6 @@ export async function clean(
     );
   }
 
-  assertNoSiblingConflicts(instanceId, options.actionLabel ?? 'clean');
   announceHome(projectHome, homeSource);
 
   if (!options.force) {

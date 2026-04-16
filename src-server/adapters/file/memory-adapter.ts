@@ -1,8 +1,10 @@
 /**
  * VoltAgent StorageAdapter implementation using file-based NDJSON storage.
- * Aligns with VoltAgent v1.x storage interfaces.
+ * Aligns with VoltAgent storage interfaces.
  */
 
+import { existsSync } from 'node:fs';
+import { writeFile } from 'node:fs/promises';
 import type {
   Conversation,
   ConversationQueryOptions,
@@ -151,6 +153,35 @@ export class FileMemoryAdapter implements StorageAdapter {
     });
   }
 
+  async deleteMessages(
+    messageIds: string[],
+    userId: string,
+    conversationId: string,
+  ): Promise<void> {
+    if (messageIds.length === 0) {
+      return;
+    }
+
+    const resourceId = await this.conversations.resolveResourceId(
+      conversationId,
+      userId,
+    );
+    const path = this.paths.getMessagesPath(resourceId, conversationId);
+    if (!existsSync(path)) {
+      return;
+    }
+
+    const messages = await this.getMessages(userId, conversationId);
+    const remaining = messages.filter(
+      (message: any) => !messageIds.includes(String(message.id)),
+    );
+    const payload =
+      remaining.map((message) => JSON.stringify(message)).join('\n') +
+      (remaining.length > 0 ? '\n' : '');
+    await writeFile(path, payload, 'utf-8');
+    await this.conversations.touchConversation(conversationId);
+  }
+
   // ===========================================================================
   // Conversation Operations
   // ===========================================================================
@@ -197,6 +228,15 @@ export class FileMemoryAdapter implements StorageAdapter {
   ): Promise<Conversation[]> {
     const conversations = await this.conversations.loadAllConversations();
     return applyConversationQueryOptions(conversations, options);
+  }
+
+  async countConversations(options: ConversationQueryOptions): Promise<number> {
+    const conversations = await this.conversations.loadAllConversations();
+    return applyConversationQueryOptions(conversations, {
+      ...options,
+      limit: undefined,
+      offset: undefined,
+    }).length;
   }
 
   async updateConversation(

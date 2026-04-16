@@ -2,6 +2,7 @@ import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 import type { IStorageAdapter } from '../domain/storage-adapter.js';
 import { createLLMProvider } from '../providers/connection-factories.js';
+import { safeListModels } from '../providers/model-catalog.js';
 import type { ILLMProvider } from '../providers/model-provider-types.js';
 import { providerOps } from '../telemetry/metrics.js';
 
@@ -123,7 +124,7 @@ export class ProviderService {
       return preferredModel || '';
     }
 
-    const models = await provider.listModels().catch(() => []);
+    const models = await safeListModels(provider);
     if (models.length === 0) {
       throw new Error(
         `No models available for provider '${providerConnection.name || providerId}'`,

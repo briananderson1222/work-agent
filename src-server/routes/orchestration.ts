@@ -5,7 +5,7 @@ import type { OrchestrationService } from '../services/orchestration-service.js'
 import { sseOps } from '../telemetry/metrics.js';
 import { errorMessage, getBody, validate } from './schemas.js';
 
-const providerKindSchema = z.enum(['bedrock', 'claude', 'codex']);
+const providerKindSchema = z.string().min(1);
 
 const startSessionCommandSchema = z.object({
   type: z.literal('startSession'),
@@ -81,12 +81,13 @@ export function createOrchestrationRoutes(
 
   app.get('/providers/:provider/commands', async (c) => {
     const provider = c.req.param('provider');
-    if (!['bedrock', 'claude', 'codex'].includes(provider)) {
-      return c.json({ success: false, error: 'Unknown provider' }, 404);
-    }
-    const data = await orchestrationService.getProviderCommands(
-      provider as 'bedrock' | 'claude' | 'codex',
-    );
+    const data = await orchestrationService.getProviderCommands(provider);
+    return c.json({ success: true, data });
+  });
+
+  app.get('/providers/:provider/models', async (c) => {
+    const provider = c.req.param('provider');
+    const data = await orchestrationService.getProviderModels(provider);
     return c.json({ success: true, data });
   });
 

@@ -8,6 +8,7 @@ import type { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import type { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
 import type { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
 import type { CodexAdapter } from '../providers/adapters/codex-adapter.js';
+import type { OllamaAdapter } from '../providers/adapters/ollama-adapter.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
 import {
@@ -85,6 +86,7 @@ export interface InitializeRuntimeDeps {
   bedrockAdapter: BedrockAdapter;
   claudeAdapter: ClaudeAdapter;
   codexAdapter: CodexAdapter;
+  ollamaAdapter: OllamaAdapter;
   createVoltAgentInstance: (slug: string) => Promise<Agent>;
   configureRoutes: (app: any) => void;
   reloadAgents: () => Promise<void>;
@@ -134,6 +136,7 @@ export async function initializeRuntime(
     bedrockAdapter,
     claudeAdapter,
     codexAdapter,
+    ollamaAdapter,
     createVoltAgentInstance,
     configureRoutes,
     reloadAgents,
@@ -168,7 +171,12 @@ export async function initializeRuntime(
     (logger as any).level = appConfig.logLevel;
   }
 
-  registerProviderAdapters([bedrockAdapter, claudeAdapter, codexAdapter]);
+  registerProviderAdapters([
+    bedrockAdapter,
+    claudeAdapter,
+    codexAdapter,
+    ollamaAdapter,
+  ]);
 
   const orchestrationService = new OrchestrationService({
     adapterRegistry: createProviderAdapterRegistry(),
@@ -240,6 +248,8 @@ export async function initializeRuntime(
             appConfig,
             projectHomeDir: configLoader.getProjectHomeDir(),
             modelCatalog,
+            listProviderConnections: () =>
+              storageAdapter.listProviderConnections(),
           }),
         loadAgentTools: async (slug, spec) =>
           MCPManager.loadAgentTools(

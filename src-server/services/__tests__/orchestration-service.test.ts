@@ -98,6 +98,10 @@ class FakeAdapter implements ProviderAdapterShape {
       ) => Promise<void>
     >();
   readonly stopSession = vi.fn<(threadId: string) => Promise<void>>();
+  readonly listModels =
+    vi.fn<
+      () => Promise<Array<{ id: string; name: string; originalId: string }>>
+    >();
 
   constructor(
     readonly provider: 'bedrock' | 'claude' | 'codex',
@@ -133,6 +137,7 @@ class FakeAdapter implements ProviderAdapterShape {
     this.stopSession.mockImplementation(async (threadId) => {
       this.sessions.delete(threadId);
     });
+    this.listModels.mockResolvedValue([]);
   }
 
   async listSessions(): Promise<ProviderSession[]> {
@@ -250,6 +255,25 @@ describe('OrchestrationService', () => {
         activeSessions: 1,
       },
     ]);
+  });
+
+  test('returns runtime models for a provider when the adapter exposes them', async () => {
+    claude.listModels.mockResolvedValue([
+      {
+        id: 'claude-sonnet-4-6',
+        name: 'Claude Sonnet 4.6',
+        originalId: 'claude-sonnet-4-6',
+      },
+    ]);
+
+    await expect(service.getProviderModels('claude')).resolves.toEqual([
+      {
+        id: 'claude-sonnet-4-6',
+        name: 'Claude Sonnet 4.6',
+        originalId: 'claude-sonnet-4-6',
+      },
+    ]);
+    await expect(service.getProviderModels('codex')).resolves.toEqual([]);
   });
 
   test('persists adapter events and recovers resumable sessions on startup', async () => {

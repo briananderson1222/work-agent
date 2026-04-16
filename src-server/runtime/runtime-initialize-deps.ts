@@ -6,6 +6,7 @@ import type { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import type { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
 import type { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
 import type { CodexAdapter } from '../providers/adapters/codex-adapter.js';
+import type { OllamaAdapter } from '../providers/adapters/ollama-adapter.js';
 import type { ACPManager } from '../services/acp-bridge.js';
 import type { EventBus } from '../services/event-bus.js';
 import type { EventStore } from '../services/event-store.js';
@@ -63,6 +64,7 @@ export interface RuntimeInitializationContext {
   bedrockAdapter: BedrockAdapter;
   claudeAdapter: ClaudeAdapter;
   codexAdapter: CodexAdapter;
+  ollamaAdapter: OllamaAdapter;
   createVoltAgentInstance: (slug: string) => Promise<Agent>;
   configureRoutes: (app: any) => void;
   reloadAgents: () => Promise<void>;
@@ -103,6 +105,7 @@ export function createRuntimeInitializationDeps(
     bedrockAdapter: context.bedrockAdapter,
     claudeAdapter: context.claudeAdapter,
     codexAdapter: context.codexAdapter,
+    ollamaAdapter: context.ollamaAdapter,
     createVoltAgentInstance: context.createVoltAgentInstance,
     configureRoutes: context.configureRoutes,
     reloadAgents: context.reloadAgents,

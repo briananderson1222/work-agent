@@ -45,9 +45,8 @@ type ClaudeSessionRecord = {
 export class ClaudeAdapter implements ProviderAdapterShape {
   readonly provider = 'claude' as const;
   readonly metadata = {
-    displayName: 'Claude Runtime',
-    description:
-      'Claude Agent SDK runtime with approvals and reasoning events.',
+    displayName: 'Claude Code',
+    description: 'Claude Code integration with approvals and reasoning events.',
     capabilities: [
       'agent-runtime',
       'session-lifecycle',

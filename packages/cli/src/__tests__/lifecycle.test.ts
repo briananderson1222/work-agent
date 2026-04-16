@@ -258,6 +258,7 @@ function isAlive(pid: number): boolean {
 afterEach(() => {
   vi.resetModules();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   vi.doUnmock('../commands/helpers.js');
   vi.doUnmock('../commands/platform.js');
   vi.doUnmock('node:child_process');
@@ -269,7 +270,16 @@ describe('lifecycle instance state', () => {
     ensureDir(TEST_CWD);
     writeFileSync(TEST_PIDFILE, '99999');
 
-    const { lifecycle } = await loadLifecycleModule();
+    const { lifecycle } = await loadLifecycleModule({
+      childProcessMock: { execSync: vi.fn(() => '') },
+      platformOverrides: {
+        killProcessTree: vi.fn((pid: number) => {
+          if (pid === alphaPid) {
+            process.kill(alphaPid, 'SIGKILL');
+          }
+        }),
+      },
+    });
 
     expect(lifecycle.isRunning()).toBe(false);
     expect(existsSync(TEST_PIDFILE)).toBe(false);
@@ -282,6 +292,8 @@ describe('lifecycle instance state', () => {
 
     const alphaPid = await spawnLongRunning();
     const betaPid = await spawnLongRunning();
+    let alphaAlive = true;
+    let betaAlive = true;
     writeInstanceState({
       baseDir: TEST_ALT_HOME,
       instanceName: 'alpha',
@@ -299,18 +311,108 @@ describe('lifecycle instance state', () => {
       uiPort: 5275,
     });
 
-    const { lifecycle } = await loadLifecycleModule();
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(((
+      pid: number,
+      signal?: NodeJS.Signals | number,
+    ) => {
+      if (signal === 0 && pid === alphaPid) {
+        if (alphaAlive) return true;
+        throw new Error('gone');
+      }
+      if (signal === 0 && pid === betaPid) {
+        if (betaAlive) return true;
+        throw new Error('gone');
+      }
+      return true;
+    }) as typeof process.kill);
 
-    lifecycle.stop({ instanceName: 'alpha' });
+    try {
+      const { lifecycle } = await loadLifecycleModule({
+        childProcessMock: { execSync: vi.fn(() => '') },
+        platformOverrides: {
+          killProcessTree: vi.fn((pid: number) => {
+            if (pid === alphaPid) {
+              alphaAlive = false;
+            }
+          }),
+        },
+      });
 
-    await new Promise((resolvePromise) => setTimeout(resolvePromise, 500));
-    expect(isAlive(alphaPid)).toBe(false);
-    expect(isAlive(betaPid)).toBe(true);
-    expect(existsSync(getInstanceStatePath('alpha'))).toBe(false);
-    expect(existsSync(betaStatePath)).toBe(true);
+      lifecycle.stop({ instanceName: 'alpha' });
 
-    process.kill(betaPid, 'SIGKILL');
+      await new Promise((resolvePromise) => setTimeout(resolvePromise, 50));
+      expect(isAlive(alphaPid)).toBe(false);
+      expect(isAlive(betaPid)).toBe(true);
+      expect(existsSync(getInstanceStatePath('alpha'))).toBe(false);
+      expect(existsSync(betaStatePath)).toBe(true);
+    } finally {
+      betaAlive = false;
+      killSpy.mockRestore();
+      process.kill(betaPid, 'SIGKILL');
+    }
   }, 15_000);
+
+  it('kills lingering listeners before removing instance state', async () => {
+    ensureDir(TEST_CWD);
+    ensureDir(TEST_ALT_HOME);
+
+    const statePath = writeInstanceState({
+      baseDir: TEST_ALT_HOME,
+      instanceName: 'alpha',
+      serverPid: 41001,
+      serverPort: 3242,
+      uiPid: null,
+      uiPort: 5274,
+    });
+
+    let now = 0;
+    let listenerAlive = true;
+    const killProcessTree = vi.fn((pid: number) => {
+      if (pid === 51001) {
+        listenerAlive = false;
+      }
+    });
+    const execSync = vi.fn((command: string) => {
+      if (
+        command.includes('lsof') &&
+        command.includes('5274') &&
+        listenerAlive
+      ) {
+        return '51001\n';
+      }
+      return '';
+    });
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(((
+      pid: number,
+      signal?: NodeJS.Signals | number,
+    ) => {
+      if (signal === 0 && pid === 41001) {
+        throw new Error('gone');
+      }
+      return true;
+    }) as typeof process.kill);
+    const dateSpy = vi.spyOn(Date, 'now').mockImplementation(() => now);
+
+    const { lifecycle } = await loadLifecycleModule({
+      childProcessMock: { execSync },
+      platformOverrides: {
+        killProcessTree,
+        sleepSync: vi.fn((ms: number) => {
+          now += ms;
+        }),
+      },
+    });
+
+    try {
+      lifecycle.stop({ instanceName: 'alpha' });
+      expect(killProcessTree).toHaveBeenCalledWith(41001);
+      expect(killProcessTree).toHaveBeenCalledWith(51001);
+      expect(existsSync(statePath)).toBe(false);
+    } finally {
+      killSpy.mockRestore();
+      dateSpy.mockRestore();
+    }
+  });
 
   it('writes per-instance state and injects instance env on start', async () => {
     ensureDir(TEST_CWD);
@@ -331,6 +433,11 @@ describe('lifecycle instance state', () => {
       }
       throw new Error(`unexpected process.kill(${pid}, ${String(signal)})`);
     }) as typeof process.kill);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+      .mockResolvedValueOnce(new Response('<html></html>', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
 
     const consoleLog = vi.spyOn(console, 'log').mockImplementation(() => {});
     const { lifecycle } = await loadLifecycleModule({
@@ -338,7 +445,7 @@ describe('lifecycle instance state', () => {
       platformOverrides: { sleepSync: vi.fn() },
     });
 
-    lifecycle.start({
+    await lifecycle.start({
       baseDir: TEST_ALT_HOME,
       homeSource: '--base',
       instanceName: 'smoke-a',
@@ -378,6 +485,111 @@ describe('lifecycle instance state', () => {
     expect(consoleLog).toHaveBeenCalledWith(
       '\n  Stop with: stallion stop --instance=smoke-a',
     );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'http://localhost:3242/api/system/status',
+      { headers: { Accept: 'application/json' } },
+    );
+    expect(fetchMock).toHaveBeenCalledWith('http://localhost:5274', {
+      headers: { Accept: 'application/json' },
+    });
+
+    killSpy.mockRestore();
+  });
+
+  it('blocks starts whose requested ports overlap a sibling terminal or voice socket', async () => {
+    ensureDir(TEST_CWD);
+    ensureBuildOutputs('agent-crud');
+    ensureDir(TEST_ALT_HOME);
+    ensureDir(TEST_SECOND_HOME);
+
+    const siblingPid = await spawnLongRunning();
+    writeInstanceState({
+      baseDir: TEST_SECOND_HOME,
+      instanceName: 'agent-smoke',
+      serverPid: siblingPid,
+      serverPort: 3242,
+      uiPid: null,
+      uiPort: 5274,
+    });
+
+    const spawn = vi.fn();
+    const { lifecycle } = await loadLifecycleModule({
+      childProcessMock: { execSync: vi.fn(), spawn },
+    });
+
+    await expect(
+      lifecycle.start({
+        baseDir: TEST_ALT_HOME,
+        homeSource: '--base',
+        instanceName: 'agent-crud',
+        serverPort: 3243,
+        uiPort: 5275,
+      }),
+    ).rejects.toThrow(
+      'start is blocked because the requested ports overlap another live Stallion instance.',
+    );
+    expect(spawn).not.toHaveBeenCalled();
+
+    process.kill(siblingPid, 'SIGKILL');
+  }, 15_000);
+
+  it('waits for an HTTP 200 instead of trusting the child pid alone', async () => {
+    ensureDir(TEST_CWD);
+    ensureBuildOutputs('smoke-b');
+    ensureDir(TEST_ALT_HOME);
+
+    const execSync = vi.fn();
+    const spawn = vi
+      .fn()
+      .mockReturnValueOnce({ pid: 42001, unref: vi.fn() })
+      .mockReturnValueOnce({ pid: 42002, unref: vi.fn() });
+    const killSpy = vi.spyOn(process, 'kill').mockImplementation(((
+      pid: number,
+      signal?: NodeJS.Signals | number,
+    ) => {
+      if (signal === 0 && (pid === 42001 || pid === 42002)) {
+        return true;
+      }
+      throw new Error(`unexpected process.kill(${pid}, ${String(signal)})`);
+    }) as typeof process.kill);
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(
+        new Response('Upgrade Required', {
+          status: 426,
+          statusText: 'Upgrade Required',
+        }),
+      )
+      .mockResolvedValueOnce(new Response('{}', { status: 200 }))
+      .mockResolvedValueOnce(new Response('<html></html>', { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const { lifecycle } = await loadLifecycleModule({
+      childProcessMock: { execSync, spawn },
+      platformOverrides: { sleepSync: vi.fn() },
+    });
+
+    await lifecycle.start({
+      baseDir: TEST_ALT_HOME,
+      homeSource: '--base',
+      instanceName: 'smoke-b',
+      serverPort: 3246,
+      uiPort: 5278,
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      'http://localhost:3246/api/system/status',
+      { headers: { Accept: 'application/json' } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:3246/api/system/status',
+      { headers: { Accept: 'application/json' } },
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(3, 'http://localhost:5278', {
+      headers: { Accept: 'application/json' },
+    });
 
     killSpy.mockRestore();
   });
@@ -443,11 +655,12 @@ describe('clean', () => {
     expect(existsSync(TEST_DEFAULT_HOME)).toBe(false);
   });
 
-  it('blocks shared-build cleanup when a sibling instance is still live', async () => {
+  it('cleans the targeted instance while a sibling instance stays live', async () => {
     ensureDir(TEST_CWD);
     ensureDir(TEST_ALT_HOME);
     ensureDir(TEST_SECOND_HOME);
-    ensureBuildOutputs();
+    ensureBuildOutputs('smoke-a');
+    ensureBuildOutputs('sibling');
 
     const siblingPid = await spawnLongRunning();
     writeInstanceState({
@@ -461,17 +674,20 @@ describe('clean', () => {
 
     const { lifecycle } = await loadLifecycleModule();
 
-    await expect(
-      lifecycle.clean({
-        force: true,
-        homeSource: '--base',
-        projectHome: TEST_ALT_HOME,
-        serverPort: 3242,
-        uiPort: 5274,
-      }),
-    ).rejects.toThrow(
-      'clean is blocked because this checkout uses shared build artifacts and other Stallion instances are still live.',
-    );
+    await lifecycle.clean({
+      force: true,
+      homeSource: '--base',
+      instanceName: 'smoke-a',
+      projectHome: TEST_ALT_HOME,
+      serverPort: 3242,
+      uiPort: 5274,
+    });
+
+    expect(existsSync(TEST_ALT_HOME)).toBe(false);
+    expect(existsSync(join(TEST_CWD, 'dist-server-smoke-a'))).toBe(false);
+    expect(existsSync(join(TEST_CWD, 'dist-ui-smoke-a'))).toBe(false);
+    expect(existsSync(join(TEST_CWD, 'dist-server-sibling'))).toBe(true);
+    expect(existsSync(join(TEST_CWD, 'dist-ui-sibling'))).toBe(true);
     expect(isAlive(siblingPid)).toBe(true);
 
     process.kill(siblingPid, 'SIGKILL');

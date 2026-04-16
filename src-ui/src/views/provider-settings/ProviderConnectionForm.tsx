@@ -51,10 +51,6 @@ export function ProviderConnectionForm({
             </option>
           ))}
         </select>
-        <span className="editor-hint">
-          Start with whichever provider Stallion already detected, then add
-          others later.
-        </span>
       </div>
 
       <div className="editor-field">

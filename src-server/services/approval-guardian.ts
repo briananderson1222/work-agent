@@ -26,6 +26,7 @@ export interface ApprovalGuardianDecision {
 interface ApprovalGuardianDeps {
   appConfig: AppConfig;
   framework: IAgentFramework;
+  listProviderConnections?: () => any[];
   logger: any;
   modelCatalog?: BedrockModelCatalog;
   projectHomeDir: string;
@@ -82,6 +83,7 @@ export class ApprovalGuardianService {
           appConfig: this.deps.appConfig,
           projectHomeDir: this.deps.projectHomeDir,
           modelCatalog: this.deps.modelCatalog,
+          listProviderConnections: this.deps.listProviderConnections,
         },
       );
 

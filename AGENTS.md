@@ -77,7 +77,14 @@ Default ports (3141 server, 3000 UI) are **reserved for user testing**. Agents m
 ./stallion start --instance=agent-smoke --temp-home --clean --force --port=3242 --ui-port=5274
 ```
 
-Pick ports that won't collide with other agents running concurrently. Shared-build actions (`--clean`, `fresh`, `--build`, and self-update) will refuse to run while sibling instances from the same checkout are still live.
+Pick ports that won't collide with other agents running concurrently. Multiple Stallion instances may run from the same checkout at the same time as long as their reserved port ranges do not overlap.
+
+Do **not** stop or disturb a sibling instance from the same checkout just to satisfy that shared-build guard. If another agent-owned instance is live, prefer one of these paths instead:
+- start a new instance with a distinct instance name and non-overlapping ports
+- use targeted per-instance cleanup/start-clean flows on that instance only
+- reuse existing build artifacts for verification when that is enough
+
+Stopping a sibling instance is only acceptable when the task is explicitly about that instance or the user specifically asks for it. The remaining truly shared-checkout lane is repo-wide mutation such as `stallion upgrade` (`git pull`, `npm install`, rebuilds), which still needs extra caution around sibling instances.
 
 ### Playwright tests
 

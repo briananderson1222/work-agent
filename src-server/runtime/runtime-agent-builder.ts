@@ -20,6 +20,7 @@ interface RuntimeAgentBuilderContext {
   logger: Logger;
   modelCatalog?: BedrockModelCatalog;
   usageAggregator?: any;
+  listProviderConnections?: () => any[];
   approvalRegistry: ApprovalRegistry;
   mcpConfigs: Map<string, any>;
   mcpConnectionStatus: Map<string, { connected: boolean; error?: string }>;
@@ -78,6 +79,7 @@ export async function buildRuntimeAgentInstance(
     approvalGuardian: new ApprovalGuardianService({
       appConfig: context.appConfig,
       framework: context.framework,
+      listProviderConnections: context.listProviderConnections,
       logger: context.logger,
       modelCatalog: context.modelCatalog,
       projectHomeDir: context.configLoader.getProjectHomeDir(),
@@ -94,6 +96,7 @@ export async function buildRuntimeAgentInstance(
       projectHomeDir: context.configLoader.getProjectHomeDir(),
       usageAggregator: context.usageAggregator,
       modelCatalog: context.modelCatalog,
+      listProviderConnections: context.listProviderConnections,
       approvalRegistry: context.approvalRegistry,
       hooks,
     },

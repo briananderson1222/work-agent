@@ -18,6 +18,7 @@ import type {
   AgentSpec,
 } from '@stallion-ai/contracts/agent';
 import type { AppConfig } from '@stallion-ai/contracts/config';
+import type { ProviderConnectionConfig } from '@stallion-ai/contracts/tool';
 
 // ── Stream Events ──────────────────────────────────────
 
@@ -176,6 +177,7 @@ export interface AgentCreationConfig {
   usageAggregator?: any;
   modelCatalog?: any;
   approvalRegistry?: any;
+  listProviderConnections?: () => ProviderConnectionConfig[];
   /** Runtime-provided hooks — adapter wires these into native lifecycle */
   hooks?: IAgentHooks;
 }

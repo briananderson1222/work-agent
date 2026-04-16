@@ -291,11 +291,13 @@ export function buildNewChatModalViewModel({
       connection.status !== 'ready',
   );
   const compatibilityMessage = degradedRuntime
-    ? `${degradedRuntime.name}: ${connectionStatusLabel(
-        degradedRuntime.status,
-      )} · Catalog ${runtimeCatalogSourceLabel(
-        degradedRuntime.runtimeCatalog?.source ?? 'none',
-      )}${degradedRuntime.runtimeCatalog?.reason ? ` — ${degradedRuntime.runtimeCatalog.reason}` : ''}`
+    ? `${degradedRuntime.name}: ${connectionStatusLabel(degradedRuntime.status)}${
+        degradedRuntime.runtimeCatalog?.source
+          ? ` · Catalog ${runtimeCatalogSourceLabel(
+              degradedRuntime.runtimeCatalog.source,
+            )}`
+          : ''
+      }`
     : undefined;
   return {
     isGlobal,

@@ -10,11 +10,9 @@ function createHooksRegistry() {
   const callbacks = new Map<any, any>();
   return {
     callbacks,
-    hooks: {
-      addCallback: vi.fn((eventType: any, callback: any) => {
-        callbacks.set(eventType, callback);
-      }),
-    },
+    addHook: vi.fn((eventType: any, callback: any) => {
+      callbacks.set(eventType, callback);
+    }),
   };
 }
 
@@ -25,7 +23,7 @@ describe('wireStrandsAgentHooks', () => {
     const afterToolCall = vi.fn();
 
     wireStrandsAgentHooks({
-      strandsAgent: { hooks: registry.hooks } as any,
+      strandsAgent: { addHook: registry.addHook } as any,
       hooks: {
         beforeToolCall: vi.fn().mockResolvedValue(false),
         afterToolCall,
@@ -81,7 +79,7 @@ describe('wireStrandsAgentHooks', () => {
     const afterInvocation = vi.fn().mockResolvedValue(undefined);
 
     wireStrandsAgentHooks({
-      strandsAgent: { hooks: registry.hooks } as any,
+      strandsAgent: { addHook: registry.addHook } as any,
       hooks: { afterInvocation },
       deniedToolUseIds: new Set<string>(),
       invocationCtx: {

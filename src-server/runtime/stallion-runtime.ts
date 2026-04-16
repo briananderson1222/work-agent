@@ -22,6 +22,7 @@ import type { MonitoringEmitter } from '../monitoring/emitter.js';
 import { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
 import { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
 import { CodexAdapter } from '../providers/adapters/codex-adapter.js';
+import { OllamaAdapter } from '../providers/adapters/ollama-adapter.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 import type { ACPManager } from '../services/acp-bridge.js';
 import type { AgentService } from '../services/agent-service.js';
@@ -149,6 +150,7 @@ export class StallionRuntime {
   private bedrockAdapter = new BedrockAdapter();
   private claudeAdapter = new ClaudeAdapter();
   private codexAdapter = new CodexAdapter();
+  private ollamaAdapter = new OllamaAdapter();
   private orchestrationService!: OrchestrationService;
   private orchestrationEventStore: EventStore;
 
@@ -332,6 +334,7 @@ export class StallionRuntime {
         bedrockAdapter: this.bedrockAdapter,
         claudeAdapter: this.claudeAdapter,
         codexAdapter: this.codexAdapter,
+        ollamaAdapter: this.ollamaAdapter,
         createVoltAgentInstance: async (slug) =>
           this.createVoltAgentInstance(slug),
         configureRoutes: (app: any) => this.configureRoutes(app),
@@ -479,6 +482,8 @@ export class StallionRuntime {
           appConfig: this.appConfig,
           projectHomeDir: this.configLoader.getProjectHomeDir(),
           modelCatalog: this.modelCatalog,
+          listProviderConnections: () =>
+            this.providerService.listProviderConnections(),
         }),
       replaceTemplateVariables: (text: string) =>
         this.replaceTemplateVariables(text),
@@ -524,6 +529,8 @@ export class StallionRuntime {
       logger: this.logger,
       modelCatalog: this.modelCatalog,
       usageAggregator: this.usageAggregator,
+      listProviderConnections: () =>
+        this.providerService.listProviderConnections(),
       approvalRegistry: this.approvalRegistry,
       mcpConfigs: this.mcpConfigs,
       mcpConnectionStatus: this.mcpConnectionStatus,

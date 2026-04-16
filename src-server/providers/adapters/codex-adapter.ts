@@ -66,7 +66,7 @@ function mapCodexModelCatalogEntry(model: any): {
 export class CodexAdapter implements ProviderAdapterShape {
   readonly provider = 'codex' as const;
   readonly metadata = {
-    displayName: 'Codex Runtime',
+    displayName: 'Codex',
     description: 'Codex app-server runtime over the local Codex CLI.',
     capabilities: [
       'agent-runtime',

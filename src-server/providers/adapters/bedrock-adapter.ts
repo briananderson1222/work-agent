@@ -13,6 +13,8 @@ import type {
   ProviderTurnStartResult,
 } from '../adapter-shape.js';
 import { checkBedrockCredentials } from '../bedrock.js';
+import { BedrockLLMProvider } from '../bedrock-llm-provider.js';
+import type { LLMMessage } from '../model-provider-types.js';
 
 interface Deferred<T> {
   promise: Promise<T>;
@@ -72,6 +74,11 @@ export interface BedrockAdapterCallbacks {
   stopAll?(): Promise<void>;
 }
 
+interface BedrockSession extends ProviderSession {
+  systemPrompt?: string;
+  history: LLMMessage[];
+}
+
 export class BedrockAdapter implements ProviderAdapterShape {
   readonly provider: ProviderKind = 'bedrock';
   readonly metadata = {
@@ -88,8 +95,9 @@ export class BedrockAdapter implements ProviderAdapterShape {
     executionClass: 'managed',
   } as const;
 
-  private sessions = new Map<string, ProviderSession>();
+  private sessions = new Map<string, BedrockSession>();
   private readonly events = new AsyncEventQueue();
+  private readonly llm = new BedrockLLMProvider({});
 
   constructor(private readonly callbacks: BedrockAdapterCallbacks = {}) {}
 
@@ -124,7 +132,11 @@ export class BedrockAdapter implements ProviderAdapterShape {
   ): Promise<ProviderSession> {
     const now = new Date().toISOString();
     const callbackResult = await this.callbacks.startSession?.(input);
-    const session: ProviderSession = {
+    const systemPrompt =
+      typeof input.modelOptions?.systemPrompt === 'string'
+        ? input.modelOptions.systemPrompt
+        : undefined;
+    const session: BedrockSession = {
       provider: this.provider,
       threadId: input.threadId,
       status: callbackResult?.status ?? 'ready',
@@ -132,6 +144,8 @@ export class BedrockAdapter implements ProviderAdapterShape {
       resumeCursor: callbackResult?.resumeCursor ?? input.resumeCursor,
       createdAt: callbackResult?.createdAt ?? now,
       updatedAt: callbackResult?.updatedAt ?? now,
+      systemPrompt,
+      history: [],
     };
 
     this.sessions.set(session.threadId, session);
@@ -200,51 +214,99 @@ export class BedrockAdapter implements ProviderAdapterShape {
       prompt: input.input,
     });
 
-    const callbackResult = await this.callbacks.sendTurn?.(input);
-    if (callbackResult?.outputText) {
-      this.publish({
-        eventId: crypto.randomUUID(),
-        provider: this.provider,
-        threadId: input.threadId,
-        createdAt: new Date().toISOString(),
+    try {
+      const callbackResult = await this.callbacks.sendTurn?.(input);
+      if (callbackResult) {
+        if (callbackResult.outputText) {
+          this.publish({
+            eventId: crypto.randomUUID(),
+            provider: this.provider,
+            threadId: input.threadId,
+            createdAt: new Date().toISOString(),
+            turnId,
+            itemId: crypto.randomUUID(),
+            method: 'content.text-delta',
+            delta: callbackResult.outputText,
+          });
+        }
+
+        this.publishCompletion({
+          input,
+          turnId,
+          outputText: callbackResult.outputText,
+          finishReason: callbackResult.outputText ? 'stop' : 'other',
+          resumeCursor: callbackResult.resumeCursor ?? session.resumeCursor,
+        });
+        return {
+          threadId: input.threadId,
+          turnId: callbackResult.turnId ?? turnId,
+          resumeCursor: callbackResult.resumeCursor,
+        };
+      }
+
+      const messages: LLMMessage[] = [];
+      if (session.systemPrompt) {
+        messages.push({ role: 'system', content: session.systemPrompt });
+      }
+      messages.push(...session.history);
+      messages.push({ role: 'user', content: input.input });
+
+      const model =
+        input.modelId ??
+        session.model ??
+        'us.anthropic.claude-sonnet-4-20250514-v1:0';
+      let assistantText = '';
+      let finishReason:
+        | 'stop'
+        | 'tool-calls'
+        | 'max-tokens'
+        | 'cancelled'
+        | 'other'
+        | undefined;
+
+      for await (const chunk of this.llm.createStream({ model, messages })) {
+        if (chunk.type === 'text-delta' && chunk.content) {
+          assistantText += chunk.content;
+          this.publish({
+            eventId: crypto.randomUUID(),
+            provider: this.provider,
+            threadId: input.threadId,
+            createdAt: new Date().toISOString(),
+            turnId,
+            itemId: crypto.randomUUID(),
+            method: 'content.text-delta',
+            delta: chunk.content,
+          });
+        } else if (chunk.type === 'finish') {
+          finishReason = normalizeFinishReason(chunk.finishReason);
+        } else if (chunk.type === 'error') {
+          throw new Error(chunk.error || 'Bedrock stream failed');
+        }
+      }
+
+      session.history.push({ role: 'user', content: input.input });
+      if (assistantText) {
+        session.history.push({ role: 'assistant', content: assistantText });
+      }
+
+      this.publishCompletion({
+        input,
         turnId,
-        itemId: crypto.randomUUID(),
-        method: 'content.text-delta',
-        delta: callbackResult.outputText,
+        outputText: assistantText,
+        finishReason: finishReason || 'stop',
+        resumeCursor: session.resumeCursor,
       });
+      return { threadId: input.threadId, turnId };
+    } catch (error) {
+      this.publishCompletion({
+        input,
+        turnId,
+        outputText: undefined,
+        finishReason: 'other',
+        resumeCursor: session.resumeCursor,
+      });
+      throw error;
     }
-
-    this.publish({
-      eventId: crypto.randomUUID(),
-      provider: this.provider,
-      threadId: input.threadId,
-      createdAt: new Date().toISOString(),
-      turnId,
-      method: 'turn.completed',
-      finishReason: callbackResult?.outputText ? 'stop' : 'other',
-      outputText: callbackResult?.outputText,
-    });
-    this.updateSession(input.threadId, {
-      status: 'ready',
-      updatedAt: new Date().toISOString(),
-      resumeCursor: callbackResult?.resumeCursor ?? session.resumeCursor,
-    });
-    this.publish({
-      eventId: crypto.randomUUID(),
-      provider: this.provider,
-      threadId: input.threadId,
-      createdAt: new Date().toISOString(),
-      method: 'session.state-changed',
-      sessionId: input.threadId,
-      from: 'running',
-      to: 'idle',
-    });
-
-    return {
-      threadId: input.threadId,
-      turnId: callbackResult?.turnId ?? turnId,
-      resumeCursor: callbackResult?.resumeCursor,
-    };
   }
 
   async interruptTurn(threadId: string, turnId?: string): Promise<void> {
@@ -322,6 +384,17 @@ export class BedrockAdapter implements ProviderAdapterShape {
     return [...this.sessions.values()];
   }
 
+  async listModels(): Promise<
+    Array<{ id: string; name: string; originalId: string }>
+  > {
+    const models = await this.llm.listModels();
+    return models.map((model) => ({
+      id: model.id,
+      name: model.name,
+      originalId: model.id,
+    }));
+  }
+
   async hasSession(threadId: string): Promise<boolean> {
     return this.sessions.has(threadId);
   }
@@ -342,10 +415,61 @@ export class BedrockAdapter implements ProviderAdapterShape {
 
   private updateSession(
     threadId: string,
-    updates: Partial<ProviderSession>,
+    updates: Partial<BedrockSession>,
   ): void {
     const current = this.sessions.get(threadId);
     if (!current) return;
     this.sessions.set(threadId, { ...current, ...updates });
+  }
+
+  private publishCompletion(options: {
+    input: ProviderSendTurnInput;
+    turnId: string;
+    outputText?: string;
+    finishReason: 'stop' | 'tool-calls' | 'max-tokens' | 'cancelled' | 'other';
+    resumeCursor?: unknown;
+  }): void {
+    const completedAt = new Date().toISOString();
+    this.publish({
+      eventId: crypto.randomUUID(),
+      provider: this.provider,
+      threadId: options.input.threadId,
+      createdAt: completedAt,
+      turnId: options.turnId,
+      method: 'turn.completed',
+      finishReason: options.finishReason,
+      outputText: options.outputText,
+    });
+    this.updateSession(options.input.threadId, {
+      status: 'ready',
+      updatedAt: completedAt,
+      resumeCursor: options.resumeCursor,
+      ...(options.input.modelId ? { model: options.input.modelId } : {}),
+    });
+    this.publish({
+      eventId: crypto.randomUUID(),
+      provider: this.provider,
+      threadId: options.input.threadId,
+      createdAt: completedAt,
+      method: 'session.state-changed',
+      sessionId: options.input.threadId,
+      from: 'running',
+      to: 'idle',
+    });
+  }
+}
+
+function normalizeFinishReason(
+  reason?: string,
+): 'stop' | 'tool-calls' | 'max-tokens' | 'cancelled' | 'other' {
+  switch (reason) {
+    case 'stop':
+    case 'tool-calls':
+    case 'max-tokens':
+    case 'cancelled':
+    case 'other':
+      return reason;
+    default:
+      return 'other';
   }
 }

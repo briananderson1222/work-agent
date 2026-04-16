@@ -72,7 +72,7 @@ describe('execution utils', () => {
         model: 'claude-sonnet',
         execution: { runtimeConnectionId: 'claude-runtime' },
       }),
-    ).toBe('Claude Runtime · claude-sonnet');
+    ).toBe('Claude Code · claude-sonnet');
   });
 
   test('prefers orchestration-backed session execution details', () => {

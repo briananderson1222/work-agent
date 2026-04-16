@@ -16,11 +16,11 @@
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
 import {
   type AgentResult,
-  BedrockModel,
   type McpClient,
   Agent as StrandsAgent,
 } from '@strands-agents/sdk';
-import { resolveConfiguredModelId } from './runtime-provider-resolution.js';
+import { createStrandsManagedModel } from './framework-model-factory.js';
+import { resolveManagedModelBinding } from './runtime-provider-resolution.js';
 import { wireStrandsAgentHooks } from './strands-agent-hooks.js';
 import { mapStrandsStreamEvent } from './strands-stream-events.js';
 import {
@@ -267,8 +267,7 @@ export class StrandsFramework {
     config: AgentCreationConfig,
     opts: CreateAgentOptions,
   ): Promise<AgentBundle> {
-    const model = await this.createModel(spec, config);
-    const resolvedModel = model.config.modelId;
+    const { model, resolvedModel } = await this.buildManagedModel(spec, config);
     const tools = await this.loadTools(slug, spec, opts);
 
     // Calculate fixed token counts
@@ -362,15 +361,7 @@ export class StrandsFramework {
     spec: AgentSpec,
     config: AgentCreationConfig,
   ): Promise<any> {
-    const resolvedModel = await resolveConfiguredModelId(spec, config);
-    return new BedrockModel({
-      modelId: resolvedModel,
-      region: spec.region || config.appConfig.region || 'us-east-1',
-      maxTokens:
-        spec.guardrails?.maxTokens ?? config.appConfig.defaultMaxOutputTokens,
-      temperature: spec.guardrails?.temperature,
-      topP: spec.guardrails?.topP,
-    });
+    return (await this.buildManagedModel(spec, config)).model;
   }
 
   async createTempAgent(opts: {
@@ -405,5 +396,26 @@ export class StrandsFramework {
       await client.disconnect().catch(() => {});
     }
     this.mcpClients.clear();
+  }
+
+  private async buildManagedModel(
+    spec: AgentSpec,
+    config: AgentCreationConfig,
+  ): Promise<{ model: any; resolvedModel: string }> {
+    const binding = await resolveManagedModelBinding(spec, {
+      appConfig: config.appConfig,
+      listProviderConnections: config.listProviderConnections,
+      modelCatalog: config.modelCatalog,
+    });
+
+    return {
+      model: createStrandsManagedModel({
+        providerConnection: binding.providerConnection,
+        modelId: binding.modelId,
+        spec,
+        appConfig: config.appConfig,
+      }),
+      resolvedModel: binding.modelId,
+    };
   }
 }

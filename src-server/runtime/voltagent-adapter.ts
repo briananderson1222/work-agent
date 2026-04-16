@@ -16,10 +16,10 @@ import {
 } from '@voltagent/core';
 import type { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { ConfigLoader } from '../domain/config-loader.js';
-import { createBedrockProvider } from '../providers/bedrock.js';
 import type { ApprovalRegistry } from '../services/approval-registry.js';
+import { createVoltAgentManagedModel } from './framework-model-factory.js';
 import * as MCPManager from './mcp-manager.js';
-import { resolveConfiguredModelId } from './runtime-provider-resolution.js';
+import { resolveManagedModelBinding } from './runtime-provider-resolution.js';
 import type {
   AgentCreationConfig,
   IAgent,
@@ -108,9 +108,9 @@ class VoltAgentWrapper implements IAgent {
     const result = await this.inner.streamText(input, options);
     return {
       fullStream: result.fullStream as AsyncIterable<IStreamChunk>,
-      text: result.text,
-      usage: result.usage,
-      finishReason: result.finishReason,
+      text: Promise.resolve(result.text),
+      usage: Promise.resolve(result.usage as any),
+      finishReason: Promise.resolve(result.finishReason as any),
     };
   }
 
@@ -148,11 +148,7 @@ export class VoltAgentFramework {
     config: AgentCreationConfig,
     opts: CreateAgentOptions,
   ): Promise<AgentBundle> {
-    const resolvedModel = await resolveConfiguredModelId(spec, config);
-    const model = createBedrockProvider({
-      appConfig: config.appConfig,
-      agentSpec: { ...spec, model: resolvedModel },
-    });
+    const model = await this.createModel(spec, config);
 
     // Create memory
     const memory = new Memory({ storage: opts.memoryAdapter });
@@ -315,10 +311,16 @@ export class VoltAgentFramework {
     spec: AgentSpec,
     config: AgentCreationConfig,
   ): Promise<any> {
-    const resolvedModel = await resolveConfiguredModelId(spec, config);
-    return createBedrockProvider({
+    const binding = await resolveManagedModelBinding(spec, {
       appConfig: config.appConfig,
-      agentSpec: { ...spec, model: resolvedModel },
+      listProviderConnections: config.listProviderConnections,
+      modelCatalog: config.modelCatalog,
+    });
+    return createVoltAgentManagedModel({
+      providerConnection: binding.providerConnection,
+      modelId: binding.modelId,
+      spec,
+      appConfig: config.appConfig,
     });
   }
 

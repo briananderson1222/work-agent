@@ -173,9 +173,82 @@ function seedRoutes(page: import('@playwright/test').Page) {
   ]);
 }
 
+async function dismissSetupLauncher(page: import('@playwright/test').Page) {
+  await page.evaluate(() => {
+    document.querySelector('[data-testid="setup-launcher"]')?.remove();
+  });
+}
+
 test.describe('Dock Mode Preference', () => {
   test.beforeEach(async ({ page }) => {
     await seedRoutes(page);
+  });
+
+  test('dock action controls keep compact, consistent button sizing', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page.waitForTimeout(2000);
+    await dismissSetupLauncher(page);
+
+    await page.locator('.chat-dock__header').click();
+    await page.waitForTimeout(300);
+
+    const openButton = page.locator('.chat-dock__tab-actions .chat-dock__new').first();
+    const newButton = page.locator('.chat-dock__tab-actions .chat-dock__new').nth(1);
+    const maximizeButton = page.locator('.chat-dock__maximize-btn');
+
+    const [openStyles, newStyles, maximizeStyles] = await Promise.all([
+      openButton.evaluate((el) => {
+        const styles = getComputedStyle(el);
+        return {
+          display: styles.display,
+          fontSize: styles.fontSize,
+          fontWeight: styles.fontWeight,
+          height: parseFloat(styles.height),
+        };
+      }),
+      newButton.evaluate((el) => {
+        const styles = getComputedStyle(el);
+        return {
+          display: styles.display,
+          fontSize: styles.fontSize,
+          fontWeight: styles.fontWeight,
+          height: parseFloat(styles.height),
+        };
+      }),
+      maximizeButton.evaluate((el) => {
+        const styles = getComputedStyle(el);
+        return {
+          display: styles.display,
+          fontSize: styles.fontSize,
+          fontWeight: styles.fontWeight,
+          height: parseFloat(styles.height),
+        };
+      }),
+    ]);
+
+    expect(openStyles.display).toBe('flex');
+    expect(newStyles.display).toBe('flex');
+    expect(maximizeStyles.display).toContain('flex');
+    expect(openStyles.fontSize).toBe(newStyles.fontSize);
+    expect(openStyles.fontSize).toBe(maximizeStyles.fontSize);
+    expect(openStyles.fontWeight).toBe(newStyles.fontWeight);
+    expect(openStyles.height).toBeGreaterThan(28);
+    expect(newStyles.height).toBeGreaterThan(28);
+    expect(maximizeStyles.height).toBeGreaterThan(28);
+
+    const [openShortcutSize, maximizeShortcutSize] = await Promise.all([
+      openButton.locator('.chat-dock__subtitle').evaluate((el) => getComputedStyle(el).fontSize),
+      maximizeButton
+        .locator('.chat-dock__subtitle')
+        .evaluate((el) => getComputedStyle(el).fontSize),
+    ]);
+
+    expect(parseFloat(openShortcutSize)).toBeLessThan(parseFloat(openStyles.fontSize));
+    expect(parseFloat(maximizeShortcutSize)).toBeLessThan(
+      parseFloat(maximizeStyles.fontSize),
+    );
   });
 
   test('coding layout applies right dock mode without URL param', async ({
@@ -311,6 +384,7 @@ test.describe('Dock Mode — Mobile', () => {
   }) => {
     await page.goto('/');
     await page.waitForTimeout(2000);
+    await dismissSetupLauncher(page);
 
     // Open the dock to see tab bar
     await page.locator('.chat-dock__header').click();
