@@ -9,6 +9,7 @@ import { type ReactNode, useEffect } from 'react';
 import {
   useActiveChatActions,
   useCreateChatSession,
+  useLaunchChat,
   useOpenConversation,
   useSendMessage,
 } from '../contexts/ActiveChatsContext';
@@ -70,6 +71,7 @@ export function SDKAdapter({ children, layout }: SDKAdapterProps) {
   const createChatSession = useCreateChatSession();
   const activeChatActions = useActiveChatActions();
   const openConversation = useOpenConversation(apiBase);
+  const launchChat = useLaunchChat(apiBase);
   const auth = useAuth();
 
   // Create SDK context value with injected contexts
@@ -88,6 +90,7 @@ export function SDKAdapter({ children, layout }: SDKAdapterProps) {
         useCreateChatSession: () => createChatSession,
         useActiveChatActions: () => activeChatActions,
         useOpenConversation: () => openConversation,
+        useLaunchChat: () => launchChat,
       },
     },
     hooks: {

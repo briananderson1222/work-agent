@@ -1,15 +1,26 @@
+import { LoadingState } from '@stallion-ai/sdk';
 import { useQuery } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
+import {
+  connectionStatusLabel,
+  connectionTypeLabel,
+  prerequisiteStatusLabel,
+} from '../utils/execution';
 import './ConnectionsHub.css';
 
-interface ProviderConnection {
+interface Connection {
   id: string;
+  kind: 'model' | 'runtime';
   type: string;
   name: string;
   enabled: boolean;
-  capabilities: ('llm' | 'embedding' | 'vectordb')[];
+  description?: string;
+  capabilities: string[];
+  status: string;
+  prerequisites: Array<{ name: string; status: string }>;
+  config: Record<string, unknown>;
 }
 
 interface ToolServer {
@@ -137,16 +148,18 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
   const { apiBase } = useApiBase();
   const { navigate } = useNavigation();
 
-  const { data: providers = [] } = useQuery<ProviderConnection[]>({
-    queryKey: ['providers'],
+  const { data: connections = [], isLoading: connectionsLoading } = useQuery<
+    Connection[]
+  >({
+    queryKey: ['connections'],
     queryFn: async () => {
-      const res = await fetch(`${apiBase}/api/providers`);
+      const res = await fetch(`${apiBase}/api/connections`);
       const json = await res.json();
       return json.success ? json.data : [];
     },
   });
 
-  const { data: tools = [] } = useQuery<ToolServer[]>({
+  const { data: tools = [], isLoading: toolsLoading } = useQuery<ToolServer[]>({
     queryKey: ['integrations'],
     queryFn: async () => {
       const res = await fetch(`${apiBase}/integrations`);
@@ -155,185 +168,302 @@ export function ConnectionsHub(_props: ConnectionsHubProps) {
     },
   });
 
-  const { data: knowledge } = useQuery<KnowledgeStatus | null>({
-    queryKey: ['knowledge-status-global'],
-    queryFn: async () => {
-      try {
-        const res = await fetch(`${apiBase}/api/knowledge/status`);
-        const json = await res.json();
-        return json.success ? json.data : null;
-      } catch {
-        return null;
-      }
-    },
-  });
+  const { data: knowledge, isLoading: knowledgeLoading } =
+    useQuery<KnowledgeStatus | null>({
+      queryKey: ['knowledge-status-global'],
+      queryFn: async () => {
+        try {
+          const res = await fetch(`${apiBase}/api/knowledge/status`);
+          const json = await res.json();
+          return json.success ? json.data : null;
+        } catch {
+          return null;
+        }
+      },
+    });
 
-  const modelProviders = providers.filter(
-    (p) =>
-      p.capabilities.includes('llm') || p.capabilities.includes('embedding'),
+  const isLoading = connectionsLoading || toolsLoading || knowledgeLoading;
+
+  const modelConnections = connections.filter(
+    (connection) => connection.kind === 'model',
   );
+  const runtimeConnections = connections.filter(
+    (connection) => connection.kind === 'runtime',
+  );
+
+  function statusClass(status: string): string {
+    if (status === 'ready') return 'ready';
+    if (status === 'missing_prerequisites') return 'warn';
+    if (status === 'error') return 'error';
+    if (status === 'disabled') return 'disabled';
+    return 'warn';
+  }
+
+  function describeConnection(connection: Connection): string {
+    const missing = connection.prerequisites.filter(
+      (item) => item.status !== 'installed',
+    );
+    if (missing.length > 0) {
+      return missing
+        .map((item) => `${item.name} — ${prerequisiteStatusLabel(item.status)}`)
+        .join(' · ');
+    }
+    if (connection.type === 'acp') {
+      const configured = Number(connection.config.configuredCount || 0);
+      const connected = Number(connection.config.connectedCount || 0);
+      return `${connected} of ${configured} active`;
+    }
+    return '';
+  }
 
   return (
     <div className="connections-hub">
-      <div className="connections-hub__inner">
-        <div className="connections-hub__header">
-          <h2 className="connections-hub__title">Connections</h2>
-          <p className="connections-hub__desc">
-            External services powering your agents
-          </p>
-        </div>
-
-        {/* Model Providers */}
-        <div className="connections-hub__section">
-          <div className="connections-hub__section-header">
-            <span className="connections-hub__section-label">
-              Model Providers
-            </span>
-            <button
-              className="connections-hub__add-btn"
-              onClick={() => navigate('/connections/providers')}
-            >
-              Manage
-            </button>
+      {isLoading && <LoadingState />}
+      {!isLoading && (
+        <div className="connections-hub__inner">
+          <div className="connections-hub__header">
+            <h2 className="connections-hub__title">Connections</h2>
+            <p className="connections-hub__desc">
+              External services powering your agents
+            </p>
           </div>
-          <div className="connections-hub__cards">
-            {modelProviders.length > 0 ? (
-              modelProviders.map((p) => {
-                const Icon = PROVIDER_ICONS[p.type] ?? IconLink;
-                return (
-                  <button
-                    key={p.id}
-                    className="connections-hub__card"
-                    onClick={() => navigate(`/connections/providers/${p.id}`)}
-                  >
-                    <div className="connections-hub__card-header">
-                      <span className="connections-hub__card-icon">
-                        <Icon />
-                      </span>
-                      <span className="connections-hub__card-name">
-                        {p.name}
-                      </span>
-                      <span
-                        className={`connections-hub__card-status connections-hub__card-status--${p.enabled ? 'enabled' : 'disabled'}`}
-                      />
-                    </div>
-                    <span className="connections-hub__card-type">{p.type}</span>
-                  </button>
-                );
-              })
-            ) : (
+
+          {/* Model Connections */}
+          <div className="connections-hub__section">
+            <div className="connections-hub__section-header">
+              <span className="connections-hub__section-label">
+                Model Connections
+              </span>
               <button
-                className="connections-hub__empty-card"
+                className="connections-hub__add-btn"
                 onClick={() => navigate('/connections/providers')}
               >
-                + Add a model provider to get started
+                Manage
               </button>
-            )}
-          </div>
-        </div>
-
-        {/* Knowledge */}
-        <div className="connections-hub__section">
-          <div className="connections-hub__section-header">
-            <span className="connections-hub__section-label">Knowledge</span>
-            <button
-              className="connections-hub__add-btn"
-              onClick={() => navigate('/connections/knowledge')}
-            >
-              Manage
-            </button>
-          </div>
-          <div className="connections-hub__cards">
-            {knowledge?.vectorDb ? (
-              <button
-                className="connections-hub__card"
-                onClick={() => navigate('/connections/knowledge')}
-              >
-                <div className="connections-hub__card-header">
-                  <span className="connections-hub__card-icon">
-                    <IconDatabase />
-                  </span>
-                  <span className="connections-hub__card-name">
-                    {knowledge.vectorDb.name}
-                  </span>
-                  <span
-                    className={`connections-hub__card-status connections-hub__card-status--${knowledge.vectorDb.enabled ? 'enabled' : 'disabled'}`}
-                  />
-                </div>
-                <span className="connections-hub__card-type">
-                  {knowledge.vectorDb.type}
-                </span>
-              </button>
-            ) : (
-              <button
-                className="connections-hub__empty-card"
-                onClick={() => navigate('/connections/knowledge')}
-              >
-                + Configure knowledge base
-              </button>
-            )}
-          </div>
-          {knowledge ? (
-            <p className="connections-hub__knowledge-summary">
-              {knowledge.embedding
-                ? `Embedding: via ${knowledge.embedding.name}`
-                : ''}
-              {knowledge.embedding && knowledge.stats.totalDocuments > 0
-                ? ' · '
-                : ''}
-              {knowledge.stats.totalDocuments > 0
-                ? `${knowledge.stats.totalDocuments} docs · ${knowledge.stats.totalChunks} chunks`
-                : ''}
+            </div>
+            <p className="connections-hub__section-desc">
+              Raw LLM and embedding backends
             </p>
-          ) : null}
-        </div>
-
-        {/* Tool Servers */}
-        <div className="connections-hub__section">
-          <div className="connections-hub__section-header">
-            <span className="connections-hub__section-label">Tool Servers</span>
-            <button
-              className="connections-hub__add-btn"
-              onClick={() => navigate('/connections/tools')}
-            >
-              Manage
-            </button>
-          </div>
-          <div className="connections-hub__cards">
-            {tools.length > 0 ? (
-              tools.map((t) => (
+            <div className="connections-hub__cards">
+              {modelConnections.length > 0 ? (
+                modelConnections.map((p) => {
+                  const Icon = PROVIDER_ICONS[p.type] ?? IconLink;
+                  const desc = describeConnection(p);
+                  return (
+                    <button
+                      key={p.id}
+                      className="connections-hub__card"
+                      onClick={() => navigate(`/connections/providers/${p.id}`)}
+                    >
+                      <div className="connections-hub__card-header">
+                        <span className="connections-hub__card-icon">
+                          <Icon />
+                        </span>
+                        <span className="connections-hub__card-name">
+                          {p.name}
+                        </span>
+                        <span
+                          className={`connections-hub__status-badge connections-hub__status-badge--${statusClass(p.enabled ? 'ready' : 'disabled')}`}
+                        >
+                          {p.enabled ? 'Enabled' : 'Disabled'}
+                        </span>
+                      </div>
+                      <span className="connections-hub__card-type">
+                        {connectionTypeLabel(p.type)}
+                      </span>
+                      {desc && (
+                        <span className="connections-hub__card-type">
+                          {desc}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              ) : (
                 <button
-                  key={t.id}
+                  className="connections-hub__empty-card"
+                  onClick={() => navigate('/connections/providers')}
+                >
+                  + Add a model connection
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div className="connections-hub__section">
+            <div className="connections-hub__section-header">
+              <span className="connections-hub__section-label">
+                Runtime Connections
+              </span>
+              <button
+                className="connections-hub__add-btn"
+                onClick={() => navigate('/connections/runtimes')}
+              >
+                Manage
+              </button>
+            </div>
+            <p className="connections-hub__section-desc">
+              AI engines that run your agents
+            </p>
+            <div className="connections-hub__cards">
+              {runtimeConnections.length > 0 ? (
+                runtimeConnections.map((connection) => {
+                  const desc = describeConnection(connection);
+                  return (
+                    <button
+                      key={connection.id}
+                      className="connections-hub__card"
+                      onClick={() =>
+                        navigate(`/connections/runtimes/${connection.id}`)
+                      }
+                    >
+                      <div className="connections-hub__card-header">
+                        <span className="connections-hub__card-icon">
+                          <IconTool />
+                        </span>
+                        <span className="connections-hub__card-name">
+                          {connection.name}
+                        </span>
+                        <span
+                          className={`connections-hub__status-badge connections-hub__status-badge--${statusClass(connection.status)}`}
+                        >
+                          {connectionStatusLabel(connection.status)}
+                        </span>
+                      </div>
+                      <span className="connections-hub__card-type">
+                        {connectionTypeLabel(connection.type)}
+                      </span>
+                      {desc && (
+                        <span className="connections-hub__card-type">
+                          {desc}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="connections-hub__empty-card connections-hub__empty-card--static">
+                  <div>No runtime connections available.</div>
+                  <div className="connections-hub__empty-hint">
+                    Runtimes appear here automatically when supported AI engines
+                    are detected.
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Knowledge */}
+          <div className="connections-hub__section">
+            <div className="connections-hub__section-header">
+              <span className="connections-hub__section-label">Knowledge</span>
+              <button
+                className="connections-hub__add-btn"
+                onClick={() => navigate('/connections/knowledge')}
+              >
+                Manage
+              </button>
+            </div>
+            <p className="connections-hub__section-desc">
+              Vector database and embeddings for search
+            </p>
+            <div className="connections-hub__cards">
+              {knowledge?.vectorDb ? (
+                <button
                   className="connections-hub__card"
-                  onClick={() => navigate(`/connections/tools/${t.id}`)}
+                  onClick={() => navigate('/connections/knowledge')}
                 >
                   <div className="connections-hub__card-header">
                     <span className="connections-hub__card-icon">
-                      <IconTool />
+                      <IconDatabase />
                     </span>
                     <span className="connections-hub__card-name">
-                      {t.displayName ?? t.id}
+                      {knowledge.vectorDb.name}
                     </span>
                     <span
-                      className={`connections-hub__card-status connections-hub__card-status--${t.connected ? 'enabled' : 'disabled'}`}
+                      className={`connections-hub__card-status connections-hub__card-status--${knowledge.vectorDb.enabled ? 'enabled' : 'disabled'}`}
                     />
                   </div>
                   <span className="connections-hub__card-type">
-                    {t.transport}
+                    {knowledge.vectorDb.type}
                   </span>
                 </button>
-              ))
-            ) : (
+              ) : (
+                <button
+                  className="connections-hub__empty-card"
+                  onClick={() => navigate('/connections/knowledge')}
+                >
+                  + Configure knowledge base
+                </button>
+              )}
+            </div>
+            {knowledge ? (
+              <p className="connections-hub__knowledge-summary">
+                {knowledge.embedding
+                  ? `Embedding: via ${knowledge.embedding.name}`
+                  : ''}
+                {knowledge.embedding && knowledge.stats.totalDocuments > 0
+                  ? ' · '
+                  : ''}
+                {knowledge.stats.totalDocuments > 0
+                  ? `${knowledge.stats.totalDocuments} docs · ${knowledge.stats.totalChunks} chunks`
+                  : ''}
+              </p>
+            ) : null}
+          </div>
+
+          {/* Tool Servers */}
+          <div className="connections-hub__section">
+            <div className="connections-hub__section-header">
+              <span className="connections-hub__section-label">
+                Tool Servers
+              </span>
               <button
-                className="connections-hub__empty-card"
+                className="connections-hub__add-btn"
                 onClick={() => navigate('/connections/tools')}
               >
-                + Add a tool server
+                Manage
               </button>
-            )}
+            </div>
+            <p className="connections-hub__section-desc">
+              MCP and external tool integrations
+            </p>
+            <div className="connections-hub__cards">
+              {tools.length > 0 ? (
+                tools.map((t) => (
+                  <button
+                    key={t.id}
+                    className="connections-hub__card"
+                    onClick={() => navigate(`/connections/tools/${t.id}`)}
+                  >
+                    <div className="connections-hub__card-header">
+                      <span className="connections-hub__card-icon">
+                        <IconTool />
+                      </span>
+                      <span className="connections-hub__card-name">
+                        {t.displayName ?? t.id}
+                      </span>
+                      <span
+                        className={`connections-hub__card-status connections-hub__card-status--${t.connected ? 'enabled' : 'disabled'}`}
+                      />
+                    </div>
+                    <span className="connections-hub__card-type">
+                      {t.transport}
+                    </span>
+                  </button>
+                ))
+              ) : (
+                <button
+                  className="connections-hub__empty-card"
+                  onClick={() => navigate('/connections/tools')}
+                >
+                  + Add a tool server
+                </button>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

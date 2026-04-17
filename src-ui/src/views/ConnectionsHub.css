@@ -161,6 +161,66 @@
   color: var(--accent-primary);
 }
 
+/* ── Section description ────────────────────────────────────────── */
+
+.connections-hub__section-desc {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: -6px 0 10px;
+}
+
+/* ── Status badge ───────────────────────────────────────────────── */
+
+.connections-hub__status-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.connections-hub__status-badge--ready {
+  background: color-mix(in srgb, var(--success-text, #22c55e) 15%, transparent);
+  color: var(--success-text, #22c55e);
+}
+
+.connections-hub__status-badge--warn {
+  background: color-mix(in srgb, var(--warning-text, #f59e0b) 15%, transparent);
+  color: var(--warning-text, #f59e0b);
+}
+
+.connections-hub__status-badge--error {
+  background: color-mix(in srgb, var(--error-text, #ef4444) 15%, transparent);
+  color: var(--error-text, #ef4444);
+}
+
+.connections-hub__status-badge--disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+}
+
+/* ── Empty card static (non-button) ────────────────────────────── */
+
+.connections-hub__empty-card--static {
+  cursor: default;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.connections-hub__empty-card--static:hover {
+  border-color: var(--border-secondary);
+  color: var(--text-muted);
+}
+
+.connections-hub__empty-hint {
+  font-size: 11px;
+  margin-top: 4px;
+  opacity: 0.7;
+}
+
 /* ── Knowledge summary ──────────────────────────────────────────── */
 
 .connections-hub__knowledge-summary {

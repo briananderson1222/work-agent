@@ -25,7 +25,7 @@ Global settings applied across all agents and sessions.
 
 | field | type | default | description |
 |---|---|---|---|
-| `defaultMaxTurns` | number | `10` | Maximum agentic turns before a conversation is halted |
+| `defaultMaxTurns` | number | `0` | Maximum agentic turns (maps to VoltAgent `maxSteps`). `0` = no limit (falls back to 200). |
 | `defaultMaxOutputTokens` | number | `16384` | Maximum tokens in a single model response |
 | `systemPrompt` | string | — | Global system prompt prepended to every agent's instructions |
 | `templateVariables` | array | `[]` | Named variables available for `{{key}}` substitution in prompts |
@@ -89,7 +89,7 @@ Defines a single agent. The directory name is the agent's slug.
 | `icon` | string | no | Icon identifier for the UI |
 | `model` | string | no | Bedrock model ID. Falls back to `defaultModel` from app.json |
 | `region` | string | no | AWS region override for this agent |
-| `maxTurns` | number | no | Turn limit override. Falls back to `defaultMaxTurns` |
+| `maxTurns` | number | no | Turn limit override (maps to VoltAgent `maxSteps`). Falls back to `defaultMaxTurns` |
 | `tools` | object | no | Tool and MCP server configuration |
 | `guardrails` | object | no | Model inference constraints |
 | `commands` | object | no | Slash commands available in this agent's chat |

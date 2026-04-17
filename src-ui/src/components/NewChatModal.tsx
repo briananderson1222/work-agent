@@ -1,13 +1,17 @@
 import { useLayoutQuery } from '@stallion-ai/sdk';
+import type { ConnectionConfig } from '@stallion-ai/shared';
+import { useQuery } from '@tanstack/react-query';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { activeChatsStore } from '../contexts/ActiveChatsContext';
 import type { AgentData } from '../contexts/AgentsContext';
+import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { ProjectMetadata } from '../contexts/ProjectsContext';
 import {
   getRecentAgentSlugs,
   trackRecentAgent,
 } from '../hooks/useRecentAgents';
+import { canAgentStartChat } from '../utils/execution';
 import { AgentIcon } from './AgentIcon';
 
 interface NewChatModalProps {
@@ -45,6 +49,7 @@ export function NewChatModal({
   onSelect,
   onClose,
 }: NewChatModalProps) {
+  const { apiBase } = useApiBase();
   const [agentSearch, setAgentSearch] = useState('');
   const [selectedAgentIndex, setSelectedAgentIndex] = useState(0);
   const [selectedContext, setSelectedContext] = useState<string>(
@@ -55,10 +60,34 @@ export function NewChatModal({
   const contextRef = useRef<HTMLDivElement>(null);
   const agentInputRef = useRef<HTMLInputElement>(null);
 
-  const { selectedLayout } = useNavigation();
+  const { selectedLayout, navigate } = useNavigation();
   const { data: layout } = useLayoutQuery(selectedLayout || '', {
     enabled: !!selectedLayout,
   });
+  const { data: runtimeConnections = [] } = useQuery<ConnectionConfig[]>({
+    queryKey: ['connections', 'runtimes'],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/connections/runtimes`);
+      const json = await res.json();
+      return json.success ? json.data : [];
+    },
+  });
+
+  // Fetch project config for agent scoping
+  const selectedProjectSlug =
+    selectedContext !== GLOBAL_CONTEXT ? selectedContext : null;
+  const { data: selectedProjectConfig } = useQuery<{
+    agents?: string[];
+  }>({
+    queryKey: ['projects', selectedProjectSlug],
+    queryFn: async () => {
+      const res = await fetch(`${apiBase}/api/projects/${selectedProjectSlug}`);
+      const json = await res.json();
+      return json.success ? json.data : {};
+    },
+    enabled: !!selectedProjectSlug,
+  });
+  const projectAgentFilter = selectedProjectConfig?.agents;
 
   const isGlobal = selectedContext === GLOBAL_CONTEXT;
   const selectedProject = projects.find((p) => p.slug === selectedContext);
@@ -111,22 +140,37 @@ export function NewChatModal({
   );
 
   const { groups, flatList } = useMemo(() => {
-    const filtered = (agents || []).filter(
-      (a) =>
-        a.name.toLowerCase().includes(agentSearch.toLowerCase()) ||
-        a.slug.toLowerCase().includes(agentSearch.toLowerCase()),
+    const query = agentSearch.toLowerCase();
+    const chatReadyAgents = (agents || []).filter(
+      (agent) =>
+        canAgentStartChat(agent, runtimeConnections) &&
+        // Filter by project agent assignment (empty = all)
+        (!projectAgentFilter ||
+          projectAgentFilter.length === 0 ||
+          projectAgentFilter.includes(agent.slug)),
     );
+    const filtered = chatReadyAgents.filter(
+      (a) =>
+        a.name.toLowerCase().includes(query) ||
+        a.slug.toLowerCase().includes(query),
+    );
+
+    const isRuntimeAgent = (a: AgentData) => a.slug.startsWith('__runtime:');
 
     const isLayoutAgent = (a: AgentData) => {
       if (a.source === 'acp') return false;
+      if (isRuntimeAgent(a)) return false;
       if (wsAgentSlugs.has(a.slug)) return true;
       if (a.slug.includes(':')) return true;
       return false;
     };
 
-    const wsAgents = filtered.filter((a) => isLayoutAgent(a));
+    const runtimeAgents = filtered.filter(isRuntimeAgent);
+    const wsAgents = filtered.filter(
+      (a) => !isRuntimeAgent(a) && isLayoutAgent(a),
+    );
     const globalAgents = filtered.filter(
-      (a) => a.source !== 'acp' && !isLayoutAgent(a),
+      (a) => a.source !== 'acp' && !isRuntimeAgent(a) && !isLayoutAgent(a),
     );
     const acpAgents = filtered.filter((a) => a.source === 'acp');
 
@@ -151,6 +195,9 @@ export function NewChatModal({
 
     if (recentAgents.length > 0)
       groups.push({ label: 'Recent', icon: '🕐', agents: recentAgents });
+
+    if (runtimeAgents.length > 0)
+      groups.push({ label: 'Runtime Chat', icon: '⚡', agents: runtimeAgents });
 
     const showLayoutAgents =
       isGlobal || (selectedProject?.layoutCount ?? 0) > 0;
@@ -190,9 +237,11 @@ export function NewChatModal({
     wsAgentSlugs,
     layout?.icon,
     layout?.name,
+    runtimeConnections,
     selectedContext,
     isGlobal,
     selectedProject?.layoutCount,
+    projectAgentFilter,
   ]);
 
   const handleSelect = (agent: AgentData) => {
@@ -321,6 +370,26 @@ export function NewChatModal({
         </div>
 
         <div className="new-chat-modal__list">
+          {flatList.length === 0 && (
+            <div className="new-chat-modal__empty-state">
+              <div className="new-chat-modal__group-label">
+                No chat-capable agents or runtimes are ready.
+              </div>
+              <p className="new-chat-modal__empty-hint">
+                Configure a runtime connection to get started.{' '}
+                <button
+                  type="button"
+                  className="new-chat-modal__empty-link"
+                  onClick={() => {
+                    onClose();
+                    navigate('/connections/runtimes');
+                  }}
+                >
+                  Go to Connections →
+                </button>
+              </p>
+            </div>
+          )}
           {groups.map((group, gi) => (
             <React.Fragment key={group.label}>
               <div

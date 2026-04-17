@@ -1,0 +1,44 @@
+{
+  "mcpServers": {
+    "awslabs.aws-iac-mcp-server": {
+      "args": [
+        "awslabs.aws-iac-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
+        "AWS_PROFILE": "${AWS_PROFILE}",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.ccapi-mcp-server": {
+      "args": [
+        "awslabs.ccapi-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
+        "AWS_PROFILE": "${AWS_PROFILE}",
+        "DEFAULT_TAGS": "enabled",
+        "FASTMCP_LOG_LEVEL": "ERROR",
+        "SECURITY_SCANNING": "enabled"
+      }
+    },
+    "awslabs.cdk-mcp-server": {
+      "args": [
+        "awslabs.cdk-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "awslabs.terraform-mcp-server": {
+      "args": [
+        "awslabs.terraform-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}

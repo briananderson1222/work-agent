@@ -63,7 +63,10 @@ export function useSessionManagementViewModel(
           const dash = agent.slug.indexOf('-');
           agentContext = dash > 0 ? agent.slug.substring(0, dash) : 'acp';
           agentLabel = dash > 0 ? agent.slug.substring(dash + 1) : agent.name;
-        } else if (agent.slug.includes(':')) {
+        } else if (
+          agent.slug.includes(':') &&
+          !agent.slug.startsWith('__runtime:')
+        ) {
           agentType = 'layout';
           const [ws, ag] = agent.slug.split(':', 2);
           agentContext = ws;

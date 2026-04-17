@@ -1,0 +1,104 @@
+# promptfooconfig.yaml — Stallion orchestrator eval suite
+description: 'Stallion Agent Eval Suite — routing, two-mode delegation, and direct handling'
+
+providers:
+  - id: 'exec: bash ../../lib/kiro-stallion.sh'
+    label: stallion
+
+prompts:
+  - '{{prompt}}'
+
+evaluateOptions:
+  maxConcurrency: 1
+
+defaultTest:
+  options:
+    provider: 'exec: bash ../../lib/kiro-judge.sh'
+
+tests:
+  # --- Direct handling (no delegation) ---
+  - vars:
+      prompt: "Who are you?"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent should answer directly from its identity/soul context.
+          It should NOT delegate to any other agent.
+          Score based on:
+          1. Answered directly without delegation (required)
+          2. Response reflects its identity as Stallion/orchestrator (required)
+          Score 1 if delegated, 3 if answered but generic, 5 if identity-aware direct answer.
+
+  # --- Background delegation to sales-sa ---
+  - vars:
+      prompt: "Check my calendar for today"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-agent-delegate']
+      - type: llm-rubric
+        value: |
+          The agent should delegate to sales-sa via tool-agent-delegate (background mode).
+          This is a data lookup — background delegation is the correct mode.
+          Score based on:
+          1. Used tool-agent-delegate (background), not tool-agent-handoff (required)
+          2. Targeted sales-sa as the agent (required)
+          3. Presented the result back to the user (required)
+          Score 1 if no delegation, 3 if wrong mode or agent, 5 if correct background delegation.
+
+  # --- Foreground handoff to dev ---
+  - vars:
+      prompt: "Explore the codebase structure of this project"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-agent-handoff']
+      - type: llm-rubric
+        value: |
+          The agent should hand off to dev via tool-agent-handoff (foreground mode).
+          Codebase exploration is interactive work — foreground handoff is the correct mode.
+          It's also acceptable if the agent offers both modes as a numbered list with handoff recommended.
+          Score based on:
+          1. Used tool-agent-handoff OR offered it as the recommended option (required)
+          2. Targeted dev as the agent (required)
+          3. Reported the job ID back for tracking (nice to have)
+          Score 1 if no delegation, 3 if used background instead, 5 if correct foreground handoff.
+
+  # --- Background delegation to aws ---
+  - vars:
+      prompt: "What are the latest Bedrock model pricing changes?"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-agent-delegate']
+      - type: llm-rubric
+        value: |
+          The agent should delegate to aws via tool-agent-delegate (background mode).
+          This is a quick lookup — background delegation is the correct mode.
+          Score based on:
+          1. Used tool-agent-delegate (background), not tool-agent-handoff (required)
+          2. Targeted aws as the agent (required)
+          3. Presented the result back to the user (required)
+          Score 1 if no delegation, 3 if wrong mode or agent, 5 if correct background delegation.
+
+  # --- Foreground handoff for UI work ---
+  - vars:
+      prompt: "Build me a settings page for the app"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-agent-handoff']
+      - type: llm-rubric
+        value: |
+          Building a UI page is interactive work — the agent should use tool-agent-handoff
+          (foreground) to open a dev session, not tool-agent-delegate (background).
+          Score based on:
+          1. Chose tool-agent-handoff over tool-agent-delegate (required)
+          2. Targeted dev as the agent (required)
+          Score 1 if no delegation, 3 if used background delegate, 5 if correct foreground handoff.

@@ -6,6 +6,7 @@ import { execSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { resolveHomeDir } from '../utils/paths.js';
+import type { ProviderAdapterShape } from './adapter-shape.js';
 import {
   DefaultAgentRegistryProvider,
   DefaultAuthProvider,
@@ -21,6 +22,7 @@ import type {
   IBrandingProvider,
   IIntegrationRegistryProvider,
   IPluginRegistryProvider,
+  IProviderAdapterRegistry,
   ISettingsProvider,
   ISkillRegistryProvider,
   IUserDirectoryProvider,
@@ -53,7 +55,8 @@ export function registerProvider(
     type === 'agentRegistry' ||
     type === 'integrationRegistry' ||
     type === 'notification' ||
-    type === 'skillRegistry'
+    type === 'skillRegistry' ||
+    type === 'providerAdapter'
   ) {
     if (!additiveStore.has(type)) additiveStore.set(type, []);
     additiveStore.get(type)!.push({ provider, source });
@@ -88,6 +91,53 @@ export function listProviders(type: string): ProviderEntry[] {
 export function clearAll(): void {
   store.clear();
   additiveStore.clear();
+}
+
+/**
+ * Clear plugin-provided entries only, preserving built-in registrations
+ * (e.g. provider adapters registered during core initialization).
+ */
+export function clearPluginProviders(): void {
+  store.clear();
+  for (const [type, entries] of additiveStore) {
+    const builtIn = entries.filter((e) => BUILTIN_SOURCES.has(e.source));
+    if (builtIn.length > 0) additiveStore.set(type, builtIn);
+    else additiveStore.delete(type);
+  }
+}
+
+const BUILTIN_SOURCES = new Set(['bedrock', 'claude', 'codex']);
+
+// ── Provider Adapters ──────────────────────────────────
+
+export function registerProviderAdapter(adapter: ProviderAdapterShape): void {
+  registerProvider('providerAdapter', adapter, { source: adapter.provider });
+}
+
+export function getProviderAdapters(): ProviderAdapterShape[] {
+  return listProviders('providerAdapter').map(
+    (entry) => entry.provider as ProviderAdapterShape,
+  );
+}
+
+export function getProviderAdapter(
+  provider: import('@stallion-ai/shared').ProviderKind,
+): ProviderAdapterShape | undefined {
+  return getProviderAdapters().find((adapter) => adapter.provider === provider);
+}
+
+export function createProviderAdapterRegistry(): IProviderAdapterRegistry {
+  return {
+    register(adapter) {
+      registerProviderAdapter(adapter);
+    },
+    get(provider) {
+      return getProviderAdapter(provider);
+    },
+    list() {
+      return getProviderAdapters();
+    },
+  };
 }
 
 // ── Auth ───────────────────────────────────────────────

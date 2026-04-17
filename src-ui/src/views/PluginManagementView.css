@@ -1003,6 +1003,99 @@
   border-color: var(--accent-primary);
 }
 
+/* ── Environment Variables ── */
+.plugins__env-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.5rem;
+  background: var(--bg-secondary);
+  border: 1px solid transparent;
+  transition: border-color 0.15s ease;
+}
+.plugins__env-field--missing {
+  border-color: color-mix(in srgb, var(--error-text) 40%, transparent);
+  background: color-mix(in srgb, var(--error-text) 4%, var(--bg-secondary));
+}
+.plugins__env-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.plugins__env-key {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+.plugins__env-badge {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0.4rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
+}
+.plugins__env-badge--required {
+  background: color-mix(in srgb, var(--accent-primary) 14%, transparent);
+  color: var(--accent-primary);
+}
+.plugins__env-status {
+  margin-left: auto;
+  font-size: 0.7rem;
+  font-weight: 700;
+  width: 1.2rem;
+  height: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+.plugins__env-status--set {
+  background: color-mix(in srgb, var(--success-text, #22c55e) 14%, transparent);
+  color: var(--success-text, #22c55e);
+}
+.plugins__env-status--missing {
+  background: color-mix(in srgb, var(--error-text) 14%, transparent);
+  color: var(--error-text);
+}
+.plugins__env-desc {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+.plugins__env-input-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+.plugins__env-input {
+  flex: 1;
+}
+.plugins__env-unsaved {
+  font-size: 0.65rem;
+  font-weight: 500;
+  color: var(--warning-text, #f59e0b);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  animation: env-unsaved-pulse 1.5s ease-in-out infinite;
+}
+@keyframes env-unsaved-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 /* ── Changelog ── */
 .plugins__changelog-list {
   display: flex;

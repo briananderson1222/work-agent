@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "qmd": {
+      "args": [
+        "mcp"
+      ],
+      "autoApprove": [
+        "qmd_search",
+        "qmd_vector_search",
+        "qmd_deep_search",
+        "qmd_get",
+        "qmd_multi_get",
+        "qmd_status"
+      ],
+      "command": "qmd"
+    }
+  }
+}

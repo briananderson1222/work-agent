@@ -1,0 +1,106 @@
+# promptfooconfig.yaml — AWS agent eval suite
+description: 'Stallion Agent Eval Suite — aws skill activation and delegation'
+
+providers:
+  - id: 'exec: bash ../../lib/kiro-aws.sh'
+    label: aws
+
+prompts:
+  - '{{prompt}}'
+
+evaluateOptions:
+  maxConcurrency: 1
+
+defaultTest:
+  options:
+    provider: 'exec: bash ../../lib/kiro-judge.sh'
+
+tests:
+  - vars:
+      prompt: "Research Amazon Bedrock — what models are available, pricing, and how it compares to using SageMaker for inference?"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-aws-information']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the aws-research skill for structured service research.
+          It should delegate to tool-aws-information for documentation and pricing.
+          Score based on PROCESS:
+          1. Identified this as a research task and activated aws-research (required)
+          2. Delegated to tool-aws-information (required)
+          3. Attempted to gather from multiple sources — docs, pricing, comparisons (desired)
+          Score 1 if no skill activation, 3 if activated but no delegation, 5 if all met.
+
+  - vars:
+      prompt: "Review this architecture: we have an ALB fronting ECS Fargate tasks, with RDS Aurora for the database and S3 for static assets. Evaluate it against the Well-Architected Framework."
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-aws-information']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the aws-architecture-review skill.
+          It should delegate to tool-aws-information for Well-Architected guidance.
+          Score based on PROCESS:
+          1. Identified this as an architecture review and activated the skill (required)
+          2. Delegated to tool-aws-information for pillar-based evaluation (required)
+          3. Attempted to evaluate against multiple Well-Architected pillars (desired)
+          Score 1 if no skill activation, 3 if activated but no delegation, 5 if all met.
+
+  - vars:
+      prompt: "Our AWS bill jumped 40% last month. Help me understand what's driving the cost increase and find optimization opportunities."
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-aws-operations']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the aws-cost-analysis skill.
+          It should delegate to tool-aws-operations for billing/Cost Explorer data
+          and tool-aws-information for pricing context.
+          Score based on PROCESS:
+          1. Identified this as a cost analysis and activated the skill (required)
+          2. Delegated to tool-aws-operations for billing data (required)
+          Score 1 if no skill activation, 3 if activated but no delegation, 5 if all met.
+
+  - vars:
+      prompt: "Search internal Amazon docs for the Bedrock roadmap and any upcoming model launches"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-aws-internal']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the aws-internal-research skill.
+          It should delegate to tool-aws-internal for internal wiki/doc search.
+          Score based on PROCESS:
+          1. Identified this as an internal research request and activated the skill (required)
+          2. Delegated to tool-aws-internal (required)
+          Score 1 if no skill activation, 3 if activated but no delegation, 5 if both met.
+
+  - vars:
+      prompt: "Help me write Forte peer feedback for my colleague Alex Chen"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the aws-feedback skill for Forte peer feedback.
+          It should follow the guided workflow: identify the person, gather context, select LPs.
+          Score based on PROCESS:
+          1. Identified and activated aws-feedback skill (required)
+          2. Started the Step 1 workflow — asked who the feedback is for or looked up Alex Chen (required)
+          Score 1 if no skill activation, 3 if activated but wrong workflow, 5 if both met.

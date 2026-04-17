@@ -31,17 +31,27 @@ import {
 } from '../domain/config-loader.js';
 import { FileStorageAdapter } from '../domain/file-storage-adapter.js';
 import { runStartupMigrations } from '../domain/migration.js';
+import { getOrchestrationDatabasePath } from '../domain/migrations/003-orchestration-events.js';
 import type { AgentSpec, AppConfig } from '../domain/types.js';
 import { ACPStatus } from '../domain/types.js';
 import { MonitoringEmitter } from '../monitoring/emitter.js';
 import { createOtlpReceiverRoutes } from '../monitoring/otlp-receiver.js';
+import { BedrockAdapter } from '../providers/adapters/bedrock-adapter.js';
+import { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
+import { CodexAdapter } from '../providers/adapters/codex-adapter.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import {
+  createEmbeddingProvider,
+  createVectorDbProvider,
+} from '../providers/connection-factories.js';
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
 import {
+  createProviderAdapterRegistry,
   getNotificationProviders,
   listProviders,
   registerAgentRegistryProvider,
   registerIntegrationRegistryProvider,
+  registerProviderAdapter,
 } from '../providers/registry.js';
 import { createACPRoutes } from '../routes/acp.js';
 import { createAgentToolRoutes } from '../routes/agent-tools.js';
@@ -57,6 +67,7 @@ import { createBrandingRoutes } from '../routes/branding.js';
 import { createChatRoutes } from '../routes/chat.js';
 import { createCodingRoutes } from '../routes/coding.js';
 import { createConfigRoutes } from '../routes/config.js';
+import { createConnectionRoutes } from '../routes/connections.js';
 import {
   createConversationRoutes,
   createGlobalConversationRoutes,
@@ -75,16 +86,14 @@ import { createLayoutRoutes, createWorkflowRoutes } from '../routes/layouts.js';
 import modelsRoute from '../routes/models.js';
 import { createMonitoringRoutes } from '../routes/monitoring.js';
 import { createNotificationRoutes } from '../routes/notifications.js';
+import { createOrchestrationRoutes } from '../routes/orchestration.js';
 import { createPluginRoutes } from '../routes/plugins.js';
 import { createProjectRoutes } from '../routes/projects.js';
 import { createPromptRoutes } from '../routes/prompts.js';
-import {
-  createEmbeddingProvider,
-  createProviderRoutes,
-  createVectorDbProvider,
-} from '../routes/providers.js';
+import { createProviderRoutes } from '../routes/providers.js';
 import { createRegistryRoutes } from '../routes/registry.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
+import { createSkillRoutes } from '../routes/skills.js';
 import { createSystemRoutes } from '../routes/system.js';
 import { createTelemetryRoutes } from '../routes/telemetry-events.js';
 import { createTemplateRoutes } from '../routes/templates.js';
@@ -94,18 +103,21 @@ import { attachVoiceWebSocket, createVoiceRoutes } from '../routes/voice.js';
 import { ACPManager } from '../services/acp-bridge.js';
 import { AgentService } from '../services/agent-service.js';
 import { ApprovalRegistry } from '../services/approval-registry.js';
+import { ConnectionService } from '../services/connection-service.js';
 import { EventBus } from '../services/event-bus.js';
+import { EventStore } from '../services/event-store.js';
 import { FeedbackService } from '../services/feedback-service.js';
 import { FileTreeService } from '../services/file-tree-service.js';
 import { KnowledgeService } from '../services/knowledge-service.js';
 import { LayoutService } from '../services/layout-service.js';
 import { MCPService } from '../services/mcp-service.js';
 import { NotificationService } from '../services/notification-service.js';
+import { OrchestrationService } from '../services/orchestration-service.js';
 import { ProjectService } from '../services/project-service.js';
 import { PromptService } from '../services/prompt-service.js';
 import { ProviderService } from '../services/provider-service.js';
 import { SchedulerService } from '../services/scheduler-service.js';
-import * as SkillService from '../services/skill-service.js';
+import { SkillService } from '../services/skill-service.js';
 import { TerminalService } from '../services/terminal-service.js';
 import { TerminalWebSocketServer } from '../services/terminal-ws-server.js';
 import { registerObservableGauges } from '../telemetry/metrics.js';
@@ -219,14 +231,21 @@ export class StallionRuntime {
   private usageAggregator?: UsageAggregator;
   private port: number;
   private approvalRegistry: ApprovalRegistry;
+  private bedrockAdapter = new BedrockAdapter();
+  private claudeAdapter = new ClaudeAdapter();
+  private codexAdapter = new CodexAdapter();
+  private orchestrationService!: OrchestrationService;
+  private orchestrationEventStore: EventStore;
 
   // Services
   private agentService!: AgentService;
+  private skillService!: SkillService;
   private mcpService!: MCPService;
   private layoutService!: LayoutService;
   private storageAdapter!: FileStorageAdapter;
   private projectService!: ProjectService;
   private providerService!: ProviderService;
+  private connectionService!: ConnectionService;
   private knowledgeService!: KnowledgeService;
   private fileTreeService!: FileTreeService;
   private terminalService!: TerminalService;
@@ -248,6 +267,9 @@ export class StallionRuntime {
       projectHomeDir,
       watchFiles: true,
     });
+    this.orchestrationEventStore = new EventStore(
+      getOrchestrationDatabasePath(projectHomeDir),
+    );
 
     this.logger = createLogger({
       name: 'stallion',
@@ -263,6 +285,7 @@ export class StallionRuntime {
       this.agentSpecs,
       this.logger,
     );
+    this.skillService = new SkillService(this.configLoader, this.logger);
     this.mcpService = new MCPService(
       this.configLoader,
       this.mcpConfigs,
@@ -324,6 +347,17 @@ export class StallionRuntime {
       this.monitoringEvents,
       (event: any) => this.persistEvent(event),
       this.monitoringEmitter,
+    );
+    this.connectionService = new ConnectionService(
+      this.providerService,
+      () => createProviderAdapterRegistry().list(),
+      async () => {
+        const config = await this.configLoader.loadACPConfig();
+        return config.connections;
+      },
+      () => this.acpBridge.getStatus(),
+      () => this.configLoader.loadAppConfig(),
+      (updates) => this.configLoader.updateAppConfig(updates),
     );
 
     // Log versions for debugging
@@ -404,8 +438,10 @@ export class StallionRuntime {
     const mcpServers = Array.from(
       new Set([
         'stallion-control',
-        ...Array.from(this.agentSpecs.values()).flatMap(
-          (spec) => spec.tools?.mcpServers ?? [],
+        ...Array.from(this.agentSpecs.values()).flatMap((spec) =>
+          (spec.tools?.mcpServers ?? []).filter(
+            (e): e is string => typeof e === 'string',
+          ),
         ),
       ]),
     );
@@ -446,7 +482,7 @@ export class StallionRuntime {
   async reloadSkillsAndAgents(): Promise<void> {
     const projects = this.storageAdapter?.listProjects() || [];
     const activeProject = projects[0]?.slug;
-    await SkillService.discoverSkills(
+    await this.skillService.discoverSkills(
       this.configLoader.getProjectHomeDir(),
       activeProject,
     );
@@ -502,6 +538,16 @@ export class StallionRuntime {
     }
 
     // Registry providers are registered by plugins via loadProviders()
+    registerProviderAdapter(this.bedrockAdapter);
+    registerProviderAdapter(this.claudeAdapter);
+    registerProviderAdapter(this.codexAdapter);
+    this.orchestrationService = new OrchestrationService({
+      adapterRegistry: createProviderAdapterRegistry(),
+      eventBus: this.eventBus,
+      eventStore: this.orchestrationEventStore,
+      logger: this.logger,
+    });
+    this.orchestrationService.initialize();
 
     // JSON manifest fallback for environments without plugins
     if (this.appConfig.registryUrl) {
@@ -520,9 +566,8 @@ export class StallionRuntime {
     this.modelCatalog = new BedrockModelCatalog(this.appConfig.region);
     this.logger.debug('Bedrock model catalog initialized');
 
-    // Load plugin providers
+    // Load plugin providers (clearAll() inside resets the registry)
     await this.loadPluginProviders();
-
     // Re-scan plugin prompts so they're available via the API
     await this.loadPluginPrompts();
 
@@ -544,7 +589,7 @@ export class StallionRuntime {
       registerSkillRegistryProvider(new GitHubSkillRegistryProvider());
     }
 
-    await SkillService.discoverSkills(
+    await this.skillService.discoverSkills(
       this.configLoader.getProjectHomeDir(),
       activeProject,
     );
@@ -611,6 +656,17 @@ export class StallionRuntime {
       );
     };
     scheduleDailyReload();
+
+    // Reload agents when a plugin is installed so contributed agents appear immediately
+    this.eventBus.subscribe((evt) => {
+      if (evt.event === 'plugins:installed') {
+        this.reloadAgents().catch((err) =>
+          this.logger.error('Failed to reload agents after plugin install', {
+            error: err,
+          }),
+        );
+      }
+    });
 
     // Load all agents
     const agentMetadataList = await this.configLoader.listAgents();
@@ -921,6 +977,7 @@ export class StallionRuntime {
           eventBus: this.eventBus,
           appConfig: this.appConfig,
           port: this.port,
+          skillService: this.skillService,
         },
         this.logger,
       ),
@@ -961,16 +1018,26 @@ export class StallionRuntime {
           await this.acpBridge.startAll(acpConfig.connections);
         },
         () => this.reloadSkillsAndAgents(),
+        this.skillService,
       ),
     );
 
     // === Agent CRUD Endpoints ===
     const agentRoutes = createAgentRoutes(
       this.agentService,
+      this.skillService,
       () => this.reloadAgents(),
       () => this.voltAgent,
     );
     app.route('/agents', agentRoutes);
+
+    // === Skill CRUD Endpoints ===
+    app.route(
+      '/api/skills',
+      createSkillRoutes(this.skillService, () =>
+        this.configLoader.getProjectHomeDir(),
+      ),
+    );
 
     // List all integrations (MCP server configs)
     app.route(
@@ -997,6 +1064,13 @@ export class StallionRuntime {
     );
 
     app.route('/api/ui', createUICommandRoutes(this.eventBus));
+    app.route(
+      '/api/orchestration',
+      createOrchestrationRoutes(this.orchestrationService, {
+        eventBus: this.eventBus,
+        logger: this.logger,
+      }),
+    );
 
     // Build RuntimeContext for extracted route modules
     const ctx = this.buildRuntimeContext();
@@ -1014,6 +1088,22 @@ export class StallionRuntime {
           autoApprove: SC_READ_ONLY_TOOLS,
         },
         getVirtualAgents: () => this.acpBridge.getVirtualAgents(),
+        getRuntimeConnections: async () => {
+          const conns = await this.connectionService.listRuntimeConnections();
+          return conns
+            .filter((c) => c.type !== 'acp')
+            .map((c) => ({
+              id: c.id,
+              name: c.name,
+              description: c.description,
+              status: c.status,
+              enabled: c.enabled,
+              defaultModel:
+                typeof c.config?.defaultModel === 'string'
+                  ? c.config.defaultModel
+                  : undefined,
+            }));
+        },
         isACPConnected: () => this.acpBridge.isConnected(),
         reloadAgents: () => this.reloadAgents(),
         logger: this.logger,
@@ -1042,6 +1132,10 @@ export class StallionRuntime {
       ),
     );
     app.route('/api/providers', createProviderRoutes(this.providerService));
+    app.route(
+      '/api/connections',
+      createConnectionRoutes(this.connectionService),
+    );
 
     // Project conversations — aggregate across all agents
     app.get('/api/projects/:slug/conversations', async (c) => {
@@ -1049,7 +1143,9 @@ export class StallionRuntime {
       const adapter = this.memoryAdapters.values().next().value;
       if (!adapter) return c.json({ success: true, data: [] });
       const convs = await adapter.queryConversations({});
-      convs.sort((a: any, b: any) => (b.updatedAt || '').localeCompare(a.updatedAt || ''));
+      convs.sort((a: any, b: any) =>
+        (b.updatedAt || '').localeCompare(a.updatedAt || ''),
+      );
       return c.json({ success: true, data: convs.slice(0, limit) });
     });
 
@@ -1159,10 +1255,9 @@ export class StallionRuntime {
     app.route('/api/feedback', createFeedbackRoutes(this.feedbackService));
     app.route('/api/insights', createInsightsRoutes(this.eventLogPath));
     app.route('/api/voice', createVoiceRoutes(this.voiceService));
-    app.route(
-      '/api/prompts',
-      createPromptRoutes(new PromptService(), this.logger),
-    );
+    const promptRoutes = createPromptRoutes(new PromptService(), this.logger);
+    app.route('/api/prompts', promptRoutes);
+    app.route('/api/playbooks', promptRoutes);
   }
 
   /**
@@ -1235,7 +1330,8 @@ export class StallionRuntime {
         if (spec?.tools?.mcpServers && spec.tools.mcpServers.length > 0) {
           checks.integrationsConfigured = true;
 
-          for (const id of spec.tools.mcpServers) {
+          for (const entry of spec.tools.mcpServers) {
+            const id = typeof entry === 'string' ? entry : entry.id;
             const key = `${slug}:${id}`;
             const status = this.mcpConnectionStatus.get(key);
             const metadata = this.integrationMetadata.get(key);
@@ -1458,7 +1554,7 @@ export class StallionRuntime {
     // Keep raw templates so date/time variables resolve fresh per-invocation
     const rawSystemPrompt = this.appConfig.systemPrompt || '';
     const rawAgentPrompt = spec.prompt;
-    const skillCatalog = SkillService.getSkillCatalogPrompt(spec.skills);
+    const skillCatalog = this.skillService.getSkillCatalogPrompt(spec.skills);
     const instructions = () => {
       const parts = [
         rawSystemPrompt ? this.replaceTemplateVariables(rawSystemPrompt) : '',
@@ -1517,7 +1613,7 @@ export class StallionRuntime {
     const agentTools = bundle.tools as Tool<any>[];
 
     // Register activate_skill tool if agent has skills assigned
-    const skillTool = SkillService.getSkillTool(spec.skills);
+    const skillTool = this.skillService.getSkillTool(spec.skills);
     if (skillTool) {
       agentTools.push(skillTool as Tool<any>);
     }
@@ -1615,7 +1711,7 @@ export class StallionRuntime {
 
     const { resolvePluginProviders } = await import('../providers/resolver.js');
     const {
-      clearAll,
+      clearPluginProviders,
       registerProvider,
       registerBrandingProvider,
       registerSettingsProvider,
@@ -1627,7 +1723,7 @@ export class StallionRuntime {
       registerPluginRegistryProvider,
     } = await import('../providers/registry.js');
 
-    clearAll();
+    clearPluginProviders();
     const overrides = await this.configLoader.loadPluginOverrides();
     const { resolved, conflicts } = resolvePluginProviders(
       pluginsDir,

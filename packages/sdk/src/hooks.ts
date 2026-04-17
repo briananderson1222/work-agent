@@ -125,6 +125,17 @@ export function useSendMessage() {
   return sdk.contexts.activeChats.useSendMessage();
 }
 
+/**
+ * Launch a new chat session: create → open dock → activate → send.
+ * Shared primitive used by useSendToChat and core tab actions.
+ */
+export function useLaunchChat() {
+  const sdk = useContext(SDKContext);
+  if (!sdk?.contexts?.activeChats?.useLaunchChat)
+    throw new Error('ActiveChatsContext not available');
+  return sdk.contexts.activeChats.useLaunchChat();
+}
+
 export function useActiveChatActions(sessionId: string) {
   const sdk = useContext(SDKContext);
   if (!sdk?.contexts?.activeChats)
@@ -344,9 +355,7 @@ export function useWorkflowFiles(agentSlug: string) {
  */
 export function useSendToChat(agentSlug: string) {
   const agents = useAgents();
-  const createChatSession = useCreateChatSession();
-  const navigation = useNavigation();
-  const sendMessage = useSendMessage();
+  const launchChat = useLaunchChat();
 
   return useCallback(
     (message: string) => {
@@ -359,12 +368,9 @@ export function useSendToChat(agentSlug: string) {
         );
         return;
       }
-      const sessionId = createChatSession(resolvedSlug, agent.name);
-      navigation.setDockState(true);
-      navigation.setActiveChat(sessionId);
-      sendMessage(sessionId, resolvedSlug, undefined, message);
+      launchChat(resolvedSlug, agent.name, message);
     },
-    [agents, agentSlug, createChatSession, navigation, sendMessage],
+    [agents, agentSlug, launchChat],
   );
 }
 

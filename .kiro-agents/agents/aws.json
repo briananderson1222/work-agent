@@ -1,0 +1,110 @@
+{
+  "allowedTools": [
+    "web_fetch",
+    "web_search",
+    "subagent",
+    "read",
+    "imageRead",
+    "todo",
+    "thinking",
+    "knowledge",
+    "shell"
+  ],
+  "hooks": {
+    "agentSpawn": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/soul-env.sh /Users/anderbs/.kiro-agents/context/templates",
+        "timeout_ms": 3000
+      },
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/detect-tools.sh",
+        "timeout_ms": 5000
+      },
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh agentSpawn aws",
+        "timeout_ms": 5000
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh postToolUse aws",
+        "matcher": "*",
+        "timeout_ms": 3000
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh preToolUse aws",
+        "matcher": "*",
+        "timeout_ms": 3000
+      }
+    ],
+    "stop": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh stop aws",
+        "timeout_ms": 5000
+      }
+    ],
+    "userPromptSubmit": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh userPromptSubmit aws",
+        "timeout_ms": 5000
+      }
+    ]
+  },
+  "keyboardShortcut": "ctrl+a",
+  "resources": [
+    "file:///Users/anderbs/.kiro-agents/soul/core/identity.md",
+    "file:///Users/anderbs/.kiro-agents/soul/core/soul.md",
+    "file:///Users/anderbs/.kiro-agents/soul/core/user.md",
+    "file://AGENTS.md",
+    "file://.kiro/steering/**/*.md",
+    "file://~/.kiro/steering/**/*.md",
+    "file:///Users/anderbs/.kiro-agents/context/common/orchestrators.md",
+    "skill:///Users/anderbs/.kiro-agents/skills/**/SKILL.md",
+    {
+      "autoUpdate": true,
+      "description": "Long-term memory that persists across sessions.",
+      "indexType": "best",
+      "name": "Stallion-Memories",
+      "source": "file:///Users/anderbs/.kiro-agents/soul/knowledge/memories",
+      "type": "knowledgeBase"
+    },
+    {
+      "autoUpdate": true,
+      "description": "AWS company knowledge: SSO codes, internal tool references, process notes, company-specific facts.",
+      "indexType": "best",
+      "name": "Stallion-AWS",
+      "source": "file:///Users/anderbs/.kiro-agents/soul/knowledge/aws",
+      "type": "knowledgeBase"
+    },
+    "file:///Users/anderbs/.kiro-agents/context/*.md"
+  ],
+  "tools": [
+    "@builtin"
+  ],
+  "toolsSettings": {
+    "shell": {
+      "autoAllowReadonly": true
+    },
+    "subagent": {
+      "availableAgents": [
+        "tool-*"
+      ],
+      "trustedAgents": [
+        "tool-*"
+      ]
+    },
+    "write": {
+      "allowedPaths": [
+        "/Users/anderbs/.kiro-agents/soul/**/*"
+      ]
+    }
+  },
+  "welcomeMessage": "Did you know.. Stallion is an AWS Specialist! Go ahead and ask me about AWS knowledge, internal OR external.",
+  "name": "aws",
+  "description": "AWS orchestrator that coordinates specialized AWS agents for research, operations, infrastructure code, and internal tooling",
+  "prompt": "You are an AWS Orchestrator that coordinates specialized AWS agents.\n\n## MANDATORY: Before EVERY Response\n1. NEVER answer from training data. AWS services change constantly - your training data is outdated.\n\n## Workflow\n1. Check loaded skills first \u2014 if one matches the request, activate it and follow its workflow\n2. Delegate to specialist subagents as the skill directs (tool-aws-information, tool-aws-operations, tool-aws-internal)\n3. For complex tasks, coordinate multiple agents in parallel\n4. Only use web search as a LAST RESORT if subagents cannot answer\n\nYour FIRST action on EVERY request MUST be: call the thinking tool and scan loaded skill names against the user's request. NEVER call web_search or web_fetch before checking skills and delegating to subagents.",
+  "model": "claude-opus-4.6-1m",
+  "useLegacyMcpJson": false
+}

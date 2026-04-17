@@ -1,5 +1,41 @@
 # Agent Notes
 
+## Active Work
+
+The **Entity Hierarchy & Navigation Restructure** is the current initiative.
+See `docs/plans/plan-entity-hierarchy.md` for the full plan and
+`docs/design/entity-hierarchy.md` for design decisions.
+
+### Entity hierarchy
+
+- **Managed agents** (Bedrock + Strands/VoltAgent): Stallion owns everything — prompt, skills, tools, commands, model.
+- **Connected agents** (Claude, Codex): Native runtime owns behavior. Stallion owns abstraction (model, effort, thinking).
+- **ACP agents**: External runtime connections. Predetermined capabilities.
+- Agent editor tabs vary by type: managed gets Basic|Skills|Tools|Commands, connected gets Basic|Runtime, ACP gets Basic|Connection.
+- Skills and integrations are managed-agent capabilities only.
+- Projects scope which agents are available via `ProjectConfig.agents`.
+- "Prompts" renamed to "Playbooks" (`/api/playbooks`, `usePlaybooksQuery`). Old `/api/prompts` kept as compat alias.
+- Registry page (`/registry`) is the unified browse/install surface for agents, skills, integrations, plugins.
+- Sidebar: Projects, Agents, Playbooks, Registry, Connections, Plugins, Schedule, Monitoring.
+
+### Connected agents (merged from feature/connected-agents-hardening)
+
+- `ConnectionService` manages model + runtime connections
+- Provider adapters: Bedrock, Claude, Codex (in `src-server/providers/adapters/`)
+- `AgentExecutionConfig` on `AgentSpec` for runtime selection
+- Orchestration service for session lifecycle
+
+## Task Completion Requirements
+
+All of the following must pass before a task is considered complete:
+
+1. `npx biome check src-server/ src-ui/ packages/` — no lint or format errors
+2. `npx tsc --noEmit` — no type errors
+3. `npm test` — all unit tests pass
+4. If UI changes: manual smoke test or Playwright spec
+
+Never skip these gates. If a gate fails, fix the issue before marking done.
+
 ## Stallion CLI
 
 Always use `./stallion` to manage the app — never raw npm scripts, `node esbuild.config.mjs`, or `npx vite build` directly. The CLI handles build orchestration (server + UI) in the correct order.

@@ -65,18 +65,22 @@ export function useDerivedSessions(
           optimistic: true,
         }));
       } else {
-        // Get optimistic messages (user's message before backend confirms)
-        // Only show optimistic messages that are newer than what backend has
+        // Guard: if backend snapshot is momentarily stale (empty) but chatState
+        // has messages, fall back to chatState.messages to prevent blank flash
+        const effectiveBackend =
+          backendMessages.length > 0
+            ? backendMessages
+            : chatState.messages || [];
+
         const optimisticMessages = (chatState.messages || [])
-          .slice(backendMessages.length) // Only messages after backend count
+          .slice(effectiveBackend.length)
           .map((m) => ({
             ...m,
             timestamp: (m as any).timestamp || Date.now(),
             optimistic: true,
           }));
 
-        // Merge all message sources
-        messages = [...backendMessages, ...optimisticMessages];
+        messages = [...effectiveBackend, ...optimisticMessages];
       }
 
       // Merge backend and ephemeral messages, sort by timestamp
@@ -124,7 +128,12 @@ export function useDerivedSessions(
         source: 'manual' as const,
         createdAt: Date.now(),
         updatedAt: Date.now(),
-        model: undefined,
+        provider: chatState.provider,
+        providerOptions: chatState.providerOptions,
+        model: chatState.model,
+        orchestrationProvider: chatState.orchestrationProvider,
+        orchestrationModel: chatState.orchestrationModel,
+        orchestrationStatus: chatState.orchestrationStatus,
         projectSlug: chatState.projectSlug,
         projectName: chatState.projectName,
         focusDirectoryId: chatState.focusDirectoryId,

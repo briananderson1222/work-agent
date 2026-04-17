@@ -11,6 +11,7 @@ import {
   getPluginRegistryProviders,
   getSkillRegistryProviders,
 } from '../providers/registry.js';
+import type { SkillService } from '../services/skill-service.js';
 import { registryOps } from '../telemetry/metrics.js';
 import {
   getBody,
@@ -24,6 +25,7 @@ export function createRegistryRoutes(
   configLoader: ConfigLoader,
   refreshACPModes: () => Promise<void>,
   reloadSkills?: () => Promise<void>,
+  skillService?: SkillService,
 ) {
   const app = new Hono();
 
@@ -148,11 +150,24 @@ export function createRegistryRoutes(
     return c.json({ success: true, data });
   });
 
+  app.get('/skills/installed', async (c) => {
+    registryOps.add(1, { operation: 'list-skills-installed' });
+    const data = skillService ? skillService.listSkills() : [];
+    return c.json({ success: true, data });
+  });
+
   app.post('/skills/install', validate(skillInstallSchema), async (c) => {
     const { id } = getBody(c);
     registryOps.add(1, { operation: 'install-skill', item: id });
-    const { installSkill } = await import('../services/skill-service.js');
-    const result = await installSkill(id, configLoader.getProjectHomeDir());
+    if (!skillService)
+      return c.json(
+        { success: false, message: 'SkillService not available' },
+        500,
+      );
+    const result = await skillService.installSkill(
+      id,
+      configLoader.getProjectHomeDir(),
+    );
     if (result.success && reloadSkills) await reloadSkills().catch(() => {});
     return c.json(result, result.success ? 200 : 500);
   });
@@ -160,8 +175,15 @@ export function createRegistryRoutes(
   app.delete('/skills/:id', async (c) => {
     const id = param(c, 'id');
     registryOps.add(1, { operation: 'uninstall-skill', item: id });
-    const { uninstallSkill } = await import('../services/skill-service.js');
-    const result = await uninstallSkill(id, configLoader.getProjectHomeDir());
+    if (!skillService)
+      return c.json(
+        { success: false, message: 'SkillService not available' },
+        500,
+      );
+    const result = await skillService.removeSkill(
+      id,
+      configLoader.getProjectHomeDir(),
+    );
     if (result.success && reloadSkills) await reloadSkills().catch(() => {});
     return c.json(result, result.success ? 200 : 500);
   });
@@ -169,12 +191,20 @@ export function createRegistryRoutes(
   app.post('/skills/:id/update', async (c) => {
     const id = param(c, 'id');
     registryOps.add(1, { operation: 'update-skill', item: id });
-    const { uninstallSkill, installSkill } = await import(
-      '../services/skill-service.js'
+    if (!skillService)
+      return c.json(
+        { success: false, message: 'SkillService not available' },
+        500,
+      );
+    const unresult = await skillService.removeSkill(
+      id,
+      configLoader.getProjectHomeDir(),
     );
-    const unresult = await uninstallSkill(id, configLoader.getProjectHomeDir());
     if (!unresult.success) return c.json(unresult, 500);
-    const result = await installSkill(id, configLoader.getProjectHomeDir());
+    const result = await skillService.installSkill(
+      id,
+      configLoader.getProjectHomeDir(),
+    );
     if (result.success && reloadSkills) await reloadSkills().catch(() => {});
     return c.json(result, result.success ? 200 : 500);
   });

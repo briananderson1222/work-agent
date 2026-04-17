@@ -7,8 +7,6 @@
 /* ── Page Container ── */
 .page {
   padding: 2rem 1.5rem;
-  max-width: 1600px;
-  margin: 0 auto;
   font-family: "DM Sans", system-ui, sans-serif;
   animation: page-fade-in 0.4s ease-out;
 }
@@ -204,6 +202,56 @@
   margin: 0 0 1rem;
 }
 
+/* ── Sticky Header + Tabs ── */
+.page__header--sticky,
+.page__header--sticky + .page__tabs {
+  position: sticky;
+  z-index: 10;
+  background: var(--bg-primary);
+}
+.page__header--sticky {
+  top: 0;
+  padding-top: 2rem;
+  padding-bottom: 0;
+}
+.page__header--sticky + .page__tabs {
+  top: calc(2rem + var(--sticky-header-height, 5.5rem));
+  padding-bottom: 1rem;
+}
+
+@media (max-width: 640px) {
+  .page__header--sticky {
+    padding-top: 1.5rem;
+  }
+}
+
+/* ── Card Row (name + tag) ── */
+.page__card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.page__card-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.page__card-name {
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.page__card-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
 /* ── Utility: Tag/Badge ── */
 .page__tag {
   font-family: "JetBrains Mono", monospace;
@@ -214,6 +262,7 @@
   background: var(--bg-tertiary);
   color: var(--text-muted);
   border: 1px solid var(--border-primary);
+  flex-shrink: 0;
 }
 
 .page__tag--accent {
@@ -246,4 +295,35 @@
 .page__btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+/* ── Tabs ── */
+.page__tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 1.5rem;
+}
+
+.page__tab {
+  padding: 0.35rem 0.85rem;
+  border-radius: 5px;
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.page__tab:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.page__tab--active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
 }

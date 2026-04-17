@@ -26,9 +26,18 @@ import {
 } from '../telemetry/metrics.js';
 import { estimateCost, findModelPricing } from '../utils/pricing.js';
 import { getCachedUser } from './auth.js';
-import { chatSchema, errorMessage, getBody, param, validate } from './schemas.js';
+import {
+  chatSchema,
+  errorMessage,
+  getBody,
+  param,
+  validate,
+} from './schemas.js';
 
-interface ChatMessage { role: string; parts?: Array<{ type: string; text?: string }> }
+interface ChatMessage {
+  role: string;
+  parts?: Array<{ type: string; text?: string }>;
+}
 
 export function createChatRoutes(ctx: RuntimeContext) {
   const app = new Hono();
@@ -72,9 +81,8 @@ export function createChatRoutes(ctx: RuntimeContext) {
           }
           if (resolved.providerId && resolved.providerId !== 'bedrock') {
             const connections = ctx.providerService.listProviderConnections();
-            resolvedProviderConn = connections.find(
-              (c) => c.id === resolved.providerId,
-            ) ?? null;
+            resolvedProviderConn =
+              connections.find((c) => c.id === resolved.providerId) ?? null;
             if (
               resolvedProviderConn &&
               resolvedProviderConn.type !== 'bedrock'
@@ -114,7 +122,9 @@ export function createChatRoutes(ctx: RuntimeContext) {
               : Array.isArray(input)
                 ? input
                     .find((m: ChatMessage) => m.role === 'user')
-                    ?.parts?.find((p: { type: string; text?: string }) => p.type === 'text')?.text || ''
+                    ?.parts?.find(
+                      (p: { type: string; text?: string }) => p.type === 'text',
+                    )?.text || ''
                 : '';
           if (userMessage) {
             ragContext = await ctx.knowledgeService.getRAGContext(
@@ -180,7 +190,10 @@ export function createChatRoutes(ctx: RuntimeContext) {
                   if (msgs) {
                     for (const msg of msgs) {
                       const textParts = (msg.parts || [])
-                        .filter((p: { type: string; text?: string }) => p.type === 'text')
+                        .filter(
+                          (p: { type: string; text?: string }) =>
+                            p.type === 'text',
+                        )
                         .map((p: { type: string; text?: string }) => p.text);
                       const content = textParts.join('\n') || '';
                       if (content)
@@ -199,7 +212,10 @@ export function createChatRoutes(ctx: RuntimeContext) {
                 : Array.isArray(input)
                   ? input
                       .find((m: ChatMessage) => m.role === 'user')
-                      ?.parts?.find((p: { type: string; text?: string }) => p.type === 'text')?.text || ''
+                      ?.parts?.find(
+                        (p: { type: string; text?: string }) =>
+                          p.type === 'text',
+                      )?.text || ''
                   : '';
             messages.push({ role: 'user', content: userText });
 
@@ -295,11 +311,14 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
             const tempWrapper = await ctx.framework.createTempAgent({
               name: cacheKey,
-              instructions: (agent as { instructions?: string }).instructions || '',
+              instructions:
+                (agent as { instructions?: string }).instructions || '',
               model: newModel,
               tools: originalTools as unknown as ITool[],
             });
-            cachedAgent = (tempWrapper as { raw?: unknown }).raw as typeof cachedAgent || tempWrapper;
+            cachedAgent =
+              ((tempWrapper as { raw?: unknown }).raw as typeof cachedAgent) ||
+              tempWrapper;
 
             ctx.activeAgents.set(cacheKey, cachedAgent);
             ctx.logger.info('Created agent with model override', {
@@ -356,8 +375,11 @@ export function createChatRoutes(ctx: RuntimeContext) {
         const chatSpan = tracer.startSpan('stallion.chat', {
           attributes: { 'stallion.agent': slug },
         });
-        const artifacts: Array<{ type: string; name?: string; content?: unknown }> =
-          [];
+        const artifacts: Array<{
+          type: string;
+          name?: string;
+          content?: unknown;
+        }> = [];
 
         try {
           const injectableStream = new InjectableStream();
@@ -412,10 +434,19 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
           memory = agent.getMemory();
           memoryAdapter = ctx.memoryAdapters.get(slug);
-          const isFileBackedAgent = ctx.agentSpecs.has(slug);
-          const conversationStorage = isFileBackedAgent
-            ? memory
-            : memoryAdapter;
+          if (!memoryAdapter) {
+            const { FileMemoryAdapter } = await import(
+              '../adapters/file/memory-adapter.js'
+            );
+            memoryAdapter = new FileMemoryAdapter({
+              projectHomeDir: ctx.configLoader.getProjectHomeDir(),
+            });
+            ctx.memoryAdapters.set(slug, memoryAdapter);
+          }
+          // Always use memoryAdapter (FileMemoryAdapter) for conversation creation.
+          // VoltAgent's Memory may use InMemoryStorageAdapter internally, which
+          // never writes to disk. The FileMemoryAdapter guarantees persistence.
+          const conversationStorage = memoryAdapter || memory;
           if (
             conversationStorage &&
             operationContext.conversationId &&
@@ -541,9 +572,10 @@ export function createChatRoutes(ctx: RuntimeContext) {
           });
 
           if (isNewConversation && operationContext.conversationId) {
-            const mem = agent.getMemory();
-            const conversation = mem
-              ? await mem.getConversation(operationContext.conversationId)
+            const conversation = memoryAdapter
+              ? await memoryAdapter.getConversation(
+                  operationContext.conversationId,
+                )
               : null;
             await streamWriter.write(
               `data: ${JSON.stringify({
@@ -622,7 +654,9 @@ export function createChatRoutes(ctx: RuntimeContext) {
             code: SpanStatusCode.ERROR,
             message: errorMessage(error),
           });
-          chatSpan.recordException(error instanceof Error ? error : new Error(errorMessage(error)));
+          chatSpan.recordException(
+            error instanceof Error ? error : new Error(errorMessage(error)),
+          );
           const agentModelForError = agent.model as
             | { modelId?: string }
             | undefined;
@@ -643,13 +677,7 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
           ctx.agentStatus.set(slug, 'idle');
 
-          const isFileBackedAgent = ctx.agentSpecs.has(slug);
-          if (
-            !isFileBackedAgent &&
-            memoryAdapter &&
-            conversationId &&
-            accumulatedText
-          ) {
+          if (memoryAdapter && conversationId && accumulatedText) {
             try {
               const userText =
                 typeof input === 'string'
@@ -657,7 +685,10 @@ export function createChatRoutes(ctx: RuntimeContext) {
                   : Array.isArray(input)
                     ? input
                         .find((m: ChatMessage) => m.role === 'user')
-                        ?.parts?.find((p: { type: string; text?: string }) => p.type === 'text')?.text || ''
+                        ?.parts?.find(
+                          (p: { type: string; text?: string }) =>
+                            p.type === 'text',
+                        )?.text || ''
                     : '';
               if (userText) {
                 await memoryAdapter.addMessage(
@@ -681,7 +712,8 @@ export function createChatRoutes(ctx: RuntimeContext) {
                 { model: modelOverride || ctx.agentSpecs.get(slug)?.model },
               );
             } catch (e) {
-              ctx.logger.error('Failed to persist messages for temp agent', {
+              ctx.logger.error('Failed to persist messages', {
+                agent: slug,
                 error: e,
               });
             }
@@ -692,7 +724,15 @@ export function createChatRoutes(ctx: RuntimeContext) {
             artifacts.push({ type: 'text', content: finalOutput });
           }
 
-          let usage: { promptTokens?: number; completionTokens?: number; inputTokens?: number; outputTokens?: number; totalTokens?: number } | undefined;
+          let usage:
+            | {
+                promptTokens?: number;
+                completionTokens?: number;
+                inputTokens?: number;
+                outputTokens?: number;
+                totalTokens?: number;
+              }
+            | undefined;
           try {
             usage = await result.usage;
           } catch (_e) {

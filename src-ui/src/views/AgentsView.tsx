@@ -17,6 +17,7 @@ import { useAIEnrich } from '../hooks/useAIEnrich';
 import { useUnsavedGuard } from '../hooks/useUnsavedGuard';
 import { useUrlSelection } from '../hooks/useUrlSelection';
 import type { AgentSummary, NavigationView, Tool } from '../types';
+import { formatExecutionSummary } from '../utils/execution';
 import { AgentAddModal } from './AgentAddModal';
 import { AgentEditorForm, type AgentFormData } from './AgentEditorForm';
 import './editor-layout.css';
@@ -41,6 +42,11 @@ const EMPTY_FORM: AgentFormData = {
   guardrails: null,
   maxSteps: '',
   tools: { mcpServers: [], available: [], autoApprove: [] },
+  execution: {
+    runtimeConnectionId: 'bedrock-runtime',
+    modelConnectionId: '',
+    runtimeOptions: {},
+  },
   icon: '',
   skills: [],
   prompts: [],
@@ -53,9 +59,11 @@ function formFromAgent(agent: any): AgentFormData {
     description: agent.description || '',
     prompt: agent.prompt || '',
     modelId:
-      typeof agent.model === 'string'
-        ? agent.model
-        : agent.model?.modelId || '',
+      typeof agent.execution?.modelId === 'string'
+        ? agent.execution.modelId
+        : typeof agent.model === 'string'
+          ? agent.model
+          : agent.model?.modelId || '',
     region: agent.region || '',
     guardrails:
       typeof agent.guardrails === 'object' && agent.guardrails
@@ -66,6 +74,12 @@ function formFromAgent(agent: any): AgentFormData {
       mcpServers: agent.toolsConfig?.mcpServers || [],
       available: agent.toolsConfig?.available || [],
       autoApprove: agent.toolsConfig?.autoApprove || [],
+    },
+    execution: {
+      runtimeConnectionId:
+        agent.execution?.runtimeConnectionId || 'bedrock-runtime',
+      modelConnectionId: agent.execution?.modelConnectionId || '',
+      runtimeOptions: agent.execution?.runtimeOptions || {},
     },
     icon: agent.icon || '',
     skills: agent.skills || [],
@@ -166,21 +180,36 @@ export function AgentsView({
     );
   }, [allAgents, search]);
 
-  // Group: standalone → workspace-scoped → ACP connections
+  // Group: global → plugin-scoped → ACP connections (runtime agents excluded)
   const listItems = useMemo(() => {
-    const standalone = filteredAgents.filter(
-      (a) => !a.slug.includes(':') && a.source !== 'acp',
+    // Filter out runtime agents — they belong on Connections page
+    const nonRuntime = filteredAgents.filter(
+      (a) => !a.slug.startsWith('__runtime:') && a.source !== 'acp',
     );
-    const layoutAgents = filteredAgents.filter(
-      (a) => a.slug.includes(':') && a.source !== 'acp',
-    );
-    const agentItems = [...standalone, ...layoutAgents].map((a) => ({
+
+    // Separate plugin/layout-scoped agents from standalone
+    const globalAgents = nonRuntime.filter((a) => !a.slug.includes(':'));
+    const pluginAgents = nonRuntime.filter((a) => a.slug.includes(':'));
+
+    const globalItems = globalAgents.map((a) => ({
       id: a.slug,
       name: a.name,
-      subtitle: a.slug,
+      subtitle: formatExecutionSummary(a) || a.slug,
       icon: <AgentIcon agent={a} size="small" />,
+      section: 'Global',
     }));
-    // Add one entry per ACP connection instead of individual modes
+
+    const pluginItems = pluginAgents.map((a) => {
+      const pluginName = a.slug.split(':')[0];
+      return {
+        id: a.slug,
+        name: a.name,
+        subtitle: formatExecutionSummary(a) || a.slug,
+        icon: <AgentIcon agent={a} size="small" />,
+        section: pluginName,
+      };
+    });
+
     const connItems = acpConnections.map((c: any) => ({
       id: `__acp:${c.id}`,
       name: c.name || c.id,
@@ -190,8 +219,10 @@ export function AgentsView({
       ) : (
         <span className="agents-list__acp-emoji">🔌</span>
       ),
+      section: 'ACP',
     }));
-    return [...agentItems, ...connItems];
+
+    return [...globalItems, ...pluginItems, ...connItems];
   }, [filteredAgents, acpConnections]);
 
   const loadAgent = useCallback(
@@ -301,6 +332,15 @@ export function AgentsView({
         guardrails: form.guardrails || undefined,
         maxSteps: form.maxSteps ? parseInt(form.maxSteps, 10) : undefined,
         tools: form.tools.mcpServers.length > 0 ? form.tools : undefined,
+        execution: {
+          runtimeConnectionId: form.execution.runtimeConnectionId,
+          modelConnectionId: form.execution.modelConnectionId || undefined,
+          modelId: form.modelId || undefined,
+          runtimeOptions:
+            Object.keys(form.execution.runtimeOptions).length > 0
+              ? form.execution.runtimeOptions
+              : undefined,
+        },
         icon: form.icon || undefined,
         skills: form.skills.length > 0 ? form.skills : undefined,
         prompts: form.prompts.length > 0 ? form.prompts : undefined,
@@ -547,10 +587,14 @@ export function AgentsView({
                     ))}
                   </div>
                   <button
-                    className="template-blank"
+                    className="template-card"
                     onClick={() => setTemplatePicked(true)}
                   >
-                    Start Blank →
+                    <span className="template-card__icon">✨</span>
+                    <span className="template-card__label">Custom</span>
+                    <span className="template-card__desc">
+                      Start from scratch
+                    </span>
                   </button>
                 </div>
               ) : (

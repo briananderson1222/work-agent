@@ -6,9 +6,9 @@ const shared = {
   target: 'node20',
   format: 'esm',
   sourcemap: true,
-  external: ['fsevents', 'esbuild', 'node-pty'],
+  external: ['fsevents', 'esbuild', 'node-pty', '@anthropic-ai/claude-agent-sdk'],
   banner: {
-    js: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+    js: "import { createRequire as __stallionCreateRequire } from 'node:module'; const require = __stallionCreateRequire(import.meta.url);",
   },
 };
 

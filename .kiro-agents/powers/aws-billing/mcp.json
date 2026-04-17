@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "awslabs.billing-cost-management-mcp-server": {
+      "args": [
+        "awslabs.billing-cost-management-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
+        "AWS_PROFILE": "${AWS_PROFILE}",
+        "AWS_REGION": "${AWS_REGION}",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}

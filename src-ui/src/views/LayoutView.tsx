@@ -7,10 +7,7 @@ import {
 } from '@stallion-ai/sdk';
 import { useIsFetching, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
-import {
-  useCreateChatSession,
-  useSendMessage,
-} from '../contexts/ActiveChatsContext';
+import { useLaunchChat } from '../contexts/ActiveChatsContext';
 import { useAgents } from '../contexts/AgentsContext';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
@@ -58,7 +55,6 @@ export function LayoutView({
     setDockState,
     setStandaloneLayout,
     setLayoutTab,
-    setActiveChat,
     navigate,
   } = useNavigation();
 
@@ -129,7 +125,6 @@ export function LayoutView({
   const effectiveError = isProjectMode ? layoutError : isError;
   const effectiveRefetch = isProjectMode ? refetchLayout : refetch;
 
-  const createChatSession = useCreateChatSession();
   const slashCommandHandler = useSlashCommandHandler();
 
   // Set active tab via NavigationContext
@@ -165,12 +160,7 @@ export function LayoutView({
     [slashCommandHandler],
   );
 
-  const sendMessage = useSendMessage(
-    apiBase,
-    undefined,
-    undefined,
-    handleSlashCommand,
-  );
+  const launchChat = useLaunchChat(apiBase, handleSlashCommand);
 
   const activeTabObject = layout?.tabs?.find((t: any) => t.id === activeTabId);
   const agent = agents.find((a) => a.slug === layout?.defaultAgent);
@@ -199,27 +189,12 @@ export function LayoutView({
         }
       }
 
-      const sessionId = createChatSession(
-        targetAgent.slug,
-        targetAgent.name,
-        prompt.label,
-        projectSlug ?? undefined,
-      );
-      setDockState(true);
-      setActiveChat(null); // New chat, no conversation yet
-
-      await sendMessage(sessionId, targetAgent.slug, undefined, promptText);
+      await launchChat(targetAgent.slug, targetAgent.name, promptText, {
+        title: prompt.label,
+        projectSlug: projectSlug ?? undefined,
+      });
     },
-    [
-      agents,
-      layout?.defaultAgent,
-      apiBase,
-      createChatSession,
-      sendMessage,
-      setDockState,
-      setActiveChat,
-      projectSlug,
-    ],
+    [agents, layout?.defaultAgent, apiBase, launchChat, projectSlug],
   );
 
   const handleRefresh = useCallback(() => {

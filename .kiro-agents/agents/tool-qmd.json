@@ -1,0 +1,51 @@
+{
+  "allowedTools" : [ "@qmd/qmd_search", "@qmd/qmd_vector_search", "@qmd/qmd_deep_search", "@qmd/qmd_get", "@qmd/qmd_multi_get", "@qmd/qmd_status" ],
+  "hooks" : {
+    "agentSpawn" : [ {
+      "command" : "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh agentSpawn tool-qmd",
+      "timeout_ms" : 5000
+    } ],
+    "postToolUse" : [ {
+      "command" : "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh postToolUse tool-qmd",
+      "matcher" : "*",
+      "timeout_ms" : 3000
+    }, {
+      "command" : "node /Users/anderbs/.kiro-agents/scripts/hooks/run-hook.js post:edit:accumulator post-edit-accumulator.js standard,strict",
+      "matcher" : "fs_write",
+      "timeout_ms" : 5000
+    }, {
+      "command" : "node /Users/anderbs/.kiro-agents/scripts/hooks/run-hook.js post:quality-gate quality-gate.js strict",
+      "matcher" : "fs_write",
+      "timeout_ms" : 15000
+    } ],
+    "preToolUse" : [ {
+      "command" : "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh preToolUse tool-qmd",
+      "matcher" : "*",
+      "timeout_ms" : 3000
+    }, {
+      "command" : "node /Users/anderbs/.kiro-agents/scripts/hooks/run-hook.js pre:config-protection config-protection.js standard,strict",
+      "matcher" : "fs_write",
+      "timeout_ms" : 5000
+    }, {
+      "command" : "node /Users/anderbs/.kiro-agents/scripts/hooks/run-hook.js pre:commit-quality pre-commit-quality.js standard,strict",
+      "matcher" : "execute_bash",
+      "timeout_ms" : 30000
+    } ],
+    "stop" : [ {
+      "command" : "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh stop tool-qmd",
+      "timeout_ms" : 5000
+    }, {
+      "command" : "node /Users/anderbs/.kiro-agents/scripts/hooks/run-hook.js stop:format-typecheck stop-format-typecheck.js standard,strict",
+      "timeout_ms" : 300000
+    } ],
+    "userPromptSubmit" : [ {
+      "command" : "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh userPromptSubmit tool-qmd",
+      "timeout_ms" : 5000
+    } ]
+  },
+  "tools" : [ "@qmd/qmd_search", "@qmd/qmd_vector_search", "@qmd/qmd_deep_search", "@qmd/qmd_get", "@qmd/qmd_multi_get", "@qmd/qmd_status" ],
+  "name" : "tool-qmd",
+  "description" : "Delegate to me for searching knowledge bases, notes, and documents using semantic and keyword search. I can search across all indexed collections (personal knowledge, sales, journal) or scope to a specific domain.",
+  "prompt" : "You are a knowledge search assistant. Use QMD tools to find relevant information across indexed knowledge bases. Return the most relevant results with context. When results span multiple collections, note which collection each result came from.",
+  "model" : "agi-nova-beta-1m"
+}

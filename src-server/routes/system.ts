@@ -14,7 +14,7 @@ import { resolveGitInfo } from '@stallion-ai/shared';
 import { Hono } from 'hono';
 import { checkBedrockCredentials } from '../providers/bedrock.js';
 import { getAllPrerequisites } from '../providers/registry.js';
-import * as SkillService from '../services/skill-service.js';
+import type { SkillService } from '../services/skill-service.js';
 import { systemOps } from '../telemetry/metrics.js';
 import { errorMessage } from './schemas.js';
 
@@ -31,6 +31,7 @@ interface SystemStatusDeps {
   eventBus?: { emit: (event: string, data?: Record<string, unknown>) => void };
   appConfig?: { runtime?: string };
   port?: number;
+  skillService?: SkillService;
 }
 
 export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
@@ -344,7 +345,10 @@ export function createSystemRoutes(deps: SystemStatusDeps, logger: any) {
   });
 
   app.get('/skills', (c) => {
-    return c.json({ success: true, data: SkillService.listSkills() });
+    return c.json({
+      success: true,
+      data: deps.skillService?.listSkills() ?? [],
+    });
   });
 
   app.get('/terminal-port', (c) => {

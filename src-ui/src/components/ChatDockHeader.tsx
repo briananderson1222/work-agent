@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigation } from '../contexts/NavigationContext';
 import { useShortcutDisplay } from '../hooks/useKeyboardShortcut';
+import { isSessionExecutionActive } from '../utils/execution';
 
 function useIsMobile() {
   const [m, setM] = useState(
@@ -59,7 +60,7 @@ export function ChatDockHeader({
   // On mobile, dock is always bottom-positioned regardless of dockMode
   const effectiveRight = !isMobile && dockMode === 'right';
 
-  const activeSessions = sessions.filter((s) => s.status === 'sending');
+  const activeSessions = sessions.filter((s) => isSessionExecutionActive(s));
 
   const touchStartY = useRef<number | null>(null);
   const DRAG_THRESHOLD = 8;

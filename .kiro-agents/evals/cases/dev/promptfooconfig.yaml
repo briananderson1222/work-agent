@@ -1,0 +1,428 @@
+# promptfooconfig.yaml — Agent eval suite for dev and sales-sa
+description: 'Stallion Agent Eval Suite — dev + sales-sa skill activation and workflow compliance'
+
+providers:
+  - id: 'exec: bash ../../lib/kiro-dev.sh'
+    label: dev
+
+prompts:
+  - '{{prompt}}'
+
+evaluateOptions:
+  maxConcurrency: 1
+
+defaultTest:
+  options:
+    provider: 'exec: bash ../../lib/kiro-judge.sh'
+
+tests:
+  - vars:
+      prompt: "Explore this codebase and tell me what it does"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-explore-structure', 'tool-explore-entry', 'tool-explore-deps']
+      - type: javascript
+        value: file://../../lib/assertions/tool-called.js
+        config:
+          tool: use_subagent
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the 'explore' skill and ATTEMPTED to fan out parallel subagents
+          (tool-explore-structure, entry, deps, patterns, config, tests) via use_subagent.
+          Subagents may fail at runtime — that's OK. Score based on whether the agent:
+          1. Identified and activated the explore skill (required)
+          2. Attempted to invoke the correct tool-explore-* subagents in parallel (required)
+          3. Produced a synthesis covering directory structure, entry points, dependencies, and patterns (desired)
+          Score 1 if no skill activation, 3 if activated but no subagent attempt, 5 if activated + attempted subagents.
+
+  - vars:
+      prompt: "Create a simple hello.py script that prints hello world"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/tool-called.js
+        config:
+          tool: todo_list
+      - type: javascript
+        value: file://../../lib/assertions/tool-called.js
+        config:
+          tool: execute_bash
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The dev agent followed its Phase 0-5 workflow:
+          1. Checked existing TODOs using todo_list (Phase 0)
+          2. Ran git status via execute_bash (Phase 1)
+          3. Created a plan/TODO list (Phase 2)
+          4. Attempted implementation (Phase 3)
+          Write tools are blocked so implementation may fail — check it ATTEMPTED phases 0-2.
+          Score 1 if jumped straight to writing, 3 if partial phases, 5 if all phases attempted.
+
+  - vars:
+      prompt: "This fetch call sometimes fails in production. Add error handling so the app doesn't crash: `const data = await fetch('/api/users').then(r => r.json());`"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent was asked to add error handling to a fetch call.
+          Phase 3 rules: no fake data, no silent fallbacks, errors MUST bubble up.
+          Write tools are blocked so it can't implement, but evaluate the agent's PLAN and approach:
+          1. The proposed approach propagates or re-throws errors — NOT swallowing them with
+             try/catch that returns null, empty arrays, fallback data, or silent defaults (required)
+          2. No fake/placeholder data suggested as a fallback response (required)
+          3. Error context is preserved — the plan includes logging, wrapping with context,
+             or typed error propagation rather than generic catch-all suppression (desired)
+          Score 1 if plan swallows errors silently or returns fallback data,
+          3 if catches but re-throws without context, 5 if errors bubble with proper context.
+
+  - vars:
+      prompt: "Check this project for outdated dependencies and security vulnerabilities"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-dependencies-updater']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the dependency-update skill and delegated to
+          tool-dependencies-updater rather than manually checking package files.
+
+  - vars:
+      prompt: "Create a PR for my staged changes with a descriptive title"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/tool-called.js
+        config:
+          tool: execute_bash
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the github-cli skill.
+          It should use execute_bash to run gh or git CLI commands.
+          Score based on PROCESS:
+          1. Identified and activated github-cli skill (required)
+          2. Used execute_bash to interact with git/gh (required)
+          3. Correctly identified the directory is not a git repo OR attempted gh commands (required)
+          Score 1 if no skill activation, 3 if activated but no CLI usage, 5 if all three met.
+
+  - vars:
+      prompt: "Build me a simple dashboard page with a dark theme and some charts"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-dev']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the frontend-design skill.
+          It should delegate implementation to tool-dev with design guidelines.
+          Score based on PROCESS:
+          1. Identified and activated frontend-design skill (required)
+          2. Delegated to tool-dev with design context (required)
+          Score 1 if no skill activation, 3 if activated but no delegation, 5 if both met.
+
+  - vars:
+      prompt: "Build a simple 404 error page — centered message, muted colors, and a 'Go Home' button. Save it as 404.html."
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent was asked to BUILD a small visual artifact (an HTML page with CSS).
+          Phase 4 requires visual changes be verified via tool-playwright BEFORE ending the turn.
+          Write tools are blocked so it can't create the file, but evaluate the agent's PLAN:
+          1. Plan includes creating the HTML/CSS (required)
+          2. Plan includes visual verification via tool-playwright — loading the page, taking a
+             screenshot, or checking accessibility AFTER implementation (required)
+          3. Agent does NOT treat writing the code as the final step — verification is planned
+             as a distinct step after implementation (required)
+          Score 1 if plan ends at code generation with no verification intent,
+          3 if mentions verification vaguely but doesn't plan tool-playwright,
+          5 if plan explicitly includes tool-playwright verification as a post-implementation step.
+
+  - vars:
+      prompt: "Take a screenshot of http://localhost:3000 and check the page accessibility"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-playwright']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the browser-test skill.
+          It should delegate to tool-playwright for browser automation.
+          Score based on PROCESS:
+          1. Identified and activated browser-test skill (required)
+          2. Delegated to tool-playwright (required)
+          Score 1 if no skill activation, 3 if activated but no delegation, 5 if both met.
+
+  - vars:
+      prompt: "Update the header component to use sticky positioning and change the background to dark blue"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/tool-called.js
+        config:
+          tool: todo_list
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent followed Phase 0-5 for a VISUAL code change.
+          Phase 4 (VALIDATE) requires classifying changes and verifying with evidence.
+          Visual changes MUST be verified via tool-playwright — not just described.
+          Write tools are blocked so implementation will fail, but check the agent's PLAN:
+          1. Followed Phase 0-2 workflow (todo_list, git status, plan) (required)
+          2. Plan or stated intent includes visual verification via tool-playwright or screenshot (required)
+          3. Did NOT treat describing the changes as sufficient validation (required)
+          Score 1 if no phases followed, 3 if phases but no visual verification planned, 5 if all met.
+
+  - vars:
+      prompt: "Verify that the changes I just made actually work — check both the build and the UI"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the feedback-loop skill for implementation verification.
+          It should identify what changed (git diff), classify the verification method
+          (visual via Playwright, integration via tests/commands), and attempt verification.
+          Score based on PROCESS:
+          1. Identified and activated feedback-loop skill (required)
+          2. Attempted to identify changes via git diff or similar (required)
+          3. Attempted verification (build, test, or Playwright) (desired)
+          Score 1 if no skill activation, 3 if activated but no verification attempt, 5 if all met.
+
+  - vars:
+      prompt: "Schedule a daily standup reminder at 9am every weekday"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/tool-called.js
+        config:
+          tool: execute_bash
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the schedule-prompt skill for boo scheduler management.
+          It should use execute_bash to run boo CLI commands.
+          Score based on PROCESS:
+          1. Identified and activated schedule-prompt skill (required)
+          2. Verified boo is available via execute_bash (required)
+          3. Attempted to use boo commands (boo add, boo next for preview) (desired)
+          Score 1 if no skill activation, 3 if activated but no boo usage, 5 if all met.
+
+  - vars:
+      prompt: "Prompt(kcommit)"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/tool-called.js
+        config:
+          tool: introspect
+      - type: javascript
+        value: file://../../lib/assertions/max-tool-calls.js
+        config:
+          max: 15
+          exclude: ['thinking']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the run-prompt skill and executed EFFICIENTLY.
+          The correct path is: thinking → read SKILL.md → introspect (discover prompts) → read prompt file → execute.
+          Score based on PROCESS and EFFICIENCY:
+          1. Identified the Prompt() syntax and activated run-prompt skill (required)
+          2. Used introspect to discover prompts — NOT glob, ls, or filesystem exploration (required)
+          3. Loaded the prompt file directly after discovery without fumbling (required)
+          Score 1 if no skill activation, 2 if activated but explored filesystem instead of introspect,
+          3 if used introspect but took extra steps, 5 if clean activation → introspect → load → execute.
+
+  # --- sa-verify: phased verification ---
+  - vars:
+      prompt: "Verify the changes we just made pass all acceptance criteria"
+    metadata:
+      type: regression
+      skill: sa-verify
+      added: 2026-04-05
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-verifier']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated sa-verify and delegated to tool-verifier.
+          tool-verifier should attempt phased verification: build, types, lint, tests, security, diff review.
+          The response should contain a structured verification report with per-phase status.
+          Score 1 if no phased verification, 3 if partial phases, 5 if all 6 phases attempted.
+
+  - vars:
+      prompt: "Run a full verification on this Python project — build, types, lint, tests, security"
+    metadata:
+      type: capability
+      skill: sa-verify
+      added: 2026-04-05
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-verifier']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent should activate sa-verify for comprehensive verification.
+          tool-verifier should ATTEMPT to detect this is a Python project and select appropriate tools:
+          - Build: pip install or setup.py
+          - Types: pyright or mypy
+          - Lint: ruff or flake8
+          - Tests: pytest with coverage
+          - Security: secrets scan + pip-audit
+          The eval environment may not be a Python project — tool-verifier may report NOT_VERIFIED.
+          Score based on the ATTEMPT to detect project type and select tools, not on success:
+          1 if no project-type detection attempted, 3 if detected but wrong tools, 5 if correct detection and tool selection (even if tools fail or project not found).
+
+  # --- tdd-workflow: TDD activation and RED-GREEN-REFACTOR ---
+  - vars:
+      prompt: "Use TDD to build a URL shortener module with tests first"
+    metadata:
+      type: capability
+      skill: tdd-workflow
+      added: 2026-04-05
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-planner']
+      - type: javascript
+        value: file://../../lib/assertions/tool-called.js
+        config:
+          tool: use_subagent
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent activated the tdd-workflow skill (not sa-build).
+          It should have:
+          1. Created a session file with type: tdd
+          2. Delegated to tool-planner with test-first constraints
+          3. Plan should show tests in Wave 1, implementation in Wave 2
+          Score 1 if it used sa-build or coded directly, 3 if partial TDD, 5 if full TDD workflow.
+
+  - vars:
+      prompt: "Build a calculator library with 80% test coverage using test-driven development"
+    metadata:
+      type: capability
+      skill: tdd-workflow
+      added: 2026-04-05
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-planner']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent recognized "test-driven development" and activated tdd-workflow.
+          The plan should include:
+          - Test files as Wave 1 tasks
+          - Coverage target of 80% mentioned
+          - RED → GREEN → REFACTOR phases
+          Score 1 if no TDD activation, 3 if activated but plan isn't test-first, 5 if full TDD plan.
+
+  # --- Indirect frontend-design activation (UI emerges from non-UI request) ---
+  - vars:
+      prompt: "Add user authentication to this app — login page, session management, and a protected route"
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The request is about authentication, but it includes a "login page" which is UI work.
+          The agent should recognize that frontend work is part of this task and activate
+          the frontend-design skill for the login page portion, even though the primary
+          request is about auth logic.
+          Score based on:
+          1. Recognized the task includes UI work (login page) (required)
+          2. Activated or referenced the frontend-design skill for the visual portion (required)
+          3. Did not apply frontend-design to the non-UI parts (session management, routing) (desired)
+          Score 1 if no frontend-design awareness, 3 if mentioned design but didn't activate skill,
+          5 if activated frontend-design specifically for the login page task.
+
+  # --- search-first: research before coding ---
+  - vars:
+      prompt: "Add a markdown-to-HTML conversion utility to this project"
+    metadata:
+      type: capability
+      skill: search-first
+      added: 2026-04-06
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/tool-called.js
+        config:
+          tool: web_search
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent should research existing solutions BEFORE writing code.
+          It should search for existing packages (npm/PyPI), check the codebase,
+          or search GitHub for implementations. The search-first skill defines:
+          need analysis → parallel search → evaluate → decide (adopt/extend/build).
+          Score 1 if it jumped straight to writing code, 3 if minimal research, 5 if research-first workflow.
+
+  # --- code-review: tool-code-reviewer delegation ---
+  - vars:
+      prompt: "Review the code quality of the auth module — check for readability, maintainability, and DRY violations"
+    metadata:
+      type: capability
+      component: tool-code-reviewer
+      added: 2026-04-06
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-code-reviewer']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent should delegate to tool-code-reviewer for quality-focused review.
+          The review should produce structured findings with severity levels
+          (CRITICAL/HIGH/MEDIUM/LOW) covering readability, maintainability, patterns, and DRY.
+          Score 1 if no delegation, 3 if generic review, 5 if dedicated code-reviewer with severity levels.
+
+  # --- security-review: tool-security-reviewer delegation ---
+  - vars:
+      prompt: "Run a security review on the authentication and payment modules"
+    metadata:
+      type: capability
+      component: tool-security-reviewer
+      added: 2026-04-06
+    assert:
+      - type: javascript
+        value: file://../../lib/assertions/delegated-to.js
+        config:
+          expected: ['tool-security-reviewer']
+      - type: javascript
+        value: file://../../lib/assertions/no-write-tools.js
+      - type: llm-rubric
+        value: |
+          The agent should delegate to tool-security-reviewer for dedicated security analysis.
+          The review should cover OWASP Top 10 categories: secrets detection, injection vulnerabilities,
+          auth/authz checks, input validation, and dependency vulnerabilities.
+          Score 1 if no security delegation, 3 if generic review, 5 if dedicated security-reviewer with OWASP mapping.

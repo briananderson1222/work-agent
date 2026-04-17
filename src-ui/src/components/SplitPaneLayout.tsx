@@ -21,6 +21,7 @@ interface SplitPaneItem {
   name: string;
   subtitle?: string;
   icon?: React.ReactNode;
+  section?: string;
 }
 
 interface SplitPaneLayoutProps {
@@ -127,25 +128,32 @@ export function SplitPaneLayout({
               <p>No items yet</p>
             </div>
           ) : (
-            items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={`split-pane__item${selectedId === item.id ? ' split-pane__item--selected' : ''}`}
-                onClick={() => onSelect(item.id)}
-              >
-                {item.icon && (
-                  <div className="split-pane__item-icon">{item.icon}</div>
-                )}
-                <div className="split-pane__item-text">
-                  <div className="split-pane__item-name">{item.name}</div>
-                  {item.subtitle && (
-                    <div className="split-pane__item-subtitle">
-                      {item.subtitle}
+            items.map((item, i) => (
+              <React.Fragment key={item.id}>
+                {item.section !== undefined &&
+                  item.section !== items[i - 1]?.section && (
+                    <div className="split-pane__section-header">
+                      {item.section}
                     </div>
                   )}
-                </div>
-              </button>
+                <button
+                  type="button"
+                  className={`split-pane__item${selectedId === item.id ? ' split-pane__item--selected' : ''}`}
+                  onClick={() => onSelect(item.id)}
+                >
+                  {item.icon && (
+                    <div className="split-pane__item-icon">{item.icon}</div>
+                  )}
+                  <div className="split-pane__item-text">
+                    <div className="split-pane__item-name">{item.name}</div>
+                    {item.subtitle && (
+                      <div className="split-pane__item-subtitle">
+                        {item.subtitle}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              </React.Fragment>
             ))
           )}
         </div>

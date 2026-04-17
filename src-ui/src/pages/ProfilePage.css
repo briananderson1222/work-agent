@@ -1,27 +1,4 @@
-/* ═══ Profile Page — Editorial Dashboard ═══ */
-
-.profile-page {
-  position: relative;
-}
-
-.profile-page::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background:
-    radial-gradient(
-      ellipse 80% 50% at 50% -20%,
-      rgba(74, 158, 255, 0.06),
-      transparent
-    ),
-    radial-gradient(
-      ellipse 60% 40% at 80% 100%,
-      rgba(167, 139, 250, 0.04),
-      transparent
-    );
-  pointer-events: none;
-  z-index: -1;
-}
+/* ═══ Profile Page ═══ */
 
 .profile-container {
   display: flex;
@@ -34,7 +11,7 @@
 .profile-card {
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 2rem;
   position: relative;
   overflow: hidden;
@@ -42,7 +19,7 @@
 }
 
 .profile-card:hover {
-  border-color: rgba(74, 158, 255, 0.2);
+  border-color: var(--accent-primary);
 }
 
 /* Top hero card gets the accent treatment */
@@ -54,10 +31,8 @@
     var(--bg-tertiary) 100%
   );
   border: 1px solid var(--border-primary);
-  border-radius: 14px;
-  box-shadow:
-    0 0 0 1px rgba(74, 158, 255, 0.08),
-    0 16px 48px -12px rgba(0, 0, 0, 0.25);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.25);
 }
 
 .profile-container > .profile-card:first-child::before {
@@ -67,28 +42,8 @@
   left: 0;
   right: 0;
   height: 2px;
-  background: linear-gradient(
-    90deg,
-    var(--accent-primary),
-    #a78bfa,
-    var(--accent-primary)
-  );
+  background: var(--accent-primary);
   opacity: 0.8;
-}
-
-.profile-container > .profile-card:first-child::after {
-  content: "";
-  position: absolute;
-  top: -120px;
-  right: -80px;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(
-    circle,
-    rgba(74, 158, 255, 0.04) 0%,
-    transparent 70%
-  );
-  pointer-events: none;
 }
 
 .profile-card__edit-btn {
@@ -115,7 +70,7 @@
   position: relative;
   box-shadow:
     0 0 0 3px var(--bg-secondary),
-    0 0 0 5px rgba(74, 158, 255, 0.25),
+    0 0 0 5px color-mix(in srgb, var(--accent-primary) 25%, transparent),
     0 8px 24px rgba(0, 0, 0, 0.2);
   transition:
     transform 0.4s cubic-bezier(0.16, 1, 0.3, 1),
@@ -126,8 +81,7 @@
   transform: scale(1.06);
   box-shadow:
     0 0 0 3px var(--bg-secondary),
-    0 0 0 5px rgba(74, 158, 255, 0.35),
-    0 0 20px rgba(74, 158, 255, 0.1),
+    0 0 0 5px color-mix(in srgb, var(--accent-primary) 35%, transparent),
     0 12px 32px rgba(0, 0, 0, 0.25);
 }
 
@@ -188,7 +142,7 @@
   font-family: "JetBrains Mono", monospace;
   padding: 0;
   text-decoration: none;
-  border-bottom: 1px dashed rgba(255, 255, 255, 0.15);
+  border-bottom: 1px dashed var(--border-primary);
   transition:
     color 0.2s,
     border-color 0.2s;
@@ -260,7 +214,6 @@
   padding: 0.35rem 0.85rem;
   border-radius: 8px;
   letter-spacing: 0.01em;
-  backdrop-filter: blur(8px);
   transition:
     transform 0.2s ease,
     box-shadow 0.2s ease;
@@ -271,20 +224,15 @@
 }
 
 .profile-badge-primary {
-  background: rgba(74, 158, 255, 0.1);
+  background: color-mix(in srgb, var(--accent-primary) 10%, transparent);
   color: var(--accent-primary);
-  border: 1px solid rgba(74, 158, 255, 0.15);
-  box-shadow: 0 2px 8px rgba(74, 158, 255, 0.06);
-}
-
-.profile-badge-primary:hover {
-  box-shadow: 0 4px 12px rgba(74, 158, 255, 0.12);
+  border: 1px solid color-mix(in srgb, var(--accent-primary) 15%, transparent);
 }
 
 .profile-badge-secondary {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-tertiary);
   color: var(--text-secondary);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-primary);
 }
 
 /* ── Stats grid ── */
@@ -314,14 +262,14 @@
 .profile-timeline {
   background: var(--bg-secondary);
   border: 1px solid var(--border-primary);
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 2rem;
   position: relative;
   transition: border-color 0.3s ease;
 }
 
 .profile-timeline:hover {
-  border-color: rgba(74, 158, 255, 0.15);
+  border-color: var(--accent-primary);
 }
 
 .profile-timeline-title {
@@ -343,10 +291,6 @@
 /* ── Responsive ── */
 
 @media (max-width: 700px) {
-  .profile-page {
-    padding: 1.5rem 1rem 3rem;
-  }
-
   .profile-hero-content {
     flex-direction: column;
     align-items: center;

@@ -67,7 +67,6 @@
     width: 280px;
     flex-shrink: 0;
     border-right: 1px solid var(--border-primary);
-
   }
 
   .split-pane__right {
@@ -324,4 +323,14 @@
   .split-pane__label {
     font-size: 0.75rem;
   }
+}
+
+.split-pane__section-header {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.6rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  padding: 0.75rem 1rem 0.25rem;
 }

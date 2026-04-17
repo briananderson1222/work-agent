@@ -567,9 +567,13 @@ export class StrandsFramework {
     const allTools: ITool[] = [];
     const agentClientIds: string[] = [];
 
-    for (const toolId of spec.tools.mcpServers) {
+    for (const entry of spec.tools.mcpServers) {
       try {
-        const toolDef = await opts.configLoader.loadIntegration(toolId);
+        const toolId = typeof entry === 'string' ? entry : entry.id;
+        const toolDef =
+          typeof entry === 'string'
+            ? await opts.configLoader.loadIntegration(entry)
+            : (entry as import('@stallion-ai/shared').ToolDef);
 
         if (toolDef.kind !== 'mcp') continue;
         if (toolDef.transport !== 'stdio' && toolDef.transport !== 'process') {
@@ -636,12 +640,13 @@ export class StrandsFramework {
           count: mcpTools.length,
         });
       } catch (error) {
+        const failedId = typeof entry === 'string' ? entry : entry.id;
         opts.logger.error('Failed to load MCP tool via Strands', {
           agent: slug,
-          toolId,
+          toolId: failedId,
           error,
         });
-        opts.mcpConnectionStatus.set(toolId, {
+        opts.mcpConnectionStatus.set(failedId, {
           connected: false,
           error: String(error),
         });

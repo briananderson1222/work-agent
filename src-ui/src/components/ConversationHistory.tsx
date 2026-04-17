@@ -44,7 +44,10 @@ export function ConversationHistory({
     true,
   );
 
-  const handleSelectConversation = (conv: { id: string; agentSlug: string }) => {
+  const handleSelectConversation = (conv: {
+    id: string;
+    agentSlug: string;
+  }) => {
     const existing = sessions.find((s) => s.conversationId === conv.id);
     if (existing) {
       onSelect(existing.id);
@@ -88,12 +91,9 @@ export function ConversationHistory({
               key={conv.id}
               conversation={conv}
               isActive={sessions.some(
-                (s) =>
-                  s.conversationId === conv.id && s.id === activeSessionId,
+                (s) => s.conversationId === conv.id && s.id === activeSessionId,
               )}
-              hasActiveChat={sessions.some(
-                (s) => s.conversationId === conv.id,
-              )}
+              hasActiveChat={sessions.some((s) => s.conversationId === conv.id)}
               isRenaming={menu.renamingId === conv.id}
               newTitle={menu.newTitle}
               inputRef={menu.inputRef}

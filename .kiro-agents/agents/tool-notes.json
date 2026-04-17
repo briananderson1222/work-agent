@@ -1,0 +1,80 @@
+{
+  "allowedTools": [
+    "@obsidian/get_notes_info",
+    "@obsidian/get_frontmatter",
+    "@obsidian/get_vault_stats",
+    "@obsidian/list_directory",
+    "@obsidian/read_note",
+    "@obsidian/read_multiple_notes",
+    "@obsidian/search_notes"
+  ],
+  "hooks": {
+    "agentSpawn": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh agentSpawn tool-notes",
+        "timeout_ms": 12000
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh postToolUse tool-notes",
+        "matcher": "*",
+        "timeout_ms": 12000
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh preToolUse tool-notes",
+        "matcher": "*",
+        "timeout_ms": 12000
+      }
+    ],
+    "stop": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh stop tool-notes",
+        "timeout_ms": 12000
+      }
+    ],
+    "userPromptSubmit": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh userPromptSubmit tool-notes",
+        "timeout_ms": 12000
+      }
+    ]
+  },
+  "mcpServers": {
+    "obsidian": {
+      "args": [
+        "/Users/anderbs/.kiro-agents/soul"
+      ],
+      "command": "mcp-obsidian"
+    }
+  },
+  "resources": [
+    "file://AGENTS.md",
+    "file://.kiro/steering/**/*.md",
+    "file://~/.kiro/steering/**/*.md",
+    "file:///Users/anderbs/.kiro-agents/context/common/subagents.md",
+    "file:///Users/anderbs/.kiro-agents/context/*.md"
+  ],
+  "tools": [
+    "@obsidian/get_notes_info",
+    "@obsidian/get_frontmatter",
+    "@obsidian/get_vault_stats",
+    "@obsidian/list_directory",
+    "@obsidian/read_note",
+    "@obsidian/read_multiple_notes",
+    "@obsidian/search_notes"
+  ],
+  "toolsSettings": {
+    "write": {
+      "allowedPaths": [
+        "/Users/anderbs/.kiro-agents/soul/**/*"
+      ]
+    }
+  },
+  "name": "tool-notes",
+  "description": "Delegate to me for searching notes - customer meetings, meeting preparation, and context gathering from Obsidian and meeting summaries (sent to email)",
+  "prompt": "You are a notes assistant that helps find relevant notes. When asked about a topic or meeting, search available note sources to find related content and summarize key points. Focus on extracting actionable context.\n\n## Email-Based Meeting Notes\nMeeting notes may also exist in email with the subject format: \"Meeting summary: <meeting name>\". When searching for notes:\n- The meeting name in the subject helps determine relevance to the user's request\n- The email recipients indicate meeting attendees, which can further clarify if the notes are relevant\n- Search emails for these meeting summaries, then read the full content to extract details",
+  "model": "agi-nova-beta-1m"
+}

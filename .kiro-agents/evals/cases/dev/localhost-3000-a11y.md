@@ -1,0 +1,658 @@
+- generic [ref=e3]:
+  - complementary [ref=e4]:
+    - button "Expand sidebar" [ref=e6] [cursor=pointer]:
+      - img [ref=e7]
+    - generic [ref=e10]:
+      - button "D" [ref=e12] [cursor=pointer]:
+        - generic [ref=e13]: D
+      - button "New Project" [ref=e14] [cursor=pointer]:
+        - img [ref=e15]
+    - generic [ref=e16]:
+      - button "Agents" [ref=e17] [cursor=pointer]:
+        - img [ref=e18]
+      - button "Playbooks" [ref=e21] [cursor=pointer]:
+        - img [ref=e22]
+      - button "Registry" [ref=e25] [cursor=pointer]:
+        - img [ref=e26]
+      - button "Connections" [ref=e29] [cursor=pointer]:
+        - img [ref=e30]
+      - button "Plugins" [ref=e33] [cursor=pointer]:
+        - img [ref=e34]
+      - button "Schedule" [ref=e37] [cursor=pointer]:
+        - img [ref=e38]
+      - button "Monitoring" [ref=e41] [cursor=pointer]:
+        - img [ref=e42]
+  - generic [ref=e44]:
+    - banner [ref=e45]:
+      - generic [ref=e46]:
+        - button "connected" [ref=e48] [cursor=pointer]:
+          - generic "connected" [ref=e49]
+        - button "Notifications" [ref=e51] [cursor=pointer]:
+          - img [ref=e52]
+        - button "Profile" [ref=e55] [cursor=pointer]: A
+        - button "Ask Stallion for help" [ref=e57] [cursor=pointer]:
+          - img [ref=e58]
+        - button "⚙" [ref=e61] [cursor=pointer]
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e65]:
+          - button "Dashboard" [ref=e66] [cursor=pointer]:
+            - generic [ref=e67]: Dashboard
+          - button "Calendar" [ref=e68] [cursor=pointer]:
+            - generic [ref=e69]: Calendar
+          - button "Salesforce" [ref=e70] [cursor=pointer]:
+            - generic [ref=e71]: Salesforce
+          - button "SIFT" [ref=e72] [cursor=pointer]:
+            - generic [ref=e73]: SIFT
+          - button "Notes" [ref=e74] [cursor=pointer]:
+            - generic [ref=e75]: Notes
+        - generic [ref=e76]:
+          - button "📅 Daily Overview" [ref=e77] [cursor=pointer]:
+            - generic [ref=e78]: 📅
+            - text: Daily Overview
+          - link "⚡ Spark" [ref=e79] [cursor=pointer]:
+            - /url: https://spark.vidya.aws.dev/
+            - generic [ref=e80]: ⚡
+            - text: Spark
+        - button "5h35m" [ref=e82] [cursor=pointer]:
+          - generic [ref=e84]: 5h35m
+      - banner [ref=e85]:
+        - paragraph [ref=e86]: Integrated calendar and CRM workspace with flexible agent support
+        - button "Refresh" [ref=e88] [cursor=pointer]:
+          - img [ref=e89]
+      - generic [ref=e92]:
+        - generic [ref=e93]:
+          - generic [ref=e94]:
+            - text: Welcome, Brian
+            - generic [ref=e95] [cursor=pointer]: (anderbs@)
+            - text: 👋
+          - generic [ref=e96]: Monday, April 6
+        - generic [ref=e97]:
+          - button "📋 Daily Briefing Review calendar and email priorities" [ref=e98] [cursor=pointer]:
+            - generic [ref=e99]: 📋 Daily Briefing
+            - generic [ref=e100]: Review calendar and email priorities
+          - button "🤝 Meeting Prep Prepare for upcoming meetings" [ref=e101] [cursor=pointer]:
+            - generic [ref=e102]: 🤝 Meeting Prep
+            - generic [ref=e103]: Prepare for upcoming meetings
+          - button "📝 Log Activity Update Salesforce with meeting notes" [ref=e104] [cursor=pointer]:
+            - generic [ref=e105]: 📝 Log Activity
+            - generic [ref=e106]: Update Salesforce with meeting notes
+          - button "💡 Gen Insights Create leadership insights (SIFTs)" [ref=e107] [cursor=pointer]:
+            - generic [ref=e108]: 💡 Gen Insights
+            - generic [ref=e109]: Create leadership insights (SIFTs)
+        - generic [ref=e110]:
+          - generic [ref=e111]:
+            - generic [ref=e112]:
+              - heading "My Accounts (40)" [level=3] [ref=e174]
+              - textbox "Filter accounts…" [ref=e175]
+            - table [ref=e176]:
+              - rowgroup [ref=e177]:
+                - row "Name Segment YTD Health" [ref=e178]:
+                  - columnheader "Name" [ref=e179]
+                  - columnheader "Segment" [ref=e180]
+                  - columnheader "YTD" [ref=e181]
+                  - columnheader "Health" [ref=e182]
+                  - columnheader [ref=e183]
+              - rowgroup [ref=e184]:
+                - row "O'Reilly Automotive, Inc. - — No Data ↗" [ref=e185] [cursor=pointer]:
+                  - cell "O'Reilly Automotive, Inc." [ref=e186]:
+                    - link "O'Reilly Automotive, Inc." [ref=e187]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0015000000cAVeMAAW
+                  - cell "-" [ref=e188]
+                  - cell "—" [ref=e189]
+                  - cell "No Data" [ref=e190]
+                  - cell "↗" [ref=e191]:
+                    - link "↗" [ref=e192]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0015000000cAVeMAAW/view
+                - row "Merkle-Korff Industries - — No Data ↗" [ref=e193] [cursor=pointer]:
+                  - cell "Merkle-Korff Industries" [ref=e194]:
+                    - link "Merkle-Korff Industries" [ref=e195]:
+                      - /url: /layouts/stallion/crm?selectedAccount=00138000016UOJZAA4
+                  - cell "-" [ref=e196]
+                  - cell "—" [ref=e197]
+                  - cell "No Data" [ref=e198]
+                  - cell "↗" [ref=e199]:
+                    - link "↗" [ref=e200]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/00138000016UOJZAA4/view
+                - row "Benteler Group - — No Data ↗" [ref=e201] [cursor=pointer]:
+                  - cell "Benteler Group" [ref=e202]:
+                    - link "Benteler Group" [ref=e203]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001hcU6XAAU
+                  - cell "-" [ref=e204]
+                  - cell "—" [ref=e205]
+                  - cell "No Data" [ref=e206]
+                  - cell "↗" [ref=e207]:
+                    - link "↗" [ref=e208]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001hcU6XAAU/view
+                - row "Nidec Motion Control Engineering - — No Data ↗" [ref=e209] [cursor=pointer]:
+                  - cell "Nidec Motion Control Engineering" [ref=e210]:
+                    - link "Nidec Motion Control Engineering" [ref=e211]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001uyMQZAA2
+                  - cell "-" [ref=e212]
+                  - cell "—" [ref=e213]
+                  - cell "No Data" [ref=e214]
+                  - cell "↗" [ref=e215]:
+                    - link "↗" [ref=e216]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001uyMQZAA2/view
+                - row "Brose North America Inc. - — No Data ↗" [ref=e217] [cursor=pointer]:
+                  - cell "Brose North America Inc." [ref=e218]:
+                    - link "Brose North America Inc." [ref=e219]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0013800001NobJzAAJ
+                  - cell "-" [ref=e220]
+                  - cell "—" [ref=e221]
+                  - cell "No Data" [ref=e222]
+                  - cell "↗" [ref=e223]:
+                    - link "↗" [ref=e224]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0013800001NobJzAAJ/view
+                - row "Nidec Industrial Solutions - — No Data ↗" [ref=e225] [cursor=pointer]:
+                  - cell "Nidec Industrial Solutions" [ref=e226]:
+                    - link "Nidec Industrial Solutions" [ref=e227]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0010z00001WFkkdAAD
+                  - cell "-" [ref=e228]
+                  - cell "—" [ref=e229]
+                  - cell "No Data" [ref=e230]
+                  - cell "↗" [ref=e231]:
+                    - link "↗" [ref=e232]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0010z00001WFkkdAAD/view
+                - row "Imperial electric - — No Data ↗" [ref=e233] [cursor=pointer]:
+                  - cell "Imperial electric" [ref=e234]:
+                    - link "Imperial electric" [ref=e235]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001s9YeYAAU
+                  - cell "-" [ref=e236]
+                  - cell "—" [ref=e237]
+                  - cell "No Data" [ref=e238]
+                  - cell "↗" [ref=e239]:
+                    - link "↗" [ref=e240]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001s9YeYAAU/view
+                - row "MCE Consulting - — No Data ↗" [ref=e241] [cursor=pointer]:
+                  - cell "MCE Consulting" [ref=e242]:
+                    - link "MCE Consulting" [ref=e243]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0015000000lrarDAAQ
+                  - cell "-" [ref=e244]
+                  - cell "—" [ref=e245]
+                  - cell "No Data" [ref=e246]
+                  - cell "↗" [ref=e247]:
+                    - link "↗" [ref=e248]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0015000000lrarDAAQ/view
+                - row "Ultra Aluminum Manufacturing Inc. - — No Data ↗" [ref=e249] [cursor=pointer]:
+                  - cell "Ultra Aluminum Manufacturing Inc." [ref=e250]:
+                    - link "Ultra Aluminum Manufacturing Inc." [ref=e251]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001l2OoBAAU
+                  - cell "-" [ref=e252]
+                  - cell "—" [ref=e253]
+                  - cell "No Data" [ref=e254]
+                  - cell "↗" [ref=e255]:
+                    - link "↗" [ref=e256]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001l2OoBAAU/view
+                - row "legendbrands.com - — No Data ↗" [ref=e257] [cursor=pointer]:
+                  - cell "legendbrands.com" [ref=e258]:
+                    - link "legendbrands.com" [ref=e259]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001fp8lvAAA
+                  - cell "-" [ref=e260]
+                  - cell "—" [ref=e261]
+                  - cell "No Data" [ref=e262]
+                  - cell "↗" [ref=e263]:
+                    - link "↗" [ref=e264]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001fp8lvAAA/view
+                - 'row "Griffin Industries, Inc. #firmographic - — No Data ↗" [ref=e265] [cursor=pointer]':
+                  - 'cell "Griffin Industries, Inc. #firmographic" [ref=e266]':
+                    - 'link "Griffin Industries, Inc. #firmographic" [ref=e267]':
+                      - /url: /layouts/stallion/crm?selectedAccount=0010z00001WQM4bAAH
+                  - cell "-" [ref=e268]
+                  - cell "—" [ref=e269]
+                  - cell "No Data" [ref=e270]
+                  - cell "↗" [ref=e271]:
+                    - link "↗" [ref=e272]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0010z00001WQM4bAAH/view
+                - row "Stonhard - — No Data ↗" [ref=e273] [cursor=pointer]:
+                  - cell "Stonhard" [ref=e274]:
+                    - link "Stonhard" [ref=e275]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0010z00001XhIn1AAF
+                  - cell "-" [ref=e276]
+                  - cell "—" [ref=e277]
+                  - cell "No Data" [ref=e278]
+                  - cell "↗" [ref=e279]:
+                    - link "↗" [ref=e280]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0010z00001XhIn1AAF/view
+                - row "Mettler-Toledo International Inc. - — No Data ↗" [ref=e281] [cursor=pointer]:
+                  - cell "Mettler-Toledo International Inc." [ref=e282]:
+                    - link "Mettler-Toledo International Inc." [ref=e283]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0015000000cAVdEAAW
+                  - cell "-" [ref=e284]
+                  - cell "—" [ref=e285]
+                  - cell "No Data" [ref=e286]
+                  - cell "↗" [ref=e287]:
+                    - link "↗" [ref=e288]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0015000000cAVdEAAW/view
+                - row "#M&A North American Container Corporation - — No Data ↗" [ref=e289] [cursor=pointer]:
+                  - cell "#M&A North American Container Corporation" [ref=e290]:
+                    - link "#M&A North American Container Corporation" [ref=e291]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0010z00001XhIPfAAN
+                  - cell "-" [ref=e292]
+                  - cell "—" [ref=e293]
+                  - cell "No Data" [ref=e294]
+                  - cell "↗" [ref=e295]:
+                    - link "↗" [ref=e296]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0010z00001XhIPfAAN/view
+                - row "The Euclid Chemical Company - — No Data ↗" [ref=e297] [cursor=pointer]:
+                  - cell "The Euclid Chemical Company" [ref=e298]:
+                    - link "The Euclid Chemical Company" [ref=e299]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0013800001MoQSfAAN
+                  - cell "-" [ref=e300]
+                  - cell "—" [ref=e301]
+                  - cell "No Data" [ref=e302]
+                  - cell "↗" [ref=e303]:
+                    - link "↗" [ref=e304]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0013800001MoQSfAAN/view
+                - row "Mettler-Toledo India Private Limited - — No Data ↗" [ref=e305] [cursor=pointer]:
+                  - cell "Mettler-Toledo India Private Limited" [ref=e306]:
+                    - link "Mettler-Toledo India Private Limited" [ref=e307]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0013800001K3Ax9AAF
+                  - cell "-" [ref=e308]
+                  - cell "—" [ref=e309]
+                  - cell "No Data" [ref=e310]
+                  - cell "↗" [ref=e311]:
+                    - link "↗" [ref=e312]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0013800001K3Ax9AAF/view
+                - row "RPM Performance Coatings Group, Inc. - — No Data ↗" [ref=e313] [cursor=pointer]:
+                  - cell "RPM Performance Coatings Group, Inc." [ref=e314]:
+                    - link "RPM Performance Coatings Group, Inc." [ref=e315]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0013800001CAYHGAA5
+                  - cell "-" [ref=e316]
+                  - cell "—" [ref=e317]
+                  - cell "No Data" [ref=e318]
+                  - cell "↗" [ref=e319]:
+                    - link "↗" [ref=e320]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0013800001CAYHGAA5/view
+                - row "RPM International - — No Data ↗" [ref=e321] [cursor=pointer]:
+                  - cell "RPM International" [ref=e322]:
+                    - link "RPM International" [ref=e323]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0013800001PJEnpAAH
+                  - cell "-" [ref=e324]
+                  - cell "—" [ref=e325]
+                  - cell "No Data" [ref=e326]
+                  - cell "↗" [ref=e327]:
+                    - link "↗" [ref=e328]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0013800001PJEnpAAH/view
+                - row "Legend Brands - — No Data ↗" [ref=e329] [cursor=pointer]:
+                  - cell "Legend Brands" [ref=e330]:
+                    - link "Legend Brands" [ref=e331]:
+                      - /url: /layouts/stallion/crm?selectedAccount=00138000016I7BXAA0
+                  - cell "-" [ref=e332]
+                  - cell "—" [ref=e333]
+                  - cell "No Data" [ref=e334]
+                  - cell "↗" [ref=e335]:
+                    - link "↗" [ref=e336]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/00138000016I7BXAA0/view
+                - row "Mettler Toledo (Thailand) Limited - — No Data ↗" [ref=e337] [cursor=pointer]:
+                  - cell "Mettler Toledo (Thailand) Limited" [ref=e338]:
+                    - link "Mettler Toledo (Thailand) Limited" [ref=e339]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001jPdXvAAK
+                  - cell "-" [ref=e340]
+                  - cell "—" [ref=e341]
+                  - cell "No Data" [ref=e342]
+                  - cell "↗" [ref=e343]:
+                    - link "↗" [ref=e344]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001jPdXvAAK/view
+                - row "Ali Industries Inc. - — No Data ↗" [ref=e345] [cursor=pointer]:
+                  - cell "Ali Industries Inc." [ref=e346]:
+                    - link "Ali Industries Inc." [ref=e347]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001bvdFTAAY
+                  - cell "-" [ref=e348]
+                  - cell "—" [ref=e349]
+                  - cell "No Data" [ref=e350]
+                  - cell "↗" [ref=e351]:
+                    - link "↗" [ref=e352]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001bvdFTAAY/view
+                - row "MT - — No Data ↗" [ref=e353] [cursor=pointer]:
+                  - cell "MT" [ref=e354]:
+                    - link "MT" [ref=e355]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001bwPNnAAM
+                  - cell "-" [ref=e356]
+                  - cell "—" [ref=e357]
+                  - cell "No Data" [ref=e358]
+                  - cell "↗" [ref=e359]:
+                    - link "↗" [ref=e360]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001bwPNnAAM/view
+                - row "#M&A PalletOne - — No Data ↗" [ref=e361] [cursor=pointer]:
+                  - cell "#M&A PalletOne" [ref=e362]:
+                    - link "#M&A PalletOne" [ref=e363]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0013800001Mpu2IAAR
+                  - cell "-" [ref=e364]
+                  - cell "—" [ref=e365]
+                  - cell "No Data" [ref=e366]
+                  - cell "↗" [ref=e367]:
+                    - link "↗" [ref=e368]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0013800001Mpu2IAAR/view
+                - row "Eagle PI - — No Data ↗" [ref=e369] [cursor=pointer]:
+                  - cell "Eagle PI" [ref=e370]:
+                    - link "Eagle PI" [ref=e371]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001jPWcjAAG
+                  - cell "-" [ref=e372]
+                  - cell "—" [ref=e373]
+                  - cell "No Data" [ref=e374]
+                  - cell "↗" [ref=e375]:
+                    - link "↗" [ref=e376]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001jPWcjAAG/view
+                - row "DAR PRO Solutions - — No Data ↗" [ref=e377] [cursor=pointer]:
+                  - cell "DAR PRO Solutions" [ref=e378]:
+                    - link "DAR PRO Solutions" [ref=e379]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001kMhfoAAC
+                  - cell "-" [ref=e380]
+                  - cell "—" [ref=e381]
+                  - cell "No Data" [ref=e382]
+                  - cell "↗" [ref=e383]:
+                    - link "↗" [ref=e384]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001kMhfoAAC/view
+                - row "Tremco Cpg Malaysia Sdn. Bhd. - — No Data ↗" [ref=e385] [cursor=pointer]:
+                  - cell "Tremco Cpg Malaysia Sdn. Bhd." [ref=e386]:
+                    - link "Tremco Cpg Malaysia Sdn. Bhd." [ref=e387]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001ilN8wAAE
+                  - cell "-" [ref=e388]
+                  - cell "—" [ref=e389]
+                  - cell "No Data" [ref=e390]
+                  - cell "↗" [ref=e391]:
+                    - link "↗" [ref=e392]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001ilN8wAAE/view
+                - row "Rust-Oleum Brands - — No Data ↗" [ref=e393] [cursor=pointer]:
+                  - cell "Rust-Oleum Brands" [ref=e394]:
+                    - link "Rust-Oleum Brands" [ref=e395]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0015000000Y4UpaAAF
+                  - cell "-" [ref=e396]
+                  - cell "—" [ref=e397]
+                  - cell "No Data" [ref=e398]
+                  - cell "↗" [ref=e399]:
+                    - link "↗" [ref=e400]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0015000000Y4UpaAAF/view
+                - row "Mettler-Toledo International - — No Data ↗" [ref=e401] [cursor=pointer]:
+                  - cell "Mettler-Toledo International" [ref=e402]:
+                    - link "Mettler-Toledo International" [ref=e403]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001zbwf7AAA
+                  - cell "-" [ref=e404]
+                  - cell "—" [ref=e405]
+                  - cell "No Data" [ref=e406]
+                  - cell "↗" [ref=e407]:
+                    - link "↗" [ref=e408]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001zbwf7AAA/view
+                - row "SPECIALTY POLYMER COATINGS - — No Data ↗" [ref=e409] [cursor=pointer]:
+                  - cell "SPECIALTY POLYMER COATINGS" [ref=e410]:
+                    - link "SPECIALTY POLYMER COATINGS" [ref=e411]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001ykptpAAA
+                  - cell "-" [ref=e412]
+                  - cell "—" [ref=e413]
+                  - cell "No Data" [ref=e414]
+                  - cell "↗" [ref=e415]:
+                    - link "↗" [ref=e416]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001ykptpAAA/view
+                - row "Concrobium - — No Data ↗" [ref=e417] [cursor=pointer]:
+                  - cell "Concrobium" [ref=e418]:
+                    - link "Concrobium" [ref=e419]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001wk6tWAAQ
+                  - cell "-" [ref=e420]
+                  - cell "—" [ref=e421]
+                  - cell "No Data" [ref=e422]
+                  - cell "↗" [ref=e423]:
+                    - link "↗" [ref=e424]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001wk6tWAAQ/view
+                - row "Universal Forest Products, Inc. - — No Data ↗" [ref=e425] [cursor=pointer]:
+                  - cell "Universal Forest Products, Inc." [ref=e426]:
+                    - link "Universal Forest Products, Inc." [ref=e427]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0015000000cAVj9AAG
+                  - cell "-" [ref=e428]
+                  - cell "—" [ref=e429]
+                  - cell "No Data" [ref=e430]
+                  - cell "↗" [ref=e431]:
+                    - link "↗" [ref=e432]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0015000000cAVj9AAG/view
+                - row "RPM International Inc. - — No Data ↗" [ref=e433] [cursor=pointer]:
+                  - cell "RPM International Inc." [ref=e434]:
+                    - link "RPM International Inc." [ref=e435]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0015000000cAVgNAAW
+                  - cell "-" [ref=e436]
+                  - cell "—" [ref=e437]
+                  - cell "No Data" [ref=e438]
+                  - cell "↗" [ref=e439]:
+                    - link "↗" [ref=e440]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0015000000cAVgNAAW/view
+                - row "Darling Ingredients Inc. - — No Data ↗" [ref=e441] [cursor=pointer]:
+                  - cell "Darling Ingredients Inc." [ref=e442]:
+                    - link "Darling Ingredients Inc." [ref=e443]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0015000000mHK87AAG
+                  - cell "-" [ref=e444]
+                  - cell "—" [ref=e445]
+                  - cell "No Data" [ref=e446]
+                  - cell "↗" [ref=e447]:
+                    - link "↗" [ref=e448]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0015000000mHK87AAG/view
+                - row "Tremco - — No Data ↗" [ref=e449] [cursor=pointer]:
+                  - cell "Tremco" [ref=e450]:
+                    - link "Tremco" [ref=e451]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0010z00001T6lyDAAR
+                  - cell "-" [ref=e452]
+                  - cell "—" [ref=e453]
+                  - cell "No Data" [ref=e454]
+                  - cell "↗" [ref=e455]:
+                    - link "↗" [ref=e456]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0010z00001T6lyDAAR/view
+                - row "Stoncor - — No Data ↗" [ref=e457] [cursor=pointer]:
+                  - cell "Stoncor" [ref=e458]:
+                    - link "Stoncor" [ref=e459]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0010z00001WpescAAB
+                  - cell "-" [ref=e460]
+                  - cell "—" [ref=e461]
+                  - cell "No Data" [ref=e462]
+                  - cell "↗" [ref=e463]:
+                    - link "↗" [ref=e464]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0010z00001WpescAAB/view
+                - row "Nidec America Corporation - — No Data ↗" [ref=e465] [cursor=pointer]:
+                  - cell "Nidec America Corporation" [ref=e466]:
+                    - link "Nidec America Corporation" [ref=e467]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0010z00001T6XrXAAV
+                  - cell "-" [ref=e468]
+                  - cell "—" [ref=e469]
+                  - cell "No Data" [ref=e470]
+                  - cell "↗" [ref=e471]:
+                    - link "↗" [ref=e472]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0010z00001T6XrXAAV/view
+                - row "Vast Auto Distribution Ltée - — No Data ↗" [ref=e473] [cursor=pointer]:
+                  - cell "Vast Auto Distribution Ltée" [ref=e474]:
+                    - link "Vast Auto Distribution Ltée" [ref=e475]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0014z00001cfhM5AAI
+                  - cell "-" [ref=e476]
+                  - cell "—" [ref=e477]
+                  - cell "No Data" [ref=e478]
+                  - cell "↗" [ref=e479]:
+                    - link "↗" [ref=e480]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0014z00001cfhM5AAI/view
+                - row "Hancor, Inc. - — No Data ↗" [ref=e481] [cursor=pointer]:
+                  - cell "Hancor, Inc." [ref=e482]:
+                    - link "Hancor, Inc." [ref=e483]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0010z00001UqyXmAAJ
+                  - cell "-" [ref=e484]
+                  - cell "—" [ref=e485]
+                  - cell "No Data" [ref=e486]
+                  - cell "↗" [ref=e487]:
+                    - link "↗" [ref=e488]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0010z00001UqyXmAAJ/view
+                - row "Infiltrator Water Technologies, LLC - — No Data ↗" [ref=e489] [cursor=pointer]:
+                  - cell "Infiltrator Water Technologies, LLC" [ref=e490]:
+                    - link "Infiltrator Water Technologies, LLC" [ref=e491]:
+                      - /url: /layouts/stallion/crm?selectedAccount=00138000017Zn8nAAC
+                  - cell "-" [ref=e492]
+                  - cell "—" [ref=e493]
+                  - cell "No Data" [ref=e494]
+                  - cell "↗" [ref=e495]:
+                    - link "↗" [ref=e496]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/00138000017Zn8nAAC/view
+                - row "Advanced Drainage Systems, Inc. - — No Data ↗" [ref=e497] [cursor=pointer]:
+                  - cell "Advanced Drainage Systems, Inc." [ref=e498]:
+                    - link "Advanced Drainage Systems, Inc." [ref=e499]:
+                      - /url: /layouts/stallion/crm?selectedAccount=0013800001K30vbAAB
+                  - cell "-" [ref=e500]
+                  - cell "—" [ref=e501]
+                  - cell "No Data" [ref=e502]
+                  - cell "↗" [ref=e503]:
+                    - link "↗" [ref=e504]:
+                      - /url: https://aws-crm.lightning.force.com/lightning/r/Account/0013800001K30vbAAB/view
+          - generic [ref=e117]:
+            - heading "Today's Meetings (3)" [level=3] [ref=e119]
+            - generic [ref=e120]:
+              - group [ref=e121]:
+                - generic "All-Day Events (1)" [ref=e122] [cursor=pointer]
+              - link "10:00 AM AWS/TekStream - NIDEC MAP Review" [ref=e123] [cursor=pointer]:
+                - /url: /layouts/stallion/calendar
+                - generic [ref=e124]: 10:00 AM
+                - generic [ref=e125]: AWS/TekStream - NIDEC MAP Review
+              - link "12:00 PM Follow up Account set up" [ref=e126] [cursor=pointer]:
+                - /url: /layouts/stallion/calendar
+                - generic [ref=e127]: 12:00 PM
+                - generic [ref=e128]: Follow up Account set up
+              - link "2:30 PM Builder Madness Team 1" [ref=e129] [cursor=pointer]:
+                - /url: /layouts/stallion/calendar
+                - generic [ref=e130]: 2:30 PM
+                - generic [ref=e131]: Builder Madness Team 1
+        - generic [ref=e132]:
+          - generic [ref=e133]:
+            - heading "Recent Opportunities" [level=3] [ref=e135]
+            - generic [ref=e136]:
+              - generic [ref=e505]:
+                - generic [ref=e506]: Transcore Holdings - Kiro Licenses Subscription
+                - generic [ref=e507]: Qualified • 11/29/2026 • $1,200
+              - generic [ref=e508]:
+                - generic [ref=e509]: Amazon Q for Developer - Safe Guard Products International
+                - generic [ref=e510]: Committed • 8/24/2026 • $407
+              - generic [ref=e511]:
+                - generic [ref=e512]: Sorenson - Internal Agentic Tooling
+                - generic [ref=e513]: Prospect • 6/29/2026 • $3,000
+              - generic [ref=e514]:
+                - generic [ref=e515]: NAMER-US-FY26-PTNR-APN-Mainframe Modernization
+                - generic [ref=e516]: Prospect • 6/2/2026 • $0
+              - generic [ref=e517]:
+                - generic [ref=e518]: "Galaxy Digital - Amazon Q Developer #dja"
+                - generic [ref=e519]: Qualified • 5/30/2026 • $20,000
+              - generic [ref=e520]:
+                - generic [ref=e521]: Timeless Medical - Developer Acceleration with Generative AI
+                - generic [ref=e522]: Business Validation • 5/27/2026 • $2,100
+              - generic [ref=e523]:
+                - generic [ref=e524]: 2K - Kiro Tool Adoption for Accelerated Development
+                - generic [ref=e525]: Qualified • 5/14/2026 • $8,950
+              - generic [ref=e526]:
+                - generic [ref=e527]: Q DEV - EE
+                - generic [ref=e528]: Business Validation • 3/30/2026 • $48,000
+          - generic [ref=e139]:
+            - heading "My Recent Tasks" [level=3] [ref=e141]
+            - generic [ref=e142]:
+              - generic [ref=e529]:
+                - generic [ref=e530]: FC Tour - In-person customer tour w/ LfA
+                - generic [ref=e531]: Universal Forest Products, Inc.- Warehouse System Automation (FC Tour) • 4/23/2025 • Meeting / Office Hours [Management]
+              - generic [ref=e532]:
+                - generic [ref=e533]: Security + Bedrock Immersion Day
+                - generic [ref=e534]: Darling Ingredients - New Workload - Bedrock Immersion Day • 4/21/2025 • Immersion Day [Workshops]
+              - generic [ref=e535]:
+                - generic [ref=e536]: IT Audit - Intro call with Director Steve Meredyk
+                - generic [ref=e537]: RPM International Inc. • 4/2/2025 • Meeting / Office Hours [Management]
+              - generic [ref=e538]:
+                - generic [ref=e539]: Initial Call with Tim Marion - Director of Engineering
+                - generic [ref=e540]: Brose North America Inc. • 3/12/2025 • Meeting / Office Hours [Management]
+              - generic [ref=e541]:
+                - generic [ref=e542]: Intro to Ryan Trude and Ryan Hoffman
+                - generic [ref=e543]: UFP - Sagemaker/Machine Learning • 3/11/2025 • Meeting / Office Hours [Management]
+              - generic [ref=e544]:
+                - generic [ref=e545]: Initial Call with Tom Morgan
+                - generic [ref=e546]: Darling Ingredients - New Workload - AI Project • 3/9/2025 • Meeting / Office Hours [Management]
+              - generic [ref=e547]:
+                - generic [ref=e548]: FC Tour - Brose Initial Meeting with IT Manager of Americas
+                - generic [ref=e549]: Brose North America Inc. • 2/11/2025 • Meeting / Office Hours [Management]
+              - generic [ref=e550]:
+                - generic [ref=e551]: FC Tour - Nidec-MCE Initial Meeting with VP of Supply Chain and Logistics
+                - generic [ref=e552]: Nidec Motion Control Engineering • 2/10/2025 • Meeting / Office Hours [Management]
+        - generic [ref=e145]:
+          - generic [ref=e146]:
+            - heading "Recent SIFTs" [level=3] [ref=e148]
+            - generic [ref=e150]:
+              - generic [ref=e553] [cursor=pointer]:
+                - generic [ref=e554]:
+                  - generic [ref=e555]: Highlight
+                  - generic [ref=e556]: Nidec Motion Control Engineering OLA
+                - generic [ref=e557]: 4/3/2026
+              - generic [ref=e558] [cursor=pointer]:
+                - generic [ref=e559]:
+                  - generic [ref=e560]: Highlight
+                  - generic [ref=e561]: Brose North America Quick Suite Adoption — 94% Time Reduction in Day-to-Day Tasks
+                - generic [ref=e562]: 2/24/2026
+              - generic [ref=e563] [cursor=pointer]:
+                - generic [ref=e564]:
+                  - generic [ref=e565]: Risk
+                  - generic [ref=e566]: Capital Group Bedrock Gateway Risk
+                - generic [ref=e567]: 2/6/2026
+              - generic [ref=e568] [cursor=pointer]:
+                - generic [ref=e569]:
+                  - generic [ref=e570]: Highlight
+                  - generic [ref=e571]: Brose NA AWS Foundation Progress
+                - generic [ref=e572]: 11/24/2025
+              - generic [ref=e573] [cursor=pointer]:
+                - generic [ref=e574]:
+                  - generic [ref=e575]: Observation
+                  - generic [ref=e576]: Mettler-Toledo IoT Integration Strategy
+                - generic [ref=e577]: 11/24/2025
+              - generic [ref=e578] [cursor=pointer]:
+                - generic [ref=e579]:
+                  - generic [ref=e580]: Observation
+                  - generic [ref=e581]: UFP Modernization Strategy with AWS
+                - generic [ref=e582]: 11/24/2025
+              - generic [ref=e583] [cursor=pointer]:
+                - generic [ref=e584]:
+                  - generic [ref=e585]: Risk
+                  - generic [ref=e586]: Darling Ingredients Security Lake RFP
+                - generic [ref=e587]: 11/24/2025
+              - generic [ref=e588] [cursor=pointer]:
+                - generic [ref=e589]:
+                  - generic [ref=e590]: Highlight
+                  - generic [ref=e591]: Nidec Motor Executive Meeting Secured
+                - generic [ref=e592]: 11/24/2025
+              - generic [ref=e593] [cursor=pointer]:
+                - generic [ref=e594]:
+                  - generic [ref=e595]: Lowlight
+                  - generic [ref=e596]: Nidec MCE Training Onboarding Delays
+                - generic [ref=e597]: 11/24/2025
+              - generic [ref=e598] [cursor=pointer]:
+                - generic [ref=e599]:
+                  - generic [ref=e600]: Challenge
+                  - generic [ref=e601]: Internal Service Limits and Fraud Detection Blocking Greenfield T2K Customer
+                - generic [ref=e602]: 11/23/2025
+              - generic [ref=e603] [cursor=pointer]:
+                - generic [ref=e604]:
+                  - generic [ref=e605]: Highlight
+                  - generic [ref=e606]: Nidec SAP DMS Implementation
+                - generic [ref=e607]: 10/27/2025
+              - generic [ref=e608] [cursor=pointer]:
+                - generic [ref=e609]:
+                  - generic [ref=e610]: Lowlight
+                  - generic [ref=e611]: Brose - MIG Welding Customer Perception Challenge Requires Trust Rebuilding
+                - generic [ref=e612]: 10/27/2025
+              - generic [ref=e613] [cursor=pointer]:
+                - generic [ref=e614]:
+                  - generic [ref=e615]: Highlight
+                  - generic [ref=e616]: Nidec Motors - Amazon Robotics Relationship Opens MOEN-Level Leadership Access
+                - generic [ref=e617]: 10/27/2025
+              - generic [ref=e618] [cursor=pointer]:
+                - generic [ref=e619]:
+                  - generic [ref=e620]: Lowlight
+                  - generic [ref=e621]: Nidec Connect SMS Implementation Gap
+                - generic [ref=e622]: 10/27/2025
+          - generic [ref=e153]:
+            - heading "Recent Conversations" [level=3] [ref=e155]
+            - generic [ref=e157]: Start a chat to see conversations here
+    - generic [ref=e159] [cursor=pointer]:
+      - generic [ref=e160]:
+        - generic [ref=e161]: Chat Dock
+        - generic [ref=e162]: ⌘D
+        - button "Chat settings" [ref=e163]:
+          - img [ref=e164]
+      - generic [ref=e167]:
+        - generic [ref=e168]: 0 sessions
+        - button "⬆ ⌘M" [ref=e169]:
+          - text: ⬆
+          - generic [ref=e170]: ⌘M
+        - button "Expand" [ref=e171]:
+          - img [ref=e172]

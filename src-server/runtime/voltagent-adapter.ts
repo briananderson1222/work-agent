@@ -223,16 +223,19 @@ export class VoltAgentFramework {
       memory,
       tools: tools as Tool<any>[],
       hooks,
-      ...(spec.maxSteps || config.appConfig.defaultMaxTurns
-        ? { maxTurns: spec.maxSteps || config.appConfig.defaultMaxTurns }
-        : {}),
       ...(spec.guardrails && {
         temperature: spec.guardrails.temperature,
         maxOutputTokens:
           spec.guardrails.maxTokens ?? config.appConfig.defaultMaxOutputTokens,
         topP: spec.guardrails.topP,
-        maxSteps: spec.guardrails.maxSteps,
       }),
+      // maxSteps controls VoltAgent's agentic loop limit (default: 10).
+      // Priority: agent guardrails > agent spec > app config > high default (no artificial limit).
+      maxSteps:
+        spec.guardrails?.maxSteps ||
+        spec.maxSteps ||
+        config.appConfig.defaultMaxTurns ||
+        200,
       ...(!spec.guardrails && config.appConfig.defaultMaxOutputTokens
         ? { maxOutputTokens: config.appConfig.defaultMaxOutputTokens }
         : {}),

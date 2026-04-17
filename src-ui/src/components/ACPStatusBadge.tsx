@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useACPConnections } from '../hooks/useACPConnections';
 import { AgentIcon } from './AgentIcon';
+import { Button } from './Button';
 
 export function ACPStatusBadge() {
   const { data: connections = [] } = useACPConnections();
@@ -202,9 +203,9 @@ export function ACPStatusBadge() {
                             </code>
                           </span>
                           {conn.status === 'disconnected' && (
-                            <button
-                              type="button"
-                              className="button button--small button--secondary"
+                            <Button
+                              variant="secondary"
+                              size="sm"
                               style={{
                                 marginLeft: 'auto',
                                 fontSize: '10px',
@@ -221,7 +222,7 @@ export function ACPStatusBadge() {
                               }}
                             >
                               ↻ Retry
-                            </button>
+                            </Button>
                           )}
                         </div>
                       )}
@@ -230,13 +231,9 @@ export function ACPStatusBadge() {
                 })}
               </div>
               <div className="modal-footer">
-                <button
-                  type="button"
-                  className="button button--secondary"
-                  onClick={() => setShowModal(false)}
-                >
+                <Button variant="secondary" onClick={() => setShowModal(false)}>
                   Close
-                </button>
+                </Button>
               </div>
             </div>
           </div>,

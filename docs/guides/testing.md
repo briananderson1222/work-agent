@@ -20,8 +20,41 @@
 npm test                          # vitest watch mode
 npx vitest run                    # single run
 npm run test:coverage             # with coverage report
-npx playwright test               # e2e
-npx playwright test tests/foo.spec.ts  # single e2e
+npm run install:playwright        # install repo-local Chromium once
+PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test               # e2e
+PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test tests/foo.spec.ts  # single e2e
+npm run test:connected-agents         # focused connected-agents server suite
+```
+
+## Connected Agents Verification
+
+Use these terms consistently when adding connected-agents coverage:
+
+- `Contract test`: provider-native event/request mapping into canonical runtime events
+- `Integration test`: Hono route or orchestration service boundary with real collaborators
+- `E2E test`: browser-driven flow using route interception or mocked EventSource delivery
+- `Smoke test`: real running app via `./stallion`
+
+Focused automation:
+
+```bash
+npm run test:connected-agents
+PW_BASE_URL=http://localhost:5274 PLAYWRIGHT_BROWSERS_PATH=0 \
+  npx playwright test \
+  tests/orchestration-provider-picker.spec.ts \
+  tests/orchestration-chat-flow.spec.ts \
+  tests/orchestration-recovery.spec.ts
+```
+
+Live local gate:
+
+```bash
+./stallion start --clean --force --port=3242 --ui-port=5274
+PW_BASE_URL=http://localhost:5274 PLAYWRIGHT_BROWSERS_PATH=0 \
+  npx playwright test \
+  tests/orchestration-provider-picker.spec.ts \
+  tests/orchestration-chat-flow.spec.ts \
+  tests/orchestration-recovery.spec.ts
 ```
 
 ## Shared Test Utilities
@@ -143,6 +176,14 @@ Every new feature or bug fix MUST include tests. This is not optional.
 | New UI component/hook | Playwright e2e test for the user flow |
 | Bug fix | Regression test that fails without the fix |
 | Refactor | Existing tests still pass (no new tests needed) |
+
+### Connected Agents Checklist
+
+- Adapter changes update the provider contract tests in `src-server/providers/__tests__/`
+- Orchestration changes update service, event-store, and route coverage
+- UI/state changes update provider-picker, chat-flow, or recovery Playwright specs
+- Session recovery changes must prove both restore and fail-closed behavior
+- Provider-specific prerequisite or option changes must be asserted end-to-end
 
 ### SSE Test Helper
 

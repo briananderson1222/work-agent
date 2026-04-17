@@ -99,6 +99,40 @@ export const providerSchema = z.object({
   capabilities: z.array(z.string()).optional(),
 });
 
+export const connectionSchema = z.object({
+  id: z.string().optional(),
+  kind: z.enum(['model', 'runtime']),
+  type: z.string().min(1),
+  name: z.string().min(1),
+  description: z.string().optional(),
+  config: z.record(z.any()),
+  enabled: z.boolean(),
+  capabilities: z.array(z.string()),
+  status: z
+    .enum(['ready', 'degraded', 'missing_prerequisites', 'disabled', 'error'])
+    .optional(),
+  prerequisites: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string(),
+        description: z.string(),
+        status: z.enum(['installed', 'missing', 'error']),
+        category: z.enum(['required', 'optional']),
+        source: z.string().optional(),
+        installGuide: z
+          .object({
+            steps: z.array(z.string()),
+            commands: z.array(z.string()).optional(),
+            links: z.array(z.string()).optional(),
+          })
+          .optional(),
+      }),
+    )
+    .optional(),
+  lastCheckedAt: z.string().nullable().optional(),
+});
+
 // Conversation context
 export const contextActionSchema = z.object({
   action: z.string().min(1),
@@ -396,6 +430,12 @@ export const schedulerOpenSchema = z.object({
 // Skills
 export const skillInstallSchema = z.object({
   id: z.string().min(1),
+});
+
+export const skillCreateSchema = z.object({
+  name: z.string().min(1),
+  source: z.enum(['local', 'registry', 'plugin']).optional(),
+  path: z.string().optional(),
 });
 
 export function validate<T>(schema: z.ZodSchema<T>) {

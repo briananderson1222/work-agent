@@ -3,6 +3,7 @@ import {
   useApiMutation,
   useInvalidateQuery,
 } from '@stallion-ai/sdk';
+import type { AgentExecutionConfig } from '@stallion-ai/shared';
 import { log } from '@/utils/logger';
 import { useApiBase } from './ApiBaseContext';
 
@@ -16,6 +17,7 @@ export type AgentData = {
   commands?: Record<string, any>;
   ui?: any;
   toolsConfig?: any;
+  execution?: AgentExecutionConfig;
   workflowWarnings?: string[];
   source?: 'local' | 'acp';
   supportsAttachments?: boolean;

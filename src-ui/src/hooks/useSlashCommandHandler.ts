@@ -101,7 +101,13 @@ export function useSlashCommandHandler() {
         return true;
       }
 
-      // 4. Unknown command
+      // 4. CLI runtime passthrough — forward unrecognized commands to the SDK
+      if (chatState.provider === 'claude' || chatState.provider === 'codex') {
+        cleanup();
+        return command; // Raw text forwarded to sendOrchestrationTurn
+      }
+
+      // 5. Unknown command
       const availableCommands = getAllCommands();
       addEphemeralMessage(sessionId, {
         role: 'system',

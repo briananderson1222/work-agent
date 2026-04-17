@@ -116,32 +116,6 @@
   margin-bottom: 12px;
 }
 
-.knowledge-view__field-label {
-  display: block;
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  margin-bottom: 4px;
-}
-
-.knowledge-view__field-input {
-  width: 100%;
-  box-sizing: border-box;
-  font-family: "SF Mono", "Fira Code", "JetBrains Mono", monospace;
-  font-size: 12px;
-  padding: 6px 10px;
-  background: var(--bg-primary);
-  border: 1px solid var(--border-primary);
-  border-radius: 5px;
-  color: var(--text-primary);
-  outline: none;
-  transition: border-color 0.15s;
-}
-
-.knowledge-view__field-input:focus {
-  border-color: var(--accent-primary);
-}
-
 /* ── Actions ────────────────────────────────────────────────────── */
 
 .knowledge-view__actions {
@@ -215,9 +189,5 @@
   .knowledge-view__stats {
     flex-wrap: wrap;
     gap: 16px;
-  }
-
-  .knowledge-view__content {
-    padding: 1rem;
   }
 }

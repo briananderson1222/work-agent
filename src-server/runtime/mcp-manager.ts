@@ -56,8 +56,14 @@ export async function releaseMCPRef(
 
 /**
  * Create MCP server configuration from tool definition
+ * @param resolvedEnv - If provided, used instead of toolDef.env (env resolution chain)
  */
-export function createMCPServerConfig(toolDef: ToolDef): any {
+export function createMCPServerConfig(
+  toolDef: ToolDef,
+  resolvedEnv?: Record<string, string>,
+): any {
+  const env = resolvedEnv ?? toolDef.env;
+
   if (toolDef.transport === 'stdio' || toolDef.transport === 'process') {
     // Replace ./ with actual cwd for cross-platform compatibility
     const args = (toolDef.args || []).map((arg) =>
@@ -68,7 +74,7 @@ export function createMCPServerConfig(toolDef: ToolDef): any {
       type: 'stdio',
       command: toolDef.command,
       args,
-      env: toolDef.env,
+      env,
       timeout: toolDef.timeouts?.startupMs,
     };
   } else if (toolDef.transport === 'ws') {
@@ -112,6 +118,7 @@ export async function createMCPTools(
   >,
   toolNameReverseMapping: Map<string, string>,
   logger: any,
+  resolvedEnv?: Record<string, string>,
 ): Promise<Tool<any>[]> {
   const mcpKey = toolId;
 
@@ -130,7 +137,7 @@ export async function createMCPTools(
   } else {
     // Create new MCP configuration
     const serverConfig: any = {
-      [toolId]: createMCPServerConfig(toolDef),
+      [toolId]: createMCPServerConfig(toolDef, resolvedEnv),
     };
 
     mcpConfig = new MCPConfiguration({
@@ -324,9 +331,20 @@ export async function loadAgentTools(
   }
 
   // Load each MCP server from catalog
-  for (const toolId of spec.tools.mcpServers) {
+  for (const entry of spec.tools.mcpServers) {
     try {
-      const toolDef = await configLoader.loadIntegration(toolId);
+      const toolId = typeof entry === 'string' ? entry : entry.id;
+      const toolDef =
+        typeof entry === 'string'
+          ? await configLoader.loadIntegration(entry)
+          : (entry as ToolDef);
+
+      // Build resolved env: toolDef.env as base, agent-level tools.env as overrides
+      const agentEnvOverrides = spec.tools?.env;
+      let resolvedEnv: Record<string, string> | undefined;
+      if (toolDef.env || agentEnvOverrides) {
+        resolvedEnv = { ...toolDef.env, ...agentEnvOverrides };
+      }
 
       if (toolDef.kind === 'mcp') {
         const mcpTools = await createMCPTools(
@@ -339,6 +357,7 @@ export async function loadAgentTools(
           toolNameMapping,
           toolNameReverseMapping,
           logger,
+          resolvedEnv,
         );
         tools.push(...mcpTools);
       } else if (toolDef.kind === 'builtin') {
@@ -348,7 +367,12 @@ export async function loadAgentTools(
         }
       }
     } catch (error) {
-      logger.error('Failed to load tool', { agent: agentSlug, toolId, error });
+      const failedId = typeof entry === 'string' ? entry : entry.id;
+      logger.error('Failed to load tool', {
+        agent: agentSlug,
+        toolId: failedId,
+        error,
+      });
     }
   }
 

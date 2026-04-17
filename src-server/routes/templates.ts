@@ -10,13 +10,67 @@ import {
   validate,
 } from './schemas.js';
 
+const BUILTIN_AGENT_TEMPLATES = [
+  {
+    id: 'tpl-coding',
+    type: 'agent',
+    icon: '💻',
+    label: 'Coding Assistant',
+    description: 'Code generation, review, and debugging',
+    source: 'built-in',
+    form: {
+      name: 'Coding Assistant',
+      slug: 'coding-assistant',
+      description: 'An AI coding assistant for development tasks',
+      prompt:
+        'You are a skilled software engineer. Help the user write, review, debug, and improve code. Be concise and provide working examples.',
+    },
+  },
+  {
+    id: 'tpl-research',
+    type: 'agent',
+    icon: '🔍',
+    label: 'Research Agent',
+    description: 'Information gathering and summarization',
+    source: 'built-in',
+    form: {
+      name: 'Research Agent',
+      slug: 'research-agent',
+      description:
+        'An AI research assistant for gathering and synthesizing information',
+      prompt:
+        'You are a thorough research assistant. Help the user find, analyze, and summarize information. Cite sources when possible and present findings clearly.',
+    },
+  },
+  {
+    id: 'tpl-chat',
+    type: 'agent',
+    icon: '💬',
+    label: 'Chat',
+    description: 'General-purpose conversational agent',
+    source: 'built-in',
+    form: {
+      name: 'Chat',
+      slug: 'chat',
+      description: 'A general-purpose conversational AI assistant',
+      prompt:
+        'You are a helpful assistant. Answer questions clearly and concisely.',
+    },
+  },
+];
+
 export function createTemplateRoutes(storageAdapter: IStorageAdapter) {
   const app = new Hono();
 
   app.get('/', (c) => {
     try {
       templateOps.add(1, { op: 'list' });
-      return c.json({ success: true, data: storageAdapter.listTemplates() });
+      const stored = storageAdapter.listTemplates();
+      const typeFilter = c.req.query('type');
+      if (typeFilter === 'agent') {
+        return c.json({ success: true, data: BUILTIN_AGENT_TEMPLATES });
+      }
+      return c.json({ success: true, data: stored });
     } catch (e: unknown) {
       return c.json({ success: false, error: errorMessage(e) }, 500);
     }

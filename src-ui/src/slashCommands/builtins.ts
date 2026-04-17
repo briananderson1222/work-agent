@@ -57,7 +57,9 @@ registerCommand(
           return `• **/${cmd.name}** ${params ? `\`${params}\`` : ''}\n  ${cmd.description || 'No description'}`;
         })
         .join('\n\n');
-      sections.push(`**Custom Commands (${Object.keys(agent.commands).length})**\n\n${commandList}`);
+      sections.push(
+        `**Custom Commands (${Object.keys(agent.commands).length})**\n\n${commandList}`,
+      );
     }
 
     // Global prompts
@@ -65,14 +67,20 @@ registerCommand(
     if (prompts.length > 0) {
       const { promptSlug } = await import('../hooks/useSlashCommands');
       const promptList = prompts
-        .map((p: any) => `• **/${promptSlug(p.name)}** — ${p.description || p.name}`)
+        .map(
+          (p: any) =>
+            `• **/${promptSlug(p.name)}** — ${p.description || p.name}`,
+        )
         .join('\n');
       sections.push(`**Global Prompts (${prompts.length})**\n\n${promptList}`);
     }
 
     addEphemeralMessage(sessionId, {
       role: 'system',
-      content: sections.length > 0 ? sections.join('\n\n---\n\n') : 'No prompts or custom commands defined.',
+      content:
+        sections.length > 0
+          ? sections.join('\n\n---\n\n')
+          : 'No prompts or custom commands defined.',
     });
   },
 );
@@ -249,4 +257,18 @@ registerCommand('resume', async ({ autocomplete }) => {
 registerCommand('chat', async ({ autocomplete }) => {
   autocomplete.closeAll();
   autocomplete.openNewChat();
+});
+
+// Help command - list all available commands
+registerCommand('help', async ({ addEphemeralMessage, sessionId }) => {
+  const { getAllCommands } = await import('./registry');
+  const names = getAllCommands();
+  const list = names
+    .sort()
+    .map((name) => `• **/${name}**`)
+    .join('\n');
+  addEphemeralMessage(sessionId, {
+    role: 'system',
+    content: `**Available Commands:**\n\n${list}\n\n_Use the slash menu for descriptions and runtime-specific commands._`,
+  });
 });

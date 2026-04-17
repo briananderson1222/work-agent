@@ -1,0 +1,131 @@
+{
+  "allowedTools": [
+    "web_fetch",
+    "web_search",
+    "@aws-knowledge-mcp-server/aws___get_regional_availability",
+    "@aws-knowledge-mcp-server/aws___list_regions",
+    "@aws-knowledge-mcp-server/aws___read_documentation",
+    "@aws-knowledge-mcp-server/aws___recommend",
+    "@aws-knowledge-mcp-server/aws___search_documentation",
+    "@awslabs.aws-pricing-mcp-server/analyze_cdk_project",
+    "@awslabs.aws-pricing-mcp-server/analyze_terraform_project",
+    "@awslabs.aws-pricing-mcp-server/get_pricing",
+    "@awslabs.aws-pricing-mcp-server/get_bedrock_patterns",
+    "@awslabs.aws-pricing-mcp-server/generate_cost_report",
+    "@awslabs.aws-pricing-mcp-server/get_pricing_service_codes",
+    "@awslabs.aws-pricing-mcp-server/get_pricing_service_attributes",
+    "@awslabs.aws-pricing-mcp-server/get_pricing_attribute_values",
+    "@awslabs.aws-pricing-mcp-server/get_price_list_urls",
+    "@well-architected-security-mcp-server/CheckSecurityServices",
+    "@well-architected-security-mcp-server/GetSecurityFindings",
+    "@well-architected-security-mcp-server/GetResourceComplianceStatus",
+    "@well-architected-security-mcp-server/GetStoredSecurityContext",
+    "@well-architected-security-mcp-server/ExploreAwsResources",
+    "@well-architected-security-mcp-server/AnalyzeSecurityPosture"
+  ],
+  "hooks": {
+    "agentSpawn": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh agentSpawn tool-aws-information",
+        "timeout_ms": 5000
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh postToolUse tool-aws-information",
+        "matcher": "*",
+        "timeout_ms": 3000
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh preToolUse tool-aws-information",
+        "matcher": "*",
+        "timeout_ms": 3000
+      }
+    ],
+    "stop": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh stop tool-aws-information",
+        "timeout_ms": 5000
+      }
+    ],
+    "userPromptSubmit": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh userPromptSubmit tool-aws-information",
+        "timeout_ms": 5000
+      }
+    ]
+  },
+  "mcpServers": {
+    "aws-knowledge-mcp-server": {
+      "args": [
+        "mcp-proxy",
+        "--transport",
+        "streamablehttp",
+        "https://knowledge-mcp.global.api.aws"
+      ],
+      "command": "uvx"
+    },
+    "awslabs.aws-pricing-mcp-server": {
+      "args": [
+        "awslabs.aws-pricing-mcp-server@latest"
+      ],
+      "autoApprove": [],
+      "command": "uvx",
+      "disabled": false,
+      "env": {
+        "AWS_PROFILE": "anderbs-Admin",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    },
+    "well-architected-security-mcp-server": {
+      "args": [
+        "--from",
+        "awslabs.well-architected-security-mcp-server",
+        "well-architected-security-mcp-server"
+      ],
+      "command": "uvx",
+      "env": {
+        "AWS_PROFILE": "anderbs-Admin",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  },
+  "resources": [
+    "file:///Users/anderbs/.kiro-agents/context/common/subagents.md",
+    "file:///Users/anderbs/.kiro-agents/context/*.md"
+  ],
+  "tools": [
+    "web_fetch",
+    "web_search",
+    "@aws-knowledge-mcp-server/aws___get_regional_availability",
+    "@aws-knowledge-mcp-server/aws___list_regions",
+    "@aws-knowledge-mcp-server/aws___read_documentation",
+    "@aws-knowledge-mcp-server/aws___recommend",
+    "@aws-knowledge-mcp-server/aws___search_documentation",
+    "@awslabs.aws-pricing-mcp-server/analyze_cdk_project",
+    "@awslabs.aws-pricing-mcp-server/analyze_terraform_project",
+    "@awslabs.aws-pricing-mcp-server/get_pricing",
+    "@awslabs.aws-pricing-mcp-server/get_bedrock_patterns",
+    "@awslabs.aws-pricing-mcp-server/generate_cost_report",
+    "@awslabs.aws-pricing-mcp-server/get_pricing_service_codes",
+    "@awslabs.aws-pricing-mcp-server/get_pricing_service_attributes",
+    "@awslabs.aws-pricing-mcp-server/get_pricing_attribute_values",
+    "@awslabs.aws-pricing-mcp-server/get_price_list_urls",
+    "@well-architected-security-mcp-server/CheckSecurityServices",
+    "@well-architected-security-mcp-server/GetSecurityFindings",
+    "@well-architected-security-mcp-server/GetResourceComplianceStatus",
+    "@well-architected-security-mcp-server/GetStoredSecurityContext",
+    "@well-architected-security-mcp-server/ExploreAwsResources",
+    "@well-architected-security-mcp-server/AnalyzeSecurityPosture"
+  ],
+  "toolsSettings": {},
+  "name": "tool-aws-information",
+  "description": "Delegate to me for AWS research and guidance - documentation, pricing, Well-Architected best practices. Focused on learning and planning, not taking actions",
+  "prompt": "You are an AWS Research Specialist focused on gathering information and providing guidance. Your role is to help users understand AWS services through documentation lookups, pricing research, cost analysis, and Well-Architected Framework principles. You answer questions about how services work, what they cost, and how to design solutions following AWS best practices. You do NOT take actions on AWS accounts - you provide the knowledge and recommendations needed to make informed decisions. Use the available tools to search AWS documentation, look up pricing, and reference Well-Architected security and design principles.",
+  "model": "agi-nova-beta-1m",
+  "useLegacyMcpJson": false
+}

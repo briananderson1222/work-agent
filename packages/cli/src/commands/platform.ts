@@ -93,8 +93,10 @@ export function createPathLink(repoRoot: string): void {
   if (!existsSync(source)) {
     console.error('No stallion script found in current directory.');
     process.exit(1);
+    return;
   }
-  const binDir = join(homedir(), '.local', 'bin');
+  const binDir =
+    process.env.STALLION_BIN_DIR || join(homedir(), '.local', 'bin');
   mkdirSync(binDir, { recursive: true });
   const target = join(binDir, 'stallion');
   execFileSync('ln', ['-sf', source, target], { stdio: 'pipe' });
@@ -144,7 +146,9 @@ export function createAppShortcut(repoRoot: string): void {
   const stallionPath = join(repoRoot, 'stallion');
 
   if (IS_MAC) {
-    const appDir = join(homedir(), 'Applications', 'Stallion.app');
+    const applicationsDir =
+      process.env.STALLION_APPLICATIONS_DIR || join(homedir(), 'Applications');
+    const appDir = join(applicationsDir, 'Stallion.app');
     const macosDir = join(appDir, 'Contents', 'MacOS');
     mkdirSync(macosDir, { recursive: true });
     writeFileSync(
@@ -174,7 +178,9 @@ export function createAppShortcut(repoRoot: string): void {
   }
 
   // Linux
-  const desktopDir = join(homedir(), '.local', 'share', 'applications');
+  const desktopDir =
+    process.env.STALLION_LINUX_APPS_DIR ||
+    join(homedir(), '.local', 'share', 'applications');
   mkdirSync(desktopDir, { recursive: true });
   writeFileSync(
     join(desktopDir, 'stallion.desktop'),

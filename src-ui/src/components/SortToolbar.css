@@ -1,0 +1,29 @@
+.sort-toolbar {
+  display: flex;
+  gap: 4px;
+  padding: 0 1rem 0.5rem;
+}
+
+.sort-toolbar__btn {
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+  border: 1px solid var(--border-primary);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: "DM Sans", system-ui, sans-serif;
+  font-size: 0.7rem;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+
+.sort-toolbar__btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+}
+
+.sort-toolbar__btn--active {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}

@@ -2,15 +2,14 @@ import {
   usePluginInstallMutation,
   usePluginPreviewMutation,
   usePluginProviderToggleMutation,
-  usePluginRegistryInstallMutation,
   usePluginRemoveMutation,
   usePluginsQuery,
   usePluginUpdateMutation,
   usePluginUpdatesQuery,
-  useRegistryPluginsQuery,
 } from '@stallion-ai/sdk';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Button } from '../components/Button';
 import { Checkbox } from '../components/Checkbox';
 import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
@@ -182,146 +181,6 @@ interface PreviewData {
 /* PathAutocomplete imported from shared component */
 import { PathAutocomplete } from '../components/PathAutocomplete';
 
-/* ── Plugin Registry Modal ── */
-function PluginRegistryModal({ onClose }: { onClose: () => void }) {
-  const { data: items = [], isLoading: loading } =
-    useRegistryPluginsQuery() as {
-      data: Array<{
-        id: string;
-        displayName?: string;
-        description?: string;
-        version?: string;
-        source?: string;
-        installed?: boolean;
-      }>;
-      isLoading: boolean;
-    };
-  const [message, setMessage] = useState<{
-    type: 'success' | 'error';
-    text: string;
-  } | null>(null);
-  const [filter, setFilter] = useState('');
-
-  const actionMutation = usePluginRegistryInstallMutation();
-
-  const filtered = items.filter((item) => {
-    if (!filter) return true;
-    const q = filter.toLowerCase();
-    return (
-      (item.displayName || item.id).toLowerCase().includes(q) ||
-      item.description?.toLowerCase().includes(q)
-    );
-  });
-
-  return (
-    <div className="plugins__modal-overlay" onClick={onClose}>
-      <div className="plugins__modal" onClick={(e) => e.stopPropagation()}>
-        <div className="plugins__modal-header">
-          <h3 className="plugins__modal-title">Plugin Registry</h3>
-          <button className="plugins__modal-close" onClick={onClose}>
-            &times;
-          </button>
-        </div>
-        <div className="plugins__modal-body">
-          {message && (
-            <div
-              className={`plugins__modal-message plugins__message--${message.type}`}
-            >
-              {message.text}
-            </div>
-          )}
-          {loading ? (
-            <div className="plugins__empty">Loading registry...</div>
-          ) : items.length === 0 ? (
-            <div className="plugins__empty">
-              No plugin registry configured.
-              <br />
-              Add a <code>pluginRegistry</code> provider to enable browsing.
-            </div>
-          ) : (
-            <>
-              <input
-                className="plugins__filter-input"
-                type="text"
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                placeholder="Filter plugins..."
-                autoFocus
-              />
-              <div className="plugins__registry-list">
-                {filtered.length === 0 ? (
-                  <div className="plugins__empty">
-                    No matches for &ldquo;{filter}&rdquo;
-                  </div>
-                ) : (
-                  filtered.map((item) => (
-                    <div key={item.id} className="plugins__registry-item">
-                      <div className="plugins__registry-info">
-                        <div className="plugins__registry-name">
-                          {item.displayName || item.id}
-                          {item.version && (
-                            <span className="plugins__card-version">
-                              v{item.version}
-                            </span>
-                          )}
-                          {item.source && (
-                            <span className="plugins__cap plugins__cap--ref">
-                              {item.source}
-                            </span>
-                          )}
-                        </div>
-                        {item.description && (
-                          <div className="plugins__registry-desc plugins__registry-desc--clamp">
-                            {item.description.replace(/\\n/g, ' ')}
-                          </div>
-                        )}
-                      </div>
-                      <button
-                        className={`plugins__btn ${item.installed ? 'plugins__btn--uninstall' : 'plugins__btn--install'}`}
-                        onClick={() => {
-                          setMessage(null);
-                          const action = item.installed
-                            ? 'uninstall'
-                            : 'install';
-                          actionMutation.mutate(
-                            { id: item.id, action },
-                            {
-                              onSuccess: (result) => {
-                                setMessage({
-                                  type: 'success',
-                                  text: `${result.action === 'install' ? 'Installed' : 'Removed'} ${item.displayName || item.id}`,
-                                });
-                              },
-                              onError: (e) => {
-                                setMessage({ type: 'error', text: e.message });
-                              },
-                            },
-                          );
-                        }}
-                        disabled={
-                          actionMutation.isPending &&
-                          actionMutation.variables?.id === item.id
-                        }
-                      >
-                        {actionMutation.isPending &&
-                        actionMutation.variables?.id === item.id
-                          ? '...'
-                          : item.installed
-                            ? 'Remove'
-                            : 'Install'}
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* ── Plugin Setting Field ── */
 function PluginSettingFieldRow({
   field,
@@ -388,10 +247,91 @@ function PluginSettingFieldRow({
   );
 }
 
+function PluginEnvFieldRow({
+  envKey,
+  def,
+  value,
+  onSave,
+}: {
+  envKey: string;
+  def: {
+    required?: boolean;
+    default?: string;
+    description?: string;
+    sensitive?: boolean;
+  };
+  value: string;
+  onSave: (val: string) => void;
+}) {
+  const [local, setLocal] = useState(value);
+  const [dirty, setDirty] = useState(false);
+  const isSet = !!local;
+  const isMissing = def.required && !isSet;
+
+  useEffect(() => {
+    setLocal(value);
+    setDirty(false);
+  }, [value]);
+
+  return (
+    <div
+      className={`plugins__env-field${isMissing ? ' plugins__env-field--missing' : ''}`}
+    >
+      <div className="plugins__env-header">
+        <code className="plugins__env-key">{envKey}</code>
+        {def.required && (
+          <span className="plugins__env-badge plugins__env-badge--required">
+            required
+          </span>
+        )}
+        {!def.required && <span className="plugins__env-badge">optional</span>}
+        {isSet && !isMissing && (
+          <span className="plugins__env-status plugins__env-status--set">
+            ✓
+          </span>
+        )}
+        {isMissing && (
+          <span className="plugins__env-status plugins__env-status--missing">
+            !
+          </span>
+        )}
+      </div>
+      {def.description && (
+        <div className="plugins__env-desc">{def.description}</div>
+      )}
+      <div className="plugins__env-input-row">
+        <input
+          className="plugins__setting-input plugins__env-input"
+          type={def.sensitive ? 'password' : 'text'}
+          value={local}
+          placeholder={def.default ? `default: ${def.default}` : 'Not set'}
+          onChange={(e) => {
+            setLocal(e.target.value);
+            setDirty(true);
+          }}
+          onBlur={() => {
+            if (dirty) {
+              onSave(local);
+              setDirty(false);
+            }
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && dirty) {
+              onSave(local);
+              setDirty(false);
+            }
+          }}
+        />
+        {dirty && <span className="plugins__env-unsaved">unsaved</span>}
+      </div>
+    </div>
+  );
+}
+
 /* ── Main View ── */
 export function PluginManagementView() {
   const { apiBase } = useApiBase();
-  const { setLayout } = useNavigation();
+  const { setLayout, navigate } = useNavigation();
   const queryClient = useQueryClient();
   const { requestConsent } = usePermissions();
   const { data: plugins = [], isLoading } = usePluginsQuery() as {
@@ -410,7 +350,6 @@ export function PluginManagementView() {
   const [installSource, setInstallSource] = useState('');
   const [showFolderPicker, setShowFolderPicker] = useState(false);
   const [showInstallModal, setShowInstallModal] = useState(false);
-  const [showRegistryModal, setShowRegistryModal] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewData | null>(null);
   const [previewSkips, setPreviewSkips] = useState<Set<string>>(new Set());
   const [expandedProviders, setExpandedProviders] = useState<Set<string>>(
@@ -476,16 +415,18 @@ export function PluginManagementView() {
     mutationFn: async ({
       name,
       settings,
+      env,
     }: {
       name: string;
       settings: Record<string, any>;
+      env?: Record<string, string>;
     }) => {
       const res = await fetch(
         `${apiBase}/api/plugins/${encodeURIComponent(name)}/settings`,
         {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ settings }),
+          body: JSON.stringify({ settings, env }),
         },
       );
       return res.json();
@@ -709,7 +650,7 @@ export function PluginManagementView() {
         sidebarActions={
           <button
             className="split-pane__add-btn plugins__registry-btn"
-            onClick={() => setShowRegistryModal(true)}
+            onClick={() => navigate('/registry/plugins')}
           >
             Browse Registry
           </button>
@@ -945,6 +886,40 @@ export function PluginManagementView() {
                 </div>
               )}
 
+              {/* Environment Variables */}
+              {selected.hasSettings &&
+                settingsData?.envSchema &&
+                Object.keys(settingsData.envSchema).length > 0 && (
+                  <div className="detail-panel__section">
+                    <div className="plugins__settings-header">
+                      Environment Variables
+                    </div>
+                    <div className="plugins__settings-form">
+                      {Object.entries(settingsData.envSchema).map(
+                        ([key, def]: [string, any]) => (
+                          <PluginEnvFieldRow
+                            key={key}
+                            envKey={key}
+                            def={def}
+                            value={settingsData.envValues[key] ?? ''}
+                            onSave={(val) => {
+                              const updated = {
+                                ...settingsData.envValues,
+                                [key]: val,
+                              };
+                              saveSettingsMutation.mutate({
+                                name: selected.name,
+                                settings: settingsData.values,
+                                env: updated,
+                              });
+                            }}
+                          />
+                        ),
+                      )}
+                    </div>
+                  </div>
+                )}
+
               {/* Changelog */}
               {selected.git && changelogData?.entries?.length > 0 && (
                 <div className="detail-panel__section">
@@ -986,7 +961,8 @@ export function PluginManagementView() {
               {/* Permissions */}
               {selected.permissions?.missing &&
                 selected.permissions.missing.length > 0 && (
-                  <button
+                  <Button
+                    variant="secondary"
                     className="plugins__btn plugins__btn--permissions"
                     onClick={async () => {
                       const approved = await requestConsent(
@@ -1001,21 +977,12 @@ export function PluginManagementView() {
                     }}
                   >
                     Review Permissions ({selected.permissions.missing.length})
-                  </button>
+                  </Button>
                 )}
             </div>
           </div>
         )}
       </SplitPaneLayout>
-
-      {showRegistryModal && (
-        <PluginRegistryModal
-          onClose={() => {
-            setShowRegistryModal(false);
-            queryClient.invalidateQueries({ queryKey: ['plugins'] });
-          }}
-        />
-      )}
 
       {/* Install Plugin Modal */}
       {showInstallModal && (
@@ -1313,7 +1280,8 @@ export function PluginManagementView() {
             </p>
 
             {/* Quick create */}
-            <button
+            <Button
+              variant="primary"
               className="plugins__btn plugins__btn--install plugins__assign-quick-btn"
               disabled={assigningLayout}
               onClick={async () => {
@@ -1357,7 +1325,7 @@ export function PluginManagementView() {
               }}
             >
               ✨ Create &ldquo;{quickProjectName}&rdquo; Project
-            </button>
+            </Button>
 
             {/* Existing projects */}
             {projects.length > 0 && (
@@ -1390,7 +1358,8 @@ export function PluginManagementView() {
                   ))}
                 </div>
                 {selectedProjects.size > 0 && (
-                  <button
+                  <Button
+                    variant="primary"
                     className="plugins__btn plugins__btn--install plugins__assign-add-btn"
                     disabled={assigningLayout}
                     onClick={async () => {
@@ -1425,7 +1394,7 @@ export function PluginManagementView() {
                   >
                     Add to {selectedProjects.size} project
                     {selectedProjects.size !== 1 ? 's' : ''}
-                  </button>
+                  </Button>
                 )}
               </>
             )}

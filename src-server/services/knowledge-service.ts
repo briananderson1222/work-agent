@@ -282,10 +282,7 @@ function deleteFileFromDisk(storageDir: string, filePath: string): void {
   }
 }
 
-function readFileFromDisk(
-  storageDir: string,
-  filePath: string,
-): string | null {
+function readFileFromDisk(storageDir: string, filePath: string): string | null {
   try {
     return readFileSync(join(storageDir, 'files', filePath), 'utf-8');
   } catch {
@@ -456,6 +453,9 @@ export class KnowledgeService {
       source,
       chunkCount: chunks.length,
       createdAt: new Date().toISOString(),
+      ...(shouldWriteFiles && {
+        storagePath: join(storageDir, 'files', filePath),
+      }),
       ...(Object.keys(mergedMeta).length > 0 && { metadata: mergedMeta }),
     };
     const existing = loadMeta(storageDir, this.dataDir, projectSlug, namespace);
@@ -523,7 +523,11 @@ export class KnowledgeService {
     if (!filter) return docs;
 
     return docs.filter((d) => {
-      if (filter.pathPrefix && !(d.path || d.filename).startsWith(filter.pathPrefix)) return false;
+      if (
+        filter.pathPrefix &&
+        !(d.path || d.filename).startsWith(filter.pathPrefix)
+      )
+        return false;
       if (filter.status && d.status !== filter.status) return false;
       if (filter.after && d.createdAt < filter.after) return false;
       if (filter.before && d.createdAt > filter.before) return false;
@@ -661,10 +665,7 @@ export class KnowledgeService {
     // Write updated file to disk
     const nsCfg = this.getNamespaceConfig(projectSlug, targetNs);
     if (nsCfg?.writeFiles !== false) {
-      const fileContent = serializeFrontmatter(
-        newMetadata,
-        content ?? '',
-      );
+      const fileContent = serializeFrontmatter(newMetadata, content ?? '');
       writeFileToDisk(storageDir, filePath, fileContent);
     }
 
@@ -713,10 +714,7 @@ export class KnowledgeService {
 
   // ── Directory tree ──
 
-  getDirectoryTree(
-    projectSlug: string,
-    namespace: string,
-  ): KnowledgeTreeNode {
+  getDirectoryTree(projectSlug: string, namespace: string): KnowledgeTreeNode {
     const storageDir = this.resolveStorageDir(projectSlug, namespace);
     const filesDir = join(storageDir, 'files');
     const meta = loadMeta(storageDir, this.dataDir, projectSlug, namespace);

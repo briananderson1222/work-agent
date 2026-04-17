@@ -307,7 +307,8 @@ export async function install(
               config: {
                 plugin: manifest.name,
                 tabs: layoutConfig.tabs,
-                globalPrompts: layoutConfig.globalPrompts,
+                globalPrompts:
+                  layoutConfig.actions ?? layoutConfig.globalPrompts,
                 defaultAgent: layoutConfig.defaultAgent,
                 availableAgents: layoutConfig.availableAgents,
                 requiredProviders: layoutConfig.requiredProviders,
