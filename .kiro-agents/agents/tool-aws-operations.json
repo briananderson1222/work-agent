@@ -1,0 +1,111 @@
+{
+  "allowedTools": [
+    "aws",
+    "subagent",
+    "web_fetch",
+    "web_search",
+    "@awslabs.billing-cost-management-mcp-server/cost-explorer",
+    "@awslabs.billing-cost-management-mcp-server/compute-optimizer",
+    "@awslabs.billing-cost-management-mcp-server/cost-optimization",
+    "@awslabs.billing-cost-management-mcp-server/storage-lens",
+    "@awslabs.billing-cost-management-mcp-server/athena-cur",
+    "@awslabs.billing-cost-management-mcp-server/pricing",
+    "@awslabs.billing-cost-management-mcp-server/bcm-pricing-calc",
+    "@awslabs.billing-cost-management-mcp-server/budget",
+    "@awslabs.billing-cost-management-mcp-server/cost-anomaly",
+    "@awslabs.billing-cost-management-mcp-server/cost-comparison",
+    "@awslabs.billing-cost-management-mcp-server/free-tier-usage",
+    "@awslabs.billing-cost-management-mcp-server/rec-details",
+    "@awslabs.billing-cost-management-mcp-server/ri-performance",
+    "@awslabs.billing-cost-management-mcp-server/sp-performance",
+    "@awslabs.billing-cost-management-mcp-server/session-sql",
+    "@awslabs.billing-cost-management-mcp-server/billing-conductor"
+  ],
+  "hooks": {
+    "agentSpawn": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh agentSpawn tool-aws-operations",
+        "timeout_ms": 5000
+      }
+    ],
+    "postToolUse": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh postToolUse tool-aws-operations",
+        "matcher": "*",
+        "timeout_ms": 3000
+      }
+    ],
+    "preToolUse": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh preToolUse tool-aws-operations",
+        "matcher": "*",
+        "timeout_ms": 3000
+      }
+    ],
+    "stop": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh stop tool-aws-operations",
+        "timeout_ms": 5000
+      }
+    ],
+    "userPromptSubmit": [
+      {
+        "command": "bash /Users/anderbs/.kiro-agents/scripts/telemetry/telemetry.sh userPromptSubmit tool-aws-operations",
+        "timeout_ms": 5000
+      }
+    ]
+  },
+  "mcpServers": {
+    "awslabs.billing-cost-management-mcp-server": {
+      "args": [
+        "awslabs.billing-cost-management-mcp-server@latest"
+      ],
+      "autoApprove": [],
+      "command": "uvx",
+      "disabled": false,
+      "env": {
+        "AWS_PROFILE": "anderbs-Admin",
+        "AWS_REGION": "us-east-1",
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  },
+  "resources": [
+    "file:///Users/anderbs/.kiro-agents/context/common/subagents.md",
+    "file:///Users/anderbs/.kiro-agents/context/*.md"
+  ],
+  "tools": [
+    "aws",
+    "subagent",
+    "web_fetch",
+    "web_search",
+    "@awslabs.billing-cost-management-mcp-server/cost-explorer",
+    "@awslabs.billing-cost-management-mcp-server/compute-optimizer",
+    "@awslabs.billing-cost-management-mcp-server/cost-optimization",
+    "@awslabs.billing-cost-management-mcp-server/storage-lens",
+    "@awslabs.billing-cost-management-mcp-server/athena-cur",
+    "@awslabs.billing-cost-management-mcp-server/pricing",
+    "@awslabs.billing-cost-management-mcp-server/bcm-pricing-calc",
+    "@awslabs.billing-cost-management-mcp-server/budget",
+    "@awslabs.billing-cost-management-mcp-server/cost-anomaly",
+    "@awslabs.billing-cost-management-mcp-server/cost-comparison",
+    "@awslabs.billing-cost-management-mcp-server/free-tier-usage",
+    "@awslabs.billing-cost-management-mcp-server/rec-details",
+    "@awslabs.billing-cost-management-mcp-server/ri-performance",
+    "@awslabs.billing-cost-management-mcp-server/sp-performance",
+    "@awslabs.billing-cost-management-mcp-server/session-sql",
+    "@awslabs.billing-cost-management-mcp-server/billing-conductor"
+  ],
+  "toolsSettings": {
+    "write": {
+      "allowedPaths": [
+        "/Users/anderbs/.kiro-agents/soul/**/*"
+      ]
+    }
+  },
+  "name": "tool-aws-operations",
+  "description": "Delegate to me for AWS account actions - manage resources, understand costs, execute operations, and interact with AWS services",
+  "prompt": "You help users take actions within their AWS accounts. Use available tools to execute operations on AWS resources. Follow security best practices - never expose resources to 0.0.0.0/0 without explicit approval.\n\nDon't assume you know everything about AWS. When you need more information about a service or best practice, delegate to a specialist agent or search documentation.",
+  "model": "agi-nova-beta-1m",
+  "useLegacyMcpJson": false
+}

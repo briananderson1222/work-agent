@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "bedrock-agentcore-mcp-server": {
+      "args": [
+        "awslabs.amazon-bedrock-agentcore-mcp-server@latest"
+      ],
+      "command": "uvx",
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      }
+    }
+  }
+}

@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Email Triage — {date}</title>
+  <style>
+    body { font-family: -apple-system, system-ui, sans-serif; max-width: 900px; margin: 2rem auto; padding: 0 1rem; color: #e0e0e0; background: #1a1a2e; }
+    .header { border-bottom: 2px solid #0073bb; padding-bottom: 1rem; margin-bottom: 2rem; }
+    .stats { display: flex; gap: 2rem; margin-top: 0.5rem; }
+    .stat { text-align: center; }
+    .stat-num { font-size: 1.5rem; font-weight: 700; }
+    .stat-label { font-size: 0.8rem; color: #888; }
+    .section-title { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem; padding-bottom: 0.25rem; border-bottom: 1px solid #2a2a3e; }
+    .draft { border: 1px solid #2a2a3e; border-radius: 8px; padding: 1.5rem; margin-bottom: 1rem; background: #16213e; }
+    .draft.aging { border-left: 4px solid #ff9900; }
+    .draft.urgent { border-left: 4px solid #d13212; }
+    .draft.queued { border-left: 4px solid #7b68ee; }
+    .draft.responded { opacity: 0.6; border-left: 4px solid #1b8901; }
+    .draft.awaiting { border-left: 4px solid #ff9900; opacity: 0.75; }
+    .draft.dismissed { opacity: 0.5; border-left: 4px solid #555; }
+    .draft.invite { border-left: 4px solid #7b68ee; }
+    .draft-meta { color: #888; font-size: 0.85rem; margin-bottom: 0.5rem; }
+    .draft-subject { font-size: 1.05rem; font-weight: 600; margin-bottom: 0.5rem; }
+    .age-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }
+    .age-new { background: #0a2a4a; color: #4da6ff; }
+    .age-aging { background: #3a2a00; color: #ffb84d; }
+    .age-urgent { background: #3a1010; color: #ff6b6b; }
+    .draft-context { background: #0f1a2e; padding: 0.75rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.9rem; }
+    .draft-body { line-height: 1.6; margin-bottom: 0.75rem; white-space: pre-wrap; font-size: 0.95rem; }
+    .response-reason { background: #0a2a1a; border: 1px solid #1b5e20; padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.85rem; color: #81c784; }
+    .questions-list { background: #0f1a2e; padding: 0.75rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.85rem; }
+    .questions-list .q { padding: 0.2rem 0; }
+    .questions-list .q.answered { color: #4caf50; }
+    .questions-list .q.open { color: #ff9900; }
+    details { margin: 0.5rem 0; }
+    details summary { cursor: pointer; color: #4da6ff; font-size: 0.85rem; padding: 0.25rem 0; }
+    details summary:hover { color: #7dc4ff; }
+    details .detail-content { background: #0f1a2e; padding: 0.75rem; border-radius: 4px; margin-top: 0.5rem; font-size: 0.85rem; line-height: 1.5; white-space: pre-wrap; color: #bbb; }
+    details .recipients { color: #888; font-size: 0.8rem; margin-bottom: 0.5rem; }
+    .actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+    .btn { display: inline-block; padding: 0.4rem 0.8rem; border-radius: 4px; text-decoration: none; font-size: 0.85rem; }
+    .btn-primary { background: #0073bb; color: white; }
+    .btn-secondary { background: #2a2a3e; color: #ccc; border: 1px solid #3a3a4e; }
+    .btn-dismiss { background: transparent; color: #666; border: 1px solid #3a3a4e; font-size: 0.8rem; }
+    .queued-label { color: #7b68ee; font-weight: 500; font-size: 0.85rem; }
+    .queue-note { background: #1a1040; border: 1px solid #7b68ee; padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.85rem; color: #b8a9ff; }
+    .queue-banner { background: #1a1040; border: 1px solid #7b68ee; border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; }
+    .queue-banner .queue-count { font-size: 1.1rem; font-weight: 600; color: #b8a9ff; }
+    .queue-banner .queue-summary { color: #9988cc; font-size: 0.85rem; margin-top: 0.25rem; }
+    .responded-label { color: #4caf50; font-weight: 500; font-size: 0.85rem; }
+    .awaiting-label { color: #ff9900; font-weight: 500; font-size: 0.85rem; }
+    .awaiting-section { margin-top: 1.5rem; }
+    .awaiting-section > summary { cursor: pointer; list-style: none; }
+    .awaiting-section > summary::-webkit-details-marker { display: none; }
+    .awaiting-section > summary::before { content: "▶ "; font-size: 0.8rem; color: #888; }
+    .awaiting-section[open] > summary::before { content: "▼ "; }
+    .awaiting-items { margin-top: 0.75rem; }
+    .awaiting-items .draft { padding: 1rem; }
+    .dismissed-label { color: #666; font-size: 0.85rem; }
+    .empty { text-align: center; color: #666; padding: 3rem; }
+    .other-emails { margin-top: 2rem; border-top: 1px solid #2a2a3e; padding-top: 1rem; }
+    .other-emails h2 { font-size: 1rem; color: #888; margin-bottom: 0.75rem; }
+    .other-email { padding: 0.5rem 0; border-bottom: 1px solid #1a1a2e; font-size: 0.85rem; }
+    .other-email:last-child { border-bottom: none; }
+    .other-email .sender { font-weight: 600; color: #ccc; }
+    .other-email .sender.priority { color: #4da6ff; }
+    .other-email .subject { color: #999; }
+    .other-email .time { color: #666; font-size: 0.8rem; }
+    .team-messages { margin-top: 1.5rem; border-top: 1px solid #2a2a3e; padding-top: 1rem; }
+    .team-messages h2 { font-size: 1rem; color: #888; margin-bottom: 0.75rem; }
+    .team-msg { padding: 0.5rem 0; border-bottom: 1px solid #1a1a2e; font-size: 0.85rem; }
+    .team-msg:last-child { border-bottom: none; }
+    .team-msg .msg-sender { font-weight: 600; color: #b8a9ff; }
+    .team-msg .msg-channel { color: #666; font-size: 0.8rem; }
+    .team-msg .msg-text { color: #ccc; margin-top: 0.2rem; }
+    .team-msg .msg-time { color: #666; font-size: 0.8rem; }
+    .team-msg.actionable { border-left: 3px solid #ff9900; padding-left: 0.5rem; }
+    .received-date { font-size: 0.85rem; color: #4da6ff; font-weight: 600; }
+    .received-date .relative { color: #888; font-weight: 400; }
+    .amazon-reply-badge { display: inline-block; background: #0a2a1a; border: 1px solid #1b5e20; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; color: #81c784; margin-left: 0.5rem; }
+    .account-badge { display: inline-block; background: #1a1040; border: 1px solid #7b68ee; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; margin-left: 0.5rem; }
+    .account-badge a { color: #b8a9ff; text-decoration: none; }
+    .account-badge a:hover { text-decoration: underline; }
+    .initiative-context { background: #1a1a30; border-left: 3px solid #4da6ff; padding: 0.5rem 0.75rem; border-radius: 0 4px 4px 0; margin-bottom: 0.75rem; font-size: 0.85rem; }
+    .initiative-context .init-name { color: #4da6ff; font-weight: 600; }
+    .initiative-context .init-summary { color: #bbb; }
+    .initiative-context .init-source { color: #666; font-size: 0.8rem; }
+    .invite-dates { display: flex; gap: 1.5rem; margin-bottom: 0.5rem; font-size: 0.85rem; }
+    .invite-dates .label { color: #888; }
+    .invite-dates .value { color: #e0e0e0; font-weight: 600; }
+    .error-banner { background: #3a1010; border: 1px solid #d13212; border-radius: 8px; padding: 1rem 1.5rem; margin-bottom: 1.5rem; }
+    .error-banner h3 { color: #ff6b6b; margin: 0 0 0.5rem; font-size: 1rem; }
+    .error-banner p { color: #cc8888; margin: 0.25rem 0; font-size: 0.9rem; }
+    .error-banner .actions { margin-top: 0.75rem; }
+    .footer-actions { margin-top: 2rem; border-top: 1px solid #2a2a3e; padding-top: 1rem; text-align: right; }
+    .timestamp { color: #666; font-size: 0.8rem; margin: 0.25rem 0; }
+    code { background: #2a2a3e; padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.8rem; color: #ccc; }
+    /* Queue input row */
+    .queue-input-row { display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center; }
+    .queue-input { flex: 1; background: #0f1a2e; border: 1px solid #7b68ee; border-radius: 4px; padding: 0.4rem 0.6rem; color: #e0e0e0; font-size: 0.85rem; outline: none; }
+    .queue-input:focus { border-color: #9b88ff; box-shadow: 0 0 0 2px rgba(123,104,238,0.2); }
+    .queue-confirm { padding: 0.4rem 0.6rem; font-size: 0.85rem; }
+    /* Sticky queue panel */
+    #queue-panel { position: sticky; bottom: 0; background: #1a1040; border-top: 2px solid #7b68ee; padding: 0.75rem 1.5rem; margin: 0 -1rem; z-index: 100; }
+    .queue-panel-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; color: #b8a9ff; font-weight: 600; }
+    .queue-item { display: flex; align-items: center; gap: 0.5rem; padding: 0.3rem 0; font-size: 0.8rem; color: #ccc; flex-wrap: wrap; }
+    .queue-item-sender { color: #b8a9ff; font-weight: 500; }
+    .queue-item-subject { color: #888; }
+    .queue-item-note { color: #9b88ff; font-size: 0.75rem; width: 100%; padding-left: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📧 Email Triage</h1>
+    <div class="stats">
+      <div class="stat"><div class="stat-num">{pending_count}</div><div class="stat-label">Pending</div></div>
+      <div class="stat"><div class="stat-num">{awaiting_count}</div><div class="stat-label">Awaiting Customer</div></div>
+      <div class="stat"><div class="stat-num" id="queue-count-stat">0</div><div class="stat-label">Queued</div></div>
+      <div class="stat"><div class="stat-num">{responded_count}</div><div class="stat-label">Responded</div></div>
+      <div class="stat"><div class="stat-num">{invite_count}</div><div class="stat-label">Invites</div></div>
+      <div class="stat"><div class="stat-num">{dismissed_count}</div><div class="stat-label">Dismissed</div></div>
+    </div>
+  </div>
+
+  <!-- SCAN SUMMARY — always shown, even when no candidates found. Replaces the old "no actionable emails" empty state.
+       When there are 0 pending items, show a summary div instead of the empty message:
+       <div class="draft-context" style="text-align:center; margin: 2rem 0;">
+         📬 Scanned {total_found} emails today · {already_tracked} already tracked · {noise_discarded} noise discarded · {candidates} new candidates
+         <br><span style="color:#666; font-size:0.8rem;">Noise: {comma-separated list of discarded senders/subjects}</span>
+       </div>
+       This gives the user confidence the scan ran correctly and visibility into what was filtered out.
+  -->
+
+  <!-- PENDING EMAILS section first, sorted by age (oldest first) -->
+  <!-- Only type="email" items with status="pending" -->
+  <!-- Scan badges: scan_count=1 = "1st scan", 2-3 = "Scan #N", >=4 = "Scan #N" (urgent) -->
+  <!-- Each draft card includes:
+    - Received date shown prominently at top with relative time
+    - Account badge linking to Salesforce (if matched)
+    - Amazon reply indicator (if another Amazonian already replied — de-prioritizes)
+    - Initiative context block with citation (if matched)
+    - Questions list showing what the customer asked and what's answered vs open
+    - Full original email in collapsible (complete untruncated body)
+    - Proposed draft in collapsible
+    - Action links
+    <div class="draft [aging|urgent]" data-thread-id="{thread_id}" data-sender="{sender}" data-subject="{subject}" data-team-member="{team_member}" data-summary="{summary}">
+      <div class="draft-meta">
+        <span class="received-date">📅 {received_date_formatted} <span class="relative">({relative_time})</span></span>
+        {account_badge_if_matched}
+        {amazon_reply_badge_if_present}
+        · {sender} · For {team_member} · {scan_badge}
+      </div>
+      <div class="draft-subject">{subject}</div>
+      {initiative_block_if_matched}
+      <div class="draft-context">{summary}</div>
+      <div class="questions-list">
+        <div class="q open">❓ {unanswered question}</div>
+        <div class="q answered">✅ {answered question} — answered by {person}</div>
+      </div>
+      <details>
+        <summary>📨 Original Email (full)</summary>
+        <div class="detail-content">
+          <div class="recipients">To: {to} · CC: {cc}</div>
+          {complete_original_body}
+        </div>
+      </details>
+      <details>
+        <summary>✏️ Proposed Draft</summary>
+        <div class="detail-content">{draft_response}</div>
+      </details>
+      <div class="actions">{action_links}</div>
+    </div>
+
+    Where:
+    - {received_date_formatted} = human-readable date like "Feb 25, 2:30 PM" (or "Yesterday, 4:15 PM" if not today)
+    - {relative_time} = "3h ago", "45min ago", "just now"
+    - {account_badge_if_matched} = <span class="account-badge"><a href="{sfdc_url}" target="_blank">🏢 {account_name}</a></span> (omit if account_sfdc is null)
+    - {amazon_reply_badge_if_present} = <span class="amazon-reply-badge">↩️ {alias} replied {relative_time}</span> (omit if last_amazon_reply is null)
+    - {initiative_block_if_matched} = <div class="initiative-context"><span class="init-name">📌 {initiative.name}</span> · <span class="init-summary">{initiative.summary}</span><br><span class="init-source">Source: {initiative.source_path}</span></div> (omit if initiative is null)
+  -->
+
+  <!-- MEETING INVITES section — type="calendar_invite" items with status="pending" -->
+  <!-- Lighter cards with .invite class, no draft, just context and accept link -->
+  <!-- Each invite card shows TWO dates prominently:
+    <div class="draft invite" data-thread-id="{thread_id}" data-sender="{sender}" data-subject="{subject}" data-team-member="{team_member}" data-summary="{summary}">
+      <div class="invite-dates">
+        <div><span class="label">Meeting:</span> <span class="value">{invite_date_formatted}</span></div>
+        <div><span class="label">Updated:</span> <span class="value">{received_date_formatted} ({relative_time})</span></div>
+      </div>
+      <div class="draft-meta">{sender} · For {team_member} {account_badge_if_matched}</div>
+      <div class="draft-subject">{subject}</div>
+      {initiative_block_if_matched}
+      <div class="draft-context">{summary} · Attendees: {attendee_list}</div>
+      <div class="actions">{action_links}</div>
+    </div>
+    Where:
+    - {invite_date_formatted} = the target meeting date/time, e.g. "Thu Feb 27, 10:00 AM"
+    - {received_date_formatted} = when the invite was last updated/sent
+    - {account_badge_if_matched} and {initiative_block_if_matched} same as email cards
+  -->
+
+  <!-- AWAITING CUSTOMER section — collapsed by default, low visual priority -->
+  <!-- status="awaiting_customer" items. These are threads where Amazon replied and we're waiting on the customer. -->
+  <!-- Rendered inside a <details> element so they don't take up space unless the user expands them. -->
+  <!-- Section order: after Meeting Invites, before Responded -->
+  <!--
+  <details class="awaiting-section">
+    <summary class="section-title">⏳ Awaiting Customer Reply ({awaiting_count})</summary>
+    <div class="awaiting-items">
+      For each awaiting_customer item, render a compact card:
+      <div class="draft awaiting">
+        <div class="draft-meta">
+          <span class="received-date">📅 {received_date_formatted} <span class="relative">({relative_time})</span></span>
+          {account_badge_if_matched}
+          <span class="awaiting-label">↩️ {last_amazon_reply.sender} replied {relative_reply_time}</span>
+        </div>
+        <div class="draft-subject">{subject}</div>
+        <div class="response-reason">{response_reason}</div>
+        <div class="actions">
+          <a href="boo://resume/triage?prompt=..." class="btn btn-secondary">📋 Queue</a>
+          <a href="boo://resume/triage?prompt=..." class="btn btn-dismiss">Dismiss</a>
+        </div>
+      </div>
+    </div>
+  </details>
+  -->
+  <!-- Omit the section entirely if there are 0 awaiting_customer items -->
+
+  <!-- RESPONDED section — collapsed by default, same pattern as awaiting section -->
+  <!--
+  <details class="awaiting-section">
+    <summary class="section-title">✅ Responded ({responded_count})</summary>
+    <div class="awaiting-items">
+      For each responded item, render a compact card with response_reason:
+      <div class="draft responded">
+        ...
+        <div class="response-reason">{response_reason}</div>
+      </div>
+    </div>
+  </details>
+  -->
+  <!-- Omit if 0 responded items -->
+
+  <!-- DISMISSED section (collapsed, most recent first) -->
+
+  <!-- OTHER EMAILS section — non-customer emails summary -->
+  <!-- Emails from Sara Jubak (sarrgs@amazon.com) always appear first with class="priority" on the sender span -->
+  <!-- Format each as: <div class="other-email"><span class="time">{received_date_short}</span> · <span class="sender [priority]">{sender}</span> · <span class="subject">{subject}</span> · <span class="time">{relative_time}</span></div> -->
+  <!-- Each other-email includes a "Surface" link to promote it to a candidate:
+       <a href="boo://resume/triage?prompt=Surface%20email%20from%20{sender}%20about%20{subject}%20as%20a%20draft%20candidate." class="btn btn-dismiss" style="margin-left:0.5rem;">Surface</a>
+  -->
+  <!-- Wrap in: <div class="other-emails"><h2>📬 Other Emails ({count})</h2>...</div> -->
+  <!-- Omit this section entirely if there are no other emails -->
+
+  <!-- TEAM MESSAGES section — Slack DMs and mentions from Kirsten, Allie, Sara -->
+  <!-- Only shown if Slack skill was available and returned results -->
+  <!-- Actionable messages (questions/requests) get orange left border via .actionable class -->
+  <!-- Messages from Sara Jubak always appear first -->
+  <!--
+  <div class="team-messages">
+    <h2>💬 Team Messages ({team_msg_count})</h2>
+    <div class="team-msg [actionable]">
+      <span class="msg-sender">{sender_name}</span> · <span class="msg-channel">#{channel} or DM</span> · <span class="msg-time">{relative_time}</span>
+      <div class="msg-text">{message_text_truncated_to_200_chars}</div>
+    </div>
+  </div>
+  -->
+  <!-- Omit this section entirely if Slack was unavailable or no noteworthy messages found -->
+
+  <div class="footer-actions">
+    <p class="timestamp">Last scan: {timestamp} · {tool_call_count} tool calls · {duration}s</p>
+    <p class="timestamp">
+      <a href="boo://resume/triage?prompt=Show%20me%20the%20logs%20from%20the%20last%20triage%20run.%20Run%20boo%20logs%20triage%20--count%201%20--output" class="btn btn-secondary" style="font-size:0.8rem;">📋 View Boo Logs</a>
+      <span style="margin-left:0.5rem; color:#999; font-size:0.8rem;">or run: <code>boo logs triage --output</code></span>
+    </p>
+  </div>
+  <!-- QUEUE PANEL — sticky bottom panel, managed by JavaScript. Always emit this markup; JS shows/hides it. -->
+  <div id="queue-panel" style="display:none;">
+    <div class="queue-panel-header">
+      <span>📋 Review Queue (<span id="queue-panel-count">0</span>)</span>
+      <a id="resume-queue-btn" class="btn btn-primary" style="cursor:pointer;">▶️ Resume Queue</a>
+    </div>
+    <div id="queue-panel-items"></div>
+  </div>
+
+  <!-- QUEUE SCRIPT — always emit this block. See "Review Queue (Client-Side JavaScript)" section. -->
+  <script>
+  (function() {
+    var queue = [];
+    var panel = document.getElementById('queue-panel');
+    var panelItems = document.getElementById('queue-panel-items');
+    var panelCount = document.getElementById('queue-panel-count');
+    var statCount = document.getElementById('queue-count-stat');
+
+    function updatePanel() {
+      statCount.textContent = queue.length;
+      panelCount.textContent = queue.length;
+      panel.style.display = queue.length > 0 ? 'block' : 'none';
+      panelItems.innerHTML = queue.map(function(item, i) {
+        return '<div class="queue-item">' +
+          '<span class="queue-item-sender">' + item.sender.split('<')[0].trim() + '</span> · ' +
+          '<span class="queue-item-subject">' + item.subject + '</span>' +
+          '<div class="queue-item-note">\ud83d\udcdd ' + item.note + '</div>' +
+          '<button class="btn btn-dismiss" onclick="removeFromQueue(' + i + ')">\u2715</button>' +
+        '</div>';
+      }).join('');
+    }
+
+    window.addToQueue = function(btn) {
+      var card = btn.closest('.draft');
+      var existing = card.querySelector('.queue-input-row');
+      if (existing) { existing.remove(); return; }
+      var row = document.createElement('div');
+      row.className = 'queue-input-row';
+      row.innerHTML =
+        '<input type="text" class="queue-input" placeholder="What to follow up on...">' +
+        '<button class="btn btn-primary queue-confirm">\u2713</button>';
+      btn.parentElement.after(row);
+      var input = row.querySelector('input');
+      var confirm = row.querySelector('.queue-confirm');
+      function commit() {
+        var note = input.value.trim();
+        if (!note) { input.focus(); return; }
+        queue.push({
+          threadId: card.dataset.threadId,
+          sender: card.dataset.sender,
+          subject: card.dataset.subject,
+          teamMember: card.dataset.teamMember,
+          summary: card.dataset.summary,
+          note: note
+        });
+        row.remove();
+        card.classList.add('queued');
+        var noteDiv = document.createElement('div');
+        noteDiv.className = 'queue-note';
+        noteDiv.textContent = '\ud83d\udcdd ' + note;
+        card.querySelector('.draft-subject').after(noteDiv);
+        btn.textContent = '\u21a9\ufe0f Unqueue';
+        btn.onclick = function() { unqueueCard(card); };
+        updatePanel();
+      }
+      input.addEventListener('keydown', function(e) { if (e.key === 'Enter') commit(); });
+      confirm.addEventListener('click', commit);
+      input.focus();
+    };
+
+    window.unqueueCard = function(card) {
+      var idx = queue.findIndex(function(q) { return q.threadId === card.dataset.threadId; });
+      if (idx > -1) queue.splice(idx, 1);
+      card.classList.remove('queued');
+      var noteDiv = card.querySelector('.queue-note');
+      if (noteDiv) noteDiv.remove();
+      var btn = card.querySelector('.actions .btn-secondary');
+      if (btn) { btn.textContent = '\ud83d\udccb Queue'; btn.onclick = function() { addToQueue(btn); }; }
+      updatePanel();
+    };
+
+    window.removeFromQueue = function(idx) {
+      var item = queue[idx];
+      queue.splice(idx, 1);
+      var card = document.querySelector('[data-thread-id="' + item.threadId + '"]');
+      if (card) {
+        card.classList.remove('queued');
+        var noteDiv = card.querySelector('.queue-note');
+        if (noteDiv) noteDiv.remove();
+        var btn = card.querySelector('.actions .btn-secondary');
+        if (btn) { btn.textContent = '\ud83d\udccb Queue'; btn.onclick = function() { addToQueue(btn); }; }
+      }
+      updatePanel();
+    };
+
+    document.getElementById('resume-queue-btn').addEventListener('click', function() {
+      if (queue.length === 0) return;
+      var prompt = 'Resume the review queue. Process these ' + queue.length + ' emails. ' +
+        'For each, re-draft the response incorporating my note, then present for review before sending.\n\n';
+      queue.forEach(function(item, i) {
+        prompt += (i + 1) + '. ' + item.sender + ' \u2014 "' + item.subject + '"\n';
+        prompt += '   Note: ' + item.note + '\n\n';
+      });
+      window.location.href = 'boo://resume/triage?prompt=' + encodeURIComponent(prompt);
+    });
+  })();
+  </script>
+</body>
+</html>

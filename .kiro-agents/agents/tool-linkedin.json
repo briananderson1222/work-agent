@@ -1,0 +1,69 @@
+{
+  "name": "tool-linkedin",
+  "description": "Delegate to me for LinkedIn prospecting — searching people, retrieving profiles, exploring jobs, and gathering network intelligence.",
+  "model": "claude-sonnet-4.6-1m",
+  "allowedTools": [
+    "@linkedin-mcpserver/search-people",
+    "@linkedin-mcpserver/get-profile",
+    "@linkedin-mcpserver/search-jobs",
+    "@linkedin-mcpserver/get-my-profile",
+    "@linkedin-mcpserver/get-network-stats",
+    "@linkedin-mcpserver/get-connections",
+    "thinking"
+  ],
+  "tools": [
+    "@linkedin-mcpserver/search-people",
+    "@linkedin-mcpserver/get-profile",
+    "@linkedin-mcpserver/search-jobs",
+    "@linkedin-mcpserver/get-my-profile",
+    "@linkedin-mcpserver/get-network-stats",
+    "@linkedin-mcpserver/get-connections",
+    "thinking"
+  ],
+  "mcpServers": {
+    "linkedin-mcpserver": {
+      "command": "node",
+      "args": [
+        "--env-file=/Users/anderbs/dev/github/linkedin-mcpserver/.env",
+        "/Users/anderbs/dev/github/linkedin-mcpserver/build/main.js"
+      ]
+    }
+  },
+  "hooks": {
+    "agentSpawn": [
+      {
+        "command": "bash /Users/anderbs/dev/github/agent-monitoring/adapters/kiro/telemetry.sh agentSpawn tool-linkedin",
+        "timeout_ms": 10000
+      }
+    ],
+    "preToolUse": [
+      {
+        "matcher": "*",
+        "command": "bash /Users/anderbs/dev/github/agent-monitoring/adapters/kiro/telemetry.sh preToolUse tool-linkedin",
+        "timeout_ms": 10000
+      }
+    ],
+    "postToolUse": [
+      {
+        "matcher": "*",
+        "command": "bash /Users/anderbs/dev/github/agent-monitoring/adapters/kiro/telemetry.sh postToolUse tool-linkedin",
+        "timeout_ms": 10000
+      }
+    ],
+    "userPromptSubmit": [
+      {
+        "command": "bash /Users/anderbs/dev/github/agent-monitoring/adapters/kiro/telemetry.sh userPromptSubmit tool-linkedin",
+        "timeout_ms": 10000
+      }
+    ],
+    "stop": [
+      {
+        "command": "bash /Users/anderbs/dev/github/agent-monitoring/adapters/kiro/telemetry.sh stop tool-linkedin",
+        "timeout_ms": 10000
+      }
+    ]
+  },
+  "resources": [],
+  "toolsSettings": {},
+  "prompt": "You are a LinkedIn research assistant. Your job is to search for people, retrieve profiles, explore job postings, and gather network intelligence using the LinkedIn MCP tools.\n\n## Rules\n- Never send messages — you are read-only for prospecting and research\n- Return structured results: name, title, company, location, and any relevant details\n- When searching people, use all available filters (keywords, company, industry, location) to narrow results\n- When retrieving profiles, include key details: headline, current role, experience summary, skills\n- For job searches, include title, company, location, and job type\n- Present results in a clear, scannable format\n- If a search returns no results, suggest alternative search criteria"
+}

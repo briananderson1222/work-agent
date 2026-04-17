@@ -1,0 +1,176 @@
+description: Stallion Agent Eval Suite — dev + sales-sa skill activation and workflow compliance
+providers:
+- id: 'exec: bash lib/kiro-dev.sh'
+  label: dev
+- id: 'exec: bash lib/kiro-sales-sa.sh'
+  label: sales-sa
+prompts:
+- '{{prompt}}'
+tests:
+- vars:
+    prompt: Explore this codebase and tell me what it does
+  assert:
+  - type: javascript
+    value: file://lib/assertions/delegated-to.js
+    config:
+      expected:
+      - tool-explore-structure
+      - tool-explore-entry
+      - tool-explore-deps
+  - type: javascript
+    value: file://lib/assertions/tool-called.js
+    config:
+      tool: use_subagent
+  - type: javascript
+    value: file://lib/assertions/no-write-tools.js
+  - type: llm-rubric
+    value: 'The agent activated the ''explore'' skill and fanned out parallel subagents
+
+      (tool-explore-structure, entry, deps, patterns, config, tests) in Wave 1.
+
+      Response contains a synthesis of directory structure, entry points, dependencies, and patterns.
+
+      '
+  options:
+    provider: 'exec: bash lib/kiro-dev.sh'
+- vars:
+    prompt: Create a simple hello.py script that prints hello world
+  assert:
+  - type: javascript
+    value: file://lib/assertions/tool-called.js
+    config:
+      tool: todo_list
+  - type: javascript
+    value: file://lib/assertions/no-write-tools.js
+  - type: llm-rubric
+    value: 'The dev agent followed its Phase 0-5 workflow: checked existing TODOs,
+
+      ran git status, created a plan, then attempted implementation.
+
+      Write tools are blocked so implementation may fail — check it ATTEMPTED the workflow phases.
+
+      '
+  options:
+    provider: 'exec: bash lib/kiro-dev.sh'
+- vars:
+    prompt: Check this project for outdated dependencies and security vulnerabilities
+  assert:
+  - type: javascript
+    value: file://lib/assertions/delegated-to.js
+    config:
+      expected:
+      - tool-dependencies-updater
+  - type: javascript
+    value: file://lib/assertions/no-write-tools.js
+  - type: llm-rubric
+    value: 'The agent activated the dependency-update skill and delegated to
+
+      tool-dependencies-updater rather than manually checking package files.
+
+      '
+  options:
+    provider: 'exec: bash lib/kiro-dev.sh'
+- vars:
+    prompt: Good morning, what's on my plate today?
+  assert:
+  - type: javascript
+    value: file://lib/assertions/delegated-to.js
+    config:
+      expected:
+      - tool-calendar
+      - tool-email
+  - type: javascript
+    value: file://lib/assertions/no-write-tools.js
+  - type: llm-rubric
+    value: 'The agent activated sa-daily skill in morning mode.
+
+      Parallel delegation to tool-calendar AND tool-email.
+
+      Structured daily overview with calendar + email sections and action items.
+
+      '
+  options:
+    provider: 'exec: bash lib/kiro-sales-sa.sh'
+- vars:
+    prompt: Let's wrap up for the day. What did I get done?
+  assert:
+  - type: javascript
+    value: file://lib/assertions/delegated-to.js
+    config:
+      expected:
+      - tool-calendar
+      - tool-crm
+  - type: javascript
+    value: file://lib/assertions/no-write-tools.js
+  - type: llm-rubric
+    value: 'The agent activated sa-daily in end-of-day mode.
+
+      Checked calendar + CRM, identified gaps (meetings without logged activities),
+
+      previewed tomorrow.
+
+      '
+  options:
+    provider: 'exec: bash lib/kiro-sales-sa.sh'
+- vars:
+    prompt: Log my meetings from today as tech activities
+  assert:
+  - type: javascript
+    value: file://lib/assertions/delegated-to.js
+    config:
+      expected:
+      - tool-calendar
+  - type: javascript
+    value: file://lib/assertions/no-write-tools.js
+  - type: llm-rubric
+    value: 'The agent activated sa-activity in calendar review mode.
+
+      Confirmed date range, delegated to tool-calendar for events,
+
+      classified meetings as customer vs internal before attempting to log.
+
+      '
+  options:
+    provider: 'exec: bash lib/kiro-sales-sa.sh'
+- vars:
+    prompt: Check my email and tell me what needs attention
+  assert:
+  - type: javascript
+    value: file://lib/assertions/delegated-to.js
+    config:
+      expected:
+      - tool-email
+  - type: javascript
+    value: file://lib/assertions/no-write-tools.js
+  - type: llm-rubric
+    value: 'The agent activated sa-email in triage mode.
+
+      CRITICAL: It must narrate what it''s doing BEFORE making tool calls.
+
+      Delegated to tool-email, categorized emails by priority
+
+      (red/yellow/green), presented a triage summary.
+
+      '
+  options:
+    provider: 'exec: bash lib/kiro-sales-sa.sh'
+- vars:
+    prompt: Search for emails from the Contoso team about the data lake project
+  assert:
+  - type: javascript
+    value: file://lib/assertions/delegated-to.js
+    config:
+      expected:
+      - tool-email
+  - type: javascript
+    value: file://lib/assertions/no-write-tools.js
+  - type: llm-rubric
+    value: 'The agent activated sa-email in search mode.
+
+      Narrated the search intent, delegated to tool-email with
+
+      appropriate search parameters (sender/subject keywords).
+
+      '
+  options:
+    provider: 'exec: bash lib/kiro-sales-sa.sh'
