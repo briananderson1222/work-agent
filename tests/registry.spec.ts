@@ -145,7 +145,7 @@ test.describe('Registry page', () => {
     await page.waitForSelector('.page__tab', { timeout: 15_000 });
 
     await forceClick(page, '.page__tab:has-text("Skills")');
-    await forceClick(page, '.page__card-name');
+    await page.getByRole('button', { name: /Prompt Toolkit/i }).click();
 
     await expect(page.getByTestId('registry-detail')).toContainText(
       'Prompt Toolkit',
@@ -155,7 +155,10 @@ test.describe('Registry page', () => {
     );
     await expect(installCalls).toHaveLength(0);
 
-    await forceClick(page, '[data-testid="registry-detail"] button');
-    await expect(installCalls).toHaveLength(1);
+    await page
+      .getByTestId('registry-detail')
+      .getByRole('button', { name: /Install to workspace/i })
+      .click();
+    await expect.poll(() => installCalls.length).toBe(1);
   });
 });

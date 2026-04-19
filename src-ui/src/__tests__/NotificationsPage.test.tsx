@@ -69,6 +69,20 @@ describe('NotificationsPage', () => {
     });
   });
 
+  test('renders structured empty-state copy when there are no notifications', () => {
+    render(<NotificationsPage />);
+
+    expect(
+      screen.getByText('Approvals, alerts, and system updates in one place.'),
+    ).toBeTruthy();
+    expect(screen.getByText('No notifications yet')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'New approvals, job updates, and system alerts will appear here.',
+      ),
+    ).toBeTruthy();
+  });
+
   test('clears notifications from the page header action', () => {
     notifications = [
       {

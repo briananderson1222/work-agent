@@ -49,8 +49,8 @@ export function AIModelsSection({
         />
         <span className="settings__field-hint">
           {useRuntimeModelOptions
-            ? `Default model for agents that don't specify one. Options currently come from ${preferredRuntime?.name}.`
-            : "Default model for agents that don't specify one."}
+            ? `Default model for new chats and agents that don't specify one. Options currently come from ${preferredRuntime?.name}.`
+            : "Default model for new chats and agents that don't specify one."}
         </span>
       </div>
 

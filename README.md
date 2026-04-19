@@ -348,6 +348,34 @@ Configuration:
 ./stallion config set <key> <value> # Set a config value
 ```
 
+Core workspace and surface management:
+
+```bash
+./stallion agents <action>
+./stallion projects <action>
+./stallion skills <action>
+./stallion playbooks <action>
+./stallion chat <agent> <message>
+./stallion sessions <action>
+
+./stallion connections <action>
+./stallion tools <action>
+./stallion notifications <action>
+./stallion monitoring <action>
+./stallion schedule <action>
+./stallion knowledge <action>
+./stallion auth <action>
+./stallion branding <action>
+./stallion feedback <action>
+./stallion insights <action>
+./stallion acp <action>
+./stallion voice <action>
+
+./stallion registry <catalog> <action> # agents / skills / integrations / plugins
+```
+
+See [CLI](docs/reference/cli.md) for the full command reference.
+
 Plugin management:
 
 ```bash

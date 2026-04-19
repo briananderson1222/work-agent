@@ -98,6 +98,26 @@ export const orchestrationQueries = {
     },
     staleTime: 30 * 1000,
   }),
+  sessions: () => ({
+    queryKey: ['orchestration-sessions'],
+    staleTime: 10 * 1000,
+  }),
+  loadedSessions: () => ({
+    queryKey: ['orchestration-sessions-loaded'],
+    staleTime: 10 * 1000,
+  }),
+  session: (threadId: string) => ({
+    queryKey: ['orchestration-session', threadId],
+    staleTime: 10 * 1000,
+  }),
+  terminalProcesses: () => ({
+    queryKey: ['orchestration-terminal-processes'],
+    staleTime: 10 * 1000,
+  }),
+  terminalProcess: (sessionId: string) => ({
+    queryKey: ['orchestration-terminal-process', sessionId],
+    staleTime: 10 * 1000,
+  }),
 };
 
 export const knowledgeQueries = {

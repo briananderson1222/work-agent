@@ -38,7 +38,7 @@ export function createRuntimeSelfIntegration(port: number) {
       id: selfIntegrationId,
       displayName: 'Stallion Control',
       description:
-        'Manage agents, skills, integrations, prompts, and jobs via natural language',
+        'Manage agents, skills, integrations, playbooks, and jobs via natural language',
       kind: 'mcp' as const,
       transport: 'stdio' as const,
       command: 'node',

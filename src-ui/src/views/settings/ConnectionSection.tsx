@@ -95,7 +95,8 @@ export function ConnectionSection({
             <span className="settings__field-error">{regionError}</span>
           )}
           <span className="settings__field-hint">
-            Used for built-in cloud providers and regional model routing.
+            Used when a configured connection requires regional routing, such as
+            built-in cloud providers.
           </span>
         </div>
       ) : null}

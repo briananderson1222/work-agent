@@ -92,4 +92,40 @@ describe('IntegrationEditorPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Raw JSON' }));
     expect(onSwitchToRaw).toHaveBeenCalled();
   });
+
+  test('uses tool-server terminology for new entries', () => {
+    render(
+      <IntegrationEditorPanel
+        editForm={{
+          id: '',
+          displayName: '',
+          description: '',
+          kind: 'mcp',
+          transport: 'stdio',
+          command: '',
+          args: [],
+          env: {},
+          connected: false,
+        }}
+        isNew
+        locked={false}
+        message={null}
+        viewMode="form"
+        rawJson=""
+        rawError={null}
+        savePending={false}
+        reconnectPending={false}
+        onReconnect={vi.fn()}
+        onDelete={vi.fn()}
+        onSave={vi.fn()}
+        onSwitchToForm={vi.fn()}
+        onSwitchToRaw={vi.fn()}
+        onRawJsonChange={vi.fn()}
+        onUpdate={vi.fn()}
+        onUnlock={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText('New Tool Server')).toBeTruthy();
+  });
 });

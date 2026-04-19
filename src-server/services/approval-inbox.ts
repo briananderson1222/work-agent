@@ -31,6 +31,8 @@ interface ApprovalInboxDependencies {
 
 const APPROVAL_INBOX_SOURCE = 'approval-inbox';
 const APPROVAL_NOTIFICATION_CATEGORY = 'approval-request';
+const REGISTRY_SESSION_KIND = 'managed';
+const ORCHESTRATION_SESSION_KIND = 'runtime';
 
 export class ApprovalInboxNotificationProvider
   implements INotificationProvider
@@ -85,17 +87,16 @@ export class ApprovalInboxNotificationProvider
     });
 
     if (target.kind === 'orchestration') {
+      const decision = mapOrchestrationDecision(actionId);
       await this.deps.orchestrationService.dispatch({
         type: 'respondToRequest',
         threadId: target.threadId,
         requestId: target.requestId,
-        decision: mapOrchestrationDecision(actionId),
+        decision,
       });
     } else {
-      this.deps.approvalRegistry.resolve(
-        target.approvalId,
-        actionId !== 'decline',
-      );
+      const approved = mapRegistryApprovalDecision(actionId);
+      this.deps.approvalRegistry.resolve(target.approvalId, approved);
     }
 
     this.forget(notificationId);
@@ -167,6 +168,8 @@ export function wireApprovalInboxNotifications(
           approvalId: message.data?.approvalId,
           conversationId: message.data?.conversationId,
           conversationTitle: message.data?.conversationTitle,
+          sessionId: message.data?.conversationId,
+          sessionKind: REGISTRY_SESSION_KIND,
           detail: message.data?.description,
           requestKind: 'registry',
           requestKey: `approval:${message.data?.approvalId ?? 'unknown'}`,
@@ -222,6 +225,8 @@ export function wireApprovalInboxNotifications(
           requestKey: buildOrchestrationRequestKey(event),
           requestKind: 'orchestration',
           requestType: event.requestType,
+          sessionId: event.threadId,
+          sessionKind: ORCHESTRATION_SESSION_KIND,
           threadId: event.threadId,
           toolName:
             typeof event.payload?.toolName === 'string'
@@ -298,10 +303,23 @@ function mapOrchestrationDecision(
   if (actionId === 'acceptForSession') {
     return 'acceptForSession';
   }
+  if (actionId === 'accept') {
+    return 'accept';
+  }
   if (actionId === 'decline') {
     return 'decline';
   }
-  return 'accept';
+  throw new Error(`Unsupported orchestration approval action: ${actionId}`);
+}
+
+function mapRegistryApprovalDecision(actionId: string): boolean {
+  if (actionId === 'accept') {
+    return true;
+  }
+  if (actionId === 'decline') {
+    return false;
+  }
+  throw new Error(`Unsupported registry approval action: ${actionId}`);
 }
 
 function buildOrchestrationRequestKey(

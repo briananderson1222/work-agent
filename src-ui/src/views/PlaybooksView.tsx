@@ -37,9 +37,11 @@ export function PlaybooksView() {
         onSelect={viewModel.selectPrompt}
         onDeselect={viewModel.handleDeselect}
         onSearch={viewModel.setSearch}
-        searchPlaceholder="Search prompts..."
+        searchPlaceholder="Search playbooks..."
         onAdd={viewModel.startNew}
         addLabel="+ New Playbook"
+        listEmptyTitle="No playbooks yet"
+        listEmptyDescription="Create a reusable playbook to capture guidance for layouts and agents."
         emptyIcon="⌘"
         emptyTitle="No playbook selected"
         emptyDescription="Select a playbook or create a new one"

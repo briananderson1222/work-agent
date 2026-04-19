@@ -55,7 +55,9 @@ stallion agents chat planner "Summarize the open work"
 
 ### `chat`
 
-Shortcut for chatting with a configured agent.
+Shortcut for chatting with a configured agent. Use `--conversation=<id>` to
+continue an existing managed conversation or orchestration-backed runtime
+session.
 
 ```
 stallion chat <agent> <message> [--project=<project-slug>] [--conversation=<id>] [--model=<id>] [--title=<title>] [--api-base=<url>]
@@ -66,6 +68,26 @@ Examples:
 ```bash
 stallion chat default "What changed in this repo?"
 printf 'Review the latest project state' | stallion chat planner
+stallion chat __runtime:ollama-runtime "Reply with exactly: OK" --conversation=runtime-demo --model=llama3.2:latest
+```
+
+### `sessions`
+
+Unified session management for managed conversations and orchestration-backed runtime sessions.
+
+```
+stallion sessions list <agent> [--api-base=<url>]
+stallion sessions read <agent> <session-id> [--api-base=<url>]
+stallion sessions interrupt <agent> <session-id> [--turn=<turn-id>] [--api-base=<url>]
+```
+
+Examples:
+
+```bash
+stallion sessions list default
+stallion sessions read default conv-123
+stallion sessions list __runtime:codex-runtime
+stallion sessions interrupt __runtime:codex-runtime runtime-thread --turn=turn-1
 ```
 
 ### `projects`
@@ -130,6 +152,153 @@ Example:
 ```bash
 stallion playbooks create --data='{"name":"Triage","content":"Sort inbox items."}'
 stallion prompts outcome 123e4567 success
+```
+
+### `connections`
+
+```
+stallion connections list [--api-base=<url>]
+stallion connections models [--api-base=<url>]
+stallion connections runtimes [--api-base=<url>]
+stallion connections get <id> [--api-base=<url>]
+stallion connections create --data=<json> [--api-base=<url>]
+stallion connections update <id> --data=<json> [--api-base=<url>]
+stallion connections delete <id> [--api-base=<url>]
+stallion connections test <id> [--api-base=<url>]
+```
+
+### `tools`
+
+```
+stallion tools list [--api-base=<url>]
+stallion tools get <id> [--api-base=<url>]
+stallion tools create --data=<json> [--api-base=<url>]
+stallion tools update <id> --data=<json> [--api-base=<url>]
+stallion tools delete <id> [--api-base=<url>]
+stallion tools reconnect <id> [--api-base=<url>]
+```
+
+### `notifications`
+
+```
+stallion notifications list [--status=<csv>] [--category=<csv>] [--api-base=<url>]
+stallion notifications create --data=<json> [--api-base=<url>]
+stallion notifications delete <id> [--api-base=<url>]
+stallion notifications dismiss <id> [--api-base=<url>]
+stallion notifications clear [--api-base=<url>]
+stallion notifications providers [--api-base=<url>]
+stallion notifications action <id> <actionId> [--api-base=<url>]
+stallion notifications snooze <id> --until=<iso> [--api-base=<url>]
+```
+
+### `monitoring`
+
+```
+stallion monitoring stats [--api-base=<url>]
+stallion monitoring metrics [--range=<today|week|month|all>] [--api-base=<url>]
+stallion monitoring events [--start=<iso>] [--end=<iso>] [--user-id=<id>] [--api-base=<url>]
+```
+
+Without `--start`/`--end`, `stallion monitoring events` streams live monitoring
+events as JSON lines.
+
+### `schedule`
+
+```
+stallion schedule jobs [--api-base=<url>]
+stallion schedule list [--api-base=<url>]
+stallion schedule providers [--api-base=<url>]
+stallion schedule stats [--api-base=<url>]
+stallion schedule status [--api-base=<url>]
+stallion schedule preview "<cron>" [count] [--api-base=<url>]
+stallion schedule logs <job> [count] [--api-base=<url>]
+stallion schedule output <path> [--api-base=<url>]
+stallion schedule create --data=<json> [--api-base=<url>]
+stallion schedule update <job> --data=<json> [--api-base=<url>]
+stallion schedule run <job> [--api-base=<url>]
+stallion schedule enable <job> [--api-base=<url>]
+stallion schedule disable <job> [--api-base=<url>]
+stallion schedule delete <job> [--api-base=<url>]
+```
+
+### `knowledge`
+
+```
+stallion knowledge status [--api-base=<url>]
+stallion knowledge search --data=<json> [--api-base=<url>]
+stallion knowledge namespaces list <project> [--api-base=<url>]
+stallion knowledge namespaces create <project> --data=<json> [--api-base=<url>]
+stallion knowledge namespaces update <project> <namespace> --data=<json> [--api-base=<url>]
+stallion knowledge namespaces delete <project> <namespace> [--api-base=<url>]
+stallion knowledge docs list <project> [--namespace=<id>] [--api-base=<url>]
+stallion knowledge docs status <project> [--namespace=<id>] [--api-base=<url>]
+stallion knowledge docs upload <project> [--namespace=<id>] --data=<json> [--api-base=<url>]
+stallion knowledge docs scan <project> [--namespace=<id>] --data=<json> [--api-base=<url>]
+stallion knowledge docs search <project> [--namespace=<id>] --data=<json> [--api-base=<url>]
+stallion knowledge docs bulk-delete <project> [--namespace=<id>] --data=<json> [--api-base=<url>]
+stallion knowledge docs content <project> <docId> [--namespace=<id>] [--api-base=<url>]
+stallion knowledge docs tree <project> --namespace=<id> [--api-base=<url>]
+stallion knowledge docs update <project> <docId> [--namespace=<id>] --data=<json> [--api-base=<url>]
+stallion knowledge docs delete <project> <docId> [--namespace=<id>] [--api-base=<url>]
+stallion knowledge docs clear <project> [--namespace=<id>] [--api-base=<url>]
+```
+
+### `auth`
+
+```
+stallion auth status [--api-base=<url>]
+stallion auth renew [--api-base=<url>]
+stallion auth terminal [--api-base=<url>]
+stallion auth users search <query> [--api-base=<url>]
+stallion auth users get <alias> [--api-base=<url>]
+```
+
+### `branding`
+
+```
+stallion branding get [--api-base=<url>]
+```
+
+### `feedback`
+
+```
+stallion feedback rate --data=<json> [--api-base=<url>]
+stallion feedback delete --data=<json> [--api-base=<url>]
+stallion feedback unrate --data=<json> [--api-base=<url>]
+stallion feedback ratings [--api-base=<url>]
+stallion feedback guidelines [--api-base=<url>]
+stallion feedback analyze [--data=<json>] [--api-base=<url>]
+stallion feedback clear-analysis [--api-base=<url>]
+stallion feedback status [--api-base=<url>]
+stallion feedback test [--api-base=<url>]
+```
+
+### `insights`
+
+```
+stallion insights get [--days=<n>] [--api-base=<url>]
+```
+
+### `acp`
+
+```
+stallion acp status [--api-base=<url>]
+stallion acp commands <agent-slug> [--api-base=<url>]
+stallion acp command-options <agent-slug> [--q=<partial>] [--api-base=<url>]
+stallion acp connections list [--api-base=<url>]
+stallion acp connections create --data=<json> [--api-base=<url>]
+stallion acp connections update <id> --data=<json> [--api-base=<url>]
+stallion acp connections delete <id> [--api-base=<url>]
+stallion acp connections reconnect <id> [--api-base=<url>]
+```
+
+### `voice`
+
+```
+stallion voice status [--api-base=<url>]
+stallion voice agent [--api-base=<url>]
+stallion voice create-session [--data=<json>] [--api-base=<url>]
+stallion voice delete-session <id> [--api-base=<url>]
 ```
 
 ---
@@ -255,6 +424,40 @@ stallion shortcut
 
 ```bash
 stallion shortcut
+```
+
+### `registry`
+
+Plugin registry behavior remains:
+
+```bash
+stallion registry
+stallion registry <url>
+stallion registry install <plugin-id>
+```
+
+Unified catalog behavior for the Registry surface:
+
+```bash
+stallion registry agents list [--api-base=<url>]
+stallion registry agents installed [--api-base=<url>]
+stallion registry agents install <id> [--api-base=<url>]
+stallion registry agents uninstall <id> [--api-base=<url>]
+
+stallion registry skills list [--api-base=<url>]
+stallion registry skills installed [--api-base=<url>]
+stallion registry skills install <id> [--api-base=<url>]
+stallion registry skills uninstall <id> [--api-base=<url>]
+
+stallion registry integrations list [--api-base=<url>]
+stallion registry integrations installed [--api-base=<url>]
+stallion registry integrations install <id> [--api-base=<url>]
+stallion registry integrations uninstall <id> [--api-base=<url>]
+
+stallion registry plugins list [--api-base=<url>]
+stallion registry plugins installed [--api-base=<url>]
+stallion registry plugins install <id> [--api-base=<url>]
+stallion registry plugins uninstall <id> [--api-base=<url>]
 ```
 
 ---

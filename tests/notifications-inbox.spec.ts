@@ -40,6 +40,7 @@ test.describe('Notifications inbox', () => {
           prerequisites: [],
           acp: { connected: false, connections: [] },
           providers: {
+            configuredChatReady: true,
             configured: [
               {
                 id: 'local-llm',
@@ -55,6 +56,13 @@ test.describe('Notifications inbox', () => {
               ready: true,
               source: 'local-llm',
             },
+          },
+          recommendation: {
+            code: 'configured-chat-ready',
+            type: 'providers',
+            actionLabel: 'Manage Connections',
+            title: 'Connections ready',
+            detail: 'Mocked notification status',
           },
           clis: {},
         }),

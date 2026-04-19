@@ -3,6 +3,18 @@ import { z } from 'zod';
 
 import { api, jsonToolResult } from './stallion-control-shared.js';
 
+export const PLAYBOOK_COLLECTION_PATH = '/api/playbooks';
+
+export function buildPlaybookPath(id?: string, action?: 'run' | 'outcome') {
+  if (!id) {
+    return PLAYBOOK_COLLECTION_PATH;
+  }
+  const encodedId = encodeURIComponent(id);
+  return action
+    ? `${PLAYBOOK_COLLECTION_PATH}/${encodedId}/${action}`
+    : `${PLAYBOOK_COLLECTION_PATH}/${encodedId}`;
+}
+
 export function registerCatalogTools(server: McpServer) {
   const promptSourceContextSchema = z
     .object({
@@ -46,88 +58,147 @@ export function registerCatalogTools(server: McpServer) {
       ),
   );
 
-  server.tool('list_prompts', 'List saved prompts', {}, async () =>
-    jsonToolResult(await api('/api/prompts')),
-  );
+  const playbookUpsertSchema = {
+    name: z.string(),
+    content: z.string(),
+    description: z.string().optional(),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    agent: z.string().optional(),
+    global: z.boolean().optional(),
+    _sourceContext: promptSourceContextSchema,
+  };
 
-  server.tool(
+  const playbookUpdateSchema = {
+    id: z.string(),
+    name: z.string().optional(),
+    content: z.string().optional(),
+    description: z.string().optional(),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+    agent: z.string().optional(),
+    global: z.boolean().optional(),
+    _sourceContext: promptSourceContextSchema,
+  };
+
+  const registerPlaybookListTool = (
+    name: 'list_playbooks' | 'list_prompts',
+    description: string,
+  ) => {
+    server.tool(name, description, {}, async () =>
+      jsonToolResult(await api(PLAYBOOK_COLLECTION_PATH)),
+    );
+  };
+
+  const registerPlaybookCreateTool = (
+    name: 'create_playbook' | 'create_prompt',
+    description: string,
+  ) => {
+    server.tool(name, description, playbookUpsertSchema, async (params) =>
+      jsonToolResult(
+        await api(buildPlaybookPath(), {
+          method: 'POST',
+          body: JSON.stringify(params),
+        }),
+      ),
+    );
+  };
+
+  const registerPlaybookUpdateTool = (
+    name: 'update_playbook' | 'update_prompt',
+    description: string,
+  ) => {
+    server.tool(
+      name,
+      description,
+      playbookUpdateSchema,
+      async ({ id, ...params }) =>
+        jsonToolResult(
+          await api(buildPlaybookPath(id), {
+            method: 'PUT',
+            body: JSON.stringify(params),
+          }),
+        ),
+    );
+  };
+
+  const registerPlaybookRunTool = (
+    name: 'track_playbook_run' | 'track_prompt_run',
+    description: string,
+  ) => {
+    server.tool(name, description, { id: z.string() }, async ({ id }) =>
+      jsonToolResult(
+        await api(buildPlaybookPath(id, 'run'), {
+          method: 'POST',
+        }),
+      ),
+    );
+  };
+
+  const registerPlaybookOutcomeTool = (
+    name: 'record_playbook_outcome' | 'record_prompt_outcome',
+    description: string,
+  ) => {
+    server.tool(
+      name,
+      description,
+      {
+        id: z.string(),
+        outcome: z.enum(['success', 'failure']),
+      },
+      async ({ id, outcome }) =>
+        jsonToolResult(
+          await api(buildPlaybookPath(id, 'outcome'), {
+            method: 'POST',
+            body: JSON.stringify({ outcome }),
+          }),
+        ),
+    );
+  };
+
+  const registerPlaybookDeleteTool = (
+    name: 'delete_playbook' | 'delete_prompt',
+    description: string,
+  ) => {
+    server.tool(name, description, { id: z.string() }, async ({ id }) =>
+      jsonToolResult(await api(buildPlaybookPath(id), { method: 'DELETE' })),
+    );
+  };
+
+  registerPlaybookListTool('list_playbooks', 'List saved playbooks');
+  registerPlaybookListTool(
+    'list_prompts',
+    'Compatibility alias for listing saved playbooks',
+  );
+  registerPlaybookCreateTool('create_playbook', 'Create a new playbook');
+  registerPlaybookCreateTool(
     'create_prompt',
-    'Create a new prompt',
-    {
-      name: z.string(),
-      content: z.string(),
-      description: z.string().optional(),
-      category: z.string().optional(),
-      tags: z.array(z.string()).optional(),
-      agent: z.string().optional(),
-      global: z.boolean().optional(),
-      _sourceContext: promptSourceContextSchema,
-    },
-    async (params) =>
-      jsonToolResult(
-        await api('/api/prompts', {
-          method: 'POST',
-          body: JSON.stringify(params),
-        }),
-      ),
+    'Compatibility alias for creating a playbook',
   );
-
-  server.tool(
+  registerPlaybookUpdateTool('update_playbook', 'Update an existing playbook');
+  registerPlaybookUpdateTool(
     'update_prompt',
-    'Update an existing prompt',
-    {
-      id: z.string(),
-      name: z.string().optional(),
-      content: z.string().optional(),
-      description: z.string().optional(),
-      category: z.string().optional(),
-      tags: z.array(z.string()).optional(),
-      agent: z.string().optional(),
-      global: z.boolean().optional(),
-      _sourceContext: promptSourceContextSchema,
-    },
-    async ({ id, ...params }) =>
-      jsonToolResult(
-        await api(`/api/prompts/${id}`, {
-          method: 'PUT',
-          body: JSON.stringify(params),
-        }),
-      ),
+    'Compatibility alias for updating a playbook',
   );
-
-  server.tool(
+  registerPlaybookRunTool(
+    'track_playbook_run',
+    'Record that a playbook was used',
+  );
+  registerPlaybookRunTool(
     'track_prompt_run',
-    'Record that a prompt was used',
-    { id: z.string() },
-    async ({ id }) =>
-      jsonToolResult(
-        await api(`/api/prompts/${id}/run`, {
-          method: 'POST',
-        }),
-      ),
+    'Compatibility alias for recording a playbook run',
   );
-
-  server.tool(
+  registerPlaybookOutcomeTool(
+    'record_playbook_outcome',
+    'Record whether a playbook led to a successful outcome',
+  );
+  registerPlaybookOutcomeTool(
     'record_prompt_outcome',
-    'Record whether a prompt led to a successful outcome',
-    {
-      id: z.string(),
-      outcome: z.enum(['success', 'failure']),
-    },
-    async ({ id, outcome }) =>
-      jsonToolResult(
-        await api(`/api/prompts/${id}/outcome`, {
-          method: 'POST',
-          body: JSON.stringify({ outcome }),
-        }),
-      ),
+    'Compatibility alias for recording a playbook outcome',
   );
-
-  server.tool(
+  registerPlaybookDeleteTool('delete_playbook', 'Delete a playbook');
+  registerPlaybookDeleteTool(
     'delete_prompt',
-    'Delete a prompt',
-    { id: z.string() },
-    async ({ id }) =>
-      jsonToolResult(await api(`/api/prompts/${id}`, { method: 'DELETE' })),
+    'Compatibility alias for deleting a playbook',
   );
 }

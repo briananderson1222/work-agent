@@ -1,3 +1,4 @@
+import type { OrchestrationSessionSummary } from '@stallion-ai/contracts/orchestration';
 import type {
   ProviderKind,
   ProviderSession,
@@ -110,6 +111,41 @@ export function projectOrchestrationEventToReadModel(options: {
   eventStore?.upsertSession(nextSession);
 }
 
+export function buildOrchestrationSessionSummary(options: {
+  persisted?: ProviderSession;
+  loaded?: ProviderSession;
+  events?: CanonicalRuntimeEvent[];
+}): OrchestrationSessionSummary {
+  const base = options.loaded ?? options.persisted;
+  if (!base) {
+    throw new Error('A persisted or loaded session is required');
+  }
+
+  const events = options.events ?? [];
+  const lastEvent = events.at(-1);
+
+  return {
+    provider: base.provider,
+    threadId: base.threadId,
+    status: base.status,
+    ...(base.model ? { model: base.model } : {}),
+    ...(base.resumeCursor !== undefined
+      ? { resumeCursor: base.resumeCursor }
+      : {}),
+    createdAt: base.createdAt,
+    updatedAt: base.updatedAt,
+    isLoaded: Boolean(options.loaded),
+    isPersisted: Boolean(options.persisted),
+    eventCount: events.length,
+    ...(lastEvent
+      ? {
+          lastEventAt: lastEvent.createdAt,
+          lastEventMethod: lastEvent.method,
+        }
+      : {}),
+  };
+}
+
 export async function recoverOrchestrationSessions(options: {
   adapterRegistry: IProviderAdapterRegistry;
   eventStore?: EventStore;
@@ -126,6 +162,15 @@ export async function recoverOrchestrationSessions(options: {
     if (!adapter) continue;
     try {
       await options.assertAdapterReady(adapter);
+    } catch (error) {
+      options.logger.warn('Provider session not ready for recovery yet', {
+        provider: session.provider,
+        threadId: session.threadId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      continue;
+    }
+    try {
       const recovered = await adapter.startSession({
         threadId: session.threadId,
         provider: session.provider,

@@ -29,7 +29,12 @@ export function NotificationsPage() {
   return (
     <div className="notifications-page">
       <div className="notifications-page__header">
-        <h1 className="notifications-page__title">Notifications</h1>
+        <div className="notifications-page__header-copy">
+          <h1 className="notifications-page__title">Notifications</h1>
+          <p className="notifications-page__subtitle">
+            Approvals, alerts, and system updates in one place.
+          </p>
+        </div>
         {orderedNotifications.length > 0 && (
           <button
             onClick={() => {
@@ -60,7 +65,12 @@ export function NotificationsPage() {
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
             <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
           </svg>
-          <div>No notifications yet</div>
+          <div className="notifications-page__empty-title">
+            No notifications yet
+          </div>
+          <div className="notifications-page__empty-desc">
+            New approvals, job updates, and system alerts will appear here.
+          </div>
         </div>
       ) : (
         <div className="notifications-page__list">

@@ -9,6 +9,10 @@ import {
   getRunningConversations,
 } from './view-utils';
 
+function formatAgentStatusLabel(status: string) {
+  return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
 export function MonitoringSidebar({
   stats,
   events,
@@ -32,7 +36,7 @@ export function MonitoringSidebar({
   return (
     <div className="monitoring-sidebar">
       <div className="sidebar-header">
-        <h3>AGENTS</h3>
+        <h3>Agents</h3>
         <span className="agent-count">
           {getMonitoringAgentCountLabel(stats, filteredEvents)}
         </span>
@@ -74,7 +78,7 @@ export function MonitoringSidebar({
                   {agent.name}
                 </span>
                 <span className={`agent-status ${agent.status}`}>
-                  {agent.status.toUpperCase()}
+                  {formatAgentStatusLabel(agent.status)}
                 </span>
               </div>
 
@@ -141,7 +145,7 @@ export function MonitoringSidebar({
                   <div className="agent-header">
                     <span className="agent-name">{slug}</span>
                     <span className="agent-status historical-status">
-                      HISTORICAL
+                      Historical
                     </span>
                   </div>
                   <div className="agent-meta">

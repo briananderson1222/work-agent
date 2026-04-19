@@ -1,5 +1,9 @@
 import crypto from 'node:crypto';
-import type { OrchestrationCommand } from '@stallion-ai/contracts/orchestration';
+import type {
+  OrchestrationCommand,
+  OrchestrationSessionDetail,
+  OrchestrationSessionSummary,
+} from '@stallion-ai/contracts/orchestration';
 import type {
   ProviderKind,
   ProviderSession,
@@ -19,6 +23,7 @@ import {
 import type { EventBus } from './event-bus.js';
 import type { EventStore, OrchestrationCommandReceipt } from './event-store.js';
 import {
+  buildOrchestrationSessionSummary,
   projectOrchestrationEventToReadModel,
   recoverOrchestrationSessions,
   resolveOrchestrationAdapterForThread,
@@ -157,10 +162,69 @@ export class OrchestrationService {
     ).flat();
 
     for (const session of sessions) {
-      this.threadProviders.set(session.threadId, session.provider);
+      this.trackSession(session);
     }
 
     return sessions.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async listSessionReadModel(): Promise<OrchestrationSessionSummary[]> {
+    this.initialize();
+    await this.listSessions();
+
+    const persistedSessions = this.options.eventStore?.readSessions() ?? [];
+    const persistedByThread = new Map(
+      persistedSessions.map((session) => [session.threadId, session]),
+    );
+    const threadIds = new Set<string>([
+      ...persistedByThread.keys(),
+      ...this.sessionReadModel.keys(),
+    ]);
+
+    return [...threadIds]
+      .map((threadId) => {
+        const events = this.options.eventStore?.listEvents(threadId) ?? [];
+        return buildOrchestrationSessionSummary({
+          persisted: persistedByThread.get(threadId),
+          loaded: this.sessionReadModel.get(threadId),
+          events: events.map((event) => event.payload),
+        });
+      })
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async listLoadedSessionReadModel(): Promise<OrchestrationSessionSummary[]> {
+    const sessions = await this.listSessionReadModel();
+    return sessions.filter((session) => session.isLoaded);
+  }
+
+  async readSession(
+    threadId: string,
+  ): Promise<OrchestrationSessionDetail | null> {
+    this.initialize();
+    await this.listSessions();
+
+    const persistedSessions = this.options.eventStore?.readSessions() ?? [];
+    const persisted = persistedSessions.find(
+      (session) => session.threadId === threadId,
+    );
+    const loaded = this.sessionReadModel.get(threadId);
+    if (!persisted && !loaded) {
+      return null;
+    }
+
+    const events = (this.options.eventStore?.listEvents(threadId) ?? []).map(
+      (event) => event.payload,
+    );
+
+    return {
+      session: buildOrchestrationSessionSummary({
+        persisted,
+        loaded,
+        events,
+      }),
+      events,
+    };
   }
 
   async dispatch(

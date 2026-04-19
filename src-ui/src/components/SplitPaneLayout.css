@@ -180,6 +180,18 @@
   font-size: 0.85rem;
 }
 
+.split-pane__list-empty-title {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.split-pane__list-empty-desc {
+  color: var(--text-muted);
+  max-width: 18rem;
+  text-align: center;
+  line-height: 1.4;
+}
+
 .split-pane__item {
   display: flex;
   align-items: center;

@@ -406,6 +406,7 @@ export class StallionRuntime {
       agentService: this.agentService,
       connectionService: this.connectionService,
       mcpService: this.mcpService,
+      terminalService: this.terminalService,
       orchestrationService: this.orchestrationService,
       layoutService: this.layoutService,
       modelCatalog: this.modelCatalog,

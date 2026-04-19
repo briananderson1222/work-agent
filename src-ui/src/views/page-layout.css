@@ -111,6 +111,50 @@
   margin-top: 1rem;
 }
 
+.page__section-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 1rem;
+}
+
+.page__search-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page__search-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6rem 0.85rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+.page__search-input:focus {
+  border-color: var(--accent-primary);
+}
+
+.page__search-input::placeholder {
+  color: var(--text-muted);
+}
+
+.page__message {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  padding: 0.75rem 0.9rem;
+}
+
 /* ── Section Headers ── */
 .page__section-label {
   font-family: var(--font-mono);
@@ -180,6 +224,12 @@
 .page__card-loose:hover {
   border-color: var(--accent-primary);
   transform: translateY(-2px);
+}
+
+.page__card-loose--selected {
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 1px var(--accent-primary);
+  background: var(--bg-tertiary);
 }
 
 .page__card-footer {
@@ -339,6 +389,27 @@
 .page__btn-primary:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.page__btn-secondary {
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 0.5rem 0.9rem;
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-primary);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    border-color 0.2s,
+    background 0.2s;
+}
+
+.page__btn-secondary:hover {
+  border-color: var(--accent-primary);
+  background: var(--bg-tertiary);
 }
 
 /* ── Tabs ── */

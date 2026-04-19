@@ -4,6 +4,7 @@
  */
 
 import { Hono } from 'hono';
+import { FileMemoryAdapter } from '../adapters/file/memory-adapter.js';
 import type { RuntimeContext } from '../runtime/types.js';
 import { chatErrors } from '../telemetry/metrics.js';
 import { streamAlternateProviderChat } from './chat-alternate-provider.js';
@@ -88,28 +89,35 @@ export function createChatRoutes(ctx: RuntimeContext) {
 
       const { model: modelOverride, ...restOptions } = options;
 
-      let agent = ctx.activeAgents.get(slug);
+      const runtimeAgent = await resolveRuntimeChatAgent({
+        ctx,
+        slug,
+        modelOverride,
+      });
+      let agent = runtimeAgent.agent;
       if (!agent) {
         return c.json({ success: false, error: 'Agent not found' }, 404);
       }
 
-      const modelOverrideResult = await resolveChatAgentModelOverride({
-        ctx,
-        slug,
-        modelOverride,
-        agent,
-      });
-      if (modelOverrideResult.error) {
-        const status = (modelOverrideResult.status || 500) as 400 | 500;
-        return c.json(
-          {
-            success: false,
-            error: modelOverrideResult.error,
-          },
-          status,
-        );
+      if (!runtimeAgent.handledModelOverride) {
+        const modelOverrideResult = await resolveChatAgentModelOverride({
+          ctx,
+          slug,
+          modelOverride,
+          agent,
+        });
+        if (modelOverrideResult.error) {
+          const status = (modelOverrideResult.status || 500) as 400 | 500;
+          return c.json(
+            {
+              success: false,
+              error: modelOverrideResult.error,
+            },
+            status,
+          );
+        }
+        agent = modelOverrideResult.agent;
       }
-      agent = modelOverrideResult.agent;
 
       return streamPrimaryAgentChat({
         c,
@@ -139,4 +147,52 @@ export function createChatRoutes(ctx: RuntimeContext) {
   });
 
   return app;
+}
+
+async function resolveRuntimeChatAgent({
+  ctx,
+  slug,
+  modelOverride,
+}: {
+  ctx: RuntimeContext;
+  slug: string;
+  modelOverride?: string;
+}) {
+  if (!slug.startsWith('__runtime:')) {
+    return { agent: ctx.activeAgents.get(slug), handledModelOverride: false };
+  }
+
+  const runtimeConnectionId = slug.slice('__runtime:'.length);
+  const memoryAdapter = new FileMemoryAdapter({
+    projectHomeDir: ctx.configLoader.getProjectHomeDir(),
+  });
+  ctx.memoryAdapters.set(slug, memoryAdapter);
+
+  const spec = {
+    name: runtimeConnectionId,
+    prompt: '',
+    execution: {
+      runtimeConnectionId,
+      modelId: modelOverride || null,
+    },
+  };
+
+  const model = await ctx.framework.createModel(spec as any, {
+    appConfig: ctx.appConfig,
+    projectHomeDir: ctx.configLoader.getProjectHomeDir(),
+    modelCatalog: ctx.modelCatalog,
+    listProviderConnections: () =>
+      ctx.providerService.listProviderConnections(),
+  });
+
+  const agent = await ctx.framework.createTempAgent({
+    name: slug,
+    instructions: () =>
+      ctx.replaceTemplateVariables(ctx.appConfig.systemPrompt || ''),
+    model,
+    tools: [],
+    maxSteps: ctx.appConfig.defaultMaxTurns || 200,
+  });
+
+  return { agent, handledModelOverride: true };
 }

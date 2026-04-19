@@ -52,7 +52,17 @@ Recommended lane types:
 5. **Platform-control smoke**
    - exercise at least one real `stallion-control` action end to end
 
+6. **CLI parity integration**
+   - prove route-backed product surfaces remain reachable through `stallion`
+   - prefer HTTP-backed vitest command tests for breadth, then add targeted browser or live-app checks only where the CLI contract depends on full runtime behavior
+
 The goal is persistent regression protection. If a test only proves something once and cannot be rerun meaningfully later, it is not enough on its own.
+
+For CLI parity work, prefer:
+
+- one shared HTTP command-contract suite covering multiple CLI families when the requests are mechanically similar
+- dedicated route tests when a route family has unusual response shape or lifecycle behavior
+- command reference updates in `docs/reference/cli.md` in the same change as the implementation
 
 ## Connected Agents Verification
 

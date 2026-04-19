@@ -39,6 +39,7 @@ describe('TerminalService', () => {
   });
 
   afterEach(async () => {
+    vi.useRealTimers();
     await svc.dispose();
   });
 
@@ -114,6 +115,33 @@ describe('TerminalService', () => {
     expect(proc.kill).toHaveBeenCalled();
   });
 
+  test('reopening a session clears the pending hard-kill fallback', async () => {
+    vi.useFakeTimers();
+
+    await svc.open({
+      projectSlug: 'test',
+      terminalId: 't1',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+    });
+    const firstProc = await pty.spawn.mock.results[0].value;
+
+    await svc.close('test:t1');
+    expect(firstProc.kill).toHaveBeenCalledTimes(1);
+
+    await svc.open({
+      projectSlug: 'test',
+      terminalId: 't1',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+    });
+
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(firstProc.kill).toHaveBeenCalledTimes(1);
+  });
+
   test('subscribe receives events', async () => {
     const events: any[] = [];
     svc.subscribe((e) => events.push(e));
@@ -125,6 +153,49 @@ describe('TerminalService', () => {
       rows: 24,
     });
     expect(events.some((e) => e.type === 'started')).toBe(true);
+  });
+
+  test('lists and reads process summaries for active terminal sessions', async () => {
+    await svc.open({
+      projectSlug: 'test',
+      terminalId: 't1',
+      cwd: '/tmp',
+      cols: 80,
+      rows: 24,
+    });
+
+    expect(svc.listProcessSummaries()).toEqual([
+      {
+        kind: 'terminal',
+        sessionId: 'test:t1',
+        projectSlug: 'test',
+        terminalId: 't1',
+        cwd: '/tmp',
+        status: 'running',
+        pid: 12345,
+        exitCode: null,
+        hasRunningSubprocess: false,
+        cols: 80,
+        rows: 24,
+      },
+    ]);
+
+    expect(svc.readProcess('test:t1')).toEqual({
+      process: {
+        kind: 'terminal',
+        sessionId: 'test:t1',
+        projectSlug: 'test',
+        terminalId: 't1',
+        cwd: '/tmp',
+        status: 'running',
+        pid: 12345,
+        exitCode: null,
+        hasRunningSubprocess: false,
+        cols: 80,
+        rows: 24,
+      },
+      history: '',
+    });
   });
 
   test('open throws when no shell found', async () => {

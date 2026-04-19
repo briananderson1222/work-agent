@@ -212,4 +212,24 @@ describe('RegistryView', () => {
 
     expect(navigateMock).toHaveBeenCalledWith('/skills');
   });
+
+  test('filters registry items by search and shows a no-match state', () => {
+    render(<RegistryView />);
+
+    fireEvent.change(screen.getByLabelText('Search agents'), {
+      target: { value: 'backup' },
+    });
+
+    expect(screen.getByRole('button', { name: /Agent Two/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Agent One/i })).toBeNull();
+
+    fireEvent.change(screen.getByLabelText('Search agents'), {
+      target: { value: 'missing entry' },
+    });
+
+    expect(screen.getByText('No matching agents')).toBeTruthy();
+    expect(
+      screen.getByText('Adjust the search to browse more registry items.'),
+    ).toBeTruthy();
+  });
 });

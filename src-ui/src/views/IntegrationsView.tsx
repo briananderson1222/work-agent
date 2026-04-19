@@ -137,6 +137,8 @@ export function IntegrationsView() {
         searchPlaceholder="Search tool servers..."
         onAdd={handleNew}
         addLabel="+ Add Tool Server"
+        listEmptyTitle="No tool servers yet"
+        listEmptyDescription="Add an MCP server connection or install one from the registry."
         sidebarActions={
           <button
             className="split-pane__add-btn split-pane__add-btn--secondary"
@@ -151,9 +153,9 @@ export function IntegrationsView() {
         emptyContent={
           <div className="split-pane__empty">
             <div className="split-pane__empty-icon">⚙</div>
-            <p className="split-pane__empty-title">No integration selected</p>
+            <p className="split-pane__empty-title">No tool server selected</p>
             <p className="split-pane__empty-desc">
-              Select an integration to edit, or add a new one
+              Select a tool server to edit, or add a new one
             </p>
           </div>
         }
@@ -195,7 +197,7 @@ export function IntegrationsView() {
 
       {deleteConfirm && (
         <DeleteIntegrationModal
-          integrationName={editForm?.displayName || selectedId || 'integration'}
+          integrationName={editForm?.displayName || selectedId || 'tool server'}
           onCancel={() => setDeleteConfirm(false)}
           onConfirm={() => {
             setDeleteConfirm(false);

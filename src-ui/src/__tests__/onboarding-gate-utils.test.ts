@@ -46,7 +46,7 @@ describe('onboardingGateUtils', () => {
     expect(buildSetupBannerContent(status)).toEqual({
       title: 'No AI connection configured yet',
       description:
-        'Start a local model runtime or add a provider connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
+        'Start a local model runtime or add a chat-capable model connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
       actionLabel: 'Manage Connections',
       badges: [],
       actionTarget: 'providers',
@@ -120,7 +120,7 @@ describe('onboardingGateUtils', () => {
     expect(buildSetupBannerContent(status)).toEqual({
       title: 'No AI connection configured yet',
       description:
-        'Start a local model runtime or add a provider connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
+        'Start a local model runtime or add a chat-capable model connection in Connections. You can configure Bedrock, OpenAI-compatible endpoints, Claude, Codex, or ACP later.',
       actionLabel: 'Manage Connections',
       badges: [],
       actionTarget: 'providers',
@@ -238,7 +238,7 @@ describe('onboardingGateUtils', () => {
     expect(buildSetupBannerContent(status)).toEqual({
       title: 'No chat-capable connection is enabled',
       description:
-        'Connections are configured, but none can run chat yet. Add or enable a model provider in Connections.',
+        'Connections are configured, but none can run chat yet. Add or enable a chat-capable model connection in Connections.',
       actionLabel: 'Manage Connections',
       badges: ['Disabled: Amazon Bedrock'],
       actionTarget: 'providers',

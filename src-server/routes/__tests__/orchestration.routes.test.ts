@@ -94,6 +94,198 @@ describe('Orchestration Routes', () => {
     });
   });
 
+  test('GET /sessions/read-model and /sessions/loaded expose stable read-model surfaces', async () => {
+    const service = {
+      listProviders: vi.fn(),
+      listSessions: vi.fn().mockResolvedValue([]),
+      listSessionReadModel: vi.fn().mockResolvedValue([
+        {
+          provider: 'claude',
+          threadId: 'thread-1',
+          status: 'running',
+          isLoaded: true,
+          isPersisted: true,
+          eventCount: 2,
+          createdAt: '2026-03-28T00:00:00.000Z',
+          updatedAt: '2026-03-28T00:00:01.000Z',
+        },
+      ]),
+      listLoadedSessionReadModel: vi.fn().mockResolvedValue([
+        {
+          provider: 'claude',
+          threadId: 'thread-1',
+          status: 'running',
+          isLoaded: true,
+          isPersisted: true,
+          eventCount: 2,
+          createdAt: '2026-03-28T00:00:00.000Z',
+          updatedAt: '2026-03-28T00:00:01.000Z',
+        },
+      ]),
+      readSession: vi.fn(),
+      dispatch: vi.fn(),
+    };
+    const app = createOrchestrationRoutes(service as any, {
+      eventBus: new EventBus(),
+      logger: { debug: vi.fn() },
+    });
+
+    const readModelRes = await app.request('/sessions/read-model');
+    expect(await readModelRes.json()).toEqual({
+      success: true,
+      data: [
+        expect.objectContaining({
+          threadId: 'thread-1',
+          isLoaded: true,
+          isPersisted: true,
+        }),
+      ],
+    });
+
+    const loadedRes = await app.request('/sessions/loaded');
+    expect(await loadedRes.json()).toEqual({
+      success: true,
+      data: [
+        expect.objectContaining({
+          threadId: 'thread-1',
+          isLoaded: true,
+        }),
+      ],
+    });
+  });
+
+  test('GET /sessions/:threadId and /sessions/:threadId/events return detail and event history', async () => {
+    const detail = {
+      session: {
+        provider: 'claude',
+        threadId: 'thread-9',
+        status: 'ready',
+        isLoaded: false,
+        isPersisted: true,
+        eventCount: 1,
+        createdAt: '2026-03-28T00:00:00.000Z',
+        updatedAt: '2026-03-28T00:00:01.000Z',
+      },
+      events: [
+        {
+          provider: 'claude',
+          threadId: 'thread-9',
+          createdAt: '2026-03-28T00:00:02.000Z',
+          eventId: 'evt-9',
+          method: 'session.configured',
+          sessionId: 'thread-9',
+        },
+      ],
+    };
+    const service = {
+      listProviders: vi.fn(),
+      listSessions: vi.fn().mockResolvedValue([]),
+      listSessionReadModel: vi.fn(),
+      listLoadedSessionReadModel: vi.fn(),
+      readSession: vi.fn().mockResolvedValue(detail),
+      dispatch: vi.fn(),
+    };
+    const app = createOrchestrationRoutes(service as any, {
+      eventBus: new EventBus(),
+      logger: { debug: vi.fn() },
+    });
+
+    const detailRes = await app.request('/sessions/thread-9');
+    expect(await detailRes.json()).toEqual({
+      success: true,
+      data: detail,
+    });
+
+    const eventsRes = await app.request('/sessions/thread-9/events');
+    expect(await eventsRes.json()).toEqual({
+      success: true,
+      data: detail.events,
+    });
+  });
+
+  test('terminal process routes expose summaries, detail, and cleanup', async () => {
+    const terminalService = {
+      listProcessSummaries: vi.fn().mockReturnValue([
+        {
+          kind: 'terminal',
+          sessionId: 'project:t1',
+          projectSlug: 'project',
+          terminalId: 't1',
+          cwd: '/tmp/project',
+          status: 'running',
+          pid: 12345,
+          exitCode: null,
+          hasRunningSubprocess: true,
+          cols: 80,
+          rows: 24,
+        },
+      ]),
+      readProcess: vi.fn().mockImplementation((id: string) =>
+        id === 'project:t1'
+          ? {
+              process: {
+                kind: 'terminal',
+                sessionId: 'project:t1',
+                projectSlug: 'project',
+                terminalId: 't1',
+                cwd: '/tmp/project',
+                status: 'running',
+                pid: 12345,
+                exitCode: null,
+                hasRunningSubprocess: true,
+                cols: 80,
+                rows: 24,
+              },
+              history: 'npm run dev\n',
+            }
+          : null,
+      ),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = {
+      listProviders: vi.fn(),
+      listSessions: vi.fn().mockResolvedValue([]),
+      listSessionReadModel: vi.fn().mockResolvedValue([]),
+      listLoadedSessionReadModel: vi.fn().mockResolvedValue([]),
+      readSession: vi.fn(),
+      dispatch: vi.fn(),
+    };
+    const app = createOrchestrationRoutes(service as any, {
+      eventBus: new EventBus(),
+      logger: { debug: vi.fn() },
+      terminalService,
+    });
+
+    const listRes = await app.request('/processes/terminals');
+    expect(await listRes.json()).toEqual({
+      success: true,
+      data: [
+        expect.objectContaining({
+          sessionId: 'project:t1',
+          hasRunningSubprocess: true,
+        }),
+      ],
+    });
+
+    const detailRes = await app.request('/processes/terminals/project:t1');
+    expect(await detailRes.json()).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        process: expect.objectContaining({ sessionId: 'project:t1' }),
+        history: 'npm run dev\n',
+      }),
+    });
+
+    const closeRes = await app.request('/processes/terminals/project:t1', {
+      method: 'DELETE',
+    });
+    expect(await closeRes.json()).toEqual({
+      success: true,
+      data: { sessionId: 'project:t1' },
+    });
+    expect(terminalService.close).toHaveBeenCalledWith('project:t1');
+  });
+
   test('GET /events streams the initial snapshot and subsequent canonical events', async () => {
     const eventBus = new EventBus();
     const service = {
@@ -104,6 +296,19 @@ describe('Orchestration Routes', () => {
           threadId: 'thread-1',
           status: 'running',
           model: 'claude-sonnet',
+          createdAt: '2026-03-28T00:00:00.000Z',
+          updatedAt: '2026-03-28T00:00:01.000Z',
+        },
+      ]),
+      listSessionReadModel: vi.fn().mockResolvedValue([
+        {
+          provider: 'claude',
+          threadId: 'thread-1',
+          status: 'running',
+          model: 'claude-sonnet',
+          isLoaded: true,
+          isPersisted: true,
+          eventCount: 1,
           createdAt: '2026-03-28T00:00:00.000Z',
           updatedAt: '2026-03-28T00:00:01.000Z',
         },
@@ -141,6 +346,7 @@ describe('Orchestration Routes', () => {
 
     expect(payload).toContain('event: orchestration:snapshot');
     expect(payload).toContain('"threadId":"thread-1"');
+    expect(payload).toContain('"isLoaded":true');
     expect(payload).toContain('event: orchestration:event');
     expect(payload).toContain('"requestId":"req-1"');
   });

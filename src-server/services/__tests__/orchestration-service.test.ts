@@ -21,6 +21,8 @@ vi.mock('../../telemetry/metrics.js', () => ({
   adapterSessionStartDuration: { record: vi.fn() },
   adapterTurnDuration: { record: vi.fn() },
   orchestrationCommandsDispatched: { add: vi.fn() },
+  orchestrationEventsPersisted: { add: vi.fn() },
+  orchestrationEventPersistDuration: { record: vi.fn() },
 }));
 
 interface Deferred<T> {
@@ -425,6 +427,98 @@ describe('OrchestrationService', () => {
       expect.objectContaining({ id: 'evt-bedrock', payload: bedrockEvent }),
       expect.objectContaining({ id: 'evt-claude', payload: claudeEvent }),
     ]);
+  });
+
+  test('lists merged session read-model summaries for loaded and persisted sessions', async () => {
+    bedrock.sessions.set('thread-bedrock', {
+      provider: 'bedrock',
+      threadId: 'thread-bedrock',
+      status: 'running',
+      model: 'nova',
+      createdAt: '2026-04-11T00:00:00.000Z',
+      updatedAt: '2026-04-11T00:00:01.000Z',
+    });
+    eventStore.upsertSession({
+      provider: 'claude',
+      threadId: 'thread-persisted',
+      status: 'ready',
+      model: 'sonnet',
+      createdAt: '2026-04-11T00:00:02.000Z',
+      updatedAt: '2026-04-11T00:00:03.000Z',
+    });
+    eventStore.appendEvent({
+      provider: 'claude',
+      threadId: 'thread-persisted',
+      eventId: 'evt-1',
+      createdAt: '2026-04-11T00:00:04.000Z',
+      method: 'session.configured',
+      sessionId: 'thread-persisted',
+      model: 'sonnet',
+    } as any);
+
+    const sessions = await service.listSessionReadModel();
+
+    expect(sessions).toEqual([
+      expect.objectContaining({
+        threadId: 'thread-bedrock',
+        isLoaded: true,
+        isPersisted: false,
+      }),
+      expect.objectContaining({
+        threadId: 'thread-persisted',
+        isLoaded: false,
+        isPersisted: true,
+        eventCount: 1,
+        lastEventMethod: 'session.configured',
+      }),
+    ]);
+  });
+
+  test('reads one session detail with canonical event history', async () => {
+    eventStore.upsertSession({
+      provider: 'claude',
+      threadId: 'thread-detail',
+      status: 'ready',
+      model: 'sonnet',
+      createdAt: '2026-04-11T00:00:00.000Z',
+      updatedAt: '2026-04-11T00:00:01.000Z',
+    });
+    eventStore.appendEvent({
+      provider: 'claude',
+      threadId: 'thread-detail',
+      eventId: 'evt-1',
+      createdAt: '2026-04-11T00:00:02.000Z',
+      method: 'turn.started',
+      turnId: 'turn-1',
+    } as any);
+    eventStore.appendEvent({
+      provider: 'claude',
+      threadId: 'thread-detail',
+      eventId: 'evt-2',
+      createdAt: '2026-04-11T00:00:03.000Z',
+      method: 'turn.completed',
+      turnId: 'turn-1',
+      finishReason: 'stop',
+    } as any);
+
+    const detail = await service.readSession('thread-detail');
+
+    expect(detail).toEqual({
+      session: expect.objectContaining({
+        threadId: 'thread-detail',
+        isPersisted: true,
+        eventCount: 2,
+        lastEventMethod: 'turn.completed',
+      }),
+      events: [
+        expect.objectContaining({ method: 'turn.started', turnId: 'turn-1' }),
+        expect.objectContaining({
+          method: 'turn.completed',
+          turnId: 'turn-1',
+          finishReason: 'stop',
+        }),
+      ],
+    });
   });
 
   test('marks persisted sessions closed when resume fails during recovery', async () => {

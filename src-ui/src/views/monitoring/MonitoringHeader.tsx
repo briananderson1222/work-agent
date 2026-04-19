@@ -12,7 +12,7 @@ export function MonitoringHeader({
   return (
     <div className="monitoring-header">
       <div className="monitoring-title">
-        <h1>MONITORING</h1>
+        <h1>Monitoring</h1>
         <div
           className="status-badge"
           aria-label={`Monitoring connection ${connectionStatus}`}

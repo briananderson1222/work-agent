@@ -24,7 +24,7 @@ describe('ConnectionSection', () => {
     expect(screen.queryByLabelText('Default Region')).toBeNull();
     expect(
       screen.queryByText(
-        'Used for built-in cloud providers and regional model routing.',
+        'Used when a configured connection requires regional routing, such as built-in cloud providers.',
       ),
     ).toBeNull();
   });
@@ -35,7 +35,7 @@ describe('ConnectionSection', () => {
     expect(screen.getByLabelText('Default Region')).toBeTruthy();
     expect(
       screen.getByText(
-        'Used for built-in cloud providers and regional model routing.',
+        'Used when a configured connection requires regional routing, such as built-in cloud providers.',
       ),
     ).toBeTruthy();
   });

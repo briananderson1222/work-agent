@@ -60,6 +60,7 @@ export function RegistryView() {
   const { navigate } = useNavigation();
   const [activeTab, setActiveTab] = useState<RegistryCatalogTab>('agents');
   const [message, setMessage] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const {
     data: available = [],
@@ -84,23 +85,38 @@ export function RegistryView() {
       new Set(installed.map((item) => getRegistryItemId(item as RegistryItem))),
     [installed],
   );
+  const filteredAvailable = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    if (!query) return available;
+    return available.filter((item) => {
+      const id = getRegistryItemId(item).toLowerCase();
+      return (
+        id.includes(query) ||
+        item.displayName?.toLowerCase().includes(query) ||
+        item.description?.toLowerCase().includes(query) ||
+        item.source?.toLowerCase().includes(query) ||
+        item.version?.toLowerCase().includes(query)
+      );
+    });
+  }, [available, search]);
   const selectedItem = useMemo(() => {
-    if (available.length === 0) return null;
+    if (filteredAvailable.length === 0) return null;
     return (
-      available.find((item) => getRegistryItemId(item) === selectedId) ??
-      available[0]
+      filteredAvailable.find(
+        (item) => getRegistryItemId(item) === selectedId,
+      ) ?? filteredAvailable[0]
     );
-  }, [available, selectedId]);
+  }, [filteredAvailable, selectedId]);
 
   useEffect(() => {
-    if (available.length === 0) {
+    if (filteredAvailable.length === 0) {
       setSelectedId(null);
       return;
     }
     if (!selectedItem) {
-      setSelectedId(getRegistryItemId(available[0]));
+      setSelectedId(getRegistryItemId(filteredAvailable[0]));
     }
-  }, [available, selectedItem]);
+  }, [filteredAvailable, selectedItem]);
 
   const selectedItemId = selectedItem ? getRegistryItemId(selectedItem) : null;
   const selectedInstalled = selectedItem
@@ -183,6 +199,7 @@ export function RegistryView() {
             className={`page__tab${activeTab === tab.key ? ' page__tab--active' : ''}`}
             onClick={() => {
               setMessage(null);
+              setSearch('');
               setActiveTab(tab.key);
             }}
           >
@@ -191,8 +208,19 @@ export function RegistryView() {
         ))}
       </div>
 
-      <div className="page" style={{ paddingTop: '1rem' }}>
-        {message && <div className="page__subtitle">{message}</div>}
+      <div className="page page__section-stack">
+        <div className="page__search-row">
+          <input
+            type="text"
+            className="page__search-input"
+            placeholder={`Search ${activeTab}...`}
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            aria-label={`Search ${activeTab}`}
+          />
+        </div>
+
+        {message && <div className="page__message">{message}</div>}
 
         {isLoading && <div className="page__empty">Loading...</div>}
 
@@ -209,14 +237,22 @@ export function RegistryView() {
           </div>
         )}
 
-        {!isLoading && !loadError && available.length > 0 && (
+        {!isLoading &&
+          !loadError &&
+          available.length > 0 &&
+          filteredAvailable.length === 0 && (
+            <div className="page__empty">
+              <p className="page__empty-title">No matching {activeTab}</p>
+              <p className="page__empty-desc">
+                Adjust the search to browse more registry items.
+              </p>
+            </div>
+          )}
+
+        {!isLoading && !loadError && filteredAvailable.length > 0 && (
           <>
             {selectedItem && (
-              <div
-                className="page__card-loose"
-                data-testid="registry-detail"
-                style={{ marginBottom: '1rem' }}
-              >
+              <div className="page__card-loose" data-testid="registry-detail">
                 <div className="page__section-label">
                   Selected {getTabSingularLabel(activeTab)}
                 </div>
@@ -239,10 +275,7 @@ export function RegistryView() {
                 </div>
 
                 {getRegistrySourceLabel(selectedItem) && (
-                  <div
-                    className="page__meta-row"
-                    style={{ marginTop: '0.75rem' }}
-                  >
+                  <div className="page__meta-row">
                     <span className="page__meta-pill">
                       {getRegistrySourceLabel(selectedItem)}
                     </span>
@@ -250,24 +283,16 @@ export function RegistryView() {
                 )}
 
                 {selectedItem.version && (
-                  <div
-                    className="page__subtitle"
-                    style={{ marginTop: '0.75rem' }}
-                  >
-                    {`v${selectedItem.version}`}
-                  </div>
+                  <div className="page__subtitle">{`v${selectedItem.version}`}</div>
                 )}
 
                 {getRegistryActionHint(activeTab, selectedInstalled) && (
-                  <div
-                    className="page__subtitle"
-                    style={{ marginTop: '0.75rem' }}
-                  >
+                  <div className="page__subtitle">
                     {getRegistryActionHint(activeTab, selectedInstalled)}
                   </div>
                 )}
 
-                <div style={{ marginTop: '1rem' }}>
+                <div className="page__card-footer">
                   <button
                     type="button"
                     className="page__btn-primary"
@@ -290,7 +315,7 @@ export function RegistryView() {
             )}
 
             <div className="page__card-grid">
-              {available.map((item) => {
+              {filteredAvailable.map((item) => {
                 const id = getRegistryItemId(item);
                 const isInstalled = installedIds.has(id) || !!item.installed;
                 const isSelected = id === selectedItemId;
@@ -301,7 +326,7 @@ export function RegistryView() {
                     key={id}
                     role="button"
                     tabIndex={0}
-                    className="page__card-loose"
+                    className={`page__card-loose${isSelected ? ' page__card-loose--selected' : ''}`}
                     aria-pressed={isSelected}
                     onClick={() => {
                       setMessage(null);
@@ -313,17 +338,6 @@ export function RegistryView() {
                         setMessage(null);
                         setSelectedId(id);
                       }
-                    }}
-                    style={{
-                      width: '100%',
-                      textAlign: 'left',
-                      borderColor: isSelected
-                        ? 'var(--accent-primary)'
-                        : undefined,
-                      boxShadow: isSelected
-                        ? '0 0 0 1px var(--accent-primary)'
-                        : undefined,
-                      background: isSelected ? 'var(--bg-tertiary)' : undefined,
                     }}
                   >
                     <div className="page__card-row">

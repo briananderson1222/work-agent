@@ -1,3 +1,7 @@
+import type {
+  TerminalProcessDetail,
+  TerminalProcessSummary,
+} from '@stallion-ai/contracts/orchestration';
 import type { IPtyAdapter, IPtyProcess } from '../domain/pty-adapter.js';
 import type { ITerminalHistoryStore } from '../domain/terminal-history-store.js';
 import type {
@@ -22,6 +26,7 @@ export class TerminalService {
   private sessions = new Map<string, SessionEntry>();
   private listeners = new Set<(event: TerminalEvent) => void>();
   private historyTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private killTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private subprocessInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(
@@ -41,6 +46,7 @@ export class TerminalService {
     const sessionId = `${input.projectSlug}:${input.terminalId}`;
     const existing = this.sessions.get(sessionId);
     if (existing?.status === 'running') return this.snapshot(existing);
+    this.clearPendingKill(sessionId);
     terminalOps.add(1, { operation: 'open' });
 
     const history =
@@ -107,6 +113,7 @@ export class TerminalService {
     });
 
     entry.unsubExit = proc.onExit(({ exitCode, signal }) => {
+      this.clearPendingKill(sessionId);
       entry.status = 'exited';
       entry.exitCode = exitCode;
       entry.process = null;
@@ -134,19 +141,25 @@ export class TerminalService {
     const entry = this.sessions.get(sessionId);
     if (!entry) return;
     terminalOps.add(1, { operation: 'close' });
+    this.clearPendingKill(sessionId);
     entry.unsubData?.();
     entry.unsubExit?.();
-    const pid = entry.process?.pid;
-    entry.process?.kill();
-    // SIGKILL fallback for stubborn processes (e.g. kiro-cli with children)
-    if (pid) {
-      setTimeout(() => {
-        try {
-          process.kill(pid, 'SIGKILL');
-        } catch {
-          /* already dead */
-        }
-      }, 3000);
+    const proc = entry.process;
+    proc?.kill();
+    // SIGKILL fallback for stubborn processes (e.g. kiro-cli with children),
+    // tied to the PTY process object instead of a raw PID.
+    if (proc) {
+      this.killTimers.set(
+        sessionId,
+        setTimeout(() => {
+          this.killTimers.delete(sessionId);
+          try {
+            proc.kill('SIGKILL');
+          } catch {
+            /* already dead */
+          }
+        }, 3000),
+      );
     }
     entry.status = 'exited';
     await this.persistNow(sessionId);
@@ -175,6 +188,24 @@ export class TerminalService {
     return this.open(input);
   }
 
+  listProcessSummaries(): TerminalProcessSummary[] {
+    return [...this.sessions.values()]
+      .map((entry) => this.toProcessSummary(entry))
+      .sort((a, b) => a.sessionId.localeCompare(b.sessionId));
+  }
+
+  readProcess(sessionId: string): TerminalProcessDetail | null {
+    const entry = this.sessions.get(sessionId);
+    if (!entry) {
+      return null;
+    }
+
+    return {
+      process: this.toProcessSummary(entry),
+      history: entry.history,
+    };
+  }
+
   subscribe(cb: (event: TerminalEvent) => void): () => void {
     this.listeners.add(cb);
     return () => this.listeners.delete(cb);
@@ -182,6 +213,8 @@ export class TerminalService {
 
   async dispose(): Promise<void> {
     if (this.subprocessInterval) clearInterval(this.subprocessInterval);
+    for (const timer of this.killTimers.values()) clearTimeout(timer);
+    this.killTimers.clear();
     await Promise.all([...this.sessions.keys()].map((id) => this.close(id)));
   }
 
@@ -198,6 +231,30 @@ export class TerminalService {
 
   private emit(event: TerminalEvent): void {
     for (const cb of this.listeners) cb(event);
+  }
+
+  private clearPendingKill(sessionId: string): void {
+    const timer = this.killTimers.get(sessionId);
+    if (timer) {
+      clearTimeout(timer);
+      this.killTimers.delete(sessionId);
+    }
+  }
+
+  private toProcessSummary(entry: SessionEntry): TerminalProcessSummary {
+    return {
+      kind: 'terminal',
+      sessionId: entry.sessionId,
+      projectSlug: entry.projectSlug,
+      terminalId: entry.terminalId,
+      cwd: entry.cwd,
+      status: entry.status,
+      pid: entry.pid,
+      exitCode: entry.exitCode,
+      hasRunningSubprocess: entry.hasRunningSubprocess,
+      cols: entry.cols,
+      rows: entry.rows,
+    };
   }
 
   private trimHistory(history: string): string {

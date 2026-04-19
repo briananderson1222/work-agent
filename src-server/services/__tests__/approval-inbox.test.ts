@@ -72,6 +72,10 @@ describe('approval inbox notifications', () => {
       expect.objectContaining({
         category: 'approval-request',
         title: 'Needs approval',
+        metadata: expect.objectContaining({
+          sessionId: 'thread-1',
+          sessionKind: 'runtime',
+        }),
         actions: expect.arrayContaining([
           expect.objectContaining({ id: 'acceptForSession' }),
         ]),
@@ -134,9 +138,55 @@ describe('approval inbox notifications', () => {
 
     const [notification] = notificationService.list();
     expect(notification.body).toContain('Workspace Agent wants to use fs.read');
+    expect(notification.metadata).toEqual(
+      expect.objectContaining({
+        sessionKind: 'managed',
+      }),
+    );
 
     await notificationService.action(notification.id, 'accept');
 
     await expect(approvalPromise).resolves.toBe(true);
+  });
+
+  test('rejects unknown approval actions instead of failing open', async () => {
+    bus.emit('orchestration:event', {
+      event: {
+        createdAt: new Date().toISOString(),
+        method: 'request.opened',
+        provider: 'codex',
+        requestId: 'req-3',
+        requestType: 'approval',
+        threadId: 'thread-3',
+        title: 'Needs approval',
+      },
+    });
+
+    const [orchestrationNotification] = notificationService.list();
+    await expect(
+      notificationService.action(orchestrationNotification.id, 'allow-all'),
+    ).rejects.toThrow('Unsupported orchestration approval action');
+
+    const registryApprovalPromise = approvalRegistry.register('approval-2', {
+      metadata: {
+        agentName: 'Workspace Agent',
+        title: 'fs.write',
+        toolName: 'fs.write',
+      },
+    });
+    const notifications = notificationService.list();
+    const registryNotification = notifications.find(
+      (item) => item.metadata?.approvalId === 'approval-2',
+    );
+    if (!registryNotification) {
+      throw new Error('Expected registry notification');
+    }
+
+    await expect(
+      notificationService.action(registryNotification.id, 'allow-all'),
+    ).rejects.toThrow('Unsupported registry approval action');
+
+    approvalRegistry.resolve('approval-2', false);
+    await expect(registryApprovalPromise).resolves.toBe(false);
   });
 });

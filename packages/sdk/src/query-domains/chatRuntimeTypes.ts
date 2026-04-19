@@ -1,7 +1,19 @@
+import type {
+  OrchestrationSessionDetail,
+  OrchestrationSessionSummary,
+  TerminalProcessDetail,
+  TerminalProcessSummary,
+} from '@stallion-ai/contracts/orchestration';
 import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import type { UIBlock } from '@stallion-ai/contracts/ui-block';
 
 export type OrchestrationProviderKind = ProviderKind;
+export type {
+  OrchestrationSessionDetail,
+  OrchestrationSessionSummary,
+  TerminalProcessDetail,
+  TerminalProcessSummary,
+};
 
 export interface ConversationSummary {
   id: string;

@@ -370,6 +370,8 @@ export function wrapDelegationAwareTools(
   return tools.map((tool) => {
     if (
       tool.name !== 'stallion-control_send_message' &&
+      tool.name !== 'stallion-control_create_playbook' &&
+      tool.name !== 'stallion-control_update_playbook' &&
       tool.name !== 'stallion-control_create_prompt' &&
       tool.name !== 'stallion-control_update_prompt'
     ) {
@@ -401,7 +403,9 @@ export function wrapDelegationAwareTools(
           }
         }
         if (
-          (tool.name === 'stallion-control_create_prompt' ||
+          (tool.name === 'stallion-control_create_playbook' ||
+            tool.name === 'stallion-control_update_playbook' ||
+            tool.name === 'stallion-control_create_prompt' ||
             tool.name === 'stallion-control_update_prompt') &&
           !nextArgs._sourceContext
         ) {

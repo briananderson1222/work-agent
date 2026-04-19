@@ -41,7 +41,7 @@ export function RegistryModal({ onClose }: { onClose: () => void }) {
         onClick={(event) => event.stopPropagation()}
       >
         <div className="plugins__modal-header">
-          <h3 className="plugins__modal-title">Integration Registry</h3>
+          <h3 className="plugins__modal-title">Tool Server Registry</h3>
           <button className="plugins__modal-close" onClick={onClose}>
             &times;
           </button>
@@ -58,7 +58,7 @@ export function RegistryModal({ onClose }: { onClose: () => void }) {
             <LoadingState message="Loading registry..." />
           ) : items.length === 0 ? (
             <div className="plugins__empty">
-              No integration registry configured.
+              No tool server registry configured.
             </div>
           ) : (
             <>
@@ -67,7 +67,7 @@ export function RegistryModal({ onClose }: { onClose: () => void }) {
                 type="text"
                 value={filter}
                 onChange={(event) => setFilter(event.target.value)}
-                placeholder="Filter integrations..."
+                placeholder="Filter tool servers..."
                 autoFocus
               />
               <div className="plugins__registry-list">

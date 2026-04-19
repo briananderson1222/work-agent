@@ -8,6 +8,7 @@ export const SC_READ_ONLY_TOOLS = [
   'get_integration',
   'list_registry_integrations',
   'list_providers',
+  'list_playbooks',
   'list_prompts',
   'list_jobs',
   'system_status',

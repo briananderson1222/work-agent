@@ -38,6 +38,9 @@ interface SplitPaneLayoutProps {
   sidebarActions?: React.ReactNode;
   /** Show loading spinner in list panel instead of items */
   loading?: boolean;
+  /** Optional custom empty-state copy for the left list panel */
+  listEmptyTitle?: string;
+  listEmptyDescription?: string;
   // Right panel
   children: React.ReactNode;
   emptyIcon?: string;
@@ -64,6 +67,8 @@ export function SplitPaneLayout({
   addLabel = '+ New',
   sidebarActions,
   loading,
+  listEmptyTitle = 'No items yet',
+  listEmptyDescription,
   children,
   emptyIcon = '⬡',
   emptyTitle = 'Nothing selected',
@@ -125,7 +130,12 @@ export function SplitPaneLayout({
               <span className="split-pane__list-empty-icon">
                 {emptyIcon || '📋'}
               </span>
-              <p>No items yet</p>
+              <p className="split-pane__list-empty-title">{listEmptyTitle}</p>
+              {listEmptyDescription && (
+                <p className="split-pane__list-empty-desc">
+                  {listEmptyDescription}
+                </p>
+              )}
             </div>
           ) : (
             items.map((item, i) => (

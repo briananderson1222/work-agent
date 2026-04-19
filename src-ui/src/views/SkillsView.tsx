@@ -180,6 +180,8 @@ export function SkillsView() {
           setIsCreating(true);
         }}
         addLabel="+ New Skill"
+        listEmptyTitle="No skills yet"
+        listEmptyDescription="Create a skill to add reusable capabilities that agents can select."
         sidebarActions={
           <button
             className="split-pane__add-btn split-pane__add-btn--secondary"

@@ -48,7 +48,7 @@ export function IntegrationEditorPanel({
   return (
     <div className="detail-panel integration-editor-panel">
       <DetailHeader
-        title={editForm.displayName || editForm.id || 'New Integration'}
+        title={editForm.displayName || editForm.id || 'New Tool Server'}
         badge={
           editForm.transport
             ? { label: editForm.transport, variant: 'muted' as const }
@@ -182,7 +182,7 @@ export function IntegrationEditorPanel({
                 onChange={(event) =>
                   onUpdate((form) => ({ ...form, id: event.target.value }))
                 }
-                placeholder="my-integration"
+                placeholder="my-tool-server"
                 disabled={!isNew || locked}
               />
               {!isNew && (
@@ -223,7 +223,7 @@ export function IntegrationEditorPanel({
                     description: event.target.value,
                   }))
                 }
-                placeholder="What this integration does"
+                placeholder="What this tool server does"
                 disabled={locked}
               />
             </div>

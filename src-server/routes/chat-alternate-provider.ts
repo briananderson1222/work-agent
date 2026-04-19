@@ -190,7 +190,7 @@ export function streamAlternateProviderChat({
         }
       } catch (error: unknown) {
         await streamWriter.write(
-          `data: ${JSON.stringify({ type: 'error', error: errorMessage(error) })}\n\n`,
+          `data: ${JSON.stringify({ type: 'error', errorText: errorMessage(error), error: errorMessage(error) })}\n\n`,
         );
       }
     },

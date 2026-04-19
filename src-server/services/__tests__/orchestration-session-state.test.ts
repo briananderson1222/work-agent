@@ -4,6 +4,7 @@ import type {
   ProviderSession,
 } from '../../providers/adapter-shape.js';
 import {
+  buildOrchestrationSessionSummary,
   projectOrchestrationEventToReadModel,
   recoverOrchestrationSessions,
   resolveOrchestrationAdapterForThread,
@@ -138,5 +139,104 @@ describe('orchestration-session-state', () => {
         createdAt: '2026-04-10T23:00:00.000Z',
       }),
     );
+  });
+
+  test('recoverOrchestrationSessions leaves sessions recoverable when adapter prerequisites are not ready', async () => {
+    const eventStore = {
+      readSessions: vi.fn().mockReturnValue([
+        {
+          provider: 'claude',
+          threadId: 'thread-5',
+          status: 'running',
+          model: 'sonnet',
+          createdAt: '2026-04-10T23:00:00.000Z',
+          updatedAt: '2026-04-11T00:00:00.000Z',
+        },
+      ]),
+      upsertSession: vi.fn(),
+      markSessionClosed: vi.fn(),
+    } as any;
+    const adapter = {
+      provider: 'claude',
+      startSession: vi.fn(),
+    } as unknown as ProviderAdapterShape;
+    const logger = { warn: vi.fn() };
+
+    await recoverOrchestrationSessions({
+      adapterRegistry: {
+        get: (provider) => (provider === 'claude' ? adapter : undefined),
+        list: () => [adapter],
+        register() {},
+      },
+      eventStore,
+      assertAdapterReady: async () => {
+        throw new Error('ollama not ready yet');
+      },
+      trackSession: vi.fn(),
+      logger,
+    });
+
+    expect(adapter.startSession).not.toHaveBeenCalled();
+    expect(eventStore.markSessionClosed).not.toHaveBeenCalled();
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Provider session not ready for recovery yet',
+      expect.objectContaining({
+        provider: 'claude',
+        threadId: 'thread-5',
+      }),
+    );
+  });
+
+  test('buildOrchestrationSessionSummary merges persisted and loaded state with event metadata', () => {
+    expect(
+      buildOrchestrationSessionSummary({
+        persisted: {
+          provider: 'claude',
+          threadId: 'thread-4',
+          status: 'ready',
+          model: 'claude-sonnet',
+          createdAt: '2026-04-11T00:00:00.000Z',
+          updatedAt: '2026-04-11T00:00:01.000Z',
+        },
+        loaded: {
+          provider: 'claude',
+          threadId: 'thread-4',
+          status: 'running',
+          model: 'claude-sonnet',
+          createdAt: '2026-04-11T00:00:00.000Z',
+          updatedAt: '2026-04-11T00:00:03.000Z',
+        },
+        events: [
+          {
+            provider: 'claude',
+            threadId: 'thread-4',
+            eventId: 'evt-1',
+            createdAt: '2026-04-11T00:00:02.000Z',
+            method: 'turn.started',
+            turnId: 'turn-1',
+          } as any,
+          {
+            provider: 'claude',
+            threadId: 'thread-4',
+            eventId: 'evt-2',
+            createdAt: '2026-04-11T00:00:04.000Z',
+            method: 'turn.completed',
+            turnId: 'turn-1',
+          } as any,
+        ],
+      }),
+    ).toEqual({
+      provider: 'claude',
+      threadId: 'thread-4',
+      status: 'running',
+      model: 'claude-sonnet',
+      createdAt: '2026-04-11T00:00:00.000Z',
+      updatedAt: '2026-04-11T00:00:03.000Z',
+      isLoaded: true,
+      isPersisted: true,
+      eventCount: 2,
+      lastEventAt: '2026-04-11T00:00:04.000Z',
+      lastEventMethod: 'turn.completed',
+    });
   });
 });

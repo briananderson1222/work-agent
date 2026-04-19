@@ -58,6 +58,10 @@ import {
   stop,
   upgrade,
 } from './commands/lifecycle.js';
+import {
+  runRegistryCatalogCommand,
+  runSurfaceCommand,
+} from './commands/surfaces.js';
 import { type DevFlags, startDevServer } from './dev/server.js';
 
 export function usageText(): string {
@@ -108,10 +112,23 @@ Configuration:
 Core Workspace:
   stallion agents <action>      List/get/create/update/delete agents
   stallion chat <agent> <msg>   Chat with a defined agent
+  stallion sessions <action>    List/read/interrupt managed and runtime sessions
   stallion projects <action>    CRUD projects and project layouts
   stallion skills <action>      List/get/create/update/delete/install skills
   stallion playbooks <action>   CRUD playbooks and record usage/outcomes
   stallion prompts <action>     Compatibility alias for playbooks
+  stallion connections <action> Manage model/runtime connections
+  stallion tools <action>       Manage tool servers (MCP integrations)
+  stallion notifications <action> Manage inbox and approval notifications
+  stallion monitoring <action>  Query monitoring stats, metrics, and events
+  stallion schedule <action>    Manage scheduled jobs and scheduler status
+  stallion knowledge <action>   Query knowledge status, search, namespaces, and documents
+  stallion auth <action>        Check auth status and user directory info
+  stallion branding <action>    Read resolved branding config
+  stallion feedback <action>    Manage message ratings and learned behavior state
+  stallion insights <action>    Read aggregated product insights
+  stallion acp <action>         Manage ACP status, commands, and connections
+  stallion voice <action>       Manage voice session status and lifecycle
 
 Plugin Management:
   stallion list                 List installed plugins
@@ -120,6 +137,7 @@ Plugin Management:
   stallion update <name>        Update a plugin (git only)
   stallion registry [url]       Browse plugin registry (or set URL)
   stallion registry install <id> Install a plugin from the configured registry
+  stallion registry <catalog> <action>  Manage agents/skills/integrations/plugins in the unified catalog
 
 Setup:
   stallion doctor               Check prerequisites
@@ -241,6 +259,10 @@ export async function runCli(argv: string[]): Promise<void> {
       update(args[0]);
       break;
     case 'registry':
+      if (['agents', 'skills', 'integrations', 'plugins'].includes(args[0])) {
+        await runRegistryCatalogCommand(args);
+        break;
+      }
       if (args[0] === 'install') {
         const registryId = args[1];
         const source = await resolveRegistryPluginSource(registryId);
@@ -375,12 +397,27 @@ export async function runCli(argv: string[]): Promise<void> {
       break;
     }
     case 'agents':
+    case 'sessions':
     case 'projects':
     case 'skills':
     case 'playbooks':
     case 'prompts':
     case 'chat':
       await runCoreCommand(command, args);
+      break;
+    case 'connections':
+    case 'tools':
+    case 'notifications':
+    case 'monitoring':
+    case 'schedule':
+    case 'knowledge':
+    case 'auth':
+    case 'branding':
+    case 'feedback':
+    case 'insights':
+    case 'acp':
+    case 'voice':
+      await runSurfaceCommand(command, args);
       break;
     default:
       console.log(usageText());

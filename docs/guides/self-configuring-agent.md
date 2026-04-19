@@ -18,9 +18,11 @@ The concrete example bundle lives in [examples/self-configuring-agent](../../exa
 `stallion-control` is the built-in MCP server for platform management. It exposes tools such as:
 
 - `list_agents`, `get_agent`, `list_projects`, `get_project`
-- `list_prompts`, `create_prompt`, `update_prompt`, `track_prompt_run`, `record_prompt_outcome`
+- `list_playbooks`, `create_playbook`, `update_playbook`, `track_playbook_run`, `record_playbook_outcome`
 - `send_message` for agent-to-agent delegation
 - config and navigation tools for steering the workspace
+
+Prompt-named tools remain available as compatibility aliases, but new agents should prefer the playbook-native names.
 
 This means the same agent loop that writes code can also shape its own working environment.
 
@@ -48,16 +50,16 @@ Use the example `agent.json` as a starting point:
       "stallion-control_list_agents",
       "stallion-control_list_projects",
       "stallion-control_get_project",
-      "stallion-control_list_prompts",
-      "stallion-control_create_prompt",
-      "stallion-control_update_prompt",
+      "stallion-control_list_playbooks",
+      "stallion-control_create_playbook",
+      "stallion-control_update_playbook",
       "stallion-control_send_message"
     ],
     "autoApprove": [
       "stallion-control_list_agents",
       "stallion-control_list_projects",
       "stallion-control_get_project",
-      "stallion-control_list_prompts"
+      "stallion-control_list_playbooks"
     ]
   },
   "delegation": {
@@ -85,7 +87,7 @@ That gives you a safe default for “planner delegates to worker” patterns wit
 The playbook loop is intentionally simple:
 
 1. Agent notices a repeated task.
-2. Agent creates or updates a playbook through `create_prompt` / `update_prompt`.
+2. Agent creates or updates a playbook through `create_playbook` / `update_playbook`.
 3. Stallion records the agent/conversation provenance for that edit.
 4. When the playbook is used, Stallion tracks runs.
 5. Success/failure outcomes can be recorded to build a quality signal over time.

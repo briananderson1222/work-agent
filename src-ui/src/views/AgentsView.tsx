@@ -74,6 +74,8 @@ export function AgentsView({ agents, onNavigate }: AgentsViewProps) {
         searchPlaceholder="Search agents..."
         onAdd={() => handleNew()}
         addLabel="+ New Agent"
+        listEmptyTitle="No agents yet"
+        listEmptyDescription="Create an agent to start building and configuring runtime behavior."
         emptyIcon="⬡"
         emptyTitle="No agent selected"
         emptyDescription="Select an agent to edit, or create a new one"

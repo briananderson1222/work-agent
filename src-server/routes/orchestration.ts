@@ -1,3 +1,7 @@
+import type {
+  TerminalProcessDetail,
+  TerminalProcessSummary,
+} from '@stallion-ai/contracts/orchestration';
 import { Hono } from 'hono';
 import { streamSSE } from 'hono/streaming';
 import { z } from 'zod';
@@ -70,6 +74,11 @@ export function createOrchestrationRoutes(
     logger: {
       debug(message: string, meta?: Record<string, unknown>): void;
     };
+    terminalService?: {
+      listProcessSummaries(): TerminalProcessSummary[];
+      readProcess(sessionId: string): TerminalProcessDetail | null;
+      close(sessionId: string): Promise<void>;
+    };
   },
 ) {
   const app = new Hono();
@@ -96,6 +105,77 @@ export function createOrchestrationRoutes(
     return c.json({ success: true, data });
   });
 
+  app.get('/sessions/read-model', async (c) => {
+    const data = await orchestrationService.listSessionReadModel();
+    return c.json({ success: true, data });
+  });
+
+  app.get('/sessions/loaded', async (c) => {
+    const data = await orchestrationService.listLoadedSessionReadModel();
+    return c.json({ success: true, data });
+  });
+
+  app.get('/sessions/:threadId/events', async (c) => {
+    const detail = await orchestrationService.readSession(
+      c.req.param('threadId'),
+    );
+    if (!detail) {
+      return c.json({ success: false, error: 'Session not found' }, 404);
+    }
+    return c.json({ success: true, data: detail.events });
+  });
+
+  app.get('/sessions/:threadId', async (c) => {
+    const data = await orchestrationService.readSession(
+      c.req.param('threadId'),
+    );
+    if (!data) {
+      return c.json({ success: false, error: 'Session not found' }, 404);
+    }
+    return c.json({ success: true, data });
+  });
+
+  app.get('/processes/terminals', async (c) => {
+    if (!deps.terminalService) {
+      return c.json(
+        { success: false, error: 'Terminal service unavailable' },
+        503,
+      );
+    }
+    return c.json({
+      success: true,
+      data: deps.terminalService.listProcessSummaries(),
+    });
+  });
+
+  app.get('/processes/terminals/:sessionId', async (c) => {
+    if (!deps.terminalService) {
+      return c.json(
+        { success: false, error: 'Terminal service unavailable' },
+        503,
+      );
+    }
+    const data = deps.terminalService.readProcess(c.req.param('sessionId'));
+    if (!data) {
+      return c.json({ success: false, error: 'Process not found' }, 404);
+    }
+    return c.json({ success: true, data });
+  });
+
+  app.delete('/processes/terminals/:sessionId', async (c) => {
+    if (!deps.terminalService) {
+      return c.json(
+        { success: false, error: 'Terminal service unavailable' },
+        503,
+      );
+    }
+    await deps.terminalService.close(c.req.param('sessionId'));
+    return c.json({
+      success: true,
+      data: { sessionId: c.req.param('sessionId') },
+    });
+  });
+
   app.post('/commands', validate(orchestrationCommandSchema), async (c) => {
     try {
       const result = await orchestrationService.dispatch(getBody(c));
@@ -108,7 +188,7 @@ export function createOrchestrationRoutes(
   app.get('/events', (c) => {
     return streamSSE(c, async (stream) => {
       sseOps.add(1, { op: 'orchestration_connect' });
-      const sessions = await orchestrationService.listSessions();
+      const sessions = await orchestrationService.listSessionReadModel();
       await stream.writeSSE({
         event: 'orchestration:snapshot',
         data: JSON.stringify({ sessions }),

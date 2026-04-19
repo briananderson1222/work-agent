@@ -68,6 +68,7 @@ import { PromptService } from '../services/prompt-service.js';
 import type { ProviderService } from '../services/provider-service.js';
 import type { SchedulerService } from '../services/scheduler-service.js';
 import type { SkillService } from '../services/skill-service.js';
+import type { TerminalService } from '../services/terminal-service.js';
 import type { Logger } from '../utils/logger.js';
 import { configureRuntimeHttp } from './runtime-http.js';
 import {
@@ -102,6 +103,7 @@ export interface ConfigureRuntimeRoutesContext {
   acpBridge: ACPManager;
   knowledgeService: KnowledgeService;
   voiceService: any;
+  terminalService: TerminalService;
   activeAgents: Map<string, Agent>;
   agentMetadataMap: Map<string, any>;
   memoryAdapters: Map<string, any>;
@@ -227,6 +229,7 @@ export function configureRuntimeRoutes(
     createOrchestrationRoutes(context.orchestrationService, {
       eventBus: context.eventBus,
       logger: context.logger,
+      terminalService: context.terminalService,
     }),
   );
 

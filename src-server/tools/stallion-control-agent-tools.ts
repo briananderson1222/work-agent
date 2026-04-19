@@ -3,6 +3,26 @@ import { z } from 'zod';
 
 import { api, jsonToolResult } from './stallion-control-shared.js';
 
+export function buildAgentPayload(params: {
+  name?: string;
+  slug?: string;
+  model?: string;
+  systemPrompt?: string;
+  skills?: string[];
+  mcpServers?: string[];
+}) {
+  return {
+    ...(typeof params.name === 'string' ? { name: params.name } : {}),
+    ...(typeof params.slug === 'string' ? { slug: params.slug } : {}),
+    ...(typeof params.model === 'string' ? { model: params.model } : {}),
+    ...(typeof params.systemPrompt === 'string'
+      ? { prompt: params.systemPrompt }
+      : {}),
+    ...(params.skills ? { skills: params.skills } : {}),
+    ...(params.mcpServers ? { tools: { mcpServers: params.mcpServers } } : {}),
+  };
+}
+
 export function registerAgentTools(server: McpServer) {
   server.tool('list_agents', 'List all configured agents', {}, async () =>
     jsonToolResult(await api('/agents')),
@@ -22,7 +42,7 @@ export function registerAgentTools(server: McpServer) {
       name: z.string().describe('Display name'),
       slug: z.string().describe('URL-safe identifier'),
       model: z.string().optional().describe('Model ID'),
-      systemPrompt: z.string().optional(),
+      systemPrompt: z.string().optional().describe('Agent system prompt'),
       skills: z.array(z.string()).optional(),
       mcpServers: z
         .array(z.string())
@@ -33,7 +53,7 @@ export function registerAgentTools(server: McpServer) {
       jsonToolResult(
         await api('/agents', {
           method: 'POST',
-          body: JSON.stringify(params),
+          body: JSON.stringify(buildAgentPayload(params)),
         }),
       ),
   );
@@ -45,7 +65,7 @@ export function registerAgentTools(server: McpServer) {
       slug: z.string(),
       name: z.string().optional(),
       model: z.string().optional(),
-      systemPrompt: z.string().optional(),
+      systemPrompt: z.string().optional().describe('Agent system prompt'),
       skills: z.array(z.string()).optional(),
       mcpServers: z.array(z.string()).optional(),
     },
@@ -53,7 +73,7 @@ export function registerAgentTools(server: McpServer) {
       jsonToolResult(
         await api(`/agents/${slug}`, {
           method: 'PUT',
-          body: JSON.stringify(updates),
+          body: JSON.stringify(buildAgentPayload(updates)),
         }),
       ),
   );

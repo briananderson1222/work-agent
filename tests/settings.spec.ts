@@ -116,7 +116,7 @@ test.describe('Settings', () => {
     ).toBeVisible();
     await expect(
       page.getByText(
-        'Used for built-in cloud providers and regional model routing.',
+        'Used when a configured connection requires regional routing, such as built-in cloud providers.',
         { exact: true },
       ),
     ).toBeVisible();

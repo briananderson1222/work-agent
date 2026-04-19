@@ -158,8 +158,45 @@ describe('delegation helpers', () => {
     const [wrapped] = wrapDelegationAwareTools(
       [
         {
+          name: 'stallion-control_create_playbook',
+          description: 'Create a playbook',
+          parameters: {},
+          execute,
+        } as any,
+      ],
+      {
+        agentSlug: 'planner',
+        toolId: 'stallion-control',
+        spec: {
+          name: 'Planner',
+          prompt: 'Plan well',
+        },
+      },
+    );
+
+    const result = await wrapped.execute(
+      { name: 'Research Plan', content: 'Draft the plan' },
+      { conversationId: 'conv-parent' },
+    );
+
+    expect(result).toMatchObject({
+      name: 'Research Plan',
+      content: 'Draft the plan',
+      _sourceContext: {
+        kind: 'agent',
+        agentSlug: 'planner',
+        conversationId: 'conv-parent',
+      },
+    });
+  });
+
+  test('keeps the legacy prompt alias delegation-aware', async () => {
+    const execute = async (args: Record<string, unknown>) => args;
+    const [wrapped] = wrapDelegationAwareTools(
+      [
+        {
           name: 'stallion-control_create_prompt',
-          description: 'Create a prompt',
+          description: 'Compatibility alias for playbook creation',
           parameters: {},
           execute,
         } as any,

@@ -7,8 +7,8 @@ import {
   requestJson,
   requirePositional,
   resolveApiBase,
-  streamSse,
 } from './core-api.js';
+import { createSessionClient } from './session-client.js';
 
 interface ResourceSpec {
   collectionPath: string;
@@ -371,107 +371,56 @@ async function runProjectLayoutCommand(
 async function runChat(parsed: ParsedCoreArgs, apiBase: string): Promise<void> {
   const agentSlug = requirePositional(parsed, 0, 'agent');
   const content = await loadTextInput(parsed, 1);
-
-  const conversationId = parsed.flags.conversation;
-  const projectSlug = parsed.flags.project;
-  const model = parsed.flags.model;
-  const title = parsed.flags.title;
-  const jsonMode = parsed.flags.json === true;
-
-  const payload = {
-    input: content,
-    options: {
-      ...(typeof conversationId === 'string' ? { conversationId } : {}),
-      ...(typeof model === 'string' ? { model } : {}),
-      ...(typeof title === 'string' ? { title } : {}),
-    },
-    ...(typeof projectSlug === 'string' ? { projectSlug } : {}),
-  };
-
-  const response = await fetch(
-    `${apiBase}/api/agents/${encodeURIComponent(agentSlug)}/chat`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    },
-  );
-
-  if (!response.ok) {
-    let errorText = `Chat request failed with HTTP ${response.status}`;
-    try {
-      const body = (await response.json()) as { error?: string };
-      if (body.error) {
-        errorText = body.error;
-      }
-    } catch {}
-    throw new Error(errorText);
-  }
-
-  let startedConversationId =
-    typeof conversationId === 'string' ? conversationId : undefined;
-  let finishReason: string | undefined;
-  let accumulatedText = '';
-
-  await streamSse(response, (event) => {
-    if (
-      (event.type === 'conversation-started' ||
-        event.type === 'conversation') &&
-      typeof event.conversationId === 'string'
-    ) {
-      startedConversationId = event.conversationId;
-      return;
-    }
-
-    if (event.type === 'error') {
-      throw new Error(
-        typeof event.errorText === 'string'
-          ? event.errorText
-          : 'Chat stream failed',
-      );
-    }
-
-    if (event.type === 'finish' && typeof event.finishReason === 'string') {
-      finishReason = event.finishReason;
-      return;
-    }
-
-    if (event.type !== 'text-delta') {
-      return;
-    }
-
-    const delta =
-      typeof event.text === 'string'
-        ? event.text
-        : typeof event.delta === 'string'
-          ? event.delta
-          : typeof event.textDelta === 'string'
-            ? event.textDelta
-            : '';
-
-    if (!delta) {
-      return;
-    }
-
-    accumulatedText += delta;
-    if (!jsonMode) {
-      process.stdout.write(delta);
-    }
+  const client = createSessionClient(apiBase, agentSlug);
+  await client.sendMessage({
+    message: content,
+    conversationId:
+      typeof parsed.flags.conversation === 'string'
+        ? parsed.flags.conversation
+        : undefined,
+    model:
+      typeof parsed.flags.model === 'string' ? parsed.flags.model : undefined,
+    title:
+      typeof parsed.flags.title === 'string' ? parsed.flags.title : undefined,
+    projectSlug:
+      typeof parsed.flags.project === 'string'
+        ? parsed.flags.project
+        : undefined,
+    jsonMode: parsed.flags.json === true,
   });
+}
 
-  if (jsonMode) {
-    printJson({
-      agent: agentSlug,
-      conversationId: startedConversationId,
-      finishReason,
-      text: accumulatedText,
-    });
+async function runSessionsCommand(
+  apiBase: string,
+  parsed: ParsedCoreArgs,
+): Promise<void> {
+  const action = requirePositional(parsed, 0, 'session action');
+  const agentSlug = requirePositional(parsed, 1, 'agent');
+  const client = createSessionClient(apiBase, agentSlug);
+
+  if (action === 'list') {
+    printJson(await client.listSessions());
     return;
   }
 
-  if (accumulatedText.length > 0) {
-    process.stdout.write('\n');
+  if (action === 'read') {
+    const id = requirePositional(parsed, 2, 'session id');
+    printJson(await client.readSession(id));
+    return;
   }
+
+  if (action === 'interrupt') {
+    const id = requirePositional(parsed, 2, 'session id');
+    const turnId =
+      typeof parsed.flags.turn === 'string' ? parsed.flags.turn : undefined;
+    await client.interruptSession(id, turnId);
+    printJson({ success: true, interrupted: id });
+    return;
+  }
+
+  throw new Error(
+    "Unknown sessions action. Use 'list', 'read', or 'interrupt'.",
+  );
 }
 
 export async function runCoreCommand(
@@ -482,6 +431,13 @@ export async function runCoreCommand(
     const parsed = parseCoreArgs(args);
     const apiBase = resolveApiBase(parsed);
     await runChat(parsed, apiBase);
+    return;
+  }
+
+  if (command === 'sessions') {
+    const parsed = parseCoreArgs(args);
+    const apiBase = resolveApiBase(parsed);
+    await runSessionsCommand(apiBase, parsed);
     return;
   }
 
