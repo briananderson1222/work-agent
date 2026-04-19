@@ -1,3 +1,4 @@
+import type { ConnectionConfig } from '@stallion-ai/contracts/tool';
 import type { Dispatch, SetStateAction } from 'react';
 import type { NavigationView, Tool } from '../../types';
 
@@ -57,4 +58,5 @@ export interface AgentEditorFormProps {
   isEnriching: boolean;
   onNavigate: (view: NavigationView) => void;
   onOpenAddModal: (type: 'integrations' | 'skills' | 'prompts') => void;
+  runtimeConnections?: ConnectionConfig[];
 }

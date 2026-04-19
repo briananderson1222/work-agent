@@ -1,4 +1,5 @@
 import type { Skill } from '@stallion-ai/contracts/catalog';
+import { skillToGuidanceAsset } from '@stallion-ai/contracts/guidance-assets';
 import {
   useCreateLocalSkillMutation,
   useSkillQuery,
@@ -6,7 +7,6 @@ import {
   useUninstallSkillMutation,
   useUpdateLocalSkillMutation,
 } from '@stallion-ai/sdk';
-import { skillToGuidanceAsset } from '@stallion-ai/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { DetailHeader } from '../components/DetailHeader';
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
@@ -63,7 +63,7 @@ export function SkillsView() {
     updateAvailable: false,
   }));
 
-  const skills = useMemo(() => localSkills, [localSkills]);
+  const skills = localSkills;
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();

@@ -12,7 +12,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
 import type { GuidanceAsset } from '@stallion-ai/contracts/catalog';
-import { skillToGuidanceAsset } from '@stallion-ai/shared';
+import { skillToGuidanceAsset } from '@stallion-ai/contracts/guidance-assets';
 import {
   extractResourceLinks,
   handleSkillRead,

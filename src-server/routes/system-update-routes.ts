@@ -328,7 +328,9 @@ export function createSystemUpdateRoutes(deps: SystemStatusDeps, logger: any) {
   };
 
   app.post('/verify-managed-runtime', verifyManagedRuntime);
-  app.post('/verify-bedrock', verifyManagedRuntime);
+  app.post('/verify-bedrock', async (c) => {
+    return verifyManagedRuntime(c);
+  });
 
   app.get('/core-update', async (c) => {
     try {

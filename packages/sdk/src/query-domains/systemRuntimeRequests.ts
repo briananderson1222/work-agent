@@ -46,7 +46,11 @@ export async function verifyManagedRuntimeConnection(
   return (await response.json()) as { verified: boolean; error?: string };
 }
 
-export const verifyBedrockConnection = verifyManagedRuntimeConnection;
+export async function verifyBedrockConnection(
+  region?: string,
+): Promise<{ verified: boolean; error?: string }> {
+  return verifyManagedRuntimeConnection(region);
+}
 
 export async function requestSystemStatus(
   apiBaseOverride?: string,

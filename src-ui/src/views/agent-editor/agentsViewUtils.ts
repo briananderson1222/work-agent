@@ -1,4 +1,4 @@
-import { requiresAgentPromptForRuntime } from '@stallion-ai/shared';
+import { requiresAgentPromptForRuntime } from '@stallion-ai/contracts/agent-validation';
 import type { Tool } from '../../types';
 import type { AgentFormData } from './types';
 

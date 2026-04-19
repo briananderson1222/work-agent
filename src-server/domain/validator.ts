@@ -5,9 +5,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AgentSpec } from '@stallion-ai/contracts/agent';
+import { requiresAgentPrompt } from '@stallion-ai/contracts/agent-validation';
 import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { ToolDef } from '@stallion-ai/contracts/tool';
-import { requiresAgentPrompt } from '@stallion-ai/shared';
 import Ajv, { type ErrorObject, type ValidateFunction } from 'ajv';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
 

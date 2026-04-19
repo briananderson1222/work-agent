@@ -1,4 +1,5 @@
 import type { AgentTemplate } from '@stallion-ai/sdk';
+import { useRuntimeConnectionsQuery } from '@stallion-ai/sdk';
 import { type Dispatch, type SetStateAction, useState } from 'react';
 import { ACPConnectionsSection } from '../../components/ACPConnectionsSection';
 import { AgentIcon } from '../../components/AgentIcon';
@@ -91,6 +92,7 @@ export function AgentsViewEditorPane({
   const [addModalType, setAddModalType] = useState<
     'integrations' | 'skills' | 'prompts' | null
   >(null);
+  const { data: runtimeConnections = [] } = useRuntimeConnectionsQuery();
 
   return (
     <>
@@ -218,6 +220,7 @@ export function AgentsViewEditorPane({
                 isEnriching={isEnriching}
                 onNavigate={onNavigate}
                 onOpenAddModal={(type) => setAddModalType(type)}
+                runtimeConnections={runtimeConnections}
               />
             )}
           </div>

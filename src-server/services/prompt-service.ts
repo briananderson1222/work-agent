@@ -14,7 +14,7 @@ import type {
   PlaybookStats,
   Prompt,
 } from '@stallion-ai/contracts/catalog';
-import { playbookToGuidanceAsset } from '@stallion-ai/shared';
+import { playbookToGuidanceAsset } from '@stallion-ai/contracts/guidance-assets';
 import type { IPromptRegistryProvider } from '../providers/provider-interfaces.js';
 import { promptOps } from '../telemetry/metrics.js';
 import { resolveHomeDir } from '../utils/paths.js';

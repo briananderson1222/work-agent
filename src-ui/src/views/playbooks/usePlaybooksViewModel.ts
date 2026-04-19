@@ -1,4 +1,5 @@
 import type { Playbook } from '@stallion-ai/contracts/catalog';
+import { playbookToGuidanceAsset } from '@stallion-ai/contracts/guidance-assets';
 import {
   useAgentsQuery,
   useCreateLocalSkillMutation,
@@ -9,7 +10,6 @@ import {
   useTrackPlaybookRunMutation,
   useUpdatePlaybookMutation,
 } from '@stallion-ai/sdk';
-import { playbookToGuidanceAsset } from '@stallion-ai/shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApiBase } from '../../contexts/ApiBaseContext';
 import { useNavigation } from '../../contexts/NavigationContext';
