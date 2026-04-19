@@ -10,6 +10,7 @@ export default defineConfig({
       'node_modules/**',
       'packages/**/node_modules/**',
       'examples/**/node_modules/**',
+      'vendor/**',
       'packages/connect/src/__tests__/qr-round-trip.test.ts',
       '.omx/**',
       '.stallion-ai/**',

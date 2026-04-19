@@ -12,6 +12,8 @@ const requiredFiles = [
   '.github/ISSUE_TEMPLATE/config.yml',
   '.github/workflows/ci.yml',
   '.github/workflows/ci-extended.yml',
+  '.ai-guidance/work-agent.adapter.json',
+  '.ai-guidance/policy-packs/work-agent-convergence.policy-pack.json',
   'docs/reference/contracts.md',
   'SECURITY.md',
 ];
