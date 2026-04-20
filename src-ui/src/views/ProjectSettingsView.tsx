@@ -8,6 +8,10 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { DetailHeader } from '../components/DetailHeader';
 import { ModelSelector } from '../components/ModelSelector';
 import { PathAutocomplete } from '../components/PathAutocomplete';
+import {
+  getWorkingDirectoryLeaf,
+  normalizeWorkingDirectory,
+} from '../components/project-form-utils';
 import { useApiBase } from '../contexts/ApiBaseContext';
 import { useNavigation } from '../contexts/NavigationContext';
 import type { ProjectConfig } from '../contexts/ProjectsContext';
@@ -62,6 +66,10 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
   const isDirty =
     !isLoading && !!form && JSON.stringify(form) !== JSON.stringify(savedForm);
   const { guard, DiscardModal } = useUnsavedGuard(isDirty);
+  const workingDirectory = normalizeWorkingDirectory(
+    form.workingDirectory ?? '',
+  );
+  const workingDirectoryLeaf = getWorkingDirectoryLeaf(workingDirectory);
 
   if (isLoading || !form) {
     return <div className="project-settings__loading">Loading…</div>;
@@ -94,7 +102,13 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
         <button
           className="editor-btn editor-btn--primary"
           disabled={saveMutation.isPending || !form.name}
-          onClick={() => saveMutation.mutate({ slug, ...form })}
+          onClick={() =>
+            saveMutation.mutate({
+              slug,
+              ...form,
+              workingDirectory: workingDirectory || undefined,
+            })
+          }
         >
           {saveMutation.isPending ? 'Saving…' : 'Save'}
         </button>
@@ -104,36 +118,93 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
 
       {/* Body */}
       <div className="project-settings__body">
-        {/* Basic Info */}
-        <section className="project-settings__section">
-          <div className="project-settings__section-title">Basic Info</div>
-
-          <div className="editor-field">
-            <label className="editor-label">Name *</label>
-            <div className="project-settings__name-row">
-              <input
-                className="editor-input project-settings__icon-input"
-                type="text"
-                value={form.icon ?? ''}
-                placeholder="🚀"
-                onChange={(e) => setField('icon', e.target.value)}
-              />
-              <input
-                className="editor-input project-settings__name-input"
-                type="text"
-                value={form.name}
-                onChange={(e) => setField('name', e.target.value)}
-              />
+        <section className="project-settings__section project-settings__section--hero">
+          <div className="project-settings__section-heading">
+            <div>
+              <div className="project-settings__section-title">Workspace</div>
+              <p className="project-settings__section-copy">
+                Keep the project pointed at the folder you actually work in.
+                Name and icon stay editable, but the directory is now the first
+                thing surfaced in this form.
+              </p>
+            </div>
+            <div className="project-settings__identity-preview">
+              <span className="project-settings__identity-icon">
+                {form.icon || project?.icon || '📁'}
+              </span>
+              <div>
+                <div className="project-settings__identity-name">
+                  {form.name}
+                </div>
+                <div className="project-settings__identity-path">
+                  {workingDirectory || 'No working directory configured'}
+                </div>
+              </div>
             </div>
           </div>
-          <div className="editor-field">
-            <label className="editor-label">Working Directory</label>
-            <PathAutocomplete
-              apiBase={apiBase}
-              value={form.workingDirectory ?? ''}
-              onChange={(v) => setField('workingDirectory', v)}
-              placeholder="/path/to/project"
-            />
+
+          <div className="project-settings__hero-grid">
+            <div className="editor-field project-settings__field--featured">
+              <label className="editor-label">Working Directory</label>
+              <PathAutocomplete
+                apiBase={apiBase}
+                value={form.workingDirectory ?? ''}
+                onChange={(v) => setField('workingDirectory', v)}
+                placeholder="/path/to/project"
+                className="editor-input path-autocomplete__input project-settings__working-dir-input"
+              />
+              <span className="editor-hint">
+                Use an absolute path or <code>~/…</code>. Folder completion now
+                treats an exact typed directory as a selectable folder state.
+              </span>
+              {workingDirectory && (
+                <div className="project-settings__path-pills">
+                  <span className="project-settings__path-pill">
+                    leaf <code>{workingDirectoryLeaf || 'project'}</code>
+                  </span>
+                  <span className="project-settings__path-pill">
+                    saved as <code>{workingDirectory}</code>
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div className="project-settings__identity-card">
+              <div className="project-settings__identity-card-label">
+                Current identity
+              </div>
+              <div className="project-settings__identity-card-name">
+                {form.icon || '📁'} {form.name}
+              </div>
+              <div className="project-settings__identity-card-copy">
+                This metadata stays manual on edit so changing the folder does
+                not silently rename an existing project.
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="project-settings__section">
+          <div className="project-settings__section-title">Basic Info</div>
+          <div className="project-settings__identity-grid">
+            <div className="editor-field">
+              <label className="editor-label">Name *</label>
+              <div className="project-settings__name-row">
+                <input
+                  className="editor-input project-settings__icon-input"
+                  type="text"
+                  value={form.icon ?? ''}
+                  placeholder="🚀"
+                  onChange={(e) => setField('icon', e.target.value)}
+                />
+                <input
+                  className="editor-input project-settings__name-input"
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setField('name', e.target.value)}
+                />
+              </div>
+            </div>
           </div>
           <div className="editor-field">
             <label className="editor-label">Description</label>

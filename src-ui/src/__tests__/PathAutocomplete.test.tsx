@@ -41,16 +41,21 @@ describe('PathAutocomplete', () => {
     );
 
     expect(browseMock).toHaveBeenCalledWith('~', { enabled: true });
-    expect(screen.getByText('📁 Documents')).toBeTruthy();
+    expect(screen.getByText('Documents')).toBeTruthy();
     expect(screen.queryByText(/notes\.txt/)).toBeNull();
   });
 
   test('tab-completes a single directory and appends a trailing slash', () => {
-    browseMock.mockReturnValue({
-      data: {
-        path: '/tmp',
-        entries: [{ name: 'project', isDirectory: true }],
-      },
+    browseMock.mockImplementation((path?: string) => {
+      if (path === '/tmp/pro') {
+        return { data: undefined };
+      }
+      return {
+        data: {
+          path: '/tmp',
+          entries: [{ name: 'project', isDirectory: true }],
+        },
+      };
     });
     const onChange = vi.fn();
 
@@ -67,8 +72,41 @@ describe('PathAutocomplete', () => {
     expect(onChange).toHaveBeenCalledWith('/tmp/project/');
   });
 
+  test('enter accepts the exact typed directory and appends a trailing slash', () => {
+    browseMock.mockImplementation((path?: string) => {
+      if (path === '/tmp/project') {
+        return {
+          data: {
+            path: '/tmp/project',
+            entries: [{ name: 'src', isDirectory: true }],
+          },
+        };
+      }
+
+      return {
+        data: {
+          path: '/tmp',
+          entries: [{ name: 'project', isDirectory: true }],
+        },
+      };
+    });
+    const onChange = vi.fn();
+
+    render(
+      <PathAutocomplete
+        value="/tmp/project"
+        onChange={onChange}
+        apiBase="http://localhost:3000"
+      />,
+    );
+
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' });
+
+    expect(onChange).toHaveBeenCalledWith('/tmp/project/');
+  });
+
   test('uses ~ prefix in suggestions when user types ~/ even though server returns absolute path', () => {
-    browseMock.mockReturnValue({
+    browseMock.mockImplementation(() => ({
       data: {
         path: '/Users/test',
         entries: [
@@ -76,7 +114,7 @@ describe('PathAutocomplete', () => {
           { name: 'Projects', isDirectory: true },
         ],
       },
-    });
+    }));
 
     render(
       <PathAutocomplete
@@ -88,8 +126,8 @@ describe('PathAutocomplete', () => {
 
     expect(browseMock).toHaveBeenCalledWith('~', { enabled: true });
 
-    const docsItem = screen.getByText('📁 Documents').closest('div');
-    const projItem = screen.getByText('📁 Projects').closest('div');
+    const docsItem = screen.getByText('Documents').closest('button');
+    const projItem = screen.getByText('Projects').closest('button');
 
     expect(docsItem?.textContent).toContain('~/Documents');
     expect(docsItem?.textContent).not.toContain('/Users/test/Documents');

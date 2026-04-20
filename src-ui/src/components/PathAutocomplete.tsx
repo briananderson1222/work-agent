@@ -1,5 +1,6 @@
 import { useFileSystemBrowseQuery } from '@stallion-ai/sdk';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import './PathAutocomplete.css';
 
 function resolveBrowsePath(value: string): string | undefined {
   const shouldSuggest = value.startsWith('/') || value.startsWith('~');
@@ -33,6 +34,16 @@ function buildSuggestionPath(basePath: string, entryName: string): string {
   return `${basePath.replace(/\/$/, '')}/${entryName}`;
 }
 
+function normalizePathValue(value: string): string {
+  if (value === '/' || value === '~') return value;
+  return value.replace(/\/+$/, '');
+}
+
+function getPathLabel(path: string): string {
+  if (path === '/' || path === '~') return path;
+  return path.split('/').filter(Boolean).pop() ?? path;
+}
+
 export function PathAutocomplete({
   value,
   onChange,
@@ -64,6 +75,7 @@ export function PathAutocomplete({
   const shouldSuggest = value.startsWith('/') || value.startsWith('~');
   const endsWithSlash = value.endsWith('/');
   const browsePath = resolveBrowsePath(value);
+  const normalizedValue = normalizePathValue(value);
   const prefix = !shouldSuggest
     ? ''
     : endsWithSlash
@@ -75,14 +87,60 @@ export function PathAutocomplete({
   });
 
   const suggestions = useMemo(() => {
-    if (!shouldSuggest || !data?.entries || !browsePath) {
+    if (!shouldSuggest || !browsePath) {
       return [];
     }
-    return data.entries
-      .filter((entry) => entry.isDirectory)
-      .filter((entry) => !prefix || entry.name.toLowerCase().includes(prefix))
-      .map((entry) => buildSuggestionPath(browsePath, entry.name));
-  }, [data, browsePath, prefix, shouldSuggest]);
+    const items: Array<{
+      badge: string;
+      label: string;
+      path: string;
+      variant: 'exact' | 'directory';
+    }> = [];
+    const seen = new Set<string>();
+    const hasExactParentMatch =
+      !endsWithSlash &&
+      !!prefix &&
+      (data?.entries ?? []).some(
+        (entry) => entry.isDirectory && entry.name.toLowerCase() === prefix,
+      );
+
+    if (hasExactParentMatch) {
+      const exactPath = normalizedValue;
+      if (exactPath && !seen.has(exactPath)) {
+        seen.add(exactPath);
+        items.push({
+          path: exactPath,
+          label: getPathLabel(exactPath),
+          badge: 'folder',
+          variant: 'exact',
+        });
+      }
+    }
+
+    for (const entry of data?.entries ?? []) {
+      if (!entry.isDirectory) continue;
+      if (prefix && !entry.name.toLowerCase().includes(prefix)) continue;
+
+      const path = buildSuggestionPath(browsePath, entry.name);
+      if (seen.has(path)) continue;
+      seen.add(path);
+      items.push({
+        path,
+        label: entry.name,
+        badge: entry.name.toLowerCase() === prefix ? 'folder' : 'match',
+        variant: 'directory',
+      });
+    }
+
+    return items;
+  }, [
+    browsePath,
+    data?.entries,
+    endsWithSlash,
+    normalizedValue,
+    prefix,
+    shouldSuggest,
+  ]);
 
   const show = !userDismissed && suggestions.length > 0;
 
@@ -118,18 +176,34 @@ export function PathAutocomplete({
       setSelectedIdx((i) => Math.max(i - 1, 0));
     } else if (e.key === 'Tab') {
       e.preventDefault();
-      if (suggestions.length === 1) {
-        pick(suggestions[0]);
+      const exactSuggestion = suggestions.find(
+        (suggestion) => suggestion.variant === 'exact',
+      );
+      if (exactSuggestion) {
+        pick(exactSuggestion.path);
+      } else if (suggestions.length === 1) {
+        pick(suggestions[0].path);
       } else if (suggestions.length > 1) {
         setSelectedIdx((i) => (i + 1) % suggestions.length);
       }
     } else if (e.key === 'Enter') {
       if (selectedIdx >= 0) {
         e.preventDefault();
-        pick(suggestions[selectedIdx]);
+        pick(suggestions[selectedIdx].path);
       } else {
-        setUserDismissed(true);
-        onSubmit?.();
+        const exactSuggestion = suggestions.find(
+          (suggestion) => suggestion.variant === 'exact',
+        );
+        if (exactSuggestion) {
+          e.preventDefault();
+          pick(exactSuggestion.path);
+        } else if (suggestions.length === 1) {
+          e.preventDefault();
+          pick(suggestions[0].path);
+        } else {
+          setUserDismissed(true);
+          onSubmit?.();
+        }
       }
     } else if (e.key === 'Escape') {
       e.preventDefault();
@@ -139,10 +213,10 @@ export function PathAutocomplete({
   };
 
   return (
-    <div style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+    <div className="path-autocomplete">
       <input
         ref={inputRef}
-        className={className ?? 'editor-input'}
+        className={className ?? 'editor-input path-autocomplete__input'}
         type="text"
         value={value}
         onChange={(e) => {
@@ -163,43 +237,29 @@ export function PathAutocomplete({
         disabled={disabled}
       />
       {show && (
-        <div
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            zIndex: 100,
-            background: 'var(--bg-secondary, #1e1e1e)',
-            border: '1px solid var(--border-primary)',
-            borderRadius: '0 0 8px 8px',
-            maxHeight: 200,
-            overflowY: 'auto',
-          }}
-        >
-          {suggestions.map((s, i) => (
-            <div
-              key={s}
-              onMouseDown={() => pick(s)}
-              style={{
-                padding: '6px 12px',
-                cursor: 'pointer',
-                fontSize: '0.85rem',
-                fontFamily: 'monospace',
-                color: 'var(--text-primary, #ccc)',
-                background:
-                  i === selectedIdx
-                    ? 'var(--bg-hover, #2a2a2a)'
-                    : 'transparent',
-              }}
+        <div className="path-autocomplete__dropdown">
+          {suggestions.map((suggestion, i) => (
+            <button
+              key={suggestion.path}
+              className={`path-autocomplete__option${i === selectedIdx ? ' path-autocomplete__option--selected' : ''}`}
+              onMouseDown={() => pick(suggestion.path)}
+              type="button"
             >
-              📁 {s.split('/').pop()}
-              <span
-                style={{ opacity: 0.4, marginLeft: 8, fontSize: '0.75rem' }}
-              >
-                {s}
+              <span className="path-autocomplete__icon">📁</span>
+              <span className="path-autocomplete__content">
+                <span className="path-autocomplete__label-row">
+                  <span className="path-autocomplete__label">
+                    {suggestion.label}
+                  </span>
+                  <span className="path-autocomplete__badge">
+                    {suggestion.badge}
+                  </span>
+                </span>
+                <span className="path-autocomplete__path">
+                  {suggestion.path}
+                </span>
               </span>
-            </div>
+            </button>
           ))}
         </div>
       )}

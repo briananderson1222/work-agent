@@ -75,7 +75,9 @@ describe('NewProjectModal', () => {
     fireEvent.change(screen.getByLabelText('Working Directory'), {
       target: { value: '/tmp/my-project' },
     });
-    fireEvent.click(screen.getByLabelText('Add Coding Layout'));
+    fireEvent.click(
+      screen.getByLabelText('Add the default coding layout for this directory'),
+    );
     fireEvent.click(screen.getByRole('button', { name: 'Create' }));
 
     await waitFor(() => {
@@ -98,5 +100,25 @@ describe('NewProjectModal', () => {
     });
     expect(setProjectMock).toHaveBeenCalledWith('my-project');
     expect(onCloseMock).toHaveBeenCalled();
+  });
+
+  test('derives the project name from the working directory until edited', async () => {
+    validateDirectoryMock.mockResolvedValue({
+      error: null,
+      data: { entries: [{ name: 'public', isDirectory: true }] },
+    });
+
+    render(<NewProjectModal isOpen onClose={onCloseMock} />);
+
+    fireEvent.change(screen.getByLabelText('Working Directory'), {
+      target: { value: '/tmp/launch-pad' },
+    });
+
+    await waitFor(() => {
+      const nameInput = screen.getByPlaceholderText(
+        'My Project',
+      ) as HTMLInputElement;
+      expect(nameInput.value).toBe('Launch Pad');
+    });
   });
 });
