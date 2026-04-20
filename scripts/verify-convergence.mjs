@@ -1,24 +1,17 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import {
+  evaluatePolicyPack,
+  loadPolicyPack,
+} from '../vendor/ai-guidance-framework/src/index.mjs';
 
 const workflowDir = new URL('../.github/workflows/', import.meta.url);
-
-const requiredFiles = [
-  '.github/dependabot.yml',
-  '.github/pull_request_template.md',
-  '.github/ISSUE_TEMPLATE/bug-report.yml',
-  '.github/ISSUE_TEMPLATE/feature-request.yml',
-  '.github/ISSUE_TEMPLATE/docs-issue.yml',
-  '.github/ISSUE_TEMPLATE/config.yml',
-  '.github/workflows/ci.yml',
-  '.github/workflows/ci-extended.yml',
-  '.ai-guidance/work-agent.adapter.json',
-  '.ai-guidance/policy-packs/work-agent-convergence.policy-pack.json',
-  'vendor/ai-guidance-framework/adapters/work-agent.adapter.json',
-  'vendor/ai-guidance-framework/policy-packs/work-agent-convergence.policy-pack.json',
-  'docs/reference/contracts.md',
-  'SECURITY.md',
-];
+const repoRoot = fileURLToPath(new URL('../', import.meta.url));
+const trackedPolicyPackPath = new URL(
+  '../.ai-guidance/policy-packs/work-agent-convergence.policy-pack.json',
+  import.meta.url,
+);
 
 const errors = [];
 
@@ -56,10 +49,26 @@ for (const artifact of [
   }
 }
 
-for (const relativePath of requiredFiles) {
-  const absolutePath = new URL(`../${relativePath}`, import.meta.url);
-  if (!existsSync(absolutePath)) {
-    errors.push(`Missing required convergence file: ${relativePath}`);
+if (!existsSync(trackedPolicyPackPath)) {
+  errors.push(
+    'Missing required convergence file: .ai-guidance/policy-packs/work-agent-convergence.policy-pack.json',
+  );
+} else {
+  const policyPack = loadPolicyPack(trackedPolicyPackPath);
+  const [artifactsRule] = evaluatePolicyPack(
+    policyPack,
+    { rootDir: repoRoot },
+    { ruleIds: ['required-repo-artifacts'] },
+  );
+
+  if (!artifactsRule?.implemented) {
+    errors.push(
+      'required-repo-artifacts must be executable through the vendored ai-guidance-framework.',
+    );
+  } else {
+    for (const finding of artifactsRule.findings) {
+      errors.push(`Missing required convergence file: ${finding.artifact}`);
+    }
   }
 }
 
@@ -73,6 +82,12 @@ for (const [trackedPath, vendoredPath] of [
     'vendor/ai-guidance-framework/policy-packs/work-agent-convergence.policy-pack.json',
   ],
 ]) {
+  if (
+    !existsSync(new URL(`../${trackedPath}`, import.meta.url)) ||
+    !existsSync(new URL(`../${vendoredPath}`, import.meta.url))
+  ) {
+    continue;
+  }
   const trackedText = readFileSync(new URL(`../${trackedPath}`, import.meta.url), 'utf8');
   const vendoredText = readFileSync(new URL(`../${vendoredPath}`, import.meta.url), 'utf8');
   if (trackedText !== vendoredText) {
@@ -83,15 +98,17 @@ for (const [trackedPath, vendoredPath] of [
 }
 
 const ciWorkflowPath = new URL('../.github/workflows/ci.yml', import.meta.url);
-const ciWorkflow = readFileSync(ciWorkflowPath, 'utf8');
-if (ciWorkflow.includes('continue-on-error')) {
-  errors.push('Primary PR CI workflow must not use continue-on-error.');
-}
-if (!ciWorkflow.includes('npm run ci:fast')) {
-  errors.push('Primary PR CI workflow must execute npm run ci:fast.');
-}
-if (!ciWorkflow.includes('npm run test:connected-agents')) {
-  errors.push('Primary PR CI workflow must execute the connected-agents suite.');
+if (existsSync(ciWorkflowPath)) {
+  const ciWorkflow = readFileSync(ciWorkflowPath, 'utf8');
+  if (ciWorkflow.includes('continue-on-error')) {
+    errors.push('Primary PR CI workflow must not use continue-on-error.');
+  }
+  if (!ciWorkflow.includes('npm run ci:fast')) {
+    errors.push('Primary PR CI workflow must execute npm run ci:fast.');
+  }
+  if (!ciWorkflow.includes('npm run test:connected-agents')) {
+    errors.push('Primary PR CI workflow must execute the connected-agents suite.');
+  }
 }
 
 const packageJson = JSON.parse(

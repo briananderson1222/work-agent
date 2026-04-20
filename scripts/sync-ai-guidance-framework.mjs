@@ -21,6 +21,7 @@ for (const relativePath of [
   'bin',
   'src',
   'docs',
+  'examples',
   'schemas',
   'adapters',
   'policy-packs',
