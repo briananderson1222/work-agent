@@ -145,6 +145,7 @@ describe('guidance-report', () => {
       },
     });
 
+    expect(record.resolved_phase).toBe('Phase 1 (Harden & Onboard)');
     expect(record.resolved_workstream).toBe('phase1-doc-hardening');
     expect(record.source_ref).toBe('feature/test');
     expect(record.unresolved_files).toEqual(['README.md']);

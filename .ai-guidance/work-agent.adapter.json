@@ -8,8 +8,6 @@
   },
   "graph": {
     "version": 1,
-    "activePhase": "Phase 1 (Harden & Onboard)",
-    "activeInitiative": "Entity Hierarchy & Navigation Restructure",
     "defaultResolution": {
       "phase": "Phase 1 (Harden & Onboard)",
       "workstream": "Entity Hierarchy & Navigation Restructure",
@@ -31,7 +29,9 @@
     "resolutionRules": [
       {
         "id": "initiative-plan",
-        "match": { "patterns": ["docs/plans/"] },
+        "match": {
+          "patterns": ["docs/plans/"]
+        },
         "resolution": {
           "phase": "Phase 1 (Harden & Onboard)",
           "workstream": "Entity Hierarchy & Navigation Restructure",
@@ -40,7 +40,9 @@
       },
       {
         "id": "local-plan",
-        "match": { "patterns": [".omx/plans/"] },
+        "match": {
+          "patterns": [".omx/plans/"]
+        },
         "resolution": {
           "phase": "Phase 1 (Harden & Onboard)",
           "workstream": "Entity Hierarchy & Navigation Restructure",

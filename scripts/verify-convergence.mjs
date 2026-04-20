@@ -14,6 +14,8 @@ const requiredFiles = [
   '.github/workflows/ci-extended.yml',
   '.ai-guidance/work-agent.adapter.json',
   '.ai-guidance/policy-packs/work-agent-convergence.policy-pack.json',
+  'vendor/ai-guidance-framework/adapters/work-agent.adapter.json',
+  'vendor/ai-guidance-framework/policy-packs/work-agent-convergence.policy-pack.json',
   'docs/reference/contracts.md',
   'SECURITY.md',
 ];
@@ -58,6 +60,25 @@ for (const relativePath of requiredFiles) {
   const absolutePath = new URL(`../${relativePath}`, import.meta.url);
   if (!existsSync(absolutePath)) {
     errors.push(`Missing required convergence file: ${relativePath}`);
+  }
+}
+
+for (const [trackedPath, vendoredPath] of [
+  [
+    '.ai-guidance/work-agent.adapter.json',
+    'vendor/ai-guidance-framework/adapters/work-agent.adapter.json',
+  ],
+  [
+    '.ai-guidance/policy-packs/work-agent-convergence.policy-pack.json',
+    'vendor/ai-guidance-framework/policy-packs/work-agent-convergence.policy-pack.json',
+  ],
+]) {
+  const trackedText = readFileSync(new URL(`../${trackedPath}`, import.meta.url), 'utf8');
+  const vendoredText = readFileSync(new URL(`../${vendoredPath}`, import.meta.url), 'utf8');
+  if (trackedText !== vendoredText) {
+    errors.push(
+      `${trackedPath} must stay in sync with ${vendoredPath}; run npm run sync:ai-guidance-framework after framework updates.`,
+    );
   }
 }
 

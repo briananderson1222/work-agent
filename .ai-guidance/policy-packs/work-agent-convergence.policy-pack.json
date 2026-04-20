@@ -1,13 +1,13 @@
 {
   "version": 1,
   "name": "work-agent-convergence",
-  "description": "Initial convergence-style policy pack extracted alongside the AI guidance framework.",
+  "description": "Initial extraction of convergence-style rules from work-agent into a policy-pack vocabulary.",
   "rules": [
     {
       "id": "required-repo-artifacts",
       "classification": "hard-invariant",
       "stage": "block",
-      "message": "Required governance and CI artifacts must exist.",
+      "message": "Required repository governance and CI artifacts must exist.",
       "owner": "repo-core",
       "rollback_switch": null,
       "match": {
@@ -23,7 +23,7 @@
       "id": "baseline-proof-lane",
       "classification": "hard-invariant",
       "stage": "block",
-      "message": "The primary PR workflow must execute the baseline proof lane and connected-agents suite.",
+      "message": "The primary PR workflow must execute the baseline proof lane and the connected-agents suite.",
       "owner": "repo-core",
       "rollback_switch": null,
       "match": {
@@ -45,7 +45,7 @@
       "id": "extracted-transport-helper-shape",
       "classification": "brittle-implementation-check",
       "stage": "recommend",
-      "message": "Certain checks still assert exact extracted-helper source shapes and should be softened later.",
+      "message": "Certain files currently assert exact extracted-helper source shapes; these should be reviewed for eventual replacement with stronger semantic checks.",
       "owner": "repo-architecture",
       "rollback_switch": "soften-source-shape-checks",
       "match": {
