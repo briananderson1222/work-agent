@@ -164,23 +164,23 @@ Polish the existing functionality.
 
 **Status: Queued**
 
-> Foundations are partially landed here already (create-plugin, tutorial, registry browse flows), but this is not the active phase until Phase 1 proof/hardening is closed.
+> Foundations are partially landed here already (plugin create, tutorial, registry browse flows), but this is not the active phase until Phase 1 proof/hardening is closed.
 
 ### 2a. Frictionless Plugin Creation
 
-- [x] `stallion create-plugin` CLI command with options (layout-only, provider-only, full)
+- [x] `stallion plugin create` CLI command with options (layout-only, provider-only, full)
 - [x] Template scaffolds include the core manifest/build/source structure for layout, provider, and full plugin paths
-- [ ] `stallion dev` hot-reload experience works reliably
+- [ ] `stallion plugin dev` hot-reload experience works reliably
 - [x] "Build Your First Plugin" tutorial (in `docs/guides/`)
 - [x] Request-scoped plugin lifecycle hooks with correlation IDs (inspired by Hermes)
 
 **Key files:**
-- `packages/cli/src/cli.ts` -- `create-plugin` command
+- `packages/cli/src/cli.ts` -- `plugin create` command
 - `packages/cli/src/commands/init.ts` -- scaffold generation
 - `packages/cli/src/dev/` -- dev server
 - `docs/guides/build-your-first-plugin.md`
 
-**Done when:** `stallion create-plugin my-layout` produces a working layout. `stallion dev` shows it in browser with hot reload.
+**Done when:** `stallion plugin create my-layout` produces a working layout. `stallion plugin dev` shows it in browser with hot reload.
 
 ### 2b. Curated Starter Plugins
 

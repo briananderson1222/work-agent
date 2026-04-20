@@ -594,8 +594,15 @@ describe('CLI surface commands over HTTP', () => {
       'demo',
       `--api-base=${apiBase}`,
     ]);
-    await runCli(['registry', 'agents', 'list', `--api-base=${apiBase}`]);
     await runCli([
+      'plugin',
+      'registry',
+      'agents',
+      'list',
+      `--api-base=${apiBase}`,
+    ]);
+    await runCli([
+      'plugin',
       'registry',
       'skills',
       'install',

@@ -422,8 +422,8 @@ useApiMutation(mutationFn, options)
 ```bash
 # 1. Make changes in examples/my-layout/
 # 2. Remove and reinstall
-stallion remove my-layout
-stallion install ./examples/my-layout
+stallion plugin remove my-layout
+stallion plugin install ./examples/my-layout
 
 # 3. Test
 npm run dev:ui

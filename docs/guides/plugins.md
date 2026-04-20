@@ -503,7 +503,7 @@ Plugins can declare dependencies on other plugins. The server resolves and insta
 - If `source` is provided and the dependency isn't installed, it's cloned and installed automatically
 - If no `source`, the server tries the configured registry
 - Dependencies are resolved recursively (cycle detection included)
-- `./stallion preview <source>` shows dependency resolution status before install
+- `./stallion plugin preview <source>` shows dependency resolution status before install
 
 ## Installation Flow
 
@@ -511,19 +511,19 @@ Plugins can declare dependencies on other plugins. The server resolves and insta
 
 ```bash
 # Install from git URL
-./stallion install git@github.com:org/my-plugin.git
+./stallion plugin install git@github.com:org/my-plugin.git
 
 # Install from git URL at a specific branch
-./stallion install git@github.com:org/my-plugin.git#my-branch
+./stallion plugin install git@github.com:org/my-plugin.git#my-branch
 
 # Install from local path
-./stallion install /path/to/my-plugin
+./stallion plugin install /path/to/my-plugin
 
 # Preview before installing (validate + show components/conflicts)
-./stallion preview git@github.com:org/my-plugin.git
+./stallion plugin preview git@github.com:org/my-plugin.git
 
 # Skip specific components during install
-./stallion install git@github.com:org/my-plugin.git --skip=agent:my-plugin:assistant,layout:my-layout
+./stallion plugin install git@github.com:org/my-plugin.git --skip=agent:my-plugin:assistant,layout:my-layout
 ```
 
 ### API
@@ -565,7 +565,7 @@ GET /api/plugins/check-updates
 4. Plugin is moved to `~/.stallion-ai/plugins/<name>/`
 5. Agents are copied to `~/.stallion-ai/agents/<plugin>:<slug>/`
 6. Plugin layout source stays with the installed plugin and can be applied into project layouts
-7. Plugin is built (`./stallion build` / esbuild)
+7. Plugin is built (`./stallion plugin build` / esbuild)
 8. Bundled tool configs are copied to `~/.stallion-ai/integrations/`
 9. Providers are loaded into the server
 10. Passive permissions are auto-granted; active/trusted permissions are returned as `pendingConsent`
@@ -582,8 +582,8 @@ Layout plugins (with `entrypoint`) are built automatically by the server using e
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "./stallion build",
-    "dev": "./stallion dev"
+    "build": "./stallion plugin build",
+    "dev": "./stallion plugin dev"
   },
   "peerDependencies": {
     "@stallion-ai/sdk": "^0.4.0",
@@ -617,7 +617,7 @@ Build produces `dist/bundle.js` (and optionally `dist/bundle.css`). Do not commi
 ### 1. Scaffold
 
 ```bash
-./stallion create-plugin my-plugin --template=full
+./stallion plugin create my-plugin --template=full
 cd my-plugin
 ```
 
@@ -632,10 +632,10 @@ Available templates:
 ### 2. Dev Server
 
 ```bash
-./stallion dev              # starts on port 4200
-./stallion dev 3000         # custom port
-./stallion dev --no-mcp     # disable MCP tool connections
-./stallion dev --tools-dir=./tools  # custom tools directory
+./stallion plugin dev              # starts on port 4200
+./stallion plugin dev 3000         # custom port
+./stallion plugin dev --no-mcp     # disable MCP tool connections
+./stallion plugin dev --tools-dir=./tools  # custom tools directory
 ```
 
 The dev server:
@@ -654,7 +654,7 @@ Dependencies declared in `plugin.json` are auto-installed from `~/.stallion-ai/p
 ### 3. Build
 
 ```bash
-./stallion build
+./stallion plugin build
 ```
 
 Produces `dist/bundle.js` (production, no sourcemaps).
@@ -662,7 +662,7 @@ Produces `dist/bundle.js` (production, no sourcemaps).
 ### 4. Install Locally for Testing
 
 ```bash
-./stallion install .
+./stallion plugin install .
 ```
 
 Installs the current directory as a plugin into the running Stallion instance.
@@ -670,11 +670,11 @@ Installs the current directory as a plugin into the running Stallion instance.
 ### 5. Plugin Management
 
 ```bash
-./stallion list             # list installed plugins
-./stallion info my-plugin   # show plugin details
-./stallion update my-plugin # git pull + rebuild
-./stallion remove my-plugin # uninstall
-./stallion preview <source> # validate before installing
+./stallion plugin list             # list installed plugins
+./stallion plugin info my-plugin   # show plugin details
+./stallion plugin update my-plugin # git pull + rebuild
+./stallion plugin remove my-plugin # uninstall
+./stallion plugin preview <source> # validate before installing
 ./stallion registry [url]   # browse or set registry URL
 ./stallion registry install <id>
 ```

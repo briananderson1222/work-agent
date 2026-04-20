@@ -130,13 +130,13 @@ export function previewPlugin(source: string): void {
         `\n  ⚠ ${conflicts.length} conflict(s) detected — use --skip to exclude`,
       );
     }
-    console.log(`\n  Install with: stallion install ${source}`);
+    console.log(`\n  Install with: stallion plugin install ${source}`);
     if (conflicts.length) {
       const skipArgs = conflicts
         .map((entry) => `${entry.type}:${entry.id}`)
         .join(',');
       console.log(
-        `  Skip conflicts: stallion install ${source} --skip=${skipArgs}`,
+        `  Skip conflicts: stallion plugin install ${source} --skip=${skipArgs}`,
       );
     }
   } finally {

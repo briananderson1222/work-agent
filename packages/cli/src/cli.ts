@@ -3,27 +3,26 @@
 /**
  * @stallion-ai/cli — Unified CLI for Stallion
  *
- * Plugin Management:
- *   stallion install <source>     Install from git URL or local path
+ * Plugin:
+ *   stallion plugin install <source>     Install from git URL or local path
  *     --skip=<components>   Skip specific components (comma-separated)
- *   stallion preview <source>     Validate and preview plugin contents
- *   stallion list                 List installed plugins
- *   stallion remove <name>        Remove a plugin
- *   stallion info <name>          Show plugin details
- *   stallion update <name>        Update a plugin (git only)
- *   stallion registry [url]       Browse plugin registry (or set URL)
- *   stallion registry install <id> Install a plugin from the configured registry
- *
- * Plugin Development:
- *   stallion init [name]          Scaffold a new plugin (compat alias)
- *   stallion create-plugin [name] Scaffold a new plugin
+ *   stallion plugin preview <source>     Validate and preview plugin contents
+ *   stallion plugin list                 List installed plugins
+ *   stallion plugin remove <name>        Remove a plugin
+ *   stallion plugin info <name>          Show plugin details
+ *   stallion plugin update <name>        Update a plugin (git only)
+ *   stallion plugin init [name]          Scaffold a new plugin
+ *   stallion plugin create [name]        Scaffold a new plugin
  *     --template=<full|layout|provider>
- *   stallion export --format=agents-md [--output=path]
- *   stallion import <file>
- *   stallion build                Build plugin bundle
- *   stallion dev [port] [flags]   Dev preview server (default: 4200)
+ *   stallion plugin build                Build plugin bundle
+ *   stallion plugin dev [port] [flags]   Dev preview server (default: 4200)
  *     --no-mcp              Disable MCP tool connections
  *     --tools-dir=<path>    Tool configs directory
+ *
+ * Registry:
+ *   stallion registry [url]              Browse plugin registry (or set URL)
+ *   stallion registry install <id>       Install a plugin from the configured registry
+ *   stallion registry <catalog> <action> Manage agents/skills/integrations/plugins in the unified catalog
  */
 
 import { tmpdir } from 'node:os';
@@ -69,10 +68,6 @@ export function usageText(): string {
 Stallion CLI (@stallion-ai/cli)
 
 Usage:
-  stallion install <source>     Install plugin + build app
-    --skip=<components>   Skip specific components (comma-separated)
-    --clean               Wipe ~/.stallion-ai before installing
-  stallion preview <source>     Validate and preview plugin contents
   stallion start                Start the application (auto-builds if needed)
     --clean               Wipe and rebuild before starting
     --force               Skip confirmation prompt (use with --clean)
@@ -109,6 +104,23 @@ Configuration:
   stallion export --format=<format> [--output=<path>]
   stallion import <file>
 
+Plugin:
+  stallion plugin install <source>  Install plugin from git URL or local path
+    --skip=<components>   Skip specific components (comma-separated)
+    --clean               Wipe ~/.stallion-ai before installing
+  stallion plugin preview <source>  Validate and preview plugin contents
+  stallion plugin list              List installed plugins
+  stallion plugin remove <name>     Remove a plugin
+  stallion plugin info <name>       Show plugin details
+  stallion plugin update <name>     Update a plugin (git only)
+  stallion plugin init [name]       Scaffold a new plugin (full template)
+  stallion plugin create [name]     Scaffold a new plugin
+    --template=<full|layout|provider>
+  stallion plugin build             Build plugin bundle
+  stallion plugin dev [port] [flags]  Dev preview server (default: 4200)
+    --no-mcp              Disable MCP tool connections
+    --tools-dir=<path>    Tool configs directory
+
 Core Workspace:
   stallion agents <action>      List/get/create/update/delete agents
   stallion chat <agent> <msg>   Chat with a defined agent
@@ -130,30 +142,15 @@ Core Workspace:
   stallion acp <action>         Manage ACP status, commands, and connections
   stallion voice <action>       Manage voice session status and lifecycle
 
-Plugin Management:
-  stallion list                 List installed plugins
-  stallion remove <name>        Remove a plugin
-  stallion info <name>          Show plugin details
-  stallion update <name>        Update a plugin (git only)
-  stallion registry [url]       Browse plugin registry (or set URL)
-  stallion registry install <id> Install a plugin from the configured registry
+Registry:
+  stallion registry [url]           Browse plugin registry (or set URL)
+  stallion registry install <id>    Install a plugin from the configured registry
   stallion registry <catalog> <action>  Manage agents/skills/integrations/plugins in the unified catalog
 
 Setup:
   stallion doctor               Check prerequisites
   stallion link                 Add 'stallion' to PATH (/usr/local/bin)
   stallion shortcut             Create macOS app in ~/Applications
-
-Plugin Development:
-  stallion init [name]          Scaffold a new plugin (compat alias)
-  stallion create-plugin [name] Scaffold a new plugin
-    --template=<full|layout|provider>
-  stallion export --format=agents-md [--output=<path>]
-  stallion import <file>        Import a Stallion-exported AGENTS.md
-  stallion build                Build plugin bundle
-  stallion dev [port] [flags]   Dev preview server (default: 4200)
-    --no-mcp              Disable MCP tool connections
-    --tools-dir=<path>    Tool configs directory
 `;
 }
 
@@ -223,68 +220,81 @@ function parseLifecycleArgs(args: string[]): ParsedLifecycleArgs {
 export async function runCli(argv: string[]): Promise<void> {
   const [command, ...args] = argv;
   switch (command) {
-    case 'install': {
-      if (args.includes('--clean')) {
-        const lifecycleArgs = parseLifecycleArgs(args);
-        await clean({
-          actionLabel: 'install --clean',
-          allowDefaultHomeClean: lifecycleArgs.allowDefaultHomeClean,
-          force: lifecycleArgs.force,
-          homeSource: lifecycleArgs.homeSource,
-          instanceName: lifecycleArgs.instanceName,
-          projectHome: lifecycleArgs.baseDir,
-          serverPort: lifecycleArgs.serverPort,
-          uiPort: lifecycleArgs.uiPort,
-        });
+    case 'plugin': {
+      const [sub, ...subArgs] = args;
+      switch (sub) {
+        case 'install': {
+          if (subArgs.includes('--clean')) {
+            const lifecycleArgs = parseLifecycleArgs(subArgs);
+            await clean({
+              actionLabel: 'plugin install --clean',
+              allowDefaultHomeClean: lifecycleArgs.allowDefaultHomeClean,
+              force: lifecycleArgs.force,
+              homeSource: lifecycleArgs.homeSource,
+              instanceName: lifecycleArgs.instanceName,
+              projectHome: lifecycleArgs.baseDir,
+              serverPort: lifecycleArgs.serverPort,
+              uiPort: lifecycleArgs.uiPort,
+            });
+          }
+          const skipArg = subArgs.find((a) => a.startsWith('--skip='));
+          const skipList = skipArg
+            ? skipArg.replace('--skip=', '').split(',')
+            : [];
+          const source = subArgs.find((a) => !a.startsWith('--'));
+          await install(source!, skipList);
+          break;
+        }
+        case 'preview':
+          preview(subArgs[0]);
+          break;
+        case 'list':
+          list();
+          break;
+        case 'remove':
+          remove(subArgs[0]);
+          break;
+        case 'info':
+          info(subArgs[0]);
+          break;
+        case 'update':
+          update(subArgs[0]);
+          break;
+        case 'init':
+          init(subArgs[0]);
+          break;
+        case 'create': {
+          const name = subArgs.find((arg) => !arg.startsWith('--'));
+          const templateArg = subArgs.find((arg) =>
+            arg.startsWith('--template='),
+          );
+          const template = templateArg?.split('=')[1] as
+            | PluginTemplate
+            | undefined;
+          createPlugin(name, { template });
+          break;
+        }
+        case 'build':
+          await build();
+          break;
+        case 'dev': {
+          const flags: DevFlags = {};
+          let devPort = 4200;
+          for (const arg of subArgs) {
+            if (arg === '--no-mcp') flags.mcp = false;
+            else if (arg === '--mcp') flags.mcp = true;
+            else if (arg.startsWith('--tools-dir='))
+              flags.toolsDir = arg.split('=')[1];
+            else if (/^\d+$/.test(arg)) devPort = parseInt(arg, 10);
+          }
+          await startDevServer(devPort, flags);
+          break;
+        }
+        default:
+          console.log(usageText());
       }
-      const skipArg = args.find((a) => a.startsWith('--skip='));
-      const skipList = skipArg ? skipArg.replace('--skip=', '').split(',') : [];
-      const source = args.find((a) => !a.startsWith('--'));
-      await install(source!, skipList);
       break;
     }
-    case 'preview':
-      preview(args[0]);
-      break;
-    case 'list':
-      list();
-      break;
-    case 'remove':
-      remove(args[0]);
-      break;
-    case 'info':
-      info(args[0]);
-      break;
-    case 'update':
-      update(args[0]);
-      break;
-    case 'registry':
-      if (['agents', 'skills', 'integrations', 'plugins'].includes(args[0])) {
-        await runRegistryCatalogCommand(args);
-        break;
-      }
-      if (args[0] === 'install') {
-        const registryId = args[1];
-        const source = await resolveRegistryPluginSource(registryId);
-        const installed = await install(source, []);
-        recordRegistryInstall(registryId, installed.pluginName);
-        break;
-      }
-      registry(args[0]);
-      break;
-    case 'init':
-      init(args[0]);
-      break;
-    case 'create-plugin': {
-      const name = args.find((arg) => !arg.startsWith('--'));
-      const templateArg = args.find((arg) => arg.startsWith('--template='));
-      const template = templateArg?.split('=')[1] as PluginTemplate | undefined;
-      createPlugin(name, { template });
-      break;
-    }
-    case 'build':
-      await build();
-      break;
     case 'start': {
       const lifecycleArgs = parseLifecycleArgs(args);
       if (args.includes('--clean')) {
@@ -383,19 +393,6 @@ export async function runCli(argv: string[]): Promise<void> {
     case 'import':
       importConfig(args[0]);
       break;
-    case 'dev': {
-      const flags: DevFlags = {};
-      let devPort = 4200;
-      for (const arg of args) {
-        if (arg === '--no-mcp') flags.mcp = false;
-        else if (arg === '--mcp') flags.mcp = true;
-        else if (arg.startsWith('--tools-dir='))
-          flags.toolsDir = arg.split('=')[1];
-        else if (/^\d+$/.test(arg)) devPort = parseInt(arg, 10);
-      }
-      await startDevServer(devPort, flags);
-      break;
-    }
     case 'agents':
     case 'sessions':
     case 'projects':
@@ -404,6 +401,20 @@ export async function runCli(argv: string[]): Promise<void> {
     case 'prompts':
     case 'chat':
       await runCoreCommand(command, args);
+      break;
+    case 'registry':
+      if (['agents', 'skills', 'integrations', 'plugins'].includes(args[0])) {
+        await runRegistryCatalogCommand(args);
+        break;
+      }
+      if (args[0] === 'install') {
+        const registryId = args[1];
+        const source = await resolveRegistryPluginSource(registryId);
+        const installed = await install(source, []);
+        recordRegistryInstall(registryId, installed.pluginName);
+        break;
+      }
+      registry(args[0]);
       break;
     case 'connections':
     case 'tools':

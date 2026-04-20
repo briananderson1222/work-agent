@@ -130,19 +130,19 @@ From the CLI:
 
 ```bash
 # Preview what a plugin contains before installing
-./stallion preview git@github.com:org/my-plugin.git
+./stallion plugin preview git@github.com:org/my-plugin.git
 
 # Install (resolves dependencies automatically)
-./stallion install git@github.com:org/my-plugin.git
+./stallion plugin install git@github.com:org/my-plugin.git
 
 # Skip specific components
-./stallion install git@github.com:org/my-plugin.git --skip=layout:my-layout
+./stallion plugin install git@github.com:org/my-plugin.git --skip=layout:my-layout
 
 # List installed plugins
-./stallion list
+./stallion plugin list
 
 # Remove a plugin
-./stallion remove my-plugin
+./stallion plugin remove my-plugin
 ```
 
 ### Plugin Dependencies
@@ -202,9 +202,9 @@ Plugins ship pre-built IIFE bundles. The core loads them at runtime via `<script
 Use the CLI to scaffold a new plugin:
 
 ```bash
-./stallion create-plugin my-plugin --template=full
+./stallion plugin create my-plugin --template=full
 cd my-plugin
-./stallion build
+./stallion plugin build
 ```
 
 Templates:
@@ -379,14 +379,14 @@ See [CLI](docs/reference/cli.md) for the full command reference.
 Plugin management:
 
 ```bash
-./stallion install <git-url|path>   # Install a plugin
-./stallion preview <git-url|path>   # Preview plugin contents before installing
-./stallion list                     # List installed plugins
-./stallion info <name>              # Show plugin details
-./stallion update <name>            # Update a git-installed plugin
-./stallion remove <name>            # Remove a plugin
+./stallion plugin install <git-url|path>   # Install a plugin
+./stallion plugin preview <git-url|path>   # Preview plugin contents before installing
+./stallion plugin list                     # List installed plugins
+./stallion plugin info <name>              # Show plugin details
+./stallion plugin update <name>            # Update a git-installed plugin
+./stallion plugin remove <name>            # Remove a plugin
 ./stallion registry [url]           # Browse or set plugin registry URL
-./stallion dev [port]               # Plugin dev server (default: 4200)
+./stallion plugin dev [port]               # Plugin dev server (default: 4200)
 ```
 
 ## Monitoring

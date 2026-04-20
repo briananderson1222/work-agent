@@ -14,7 +14,7 @@ Audit the codebase against `docs/strategy/differentiators.md` to verify that cla
    - Grep for SDK hook exports: `useAgents`, `useSendToChat`, `callTool`, `searchKnowledge`, etc.
    - Verify `contextRegistry` exists and is functional
    - Check example plugins actually build and work
-   - Verify `stallion dev` hot-reload works
+   - Verify `stallion plugin dev` hot-reload works
 
    For **Tier 1.2 (Self-Configuring Platform)**:
    - Verify `stallion-control` MCP server exists with claimed tools

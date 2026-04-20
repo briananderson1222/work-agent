@@ -428,17 +428,13 @@ stallion shortcut
 
 ### `registry`
 
-Plugin registry behavior remains:
+Unified catalog and plugin registry behavior for the Registry surface:
 
 ```bash
 stallion registry
 stallion registry <url>
 stallion registry install <plugin-id>
-```
 
-Unified catalog behavior for the Registry surface:
-
-```bash
 stallion registry agents list [--api-base=<url>]
 stallion registry agents installed [--api-base=<url>]
 stallion registry agents install <id> [--api-base=<url>]
@@ -460,186 +456,6 @@ stallion registry plugins install <id> [--api-base=<url>]
 stallion registry plugins uninstall <id> [--api-base=<url>]
 ```
 
----
-
-## Configuration
-
-### `config`
-
-Show all current configuration values from `~/.stallion-ai/config.json`.
-
-```
-stallion config
-```
-
-### `config get <key>`
-
-Get a single configuration value.
-
-```
-stallion config get <key>
-```
-
-```bash
-stallion config get registryUrl
-stallion config get defaultModel
-```
-
-### `config set <key> <value>`
-
-Set a configuration value. Use `"null"` to unset a key.
-
-```
-stallion config set <key> <value>
-```
-
-```bash
-stallion config set registryUrl https://registry.example.com/plugins.json
-stallion config set defaultModel us.anthropic.claude-sonnet-4-5-20250929-v1:0
-stallion config set registryUrl null
-```
-
-### `export --format=<format>`
-
-Export Stallion configuration into an external portability format.
-
-```
-stallion export --format=<agents-md|claude-desktop> [--output=<path>]
-```
-
-Supported formats:
-
-| Format | Output |
-|--------|--------|
-| `agents-md` | Stallion-owned `AGENTS.md` export with structured machine block and loss report |
-| `claude-desktop` | `claude_desktop_config.json`-style MCP configuration |
-
-```bash
-stallion export --format=agents-md --output=./AGENTS.md
-stallion export --format=claude-desktop --output=./claude_desktop_config.json
-```
-
-### `import <file>`
-
-Import a supported portability file back into Stallion’s canonical config.
-
-```
-stallion import <file>
-```
-
-Current supported inputs:
-
-| Input | Behavior |
-|-------|----------|
-| `AGENTS.md` | Restores structured Stallion-owned sections, preserves unmatched prose as notes, records import ledger metadata |
-| `claude_desktop_config.json` | Imports MCP server definitions into Stallion integrations |
-
-```bash
-stallion import ./AGENTS.md
-stallion import ./claude_desktop_config.json
-```
-
----
-
-## Plugin Management
-
-### `install <source>`
-
-Install a plugin from a git URL or local path. Clones/copies the plugin to `~/.stallion-ai/plugins/<name>`, installs npm dependencies, builds the plugin bundle, registers agents and layouts, and copies tool configs.
-
-Dependencies declared in `plugin.json` are resolved and installed automatically.
-
-```
-stallion install <source> [--skip=<components>] [--clean]
-```
-
-| Argument/Flag | Description |
-|---------------|-------------|
-| `<source>` | Git URL (https or ssh) or local path. Append `#<branch>` to target a specific branch. |
-| `--skip=<components>` | Comma-separated list of components to skip, e.g. `agent:myplugin:chat,layout:main` |
-| `--clean` | Wipe `~/.stallion-ai` before installing |
-
-```bash
-stallion install https://github.com/org/my-plugin.git
-stallion install https://github.com/org/my-plugin.git#develop
-stallion install git@github.com:org/my-plugin.git
-stallion install ./path/to/local-plugin
-stallion install https://github.com/org/plugin.git --skip=agent:plugin:chat
-stallion install https://github.com/org/plugin.git --clean
-```
-
-### `preview <source>`
-
-Validate a plugin and display its contents without installing it. Shows components, permissions, dependencies, and any conflicts with already-installed plugins.
-
-```
-stallion preview <source>
-```
-
-```bash
-stallion preview https://github.com/org/my-plugin.git
-stallion preview ./path/to/local-plugin
-```
-
-Output includes suggested `--skip` flags if conflicts are detected.
-
-### `list`
-
-List all installed plugins with their agents, layouts, providers, and dependencies.
-
-```
-stallion list
-```
-
-```bash
-stallion list
-```
-
-### `remove <name>`
-
-Remove an installed plugin by its manifest name. Also removes its registered agents and layout.
-
-```
-stallion remove <name>
-```
-
-```bash
-stallion remove my-plugin
-```
-
-### `info <name>`
-
-Show details for an installed plugin: version, agents, and layout.
-
-```
-stallion info <name>
-```
-
-```bash
-stallion info my-plugin
-```
-
-### `update <name>`
-
-Pull the latest changes for a git-installed plugin (`git pull --ff-only`). Fails if the plugin was installed from a local path.
-
-```
-stallion update <name>
-```
-
-```bash
-stallion update my-plugin
-```
-
-### `registry [url]`
-
-Browse available plugins from the configured registry URL, or set the registry URL.
-
-```
-stallion registry [url]
-stallion registry install <id>
-```
-
 Without a URL argument, fetches and displays the registry. The URL is read from `~/.stallion-ai/config.json` (`registryUrl` field).
 
 With a URL argument, saves it to `~/.stallion-ai/config.json` and exits.
@@ -657,29 +473,117 @@ stallion registry install demo-layout
 
 ---
 
-## Plugin Development
+## Plugin
 
-### `init [name]`
+### `plugin install <source>`
+
+Install a plugin from a git URL or local path. Clones/copies the plugin to `~/.stallion-ai/plugins/<name>`, installs npm dependencies, builds the plugin bundle, registers agents and layouts, and copies tool configs.
+
+Dependencies declared in `plugin.json` are resolved and installed automatically.
+
+```
+stallion plugin install <source> [--skip=<components>] [--clean]
+```
+
+| Argument/Flag | Description |
+|---------------|-------------|
+| `<source>` | Git URL (https or ssh) or local path. Append `#<branch>` to target a specific branch. |
+| `--skip=<components>` | Comma-separated list of components to skip, e.g. `agent:myplugin:chat,layout:main` |
+| `--clean` | Wipe `~/.stallion-ai` before installing |
+
+```bash
+stallion plugin install https://github.com/org/my-plugin.git
+stallion plugin install https://github.com/org/my-plugin.git#develop
+stallion plugin install git@github.com:org/my-plugin.git
+stallion plugin install ./path/to/local-plugin
+stallion plugin install https://github.com/org/plugin.git --skip=agent:plugin:chat
+stallion plugin install https://github.com/org/plugin.git --clean
+```
+
+### `plugin preview <source>`
+
+Validate a plugin and display its contents without installing it. Shows components, permissions, dependencies, and any conflicts with already-installed plugins.
+
+```
+stallion plugin preview <source>
+```
+
+```bash
+stallion plugin preview https://github.com/org/my-plugin.git
+stallion plugin preview ./path/to/local-plugin
+```
+
+Output includes suggested `--skip` flags if conflicts are detected.
+
+### `plugin list`
+
+List all installed plugins with their agents, layouts, providers, and dependencies.
+
+```
+stallion plugin list
+```
+
+```bash
+stallion plugin list
+```
+
+### `plugin remove <name>`
+
+Remove an installed plugin by its manifest name. Also removes its registered agents and layout.
+
+```
+stallion plugin remove <name>
+```
+
+```bash
+stallion plugin remove my-plugin
+```
+
+### `plugin info <name>`
+
+Show details for an installed plugin: version, agents, and layout.
+
+```
+stallion plugin info <name>
+```
+
+```bash
+stallion plugin info my-plugin
+```
+
+### `plugin update <name>`
+
+Pull the latest changes for a git-installed plugin (`git pull --ff-only`). Fails if the plugin was installed from a local path.
+
+```
+stallion plugin update <name>
+```
+
+```bash
+stallion plugin update my-plugin
+```
+
+### `plugin init [name]`
 
 Scaffold a new plugin project in the current directory (or a named subdirectory).
 
 ```
-stallion init [name]
+stallion plugin init [name]
 ```
 
 ```bash
-stallion init
-stallion init my-plugin
+stallion plugin init
+stallion plugin init my-plugin
 ```
 
-`init` is the compatibility alias for the `full` template in `create-plugin`.
+`init` scaffolds a new plugin (full template).
 
-### `create-plugin [name]`
+### `plugin create [name]`
 
 Scaffold a new plugin project using a specific template.
 
 ```
-stallion create-plugin [name] [--template=<full|layout|provider>]
+stallion plugin create [name] [--template=<full|layout|provider>]
 ```
 
 | Template | Description |
@@ -689,29 +593,29 @@ stallion create-plugin [name] [--template=<full|layout|provider>]
 | `provider` | Server-side starter with `serverModule`, provider files, and request hooks |
 
 ```bash
-stallion create-plugin my-plugin --template=full
-stallion create-plugin my-layout --template=layout
-stallion create-plugin my-provider --template=provider
+stallion plugin create my-plugin --template=full
+stallion plugin create my-layout --template=layout
+stallion plugin create my-provider --template=provider
 ```
 
-### `build`
+### `plugin build`
 
 Build the plugin bundle in the current directory. Outputs to `dist/`.
 
 ```
-stallion build
+stallion plugin build
 ```
 
 ```bash
-stallion build
+stallion plugin build
 ```
 
-### `dev [port]`
+### `plugin dev [port]`
 
 Start a local development server for the plugin in the current directory. Builds the plugin in dev mode, watches `src/` for changes and hot-reloads, and connects to MCP tool servers if configured.
 
 ```
-stallion dev [port] [--no-mcp] [--mcp] [--tools-dir=<path>]
+stallion plugin dev [port] [--no-mcp] [--mcp] [--tools-dir=<path>]
 ```
 
 | Argument/Flag | Default | Description |
@@ -729,10 +633,10 @@ The dev server exposes:
 - `GET /api/reload` — SSE endpoint for hot reload
 
 ```bash
-stallion dev
-stallion dev 3333
-stallion dev --no-mcp
-stallion dev 3333 --tools-dir=./my-tools
+stallion plugin dev
+stallion plugin dev 3333
+stallion plugin dev --no-mcp
+stallion plugin dev 3333 --tools-dir=./my-tools
 ```
 
 ---

@@ -30,7 +30,7 @@ Walk through the first-run experience as a new user and identify friction points
 5. **Check plugin discovery:**
    - Can a new user find and install plugins?
    - Is the registry accessible?
-   - What's the experience of `stallion install`?
+   - What's the experience of `stallion plugin install`?
 
 6. **Report friction points:**
    ```

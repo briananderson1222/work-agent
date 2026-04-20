@@ -20,12 +20,12 @@ These are the capabilities that no competitor replicates. They define Stallion's
 - `voiceRegistry` lets plugins register S2S providers
 - Plugin manifest supports layouts, agents, providers, integrations, tools, knowledge namespaces, prompts, skills, settings
 - 8 example plugins demonstrating the pattern (demo-layout, enterprise-layout, minimal-layout, shared-providers, etc.)
-- Plugin build system handles externalization, hot-reload via `stallion dev`
+- Plugin build system handles externalization, hot-reload via `stallion plugin dev`
 
 **What's aspirational:**
 - A thriving ecosystem of community-created layouts
 - One-click install from a browsable registry
-- `stallion create-plugin` scaffolding that gets a new layout running in under 5 minutes
+- `stallion plugin create` scaffolding that gets a new layout running in under 5 minutes
 
 **What competitors do:**
 - Cursor/Windsurf: Fixed UI, no plugin layouts

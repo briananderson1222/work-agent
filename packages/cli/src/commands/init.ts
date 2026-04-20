@@ -160,8 +160,8 @@ function buildAgentDefinition(agentName: string) {
 function buildPackageJson(name: string, template: PluginTemplate) {
   const scripts: Record<string, string> = {};
   if (template !== 'provider') {
-    scripts.build = 'stallion build';
-    scripts.dev = 'stallion dev';
+    scripts.build = 'stallion plugin build';
+    scripts.dev = 'stallion plugin dev';
   }
 
   return {
@@ -304,10 +304,10 @@ export default function register(app, { config }) {
 function buildReadme(name: string, template: PluginTemplate): string {
   const createCommand =
     template === 'provider'
-      ? `./stallion create-plugin ${name} --template=provider`
+      ? `./stallion plugin create ${name} --template=provider`
       : template === 'layout'
-        ? `./stallion create-plugin ${name} --template=layout`
-        : `./stallion create-plugin ${name}`;
+        ? `./stallion plugin create ${name} --template=layout`
+        : `./stallion plugin create ${name}`;
 
   const usage =
     template === 'provider'
@@ -336,7 +336,7 @@ ${createCommand}
 
 function buildNextSteps(template: PluginTemplate): string {
   if (template === 'provider') {
-    return '   ./stallion install .\n   curl http://localhost:3141/api/plugins/<your-plugin>/ping\n';
+    return '   ./stallion plugin install .\n   curl http://localhost:3141/api/plugins/<your-plugin>/ping\n';
   }
-  return '   ./stallion build\n   ./stallion dev\n';
+  return '   ./stallion plugin build\n   ./stallion plugin dev\n';
 }

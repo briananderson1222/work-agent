@@ -14,7 +14,7 @@ A minimal layout plugin example for Stallion, demonstrating the plugin architect
 ### Using the CLI
 
 ```bash
-stallion install ./examples/minimal-layout
+stallion plugin install ./examples/minimal-layout
 ```
 
 ### Using the UI
@@ -46,8 +46,8 @@ npm run dev
 
 ```bash
 # Remove and reinstall during development
-stallion remove minimal-layout
-stallion install ./examples/minimal-layout
+stallion plugin remove minimal-layout
+stallion plugin install ./examples/minimal-layout
 npm run dev:ui
 ```
 

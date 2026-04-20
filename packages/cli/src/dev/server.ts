@@ -27,7 +27,7 @@ export async function startDevServer(
 
   const manifest = readManifest();
 
-  // Resolve dependencies (install if missing, same as `stallion install`)
+  // Resolve dependencies (install if missing, same as `stallion plugin install`)
   if (manifest.dependencies?.length) {
     for (const dep of manifest.dependencies) {
       if (existsSync(join(PLUGINS_DIR, dep.id, 'plugin.json'))) continue;

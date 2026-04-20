@@ -1,29 +1,29 @@
 # Build Your First Plugin
 
-This guide walks through the fastest path from zero to a working Stallion plugin using the new `create-plugin` scaffolds.
+This guide walks through the fastest path from zero to a working Stallion plugin using the `stallion plugin create` scaffolds.
 
 ## Choose a Template
 
 Use the template that matches the job:
 
 ```bash
-./stallion create-plugin hello-layout --template=layout
-./stallion create-plugin provider-kit --template=provider
-./stallion create-plugin full-workspace --template=full
+./stallion plugin create hello-layout --template=layout
+./stallion plugin create provider-kit --template=provider
+./stallion plugin create full-workspace --template=full
 ```
 
 - `layout` creates a UI-focused plugin with a layout manifest and entrypoint.
 - `provider` creates a server-side plugin with `plugin.mjs`, a `serverModule`, and a sample provider file.
 - `full` creates the combined starter: layout, agent, build config, and README.
 
-`./stallion init` still works, but it is now just a compatibility alias for the `full` template.
+`./stallion plugin init` still works, but it is now just a compatibility alias for the `full` template.
 
 ## Start With a Layout Plugin
 
 ```bash
-./stallion create-plugin hello-layout --template=layout
+./stallion plugin create hello-layout --template=layout
 cd hello-layout
-./stallion dev 4300
+./stallion plugin dev 4300
 ```
 
 Open `http://localhost:4300` and keep the dev server running. The dev server:
@@ -40,7 +40,7 @@ Edit `src/index.tsx` and `layout.json`, then confirm the preview reloads cleanly
 From the plugin directory:
 
 ```bash
-./stallion install .
+./stallion plugin install .
 ```
 
 If you want to test the registry path too, point Stallion at the bundled local manifest:

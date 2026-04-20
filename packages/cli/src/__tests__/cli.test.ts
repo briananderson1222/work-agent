@@ -150,7 +150,7 @@ describe('runCli', () => {
     }));
 
     const { runCli } = await import('../cli.js');
-    await runCli(['create-plugin', 'provider-kit', '--template=provider']);
+    await runCli(['plugin', 'create', 'provider-kit', '--template=provider']);
 
     expect(createPlugin).toHaveBeenCalledWith('provider-kit', {
       template: 'provider',
@@ -329,6 +329,7 @@ describe('runCli', () => {
     const { runCli: reloadedRunCli } = await import('../cli.js');
 
     await reloadedRunCli([
+      'plugin',
       'install',
       './examples/demo-layout',
       '--clean',
@@ -337,7 +338,7 @@ describe('runCli', () => {
     ]);
 
     expect(lifecycle.clean).toHaveBeenCalledWith({
-      actionLabel: 'install --clean',
+      actionLabel: 'plugin install --clean',
       allowDefaultHomeClean: true,
       force: true,
       homeSource: 'default',

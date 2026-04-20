@@ -260,7 +260,7 @@ Never hardcode ACP connection prefixes (e.g., `startsWith('kiro-')`). Use `agent
 ### Plugin Workflow
 
 ```bash
-stallion remove my-layout
-stallion install ./examples/my-layout
+stallion plugin remove my-layout
+stallion plugin install ./examples/my-layout
 npm run dev:ui
 ```

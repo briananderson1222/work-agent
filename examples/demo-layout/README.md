@@ -17,7 +17,7 @@ A starter workspace plugin that demonstrates the current layout-plugin contract 
 ## Install
 
 ```bash
-./stallion install ./examples/demo-layout
+./stallion plugin install ./examples/demo-layout
 ```
 
 Or add the local registry manifest first and install from the registry:
