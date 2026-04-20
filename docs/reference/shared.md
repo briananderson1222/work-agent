@@ -197,7 +197,11 @@ interface ToolDef {
   endpoint?: string;
   env?: Record<string, string>;
   builtinPolicy?: {
-    name: 'fs_read' | 'fs_write' | 'shell_exec';
+    name:
+      | 'stallion_bash'
+      | 'stallion_file_editor'
+      | 'stallion_http_request'
+      | 'stallion_notebook';
     allowedPaths?: string[];
     timeout?: number;
   };

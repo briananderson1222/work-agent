@@ -260,6 +260,24 @@ export async function runCli(argv: string[]): Promise<void> {
         case 'update':
           update(subArgs[0]);
           break;
+        case 'registry':
+          if (
+            ['agents', 'skills', 'integrations', 'plugins'].includes(
+              subArgs[0],
+            )
+          ) {
+            await runRegistryCatalogCommand(subArgs);
+            break;
+          }
+          if (subArgs[0] === 'install') {
+            const registryId = subArgs[1];
+            const source = await resolveRegistryPluginSource(registryId);
+            const installed = await install(source, []);
+            recordRegistryInstall(registryId, installed.pluginName);
+            break;
+          }
+          registry(subArgs[0]);
+          break;
         case 'init':
           init(subArgs[0]);
           break;
