@@ -56,6 +56,21 @@ describe('createStrandsFunctionTools', () => {
     expect(execute).not.toHaveBeenCalled();
     expect(deniedToolUseIds.has('tool-1')).toBe(false);
   });
+
+  test('passes tool context through to the underlying tool implementation', async () => {
+    const execute = vi.fn().mockResolvedValue('ok');
+    const [tool] = createStrandsFunctionTools(
+      [
+        { name: 'read_file', description: 'Read', parameters: {}, execute },
+      ] as any,
+      new Set(),
+    ) as any[];
+    const toolContext = { toolUse: { toolUseId: 'tool-2' }, extra: true };
+
+    await tool.callback({}, toolContext);
+
+    expect(execute).toHaveBeenCalledWith({}, toolContext);
+  });
 });
 
 describe('destroyStrandsAgentTools', () => {

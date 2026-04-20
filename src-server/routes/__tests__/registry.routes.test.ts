@@ -5,6 +5,14 @@ vi.mock('../../telemetry/metrics.js', () => ({
 }));
 
 vi.mock('../../providers/registry.js', () => {
+  const integrationProvider = {
+    listAvailable: vi.fn().mockResolvedValue([]),
+    listInstalled: vi.fn().mockResolvedValue([]),
+    install: vi.fn().mockResolvedValue({ success: true }),
+    uninstall: vi.fn().mockResolvedValue({ success: true }),
+    getToolDef: vi.fn().mockResolvedValue(null),
+    sync: vi.fn().mockResolvedValue(undefined),
+  };
   const skillProvider = {
     listAvailable: vi
       .fn()
@@ -23,14 +31,10 @@ vi.mock('../../providers/registry.js', () => {
       install: vi.fn().mockResolvedValue({ success: true }),
       uninstall: vi.fn().mockResolvedValue({ success: true }),
     }),
-    getIntegrationRegistryProvider: vi.fn().mockReturnValue({
-      listAvailable: vi.fn().mockResolvedValue([]),
-      listInstalled: vi.fn().mockResolvedValue([]),
-      install: vi.fn().mockResolvedValue({ success: true }),
-      uninstall: vi.fn().mockResolvedValue({ success: true }),
-      getToolDef: vi.fn().mockResolvedValue(null),
-      sync: vi.fn().mockResolvedValue(undefined),
-    }),
+    getIntegrationRegistryProvider: vi
+      .fn()
+      .mockReturnValue(integrationProvider),
+    __integrationProvider: integrationProvider,
   };
 });
 
@@ -68,6 +72,7 @@ vi.mock('../../services/skill-service.js', () => ({
 }));
 
 const { createRegistryRoutes } = await import('../registry.js');
+const { __integrationProvider } = await import('../../providers/registry.js');
 const {
   installPluginFromSource,
   readRegistryPluginAvailability,
@@ -79,6 +84,7 @@ function setup() {
   const configLoader = {
     getProjectHomeDir: vi.fn().mockReturnValue('/tmp'),
     saveIntegration: vi.fn(),
+    deleteIntegration: vi.fn().mockResolvedValue(undefined),
   };
   const refreshACPModes = vi.fn().mockResolvedValue(undefined);
   const reloadSkills = vi.fn().mockResolvedValue(undefined);
@@ -101,6 +107,43 @@ async function json(res: Response) {
 }
 
 describe('Registry Routes', () => {
+  test('POST /integrations/install saves the tool definition when one is provided', async () => {
+    const { app, configLoader } = setup();
+    __integrationProvider.getToolDef.mockResolvedValueOnce({
+      id: 'filesystem',
+      kind: 'mcp',
+      command: 'npx',
+      args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp'],
+    });
+
+    const body = await json(
+      await app.request('/integrations/install', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: 'filesystem' }),
+      }),
+    );
+
+    expect(body.success).toBe(true);
+    expect(configLoader.saveIntegration).toHaveBeenCalledWith(
+      'filesystem',
+      expect.objectContaining({
+        command: 'npx',
+      }),
+    );
+  });
+
+  test('DELETE /integrations/:id removes the saved integration config after uninstall', async () => {
+    const { app, configLoader } = setup();
+
+    const body = await json(
+      await app.request('/integrations/filesystem', { method: 'DELETE' }),
+    );
+
+    expect(body.success).toBe(true);
+    expect(configLoader.deleteIntegration).toHaveBeenCalledWith('filesystem');
+  });
+
   test('GET /plugins returns { success, data } array with installed state', async () => {
     const { app } = setup();
     const body = await json(await app.request('/plugins'));

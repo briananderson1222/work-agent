@@ -2,8 +2,12 @@
  * Default provider implementations — no external dependencies
  */
 
-import { userInfo as osUserInfo } from 'node:os';
+import { homedir, userInfo as osUserInfo } from 'node:os';
 import type { ToolDef } from '@stallion-ai/contracts/tool';
+import {
+  createBuiltinVendedToolDef,
+  listBuiltinVendedRegistryItems,
+} from '../runtime/vended-tool-compat.js';
 import type {
   AuthStatus,
   InstallResult,
@@ -28,6 +32,10 @@ const NO_REGISTRY: InstallResult = {
   success: false,
   message: 'No registry provider configured',
 };
+
+const MCP_FILESYSTEM_ID = 'filesystem';
+const MCP_FILESYSTEM_SOURCE = 'modelcontextprotocol/servers';
+const MCP_FILESYSTEM_PACKAGE = '@modelcontextprotocol/server-filesystem';
 
 export class DefaultAgentRegistryProvider implements IAgentRegistryProvider {
   async listAvailable(): Promise<RegistryItem[]> {
@@ -62,6 +70,93 @@ export class DefaultIntegrationRegistryProvider
   async getToolDef(): Promise<ToolDef | null> {
     return null;
   }
+  async sync(): Promise<void> {}
+}
+
+export class BuiltinIntegrationRegistryProvider
+  implements IIntegrationRegistryProvider
+{
+  async listAvailable(): Promise<RegistryItem[]> {
+    return [
+      {
+        id: MCP_FILESYSTEM_ID,
+        displayName: 'Filesystem (MCP)',
+        description:
+          'Official MCP filesystem server. Installs a stdio tool server rooted at your home directory so users can start immediately and narrow the path later if needed.',
+        version: 'latest',
+        source: MCP_FILESYSTEM_SOURCE,
+        installed: false,
+        tags: ['mcp', 'filesystem'],
+      },
+      ...listBuiltinVendedRegistryItems(),
+    ];
+  }
+
+  async listInstalled(): Promise<RegistryItem[]> {
+    return [];
+  }
+
+  async install(id: string): Promise<InstallResult> {
+    if (id === MCP_FILESYSTEM_ID) {
+      return {
+        success: true,
+        message: 'Filesystem MCP server is available for install',
+      };
+    }
+
+    if (createBuiltinVendedToolDef(id)) {
+      return {
+        success: true,
+        message: `Built-in integration '${id}' is available for install`,
+      };
+    }
+
+    return {
+      success: false,
+      message: `Built-in integration '${id}' not found`,
+    };
+  }
+
+  async uninstall(id: string): Promise<InstallResult> {
+    if (id === MCP_FILESYSTEM_ID || createBuiltinVendedToolDef(id)) {
+      return {
+        success: true,
+        message: `Integration '${id}' removed`,
+      };
+    }
+
+    return {
+      success: false,
+      message: `Built-in integration '${id}' not found`,
+    };
+  }
+
+  async getToolDef(id: string): Promise<ToolDef | null> {
+    if (id !== MCP_FILESYSTEM_ID) {
+      return createBuiltinVendedToolDef(id);
+    }
+
+    const allowedPath = homedir();
+    return {
+      id: MCP_FILESYSTEM_ID,
+      kind: 'mcp',
+      displayName: 'Filesystem',
+      description:
+        'Official MCP filesystem server. Installed by default with access rooted at your home directory.',
+      transport: 'stdio',
+      command: 'npx',
+      args: ['-y', MCP_FILESYSTEM_PACKAGE, allowedPath],
+      permissions: {
+        filesystem: true,
+        allowedPaths: [allowedPath],
+      },
+      timeouts: {
+        startupMs: 15_000,
+        requestMs: 60_000,
+      },
+    };
+  }
+
   async sync(): Promise<void> {}
 }
 

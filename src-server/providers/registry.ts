@@ -5,10 +5,10 @@
 import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import type { ProviderAdapterShape } from './adapter-shape.js';
 import {
+  BuiltinIntegrationRegistryProvider,
   DefaultAgentRegistryProvider,
   DefaultAuthProvider,
   DefaultBrandingProvider,
-  DefaultIntegrationRegistryProvider,
   DefaultSettingsProvider,
   DefaultUserDirectoryProvider,
   DefaultUserIdentityProvider,
@@ -221,10 +221,15 @@ export function registerIntegrationRegistryProvider(
 
 export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {
   const entries = listProviders('integrationRegistry');
-  if (entries.length === 0) return new DefaultIntegrationRegistryProvider();
   const providers = entries.map(
     (entry) => entry.provider as IIntegrationRegistryProvider,
   );
+  if (entries.length === 0) {
+    return createIntegrationRegistryProvider([
+      new BuiltinIntegrationRegistryProvider(),
+    ]);
+  }
+  providers.push(new BuiltinIntegrationRegistryProvider());
   return createIntegrationRegistryProvider(providers);
 }
 

@@ -152,6 +152,9 @@ export function createRegistryRoutes(
     const id = param(c, 'id');
     registryOps.add(1, { operation: 'uninstall-integration', item: id });
     const result = await getIntegrationRegistryProvider().uninstall(id);
+    if (result.success) {
+      await configLoader.deleteIntegration(id).catch(() => {});
+    }
     return c.json(result, result.success ? 200 : 500);
   });
 

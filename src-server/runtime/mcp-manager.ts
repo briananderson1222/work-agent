@@ -16,6 +16,7 @@ import {
   getNormalizedToolName as resolveNormalizedToolName,
   getOriginalToolName as resolveOriginalToolName,
 } from './mcp-tool-names.js';
+import { createBuiltinVendedTool } from './vended-tool-compat.js';
 
 /**
  * Reference counting for MCP connections - tracks which agents use each toolId
@@ -282,9 +283,14 @@ export async function loadAgentTools(
           }),
         );
       } else if (toolDef.kind === 'builtin') {
-        const builtinTool = createBuiltinTool(toolDef, logger);
+        const builtinTool = createBuiltinTool(agentSlug, toolDef, logger);
         if (builtinTool) {
           tools.push(builtinTool);
+          mcpConnectionStatus.set(toolId, { connected: true });
+          integrationMetadata.set(toolId, {
+            type: 'builtin',
+            toolCount: 1,
+          });
         }
       }
     } catch (error) {
@@ -326,13 +332,11 @@ export async function loadAgentTools(
  * Create a built-in tool from definition
  */
 export function createBuiltinTool(
+  agentSlug: string,
   toolDef: ToolDef,
-  logger: any,
+  _logger: any,
 ): Tool<any> | null {
-  // Built-in tools would be implemented here
-  // For now, returning null as they need specific implementations
-  logger.warn('Built-in tools not yet implemented', { tool: toolDef.id });
-  return null;
+  return createBuiltinVendedTool(agentSlug, toolDef) as Tool<any> | null;
 }
 
 /**

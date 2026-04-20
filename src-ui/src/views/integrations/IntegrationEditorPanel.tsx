@@ -45,14 +45,18 @@ export function IntegrationEditorPanel({
   ) => void;
   onUnlock: () => void;
 }) {
+  const isBuiltin = editForm.kind === 'builtin';
+
   return (
     <div className="detail-panel integration-editor-panel">
       <DetailHeader
         title={editForm.displayName || editForm.id || 'New Tool Server'}
         badge={
-          editForm.transport
-            ? { label: editForm.transport, variant: 'muted' as const }
-            : undefined
+          isBuiltin
+            ? { label: 'builtin', variant: 'muted' as const }
+            : editForm.transport
+              ? { label: editForm.transport, variant: 'muted' as const }
+              : undefined
         }
         statusDot={
           !isNew
@@ -95,7 +99,9 @@ export function IntegrationEditorPanel({
         <div className="agent-editor__section-header">
           <h3 className="agent-editor__section-title">Editor Mode</h3>
           <p className="agent-editor__section-desc">
-            Switch between guided fields and raw <code>mcp.json</code> editing.
+            {isBuiltin
+              ? 'Built-in compatibility tools use a shared implementation across both runtimes.'
+              : 'Switch between guided fields and raw mcp.json editing.'}
           </p>
         </div>
         {message && (
@@ -103,23 +109,25 @@ export function IntegrationEditorPanel({
             {message.text}
           </div>
         )}
-        <div className="integration__mode-tabs">
-          <button
-            className={`integration__mode-tab ${viewMode === 'form' ? 'integration__mode-tab--active' : ''}`}
-            onClick={onSwitchToForm}
-          >
-            Form
-          </button>
-          <button
-            className={`integration__mode-tab ${viewMode === 'raw' ? 'integration__mode-tab--active' : ''}`}
-            onClick={onSwitchToRaw}
-          >
-            Raw JSON
-          </button>
-        </div>
+        {!isBuiltin && (
+          <div className="integration__mode-tabs">
+            <button
+              className={`integration__mode-tab ${viewMode === 'form' ? 'integration__mode-tab--active' : ''}`}
+              onClick={onSwitchToForm}
+            >
+              Form
+            </button>
+            <button
+              className={`integration__mode-tab ${viewMode === 'raw' ? 'integration__mode-tab--active' : ''}`}
+              onClick={onSwitchToRaw}
+            >
+              Raw JSON
+            </button>
+          </div>
+        )}
       </div>
 
-      {viewMode === 'raw' ? (
+      {!isBuiltin && viewMode === 'raw' ? (
         <div className="agent-editor__section">
           <div className="agent-editor__section-header">
             <h3 className="agent-editor__section-title">Raw Configuration</h3>
@@ -229,180 +237,207 @@ export function IntegrationEditorPanel({
             </div>
           </div>
 
-          <div className="agent-editor__section">
-            <div className="agent-editor__section-header">
-              <h3 className="agent-editor__section-title">Connection</h3>
-              <p className="agent-editor__section-desc">
-                Choose the transport and provide the fields required to connect.
-              </p>
-            </div>
-            <div className="editor-field">
-              <label className="editor-label" htmlFor="int-transport">
-                Transport
-              </label>
-              <select
-                id="int-transport"
-                className="editor-select"
-                aria-label="Transport"
-                value={editForm.transport || 'stdio'}
-                disabled={locked}
-                onChange={(event) =>
-                  onUpdate((form) => ({
-                    ...form,
-                    transport: event.target.value,
-                  }))
-                }
-              >
-                <option value="stdio">stdio</option>
-                <option value="sse">SSE</option>
-                <option value="streamable-http">Streamable HTTP</option>
-                <option value="process">Process</option>
-                <option value="ws">WebSocket</option>
-                <option value="tcp">TCP</option>
-              </select>
-              <p className="editor-help">
-                Connection fields change based on transport type.
-              </p>
-            </div>
-
-            {(!editForm.transport ||
-              editForm.transport === 'stdio' ||
-              editForm.transport === 'process') && (
-              <>
-                <div className="editor-field">
-                  <label className="editor-label" htmlFor="int-cmd">
-                    Command
-                  </label>
-                  <input
-                    id="int-cmd"
-                    className="editor-input"
-                    value={editForm.command || ''}
-                    onChange={(event) =>
-                      onUpdate((form) => ({
-                        ...form,
-                        command: event.target.value,
-                      }))
-                    }
-                    placeholder="npx, uvx, node, etc."
-                    disabled={locked}
-                  />
-                </div>
-                <div className="editor-field">
-                  <label className="editor-label" htmlFor="int-args">
-                    Arguments
-                  </label>
-                  <input
-                    id="int-args"
-                    className="editor-input"
-                    value={(editForm.args || []).join(' ')}
-                    onChange={(event) =>
-                      onUpdate((form) => ({
-                        ...form,
-                        args: event.target.value.split(/\s+/).filter(Boolean),
-                      }))
-                    }
-                    placeholder="Space-separated arguments"
-                    disabled={locked}
-                  />
-                </div>
-              </>
-            )}
-
-            {(editForm.transport === 'sse' ||
-              editForm.transport === 'streamable-http' ||
-              editForm.transport === 'ws' ||
-              editForm.transport === 'tcp') && (
+          {isBuiltin ? (
+            <div className="agent-editor__section">
+              <div className="agent-editor__section-header">
+                <h3 className="agent-editor__section-title">Implementation</h3>
+                <p className="agent-editor__section-desc">
+                  This integration is backed by Stallion&apos;s shared Strands
+                  compatibility layer rather than an external MCP transport.
+                </p>
+              </div>
               <div className="editor-field">
-                <label className="editor-label" htmlFor="int-endpoint">
-                  Endpoint URL
-                </label>
+                <label className="editor-label">Tool Type</label>
                 <input
-                  id="int-endpoint"
                   className="editor-input"
-                  value={editForm.endpoint || ''}
-                  onChange={(event) =>
-                    onUpdate((form) => ({
-                      ...form,
-                      endpoint: event.target.value,
-                    }))
-                  }
-                  placeholder="http://localhost:3001/mcp"
-                  disabled={locked}
+                  value="Built-in compatibility tool"
+                  disabled
                 />
               </div>
-            )}
-          </div>
-
-          <div className="agent-editor__section">
-            <div className="agent-editor__section-header">
-              <h3 className="agent-editor__section-title">
-                Environment Variables
-              </h3>
-              <p className="agent-editor__section-desc">
-                Define secrets and runtime configuration passed to the server
-                process.
-              </p>
             </div>
-            {Object.entries(editForm.env || {}).map(([key, value], index) => (
-              <div key={index} className="editor-kv-row">
-                <input
-                  className="editor-input editor-input--half"
-                  value={key}
-                  placeholder="KEY"
-                  disabled={locked}
-                  onChange={(event) => {
-                    const entries = Object.entries(editForm.env || {});
-                    entries[index] = [event.target.value, value];
-                    onUpdate((form) => ({
-                      ...form,
-                      env: Object.fromEntries(entries),
-                    }));
-                  }}
-                />
-                <input
-                  className="editor-input editor-input--half"
-                  value={value}
-                  placeholder="value"
-                  disabled={locked}
-                  onChange={(event) =>
-                    onUpdate((form) => ({
-                      ...form,
-                      env: {
-                        ...(form.env || {}),
-                        [key]: event.target.value,
-                      },
-                    }))
-                  }
-                />
+          ) : (
+            <>
+              <div className="agent-editor__section">
+                <div className="agent-editor__section-header">
+                  <h3 className="agent-editor__section-title">Connection</h3>
+                  <p className="agent-editor__section-desc">
+                    Choose the transport and provide the fields required to
+                    connect.
+                  </p>
+                </div>
+                <div className="editor-field">
+                  <label className="editor-label" htmlFor="int-transport">
+                    Transport
+                  </label>
+                  <select
+                    id="int-transport"
+                    className="editor-select"
+                    aria-label="Transport"
+                    value={editForm.transport || 'stdio'}
+                    disabled={locked}
+                    onChange={(event) =>
+                      onUpdate((form) => ({
+                        ...form,
+                        transport: event.target.value,
+                      }))
+                    }
+                  >
+                    <option value="stdio">stdio</option>
+                    <option value="sse">SSE</option>
+                    <option value="streamable-http">Streamable HTTP</option>
+                    <option value="process">Process</option>
+                    <option value="ws">WebSocket</option>
+                    <option value="tcp">TCP</option>
+                  </select>
+                  <p className="editor-help">
+                    Connection fields change based on transport type.
+                  </p>
+                </div>
+
+                {(!editForm.transport ||
+                  editForm.transport === 'stdio' ||
+                  editForm.transport === 'process') && (
+                  <>
+                    <div className="editor-field">
+                      <label className="editor-label" htmlFor="int-cmd">
+                        Command
+                      </label>
+                      <input
+                        id="int-cmd"
+                        className="editor-input"
+                        value={editForm.command || ''}
+                        onChange={(event) =>
+                          onUpdate((form) => ({
+                            ...form,
+                            command: event.target.value,
+                          }))
+                        }
+                        placeholder="npx, uvx, node, etc."
+                        disabled={locked}
+                      />
+                    </div>
+                    <div className="editor-field">
+                      <label className="editor-label" htmlFor="int-args">
+                        Arguments
+                      </label>
+                      <input
+                        id="int-args"
+                        className="editor-input"
+                        value={(editForm.args || []).join(' ')}
+                        onChange={(event) =>
+                          onUpdate((form) => ({
+                            ...form,
+                            args: event.target.value
+                              .split(/\s+/)
+                              .filter(Boolean),
+                          }))
+                        }
+                        placeholder="Space-separated arguments"
+                        disabled={locked}
+                      />
+                    </div>
+                  </>
+                )}
+
+                {(editForm.transport === 'sse' ||
+                  editForm.transport === 'streamable-http' ||
+                  editForm.transport === 'ws' ||
+                  editForm.transport === 'tcp') && (
+                  <div className="editor-field">
+                    <label className="editor-label" htmlFor="int-endpoint">
+                      Endpoint URL
+                    </label>
+                    <input
+                      id="int-endpoint"
+                      className="editor-input"
+                      value={editForm.endpoint || ''}
+                      onChange={(event) =>
+                        onUpdate((form) => ({
+                          ...form,
+                          endpoint: event.target.value,
+                        }))
+                      }
+                      placeholder="http://localhost:3001/mcp"
+                      disabled={locked}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="agent-editor__section">
+                <div className="agent-editor__section-header">
+                  <h3 className="agent-editor__section-title">
+                    Environment Variables
+                  </h3>
+                  <p className="agent-editor__section-desc">
+                    Define secrets and runtime configuration passed to the
+                    server process.
+                  </p>
+                </div>
+                {Object.entries(editForm.env || {}).map(
+                  ([key, value], index) => (
+                    <div key={index} className="editor-kv-row">
+                      <input
+                        className="editor-input editor-input--half"
+                        value={key}
+                        placeholder="KEY"
+                        disabled={locked}
+                        onChange={(event) => {
+                          const entries = Object.entries(editForm.env || {});
+                          entries[index] = [event.target.value, value];
+                          onUpdate((form) => ({
+                            ...form,
+                            env: Object.fromEntries(entries),
+                          }));
+                        }}
+                      />
+                      <input
+                        className="editor-input editor-input--half"
+                        value={value}
+                        placeholder="value"
+                        disabled={locked}
+                        onChange={(event) =>
+                          onUpdate((form) => ({
+                            ...form,
+                            env: {
+                              ...(form.env || {}),
+                              [key]: event.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <button
+                        type="button"
+                        className="editor-btn--icon"
+                        disabled={locked}
+                        onClick={() =>
+                          onUpdate((form) => {
+                            const { [key]: _, ...rest } = form.env || {};
+                            return { ...form, env: rest };
+                          })
+                        }
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ),
+                )}
                 <button
                   type="button"
-                  className="editor-btn--icon"
+                  className="editor-btn--ghost"
                   disabled={locked}
                   onClick={() =>
-                    onUpdate((form) => {
-                      const { [key]: _, ...rest } = form.env || {};
-                      return { ...form, env: rest };
-                    })
+                    onUpdate((form) => ({
+                      ...form,
+                      env: { ...(form.env || {}), '': '' },
+                    }))
                   }
                 >
-                  ×
+                  + Add Variable
                 </button>
               </div>
-            ))}
-            <button
-              type="button"
-              className="editor-btn--ghost"
-              disabled={locked}
-              onClick={() =>
-                onUpdate((form) => ({
-                  ...form,
-                  env: { ...(form.env || {}), '': '' },
-                }))
-              }
-            >
-              + Add Variable
-            </button>
-          </div>
+            </>
+          )}
         </>
       )}
     </div>

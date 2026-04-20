@@ -6,6 +6,7 @@ import {
   parseToolName,
 } from '../utils/tool-name-normalizer.js';
 import type { ITool } from './types.js';
+import { createBuiltinVendedTool } from './vended-tool-compat.js';
 import type { CreateAgentOptions } from './voltagent-adapter.js';
 
 export interface StrandsToolLoaderState {
@@ -39,7 +40,7 @@ export function createStrandsFunctionTools(
             deniedToolUseIds.delete(toolUseId);
             return `Tool '${tool.name}' was denied by the user.`;
           }
-          return tool.execute(input);
+          return tool.execute(input, toolContext);
         },
       }),
   );
@@ -83,6 +84,19 @@ export async function loadStrandsTools(options: {
   for (const toolId of spec.tools.mcpServers) {
     try {
       const toolDef = await opts.configLoader.loadIntegration(toolId);
+
+      if (toolDef.kind === 'builtin') {
+        const builtinTool = createBuiltinVendedTool(slug, toolDef);
+        if (builtinTool) {
+          allTools.push(builtinTool);
+          opts.mcpConnectionStatus.set(toolId, { connected: true });
+          opts.integrationMetadata.set(toolId, {
+            type: 'builtin',
+            toolCount: 1,
+          });
+        }
+        continue;
+      }
 
       if (toolDef.kind !== 'mcp') {
         continue;
