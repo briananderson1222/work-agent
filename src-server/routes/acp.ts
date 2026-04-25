@@ -1,9 +1,79 @@
-import { ACPStatus } from '@stallion-ai/contracts/acp';
+import {
+  type ACPConnectionConfig,
+  type ACPConnectionRegistryEntry,
+  ACPStatus,
+} from '@stallion-ai/contracts/acp';
 import { Hono } from 'hono';
 import { listProviders } from '../providers/registry.js';
 import type { RuntimeContext } from '../runtime/types.js';
 import { acpOps } from '../telemetry/metrics.js';
 import { acpConnectionSchema, getBody, param, validate } from './schemas.js';
+
+function getProviderConnections(): ACPConnectionConfig[] {
+  return listProviders('acpConnections').flatMap((entry: any) =>
+    (entry.provider.getConnections?.() || []).map((conn: any) => ({
+      ...conn,
+      source: 'plugin' as const,
+    })),
+  );
+}
+
+function mergeACPConnections(
+  configConnections: ACPConnectionConfig[],
+  providerConnections: ACPConnectionConfig[],
+): ACPConnectionConfig[] {
+  const configIds = new Set(
+    configConnections.map((connection) => connection.id),
+  );
+  return [
+    ...configConnections,
+    ...providerConnections.filter(
+      (connection) => !configIds.has(connection.id),
+    ),
+  ];
+}
+
+function getRegistryEntries(
+  installedConnections: ACPConnectionConfig[],
+): ACPConnectionRegistryEntry[] {
+  const installedSources = new Map<string, 'user' | 'plugin'>();
+  for (const connection of installedConnections) {
+    if (!installedSources.has(connection.id)) {
+      installedSources.set(
+        connection.id,
+        connection.source === 'plugin' ? 'plugin' : 'user',
+      );
+    }
+  }
+
+  const entriesById = new Map<string, ACPConnectionRegistryEntry>();
+  for (const entry of listProviders('acpConnectionRegistry')) {
+    const source = entry.builtin ? 'core' : 'plugin';
+    const available = entry.provider.listAvailable?.() || [];
+    for (const registryEntry of available) {
+      entriesById.set(registryEntry.id, {
+        ...registryEntry,
+        source,
+        sourceName: registryEntry.sourceName ?? entry.source,
+        installed: installedSources.has(registryEntry.id),
+        installedSource: installedSources.get(registryEntry.id),
+      });
+    }
+  }
+  return Array.from(entriesById.values()).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+}
+
+function findRegistryEntry(
+  id: string,
+  installedConnections: ACPConnectionConfig[],
+): ACPConnectionRegistryEntry | null {
+  return (
+    getRegistryEntries(installedConnections).find((entry) => entry.id === id) ??
+    null
+  );
+}
 
 export function createACPRoutes(ctx: RuntimeContext) {
   const app = new Hono();
@@ -29,17 +99,11 @@ export function createACPRoutes(ctx: RuntimeContext) {
 
   app.get('/connections', async (c) => {
     const config = await ctx.configLoader.loadACPConfig();
-    const providerConns = listProviders('acpConnections').flatMap((e: any) =>
-      (e.provider.getConnections?.() || []).map((conn: any) => ({
-        ...conn,
-        source: 'plugin' as const,
-      })),
+    const providerConns = getProviderConnections();
+    const allConnections = mergeACPConnections(
+      config.connections,
+      providerConns,
     );
-    const configIds = new Set(config.connections.map((c) => c.id));
-    const allConnections = [
-      ...config.connections,
-      ...providerConns.filter((c: any) => !configIds.has(c.id)),
-    ];
     const status = ctx.acpBridge.getStatus();
     const connections = allConnections.map((cfg) => ({
       ...cfg,
@@ -51,6 +115,56 @@ export function createACPRoutes(ctx: RuntimeContext) {
       }),
     }));
     return c.json({ success: true, data: connections });
+  });
+
+  app.get('/registry', async (c) => {
+    const config = await ctx.configLoader.loadACPConfig();
+    const entries = getRegistryEntries(
+      mergeACPConnections(config.connections, getProviderConnections()),
+    );
+    return c.json({ success: true, data: entries });
+  });
+
+  app.post('/registry/:id/install', async (c) => {
+    const id = param(c, 'id');
+    const config = await ctx.configLoader.loadACPConfig();
+    const providerConns = getProviderConnections();
+    if (
+      config.connections.some((conn) => conn.id === id) ||
+      providerConns.some((conn) => conn.id === id)
+    ) {
+      return c.json(
+        { success: false, error: `Connection '${id}' already exists` },
+        409,
+      );
+    }
+
+    const entry = findRegistryEntry(id, [
+      ...config.connections,
+      ...providerConns,
+    ]);
+    if (!entry) {
+      return c.json(
+        { success: false, error: `ACP registry entry '${id}' not found` },
+        404,
+      );
+    }
+
+    const newConn = {
+      id: entry.id,
+      name: entry.name,
+      command: entry.command,
+      args: entry.args || [],
+      icon: entry.icon || '🔌',
+      cwd: entry.cwd,
+      enabled: true,
+      interactive: entry.interactive,
+    };
+    config.connections.push(newConn);
+    await ctx.configLoader.saveACPConfig(config);
+    await ctx.acpBridge.addConnection(newConn);
+    acpOps.add(1, { op: 'create' });
+    return c.json({ success: true, data: newConn });
   });
 
   app.post('/connections', validate(acpConnectionSchema), async (c) => {

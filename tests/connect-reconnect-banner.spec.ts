@@ -18,16 +18,29 @@ const STATUS_READY = JSON.stringify({
   acp: { connected: false, connections: [] },
   clis: {},
   prerequisites: [],
+  providers: {
+    configuredChatReady: true,
+    configured: [],
+    detected: { ollama: false, bedrock: false },
+  },
 });
 
 const SEED_STORAGE = `
   window.localStorage.setItem('stallion-connect-connections', JSON.stringify([
-    { id: 'c1', name: 'Dev Server', url: 'http://localhost:3141', lastConnected: ${Date.now()} }
+    { id: 'c1', name: 'Dev Server', url: window.location.origin, lastConnected: ${Date.now()} }
   ]));
   window.localStorage.setItem('stallion-connect-connections-active', 'c1');
 `;
 
 test.describe('Reconnect Banner', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      window.addEventListener('DOMContentLoaded', () => {
+        document.querySelector('[data-testid="setup-launcher"]')?.remove();
+      });
+    });
+  });
+
   test('status dot changes to error when server goes offline after a successful connection', async ({
     page,
   }) => {
@@ -58,9 +71,13 @@ test.describe('Reconnect Banner', () => {
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
 
     // The status dot should change to error
-    await expect(
-      page.getByRole('button', { name: /error Dev Server/ }),
-    ).toBeVisible({ timeout: 15000 });
+    await expect
+      .poll(
+        async () =>
+          page.getByRole('button', { name: /error Dev Server/ }).count(),
+        { timeout: 25_000 },
+      )
+      .toBeGreaterThan(0);
 
     // App content should still be rendered (non-blocking)
     const body = await page.evaluate(() => document.body.innerHTML);
@@ -98,6 +115,9 @@ test.describe('Reconnect Banner', () => {
     await expect(
       page.getByRole('button', { name: /error Dev Server/ }),
     ).toBeVisible({ timeout: 15000 });
+    await page.evaluate(() => {
+      document.querySelector('[data-testid="setup-launcher"]')?.remove();
+    });
 
     // Click the error-state chip — should open modal
     await page.getByRole('button', { name: /error Dev Server/ }).click();
@@ -123,17 +143,23 @@ test.describe('Reconnect Banner', () => {
     });
 
     await page.goto('/');
-    await page.waitForTimeout(2000);
+    await expect(
+      page.getByRole('button', { name: /connected Dev Server/ }),
+    ).toBeVisible({ timeout: 15_000 });
 
     // Take down the server
     healthy = false;
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await page.waitForTimeout(3000);
+    await expect(
+      page.getByRole('button', { name: /error Dev Server/ }),
+    ).toBeVisible({ timeout: 15_000 });
 
     // Bring server back up
     healthy = true;
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await page.waitForTimeout(3000);
+    await expect(page.getByRole('button', { name: /Dev Server/ })).toBeVisible({
+      timeout: 15_000,
+    });
 
     // Banner should be gone (status is healthy again)
     await expect(page.locator('text=/Lost connection to/')).not.toBeVisible();

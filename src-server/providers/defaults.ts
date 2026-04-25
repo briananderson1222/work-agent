@@ -3,6 +3,7 @@
  */
 
 import { homedir, userInfo as osUserInfo } from 'node:os';
+import type { ACPConnectionRegistryEntry } from '@stallion-ai/contracts/acp';
 import type { ToolDef } from '@stallion-ai/contracts/tool';
 import {
   createBuiltinVendedToolDef,
@@ -17,6 +18,7 @@ import type {
   UserIdentity,
 } from './provider-contracts.js';
 import type {
+  IACPConnectionRegistryProvider,
   IAgentRegistryProvider,
   IAuthProvider,
   IBrandingProvider,
@@ -36,6 +38,15 @@ const NO_REGISTRY: InstallResult = {
 const MCP_FILESYSTEM_ID = 'filesystem';
 const MCP_FILESYSTEM_SOURCE = 'modelcontextprotocol/servers';
 const MCP_FILESYSTEM_PACKAGE = '@modelcontextprotocol/server-filesystem';
+const KIRO_ACP_CONNECTION: ACPConnectionRegistryEntry = {
+  id: 'kiro',
+  name: 'Kiro CLI',
+  description: 'Connect Kiro CLI through Agent Client Protocol.',
+  command: 'kiro-cli',
+  args: ['acp'],
+  icon: 'K',
+  tags: ['acp', 'kiro'],
+};
 
 export class DefaultAgentRegistryProvider implements IAgentRegistryProvider {
   async listAvailable(): Promise<RegistryItem[]> {
@@ -158,6 +169,17 @@ export class BuiltinIntegrationRegistryProvider
   }
 
   async sync(): Promise<void> {}
+}
+
+export class BuiltinACPConnectionRegistryProvider
+  implements IACPConnectionRegistryProvider
+{
+  readonly id = 'builtin-acp-connections';
+  readonly displayName = 'Built-in ACP Connections';
+
+  listAvailable(): ACPConnectionRegistryEntry[] {
+    return [{ ...KIRO_ACP_CONNECTION }];
+  }
 }
 
 // ── Auth / Identity / Directory Defaults ───────────────

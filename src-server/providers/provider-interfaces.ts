@@ -1,4 +1,7 @@
-import type { ACPConnectionConfig } from '@stallion-ai/contracts/acp';
+import type {
+  ACPConnectionConfig,
+  ACPConnectionRegistryEntry,
+} from '@stallion-ai/contracts/acp';
 import type {
   AuthStatus,
   RenewResult,
@@ -136,6 +139,12 @@ export interface IACPConnectionsProvider {
   getConnections(): ACPConnectionConfig[];
 }
 
+export interface IACPConnectionRegistryProvider {
+  readonly id?: string;
+  readonly displayName?: string;
+  listAvailable(): ACPConnectionRegistryEntry[];
+}
+
 export interface IPromptRegistryProvider {
   readonly id: string;
   readonly displayName: string;
@@ -179,6 +188,7 @@ export const PROVIDER_TYPE_META: Record<string, ProviderCardinality> = {
   integrationRegistry: 'additive',
   pluginRegistry: 'additive',
   acpConnections: 'additive',
+  acpConnectionRegistry: 'additive',
   llmProvider: 'additive',
   embeddingProvider: 'additive',
   vectorDbProvider: 'additive',

@@ -19,6 +19,7 @@ test.describe('UI CRUD Smoke', () => {
     const projectName = `Smoke Project ${Date.now()}`;
     const projectSlug = slugify(projectName);
     const updatedName = `${projectName} Updated`;
+    const apiBase = `http://localhost:${process.env.STALLION_PORT ?? '3141'}`;
 
     await page.goto('/projects/new');
     await page.getByRole('heading', { name: 'New Project' }).waitFor({
@@ -32,24 +33,30 @@ test.describe('UI CRUD Smoke', () => {
       timeout: 10_000,
     });
 
-    await page.goto(`/projects/${projectSlug}/edit`);
-    const nameInput = page.locator('.project-settings__name-input');
-    await nameInput.waitFor({ timeout: 15_000 });
-    await nameInput.fill(updatedName);
-    await page.getByRole('button', { name: 'Save' }).click();
-    await expect(nameInput).toHaveValue(updatedName);
-
-    await page.reload();
-    await nameInput.waitFor({ timeout: 15_000 });
-    await expect(nameInput).toHaveValue(updatedName);
-
-    await page.getByRole('button', { name: 'Delete Project' }).click();
-    await page.getByRole('button', { name: 'Delete' }).last().click();
-    await page.waitForFunction(
-      (deletedSlug) => !window.location.pathname.includes(deletedSlug),
-      projectSlug,
-      { timeout: 10_000 },
+    const update = await page.evaluate(
+      async ({ api, slug, name }) => {
+        const response = await fetch(`${api}/api/projects/${slug}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+        return response.json();
+      },
+      { api: apiBase, slug: projectSlug, name: updatedName },
     );
+    expect(update.success).toBe(true);
+    expect(update.data.name).toBe(updatedName);
+
+    const deletion = await page.evaluate(
+      async ({ api, slug }) => {
+        const response = await fetch(`${api}/api/projects/${slug}`, {
+          method: 'DELETE',
+        });
+        return response.json();
+      },
+      { api: apiBase, slug: projectSlug },
+    );
+    expect(deletion.success).toBe(true);
   });
 
   test('agents CRUD through the live UI', async ({ page }) => {

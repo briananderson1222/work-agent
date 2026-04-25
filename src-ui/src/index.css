@@ -4358,6 +4358,21 @@ button:hover {
   height: 1px;
   background: var(--border-primary);
 }
+.acp-registry-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-primary);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.acp-registry-list .acp-preset-item {
+  min-height: 54px;
+}
+.acp-registry-list .acp-preset-item__name {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
 
 /* ── ACP Custom Connection Modal ── */
 .acp-custom-modal {

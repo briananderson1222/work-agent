@@ -9,6 +9,11 @@ const STATUS_READY = JSON.stringify({
   acp: { connected: false, connections: [] },
   clis: {},
   prerequisites: [],
+  providers: {
+    configuredChatReady: true,
+    configured: [],
+    detected: { ollama: false, bedrock: false },
+  },
 });
 
 const INSTALLED_PLUGINS = [
@@ -33,6 +38,20 @@ const PLUGIN_UPDATES = [
 
 function seedRoutes(page: import('@playwright/test').Page) {
   return Promise.all([
+    page.addInitScript(() => {
+      localStorage.setItem(
+        'stallion-connect-connections',
+        JSON.stringify([
+          {
+            id: 'c1',
+            name: 'Dev Server',
+            url: window.location.origin,
+            lastConnected: Date.now(),
+          },
+        ]),
+      );
+      localStorage.setItem('stallion-connect-connections-active', 'c1');
+    }),
     page.route('**/api/system/status', (r) =>
       r.fulfill({
         status: 200,
@@ -99,6 +118,9 @@ test.describe('Plugin Update Flow', () => {
   test('shows update banner when updates are available', async ({ page }) => {
     await seedRoutes(page);
     await page.goto('/plugins');
+    await page.evaluate(() => {
+      document.querySelector('[data-testid="setup-launcher"]')?.remove();
+    });
     await expect(page.getByText('1 update available')).toBeVisible({
       timeout: 10000,
     });
@@ -123,6 +145,9 @@ test.describe('Plugin Update Flow', () => {
     );
 
     await page.goto('/plugins');
+    await page.evaluate(() => {
+      document.querySelector('[data-testid="setup-launcher"]')?.remove();
+    });
     await expect(page.getByText('1 update available')).toBeVisible({
       timeout: 10000,
     });
@@ -164,6 +189,9 @@ test.describe('Plugin Update Flow', () => {
     );
 
     await page.goto('/plugins');
+    await page.evaluate(() => {
+      document.querySelector('[data-testid="setup-launcher"]')?.remove();
+    });
     await expect(page.getByText('1 update available')).toBeVisible({
       timeout: 10000,
     });

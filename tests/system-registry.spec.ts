@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
 
 const SEED_STORAGE = `
   window.localStorage.setItem('stallion-connect-connections', JSON.stringify([
-    { id: 'c1', name: 'Dev Server', url: 'http://localhost:3141', lastConnected: Date.now() }
+    { id: 'c1', name: 'Dev Server', url: window.location.origin, lastConnected: Date.now() }
   ]));
   window.localStorage.setItem('stallion-connect-connections-active', 'c1');
 `;
@@ -137,6 +137,7 @@ test.describe('System & Registry Routes', () => {
   });
 
   test('registry agents endpoint returns data', async ({ page }) => {
+    await page.goto('/');
     // Verify the mock is working by making a direct API call
     const response = await page.evaluate(async () => {
       const res = await fetch('/api/registry/agents');
@@ -148,6 +149,7 @@ test.describe('System & Registry Routes', () => {
   });
 
   test('registry integrations endpoint returns data', async ({ page }) => {
+    await page.goto('/');
     const response = await page.evaluate(async () => {
       const res = await fetch('/api/registry/integrations');
       return res.json();
@@ -157,6 +159,7 @@ test.describe('System & Registry Routes', () => {
   });
 
   test('system capabilities endpoint returns manifest', async ({ page }) => {
+    await page.goto('/');
     const response = await page.evaluate(async () => {
       const res = await fetch('/api/system/capabilities');
       return res.json();
@@ -166,6 +169,7 @@ test.describe('System & Registry Routes', () => {
   });
 
   test('system discover endpoint returns beacon', async ({ page }) => {
+    await page.goto('/');
     const response = await page.evaluate(async () => {
       const res = await fetch('/api/system/discover');
       return res.json();

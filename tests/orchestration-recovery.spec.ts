@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+  dismissSetupLauncher,
   emitMockOrchestrationEvent,
   installMockOrchestrationEventSource,
   seedActiveChats,
@@ -29,6 +30,24 @@ test.describe('Orchestration Recovery', () => {
         inputHistory: [],
       },
     ]);
+    await seedOrchestrationRoutes(page, {
+      conversations: [
+        {
+          id: 'conv-restore',
+          title: 'Restored Chat',
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z',
+        },
+      ],
+      conversationLookups: {
+        'conv-restore': {
+          id: 'conv-restore',
+          agentSlug: 'dev-agent',
+          projectSlug: 'dev',
+          title: 'Restored Chat',
+        },
+      },
+    });
     await page.route('**/api/orchestration/commands', async (route) => {
       commandBodies.push(route.request().postDataJSON());
       await route.fulfill({
@@ -39,6 +58,7 @@ test.describe('Orchestration Recovery', () => {
     });
 
     await page.goto('/projects/dev/layouts/code?chat=conv-restore');
+    await dismissSetupLauncher(page);
     await page.getByRole('button', { name: 'Expand', exact: true }).click();
     await emitMockOrchestrationEvent(page, 'orchestration:snapshot', {
       sessions: [
@@ -80,6 +100,24 @@ test.describe('Orchestration Recovery', () => {
         inputHistory: [],
       },
     ]);
+    await seedOrchestrationRoutes(page, {
+      conversations: [
+        {
+          id: 'conv-closed',
+          title: 'Closed Chat',
+          createdAt: '2026-01-01T00:00:00Z',
+          updatedAt: '2026-01-01T00:00:00Z',
+        },
+      ],
+      conversationLookups: {
+        'conv-closed': {
+          id: 'conv-closed',
+          agentSlug: 'dev-agent',
+          projectSlug: 'dev',
+          title: 'Closed Chat',
+        },
+      },
+    });
     await page.route('**/api/orchestration/commands', async (route) => {
       commandBodies.push(route.request().postDataJSON());
       await route.fulfill({
@@ -90,6 +128,7 @@ test.describe('Orchestration Recovery', () => {
     });
 
     await page.goto('/projects/dev/layouts/code?chat=conv-closed');
+    await dismissSetupLauncher(page);
     await page.getByRole('button', { name: 'Expand', exact: true }).click();
     await emitMockOrchestrationEvent(page, 'orchestration:snapshot', {
       sessions: [],

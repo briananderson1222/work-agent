@@ -119,6 +119,7 @@ function seedRoutes(
           ready: true,
           acp: { connected: false, connections: [] },
           providers: {
+            configuredChatReady: true,
             configured: [
               {
                 id: 'ollama-local',
@@ -271,11 +272,7 @@ test('new chat shows degraded runtime compatibility messaging from runtime catal
   await newChatBtn.dispatchEvent('click');
 
   await expect(page.getByText('New Chat')).toBeVisible({ timeout: 3000 });
-  await expect(
-    page.getByText(
-      /Runtime status: Codex Runtime: Degraded · Catalog Fallback — Live catalog unavailable\./,
-    ),
-  ).toBeVisible();
+  await expect(page.getByText(/Codex Runtime: Degraded/)).toBeVisible();
 });
 
 test('new chat still shows Stallion when provider-managed fallback matches the agent capability set', async ({

@@ -41,6 +41,24 @@ export interface ACPConnectionInfo {
   }>;
 }
 
+export interface ACPConnectionRegistryEntry {
+  id: string;
+  name: string;
+  command: string;
+  args?: string[];
+  icon?: string;
+  cwd?: string;
+  description?: string;
+  tags?: string[];
+  source?: 'core' | 'plugin';
+  sourceName?: string;
+  installed?: boolean;
+  installedSource?: 'user' | 'plugin';
+  interactive?: {
+    args: string[];
+  };
+}
+
 export interface AcpSlashCommandDescriptor {
   name: string;
   description?: string;
@@ -118,6 +136,22 @@ export async function fetchACPConnections(): Promise<ACPConnectionInfo[]> {
   };
   if (!result.success) {
     throw new Error(result.error || 'Failed to fetch ACP connections');
+  }
+  return result.data ?? [];
+}
+
+export async function fetchACPConnectionRegistry(): Promise<
+  ACPConnectionRegistryEntry[]
+> {
+  const apiBase = await _getApiBase();
+  const response = await fetch(`${apiBase}/acp/registry`);
+  const result = (await response.json()) as {
+    success: boolean;
+    data?: ACPConnectionRegistryEntry[];
+    error?: string;
+  };
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to fetch ACP registry');
   }
   return result.data ?? [];
 }
@@ -228,6 +262,27 @@ export async function reconnectACPConnection(id: string): Promise<boolean> {
   return true;
 }
 
+export async function installACPConnectionRegistryEntry(
+  id: string,
+): Promise<ACPConnectionInfo | undefined> {
+  const apiBase = await _getApiBase();
+  const response = await fetch(
+    `${apiBase}/acp/registry/${encodeURIComponent(id)}/install`,
+    {
+      method: 'POST',
+    },
+  );
+  const result = (await response.json()) as {
+    success: boolean;
+    data?: ACPConnectionInfo;
+    error?: string;
+  };
+  if (!result.success) {
+    throw new Error(result.error || 'Failed to install ACP registry entry');
+  }
+  return result.data;
+}
+
 export function useTemplatesQuery<T = any>(
   type?: string,
   config?: QueryConfig<T[]>,
@@ -281,6 +336,20 @@ export function useACPConnectionsQuery(
   });
 }
 
+export function useACPConnectionRegistryQuery(
+  config?: QueryConfig<ACPConnectionRegistryEntry[]>,
+) {
+  return useApiQuery(
+    ['acp-connection-registry'],
+    () => fetchACPConnectionRegistry(),
+    {
+      staleTime: config?.staleTime ?? 30_000,
+      gcTime: config?.gcTime,
+      enabled: config?.enabled ?? true,
+    },
+  );
+}
+
 export function useCreateACPConnectionMutation(
   options?: MutationOptions<
     ACPConnectionInfo | undefined,
@@ -312,6 +381,28 @@ export function useCreateACPConnectionMutation(
     mutationFn: async (data) => createACPConnection(data),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['acp-connections'] });
+      queryClient.invalidateQueries({
+        queryKey: ['acp-connection-registry'],
+      });
+      options?.onSuccess?.(data, variables);
+    },
+    onError: (error, variables) => {
+      options?.onError?.(error as Error, variables);
+    },
+  });
+}
+
+export function useInstallACPConnectionRegistryEntryMutation(
+  options?: MutationOptions<ACPConnectionInfo | undefined, string>,
+) {
+  const queryClient = useQueryClient();
+  return useMutation<ACPConnectionInfo | undefined, Error, string>({
+    mutationFn: async (id) => installACPConnectionRegistryEntry(id),
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['acp-connections'] });
+      queryClient.invalidateQueries({
+        queryKey: ['acp-connection-registry'],
+      });
       options?.onSuccess?.(data, variables);
     },
     onError: (error, variables) => {
@@ -351,6 +442,9 @@ export function useDeleteACPConnectionMutation(
     mutationFn: async (id: string) => deleteACPConnection(id),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ['acp-connections'] });
+      queryClient.invalidateQueries({
+        queryKey: ['acp-connection-registry'],
+      });
       options?.onSuccess?.(data, variables);
     },
     onError: (error, variables) => {

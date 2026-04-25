@@ -50,15 +50,21 @@ test.describe('Registry plugin install flow', () => {
     await page.waitForSelector('.page__tab', { timeout: 15_000 });
     await page.locator('.page__tab', { hasText: 'Plugins' }).click();
 
-    await expect(page.getByRole('button', { name: 'Install' })).toBeVisible();
-    await page.getByRole('button', { name: 'Install' }).click();
+    const detailInstall = page
+      .getByTestId('registry-detail')
+      .getByRole('button', { name: 'Install' });
+    await expect(detailInstall).toBeVisible();
+    await detailInstall.click();
 
     await expect(page.getByText('Installed Demo Layout')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Remove' })).toBeVisible();
+    const detailRemove = page
+      .getByTestId('registry-detail')
+      .getByRole('button', { name: 'Remove' });
+    await expect(detailRemove).toBeVisible();
 
-    await page.getByRole('button', { name: 'Remove' }).click();
+    await detailRemove.click();
 
     await expect(page.getByText('Removed Demo Layout')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Install' })).toBeVisible();
+    await expect(detailInstall).toBeVisible();
   });
 });

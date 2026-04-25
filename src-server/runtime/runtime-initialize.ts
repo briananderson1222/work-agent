@@ -10,9 +10,11 @@ import type { ClaudeAdapter } from '../providers/adapters/claude-adapter.js';
 import type { CodexAdapter } from '../providers/adapters/codex-adapter.js';
 import type { OllamaAdapter } from '../providers/adapters/ollama-adapter.js';
 import { BedrockModelCatalog } from '../providers/bedrock-models.js';
+import { BuiltinACPConnectionRegistryProvider } from '../providers/defaults.js';
 import { JsonManifestRegistryProvider } from '../providers/json-manifest-registry.js';
 import {
   createProviderAdapterRegistry,
+  registerACPConnectionRegistryProvider,
   registerAgentRegistryProvider,
   registerIntegrationRegistryProvider,
   registerProviderAdapters,
@@ -177,6 +179,11 @@ export async function initializeRuntime(
     codexAdapter,
     ollamaAdapter,
   ]);
+  registerACPConnectionRegistryProvider(
+    new BuiltinACPConnectionRegistryProvider(),
+    'core',
+    true,
+  );
 
   const orchestrationService = new OrchestrationService({
     adapterRegistry: createProviderAdapterRegistry(),

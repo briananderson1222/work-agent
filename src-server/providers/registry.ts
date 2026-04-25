@@ -15,6 +15,7 @@ import {
 } from './defaults.js';
 import { createIntegrationRegistryProvider } from './integration-registry-provider.js';
 import type {
+  IACPConnectionRegistryProvider,
   IAgentRegistryProvider,
   IAuthProvider,
   IBrandingProvider,
@@ -27,6 +28,7 @@ import type {
   IUserDirectoryProvider,
   IUserIdentityProvider,
 } from './provider-interfaces.js';
+import { PROVIDER_TYPE_META } from './provider-interfaces.js';
 
 // ── Generic Store ──────────────────────────────────────
 
@@ -50,15 +52,8 @@ export function registerProvider(
   const ws = opts?.layout ?? '*';
   const source = opts?.source ?? 'unknown';
   const builtin = opts?.builtin ?? false;
-  // For additive types, push to array
-  if (
-    type === 'pluginRegistry' ||
-    type === 'agentRegistry' ||
-    type === 'integrationRegistry' ||
-    type === 'notification' ||
-    type === 'skillRegistry' ||
-    type === 'providerAdapter'
-  ) {
+  // For additive types, push to array.
+  if (PROVIDER_TYPE_META[type] === 'additive') {
     if (!additiveStore.has(type)) additiveStore.set(type, []);
     additiveStore.get(type)!.push({ provider, source, builtin });
     return;
@@ -217,6 +212,14 @@ export function registerIntegrationRegistryProvider(
   provider: IIntegrationRegistryProvider,
 ) {
   registerProvider('integrationRegistry', provider);
+}
+
+export function registerACPConnectionRegistryProvider(
+  provider: IACPConnectionRegistryProvider,
+  source = provider.id ?? 'acpConnectionRegistry',
+  builtin = false,
+) {
+  registerProvider('acpConnectionRegistry', provider, { source, builtin });
 }
 
 export function getIntegrationRegistryProvider(): IIntegrationRegistryProvider {

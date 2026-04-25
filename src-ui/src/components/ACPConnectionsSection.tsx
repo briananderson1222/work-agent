@@ -1,12 +1,14 @@
 import {
   useCreateACPConnectionMutation,
   useDeleteACPConnectionMutation,
+  useInstallACPConnectionRegistryEntryMutation,
   useReconnectACPConnectionMutation,
   useUpdateACPConnectionMutation,
 } from '@stallion-ai/sdk';
 import { useState } from 'react';
 import {
   type ACPConnectionInfo,
+  useACPConnectionRegistry,
   useACPConnections,
 } from '../hooks/useACPConnections';
 import type { AgentSummary } from '../types';
@@ -24,7 +26,10 @@ export function ACPConnectionsSection({
   acpAgents,
 }: ACPConnectionsSectionProps) {
   const { data: connections = [] } = useACPConnections();
+  const { data: registryEntries = [] } = useACPConnectionRegistry();
   const createConnectionMutation = useCreateACPConnectionMutation();
+  const installRegistryEntryMutation =
+    useInstallACPConnectionRegistryEntryMutation();
   const updateConnectionMutation = useUpdateACPConnectionMutation();
   const deleteConnectionMutation = useDeleteACPConnectionMutation();
   const reconnectConnectionMutation = useReconnectACPConnectionMutation();
@@ -46,6 +51,11 @@ export function ACPConnectionsSection({
 
   const addConnection = async (data: ACPConnectionDraft) => {
     await createConnectionMutation.mutateAsync(data);
+    setShowCustomModal(false);
+  };
+
+  const installRegistryEntry = async (id: string) => {
+    await installRegistryEntryMutation.mutateAsync(id);
     setShowCustomModal(false);
   };
 
@@ -85,7 +95,9 @@ export function ACPConnectionsSection({
 
       {showCustomModal && (
         <ACPAddConnectionModal
+          registryEntries={registryEntries}
           onAdd={addConnection}
+          onInstallRegistryEntry={installRegistryEntry}
           onCancel={() => setShowCustomModal(false)}
         />
       )}

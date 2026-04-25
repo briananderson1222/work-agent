@@ -12,6 +12,24 @@ export interface ACPConnectionConfig {
   };
 }
 
+export interface ACPConnectionRegistryEntry {
+  id: string;
+  name: string;
+  command: string;
+  args?: string[];
+  icon?: string;
+  cwd?: string;
+  description?: string;
+  tags?: string[];
+  source?: 'core' | 'plugin';
+  sourceName?: string;
+  installed?: boolean;
+  installedSource?: 'user' | 'plugin';
+  interactive?: {
+    args: string[];
+  };
+}
+
 export interface ACPConfig {
   connections: ACPConnectionConfig[];
 }

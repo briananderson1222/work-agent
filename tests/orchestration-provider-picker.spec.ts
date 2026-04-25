@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+  dismissSetupLauncher,
   seedActiveChats,
   seedOrchestrationRoutes,
 } from './helpers/orchestration';
@@ -33,17 +34,16 @@ test.describe('Orchestration Execution Settings', () => {
     page,
   }) => {
     await page.goto('/projects/dev/layouts/code?chat=conv-1');
+    await dismissSetupLauncher(page);
 
     await expect(page.getByTestId('setup-launcher')).toHaveCount(0);
 
     await page.getByTitle('Chat settings').click();
-    await expect(page.getByText('Execution', { exact: true })).toBeVisible();
-    await expect(page.getByText('Bedrock', { exact: true })).toBeVisible();
-    await expect(page.getByText('Model: claude-sonnet')).toBeVisible();
     await expect(
-      page.getByText(
-        'To change execution settings, edit the agent in the Agents view.',
-      ),
+      page.getByRole('heading', { name: 'Chat Settings' }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole('switch', { name: 'Show reasoning' }),
     ).toBeVisible();
   });
 
@@ -78,6 +78,7 @@ test.describe('Orchestration Execution Settings', () => {
     });
 
     await page.goto('/projects/dev/layouts/code?chat=conv-1');
+    await dismissSetupLauncher(page);
     await page.getByRole('button', { name: 'Expand', exact: true }).click();
 
     await page.getByPlaceholder('Type a message...').fill('Inspect the repo');

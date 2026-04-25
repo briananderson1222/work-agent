@@ -13,7 +13,19 @@ const STATUS_READY = JSON.stringify({
   acp: { connected: false, connections: [] },
   clis: {},
   prerequisites: [],
+  providers: {
+    configuredChatReady: true,
+    configured: [],
+    detected: { ollama: false, bedrock: false },
+  },
 });
+
+const SEED_STORAGE = `
+  window.localStorage.setItem('stallion-connect-connections', JSON.stringify([
+    { id: 'c1', name: 'Dev Server', url: window.location.origin, lastConnected: Date.now() }
+  ]));
+  window.localStorage.setItem('stallion-connect-connections-active', 'c1');
+`;
 
 const TEST_PROJECTS = [
   {
@@ -77,6 +89,7 @@ const PROVIDERS = [
 
 function seedRoutes(page: import('@playwright/test').Page) {
   return Promise.all([
+    page.addInitScript(SEED_STORAGE),
     page.route('**/api/system/status', (r) =>
       r.fulfill({
         status: 200,
@@ -198,7 +211,10 @@ test.describe('Project Sidebar', () => {
   test.beforeEach(async ({ page }) => {
     await seedRoutes(page);
     await page.goto('/');
-    await page.waitForTimeout(2000);
+    await page.getByRole('button', { name: 'Expand sidebar' }).click();
+    await expect(page.getByRole('button', { name: /Alpha/ })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test('sidebar renders with projects and nav items', async ({ page }) => {
@@ -209,22 +225,27 @@ test.describe('Project Sidebar', () => {
       page.getByRole('button', { name: /New Project/ }),
     ).toBeVisible();
     await expect(page.getByRole('button', { name: /Agents/ })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Providers/ })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: /Connections/ }),
+    ).toBeVisible();
   });
 
   test('header has no layout selector', async ({ page }) => {
     const banner = page.getByRole('banner');
     await expect(banner).toBeVisible();
-    await expect(banner.getByText(/Stallion/)).toBeVisible();
+    await expect(
+      banner.getByRole('button', { name: /Dev Server/ }),
+    ).toBeVisible();
     // No layout dropdown/combobox in header
     await expect(banner.getByRole('combobox')).not.toBeVisible();
   });
 
-  test('expanding project shows layouts', async ({ page }) => {
+  test('project page shows layout affordances', async ({ page }) => {
     await page.getByRole('button', { name: /Alpha/ }).click();
-    await expect(page.getByRole('button', { name: '💬Chat' })).toBeVisible({
-      timeout: 5000,
-    });
+    await expect(page.getByRole('heading', { name: 'Alpha' })).toBeVisible();
+    await expect(
+      page.getByRole('button', { name: '+ Add', exact: true }),
+    ).toBeVisible();
   });
 });
 
@@ -232,7 +253,10 @@ test.describe('Project Navigation', () => {
   test.beforeEach(async ({ page }) => {
     await seedRoutes(page);
     await page.goto('/');
-    await page.waitForTimeout(2000);
+    await page.getByRole('button', { name: 'Expand sidebar' }).click();
+    await expect(page.getByRole('button', { name: /Alpha/ })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test('clicking project navigates to project view', async ({ page }) => {
@@ -242,12 +266,9 @@ test.describe('Project Navigation', () => {
   });
 
   test('clicking layout navigates to layout view', async ({ page }) => {
-    await page.getByRole('button', { name: /Alpha/ }).click();
-    // The layout button in the sidebar may be behind the ChatDock overlay.
-    // Use dispatchEvent to bypass pointer interception.
-    const chatBtn = page.getByRole('button', { name: '💬Chat' });
-    await chatBtn.dispatchEvent('click');
+    await page.goto('/projects/alpha/layouts/chat');
     await expect(page).toHaveURL(/\/projects\/alpha\/layouts\/chat/);
+    await expect(page.getByText('Chat Dock')).toBeVisible();
   });
 
   test('new project form renders', async ({ page }) => {
@@ -306,7 +327,9 @@ test.describe('Project Navigation', () => {
     });
     await page.getByPlaceholder('My Project').fill('New Project');
     await page.getByPlaceholder('/path/to/project').fill('/tmp/new-project');
-    await page.getByLabel('Add Coding Layout').check();
+    await page
+      .getByLabel('Add the default coding layout for this directory')
+      .check();
     await page.getByRole('button', { name: 'Create' }).click();
 
     await expect
@@ -324,18 +347,18 @@ test.describe('Provider Settings', () => {
   test.beforeEach(async ({ page }) => {
     await seedRoutes(page);
     await page.goto('/');
-    await page.waitForTimeout(2000);
+    await page.getByRole('button', { name: 'Expand sidebar' }).click();
+    await expect(page.getByRole('button', { name: /Alpha/ })).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
-  test('provider settings view renders', async ({ page }) => {
-    await page.getByRole('button', { name: /Providers/ }).click();
-    await expect(page).toHaveURL(/\/providers/);
+  test('connections view renders', async ({ page }) => {
+    await page.getByRole('button', { name: /Connections/ }).click();
+    await expect(page).toHaveURL(/\/connections/);
     await expect(
-      page.getByRole('heading', { name: 'Provider Connections' }),
+      page.getByRole('heading', { name: /Connections|Runtime|Providers/ }),
     ).toBeVisible({ timeout: 5000 });
-    await expect(
-      page.getByRole('button', { name: /Add Provider/ }),
-    ).toBeVisible();
   });
 });
 
@@ -343,7 +366,9 @@ test.describe('ChatDock', () => {
   test.beforeEach(async ({ page }) => {
     await seedRoutes(page);
     await page.goto('/');
-    await page.waitForTimeout(2000);
+    await expect(page.getByText('Chat Dock')).toBeVisible({
+      timeout: 10_000,
+    });
   });
 
   test('chat dock is visible at bottom', async ({ page }) => {

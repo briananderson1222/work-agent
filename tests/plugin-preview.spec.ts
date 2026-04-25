@@ -13,7 +13,7 @@ const PROJECT_DIR = join(dirname(__filename), '..');
 const DEMO_DIR = join(PROJECT_DIR, 'examples', 'demo-layout');
 const SA_AGENT_DIR = join(PROJECT_DIR, '..', 'sa-agent');
 
-const API = 'http://localhost:3141';
+const API = `http://localhost:${process.env.STALLION_PORT ?? '3141'}`;
 
 test.describe('Plugin Preview', () => {
   test.beforeAll(() => {
@@ -118,18 +118,22 @@ test.describe('Plugin Preview Modal (UI)', () => {
   test('preview modal appears when installing from plugins page', async ({
     page,
   }) => {
-    await page.goto('/');
-    await page.waitForTimeout(2000);
-
-    // Click the manage/wrench button in the header
-    const manageBtn = page.locator('button[title="Manage"]');
-    await manageBtn.click();
-    await page.waitForTimeout(500);
-
-    // Click "Plugins" in the manage sub-nav
-    const pluginsLink = page.locator('text=Plugins').first();
-    await pluginsLink.click();
-    await page.waitForTimeout(500);
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'stallion-connect-connections',
+        JSON.stringify([
+          {
+            id: 'c1',
+            name: 'Dev Server',
+            url: window.location.origin,
+            lastConnected: Date.now(),
+          },
+        ]),
+      );
+      localStorage.setItem('stallion-connect-connections-active', 'c1');
+    });
+    await page.goto('/plugins');
+    await page.getByRole('button', { name: '+ Install Plugin' }).click();
 
     // Find the install input
     const installInput = page.locator('.plugins__install-input');
@@ -164,6 +168,6 @@ test.describe('Plugin Preview Modal (UI)', () => {
 
     // Close without installing
     await page.locator('.plugins__modal >> text=Cancel').click();
-    await expect(page.locator('.plugins__modal-overlay')).not.toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Plugins' })).toBeVisible();
   });
 });

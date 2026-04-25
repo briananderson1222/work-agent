@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+  dismissSetupLauncher,
   emitMockOrchestrationEvent,
   installMockOrchestrationEventSource,
   seedActiveChats,
@@ -95,6 +96,7 @@ test.describe('Orchestration Chat Flow', () => {
       );
     });
     await page.reload();
+    await dismissSetupLauncher(page);
     await page.getByRole('button', { name: 'Expand', exact: true }).click();
     await waitForMockOrchestrationEventSource(page);
 

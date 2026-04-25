@@ -254,17 +254,21 @@ async function openRuntimeSession(
     localStorage.removeItem('recentAgents');
   });
   await page.goto('/?dock=open');
-  await page.waitForTimeout(1200);
+  await expect(
+    page.locator('.chat-dock__tab-actions .chat-dock__new').nth(1),
+  ).toBeVisible({ timeout: 15_000 });
   await dismissSetupLauncher(page);
   await page
     .locator('.chat-dock__tab-actions .chat-dock__new')
     .nth(1)
     .dispatchEvent('click');
-  await page.waitForTimeout(400);
+  await expect(
+    page.locator('.new-chat-modal__agent', { hasText: runtimeName }),
+  ).toBeVisible({ timeout: 10_000 });
   await page
     .locator('.new-chat-modal__agent', { hasText: runtimeName })
     .dispatchEvent('click');
-  await page.waitForTimeout(600);
+  await expect(page.locator('.chat-dock__tab-list')).toContainText(runtimeName);
 }
 
 async function dismissSetupLauncher(page: import('@playwright/test').Page) {
@@ -273,7 +277,7 @@ async function dismissSetupLauncher(page: import('@playwright/test').Page) {
   });
   if (await continueBtn.isVisible().catch(() => false)) {
     await continueBtn.click({ force: true });
-    await page.waitForTimeout(300);
+    await expect(continueBtn).not.toBeVisible({ timeout: 5_000 });
   }
 }
 
@@ -307,7 +311,9 @@ test.describe('Built-in runtime chat workflows', () => {
       localStorage.removeItem('recentAgents');
     });
     await page.goto('/?dock=open');
-    await page.waitForTimeout(1200);
+    await expect(page.locator('button.chat-dock__history-toggle')).toBeVisible({
+      timeout: 15_000,
+    });
     await dismissSetupLauncher(page);
 
     await page
@@ -319,7 +325,6 @@ test.describe('Built-in runtime chat workflows', () => {
     await page
       .locator('.session-item__content', { hasText: 'Claude history' })
       .click();
-    await page.waitForTimeout(800);
 
     await expect(page.locator('.chat-dock__tab-list')).toContainText(
       'Claude Runtime',
@@ -336,7 +341,9 @@ test.describe('Built-in runtime chat workflows', () => {
       localStorage.removeItem('recentAgents');
     });
     await page.goto('/?dock=open');
-    await page.waitForTimeout(1200);
+    await expect(page.locator('button.chat-dock__history-toggle')).toBeVisible({
+      timeout: 15_000,
+    });
     await dismissSetupLauncher(page);
 
     await page
@@ -348,7 +355,6 @@ test.describe('Built-in runtime chat workflows', () => {
     await page
       .locator('.session-item__content', { hasText: 'Codex history' })
       .click();
-    await page.waitForTimeout(800);
 
     await expect(page.locator('.chat-dock__tab-list')).toContainText(
       'Codex Runtime',

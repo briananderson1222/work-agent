@@ -17,14 +17,22 @@
 ## Running Tests
 
 ```bash
+npm run verify                    # default local gate: lint, typecheck, unit, product e2e, live smoke e2e
 npm test                          # vitest watch mode
 npx vitest run                    # single run
 npm run test:coverage             # with coverage report
 npm run install:playwright        # install repo-local Chromium once
+npm run test:e2e:product          # promoted product Playwright suite via ./stallion temp-home instance
+npm run test:e2e:smoke-live       # live app smoke via ./stallion temp-home instance
 PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test               # e2e
 PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test tests/foo.spec.ts  # single e2e
 npm run test:connected-agents         # focused connected-agents server suite
 ```
+
+`test:e2e:product` and `test:e2e:smoke-live` allocate non-default ports,
+start a temporary `./stallion` instance, set `PW_BASE_URL`/`STALLION_PORT`, run
+Playwright with repo-local browsers, and stop the instance in cleanup. Use these
+scripts for verification claims instead of ad hoc default-port runs.
 
 ## Durable Verification Lanes
 

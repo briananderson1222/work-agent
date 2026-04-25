@@ -119,14 +119,12 @@ test.describe('Registry page', () => {
   test('switching tabs works', async ({ page }) => {
     // Click Skills tab
     await page.locator('.page__tab', { hasText: 'Skills' }).click();
-    await page.waitForTimeout(500);
 
     // Verify Skills tab is active
     await expect(page.locator('.page__tab--active')).toHaveText('Skills');
 
     // Click Plugins tab
     await page.locator('.page__tab', { hasText: 'Plugins' }).click();
-    await page.waitForTimeout(500);
 
     await expect(page.locator('.page__tab--active')).toHaveText('Plugins');
   });

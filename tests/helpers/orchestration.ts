@@ -6,6 +6,7 @@ export const STATUS_READY = JSON.stringify({
   clis: {},
   prerequisites: [],
   providers: {
+    configuredChatReady: true,
     configured: [
       {
         id: 'codex-runtime',
@@ -219,6 +220,21 @@ export async function emitMockOrchestrationEvent(
   );
 }
 
+export async function dismissSetupLauncher(page: Page): Promise<void> {
+  const continueButton = page.getByRole('button', {
+    name: 'Continue Without Setup',
+  });
+  await continueButton.click({ timeout: 1000 }).catch(async () => {
+    await page.evaluate(() => {
+      document.querySelector('[data-testid="setup-launcher"]')?.remove();
+    });
+  });
+  await page.getByTestId('setup-launcher').waitFor({
+    state: 'detached',
+    timeout: 3000,
+  });
+}
+
 export async function seedOrchestrationRoutes(
   page: Page,
   options?: {
@@ -245,6 +261,21 @@ export async function seedOrchestrationRoutes(
     >;
   },
 ): Promise<void> {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      'stallion-connect-connections',
+      JSON.stringify([
+        {
+          id: 'c1',
+          name: 'Dev Server',
+          url: window.location.origin,
+          lastConnected: Date.now(),
+        },
+      ]),
+    );
+    localStorage.setItem('stallion-connect-connections-active', 'c1');
+  });
+
   const providerSummaries =
     options?.providerSummaries ?? DEFAULT_PROVIDER_SUMMARIES;
   const conversations = options?.conversations ?? DEFAULT_CONVERSATIONS;

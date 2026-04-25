@@ -202,6 +202,19 @@ describe('Provider System', () => {
       expect(entries[1].provider).toBe(provider2);
     });
 
+    it('uses provider metadata for additive types such as acpConnections', () => {
+      const provider1 = { getConnections: () => [{ id: 'kiro' }] };
+      const provider2 = { getConnections: () => [{ id: 'cursor' }] };
+
+      registerProvider('acpConnections', provider1, { source: 'plugin1' });
+      registerProvider('acpConnections', provider2, { source: 'plugin2' });
+
+      const entries = listProviders('acpConnections');
+      expect(entries).toHaveLength(2);
+      expect(entries[0].provider).toBe(provider1);
+      expect(entries[1].provider).toBe(provider2);
+    });
+
     it('registers and resolves provider adapters by provider kind', () => {
       const adapter = new BedrockAdapter();
 

@@ -9,6 +9,11 @@ const STATUS_READY = JSON.stringify({
   acp: { connected: false, connections: [] },
   clis: {},
   prerequisites: [],
+  providers: {
+    configuredChatReady: true,
+    configured: [],
+    detected: { ollama: false, bedrock: false },
+  },
 });
 
 function seedRoutes(page: import('@playwright/test').Page) {

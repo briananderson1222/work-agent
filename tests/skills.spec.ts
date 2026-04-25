@@ -19,7 +19,6 @@ test.describe('Skills (via Registry + API)', () => {
     await page.waitForSelector('.page__tab', { timeout: 15_000 });
 
     await page.locator('.page__tab', { hasText: 'Skills' }).click();
-    await page.waitForTimeout(500);
 
     await expect(page.locator('.page__tab--active')).toHaveText('Skills');
   });

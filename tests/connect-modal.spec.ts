@@ -18,16 +18,21 @@ const STATUS_READY = JSON.stringify({
   acp: { connected: false, connections: [] },
   clis: {},
   prerequisites: [],
+  providers: {
+    configuredChatReady: true,
+    configured: [],
+    detected: { ollama: false, bedrock: false },
+  },
 });
 
 function seedConnection(
   id = 'conn-1',
   name = 'Dev Server',
-  url = 'http://localhost:3141',
+  urlExpression = 'window.location.origin',
 ) {
   return `
     window.localStorage.setItem('stallion-connect-connections', JSON.stringify([
-      { id: '${id}', name: '${name}', url: '${url}', lastConnected: ${Date.now()} }
+      { id: '${id}', name: '${name}', url: ${urlExpression}, lastConnected: ${Date.now()} }
     ]));
     window.localStorage.setItem('stallion-connect-connections-active', '${id}');
   `;
@@ -47,6 +52,9 @@ test.describe('Connection Manager Modal', () => {
     // Wait for the connection chip to appear in the header
     await expect(page.getByRole('button', { name: /Dev Server/ })).toBeVisible({
       timeout: 10000,
+    });
+    await page.evaluate(() => {
+      document.querySelector('[data-testid="setup-launcher"]')?.remove();
     });
   });
 
@@ -87,9 +95,13 @@ test.describe('Connection Manager Modal', () => {
     await page.getByRole('button', { name: 'Add', exact: true }).click();
 
     // Modal is still open on the list panel — click the Dev Server row to switch back
+    const appOrigin = new URL(page.url()).origin.replace(
+      /[.*+?^${}()|[\]\\]/g,
+      '\\$&',
+    );
     const devRow = page
       .locator('div')
-      .filter({ hasText: /^http:\/\/localhost:3141$/ });
+      .filter({ hasText: new RegExp(`^${appOrigin}$`) });
     await devRow.click();
 
     // Chip should update back to Dev Server
@@ -105,7 +117,7 @@ test.describe('Connection Manager Modal', () => {
     ).toBeVisible();
 
     // Click the edit button (✎)
-    await page.getByRole('button', { name: '✎' }).click();
+    await page.getByRole('button', { name: '✎', exact: true }).click();
 
     // Edit form should appear with pre-filled values
     const nameInput = page.getByPlaceholder('Name');
@@ -183,25 +195,30 @@ test.describe('Connection Manager Modal', () => {
     ).toBeVisible();
   });
 
-  test('empty state shows when no connections exist', async ({ page }) => {
+  test('cleared connection storage falls back to the current app connection', async ({
+    page,
+  }) => {
     // Clear all connections
     await page.evaluate(() => {
       localStorage.removeItem('stallion-connect-connections');
       localStorage.removeItem('stallion-connect-connections-active');
     });
-    await page.reload();
-    // Wait for page to load (may show onboarding or different state)
-    await page.waitForTimeout(2000);
-
-    // If there's a connection chip (auto-created default), open it
-    const chip = page.getByRole('button', {
-      name: /connection|Default|localhost/i,
+    await page.addInitScript(() => {
+      localStorage.removeItem('stallion-connect-connections');
+      localStorage.removeItem('stallion-connect-connections-active');
     });
-    if (await chip.isVisible({ timeout: 3000 }).catch(() => false)) {
-      await chip.click();
-      await expect(
-        page.getByRole('heading', { name: 'Connections' }),
-      ).toBeVisible();
-    }
+    await page.reload();
+    await expect(page.locator('body')).toBeVisible({ timeout: 15_000 });
+    await page.evaluate(() => {
+      document.querySelector('[data-testid="setup-launcher"]')?.remove();
+    });
+
+    await page.locator('button[title="Manage connections"]').click();
+    await expect(
+      page.getByRole('heading', { name: 'Connections' }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(`http://localhost:${process.env.STALLION_PORT ?? '3141'}`),
+    ).toBeVisible();
   });
 });

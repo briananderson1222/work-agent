@@ -11,6 +11,7 @@ import { expect, test } from '@playwright/test';
 const __filename = fileURLToPath(import.meta.url);
 const PROJECT_DIR = join(dirname(__filename), '..');
 const DEMO_DIR = join(PROJECT_DIR, 'examples', 'demo-layout');
+const API = `http://localhost:${process.env.STALLION_PORT ?? '3141'}`;
 
 test.describe('Plugin System', () => {
   test.beforeAll(async () => {
@@ -21,7 +22,7 @@ test.describe('Plugin System', () => {
     });
     // Ensure it's not installed
     try {
-      await fetch('http://localhost:3141/api/plugins/demo-layout', {
+      await fetch(`${API}/api/plugins/demo-layout`, {
         method: 'DELETE',
       });
     } catch {}
@@ -29,14 +30,14 @@ test.describe('Plugin System', () => {
 
   test.afterAll(async () => {
     try {
-      await fetch('http://localhost:3141/api/plugins/demo-layout', {
+      await fetch(`${API}/api/plugins/demo-layout`, {
         method: 'DELETE',
       });
     } catch {}
   });
 
   test('plugin API lists no plugins when none installed', async () => {
-    const res = await (await fetch('http://localhost:3141/api/plugins')).json();
+    const res = await (await fetch(`${API}/api/plugins`)).json();
     // May have sa-agent installed — just verify the endpoint works
     expect(res).toHaveProperty('plugins');
     expect(Array.isArray(res.plugins)).toBe(true);
@@ -44,7 +45,7 @@ test.describe('Plugin System', () => {
 
   test('install demo plugin via API and verify it appears', async () => {
     const res = await (
-      await fetch('http://localhost:3141/api/plugins/install', {
+      await fetch(`${API}/api/plugins/install`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ source: DEMO_DIR }),
@@ -56,18 +57,14 @@ test.describe('Plugin System', () => {
     expect(res.plugin.hasBundle).toBe(true);
 
     // Verify it's in the list
-    const list = await (
-      await fetch('http://localhost:3141/api/plugins')
-    ).json();
+    const list = await (await fetch(`${API}/api/plugins`)).json();
     const demo = list.plugins.find((p: any) => p.name === 'demo-layout');
     expect(demo).toBeTruthy();
     expect(demo.hasBundle).toBe(true);
   });
 
   test('plugin bundle is served via API', async () => {
-    const jsRes = await fetch(
-      'http://localhost:3141/api/plugins/demo-layout/bundle.js',
-    );
+    const jsRes = await fetch(`${API}/api/plugins/demo-layout/bundle.js`);
     expect(jsRes.status).toBe(200);
     const js = await jsRes.text();
     expect(js).toContain('__plugin');
@@ -76,7 +73,7 @@ test.describe('Plugin System', () => {
 
   test('demo layout loads in browser after install', async ({ page }) => {
     // Ensure plugin is installed
-    await fetch('http://localhost:3141/api/plugins/install', {
+    await fetch(`${API}/api/plugins/install`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: DEMO_DIR }),
@@ -84,7 +81,15 @@ test.describe('Plugin System', () => {
 
     // Navigate — PluginRegistry fetches /api/plugins on init and loads bundles
     await page.goto('/');
-    await page.waitForTimeout(5000);
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            return !!(window as any).__stallion_ai_plugins?.['demo-layout'];
+          }),
+        { timeout: 10_000 },
+      )
+      .toBe(true);
 
     // Check if demo layout components registered
     const hasPlugin = await page.evaluate(() => {
@@ -95,22 +100,20 @@ test.describe('Plugin System', () => {
 
   test('remove plugin via API', async () => {
     // Ensure plugin is installed first
-    await fetch('http://localhost:3141/api/plugins/install', {
+    await fetch(`${API}/api/plugins/install`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ source: DEMO_DIR }),
     });
 
     const res = await (
-      await fetch('http://localhost:3141/api/plugins/demo-layout', {
+      await fetch(`${API}/api/plugins/demo-layout`, {
         method: 'DELETE',
       })
     ).json();
     expect(res.success).toBe(true);
 
-    const list = await (
-      await fetch('http://localhost:3141/api/plugins')
-    ).json();
+    const list = await (await fetch(`${API}/api/plugins`)).json();
     const demo = list.plugins.find((p: any) => p.name === 'demo-layout');
     expect(demo).toBeFalsy();
   });

@@ -12,6 +12,11 @@ const STATUS_READY = JSON.stringify({
   acp: { connected: false, connections: [] },
   clis: {},
   prerequisites: [],
+  providers: {
+    configuredChatReady: true,
+    configured: [],
+    detected: { ollama: false, bedrock: false },
+  },
 });
 
 const TEST_PROJECTS = [
@@ -194,8 +199,12 @@ test.describe('Dock Mode Preference', () => {
     await page.locator('.chat-dock__header').click();
     await page.waitForTimeout(300);
 
-    const openButton = page.locator('.chat-dock__tab-actions .chat-dock__new').first();
-    const newButton = page.locator('.chat-dock__tab-actions .chat-dock__new').nth(1);
+    const openButton = page
+      .locator('.chat-dock__tab-actions .chat-dock__new')
+      .first();
+    const newButton = page
+      .locator('.chat-dock__tab-actions .chat-dock__new')
+      .nth(1);
     const maximizeButton = page.locator('.chat-dock__maximize-btn');
 
     const [openStyles, newStyles, maximizeStyles] = await Promise.all([
@@ -239,13 +248,17 @@ test.describe('Dock Mode Preference', () => {
     expect(maximizeStyles.height).toBeGreaterThan(28);
 
     const [openShortcutSize, maximizeShortcutSize] = await Promise.all([
-      openButton.locator('.chat-dock__subtitle').evaluate((el) => getComputedStyle(el).fontSize),
+      openButton
+        .locator('.chat-dock__subtitle')
+        .evaluate((el) => getComputedStyle(el).fontSize),
       maximizeButton
         .locator('.chat-dock__subtitle')
         .evaluate((el) => getComputedStyle(el).fontSize),
     ]);
 
-    expect(parseFloat(openShortcutSize)).toBeLessThan(parseFloat(openStyles.fontSize));
+    expect(parseFloat(openShortcutSize)).toBeLessThan(
+      parseFloat(openStyles.fontSize),
+    );
     expect(parseFloat(maximizeShortcutSize)).toBeLessThan(
       parseFloat(maximizeStyles.fontSize),
     );

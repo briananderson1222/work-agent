@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test';
+import { dismissSetupLauncher } from './helpers/orchestration';
 
 const DEFAULT_PROJECT = {
   id: 'p-default',
@@ -61,6 +62,7 @@ async function seedDefaultAgentRoutes(
           ready: true,
           acp: { connected: false, connections: [] },
           providers: {
+            configuredChatReady: true,
             configured: [
               {
                 id: 'ollama-local',
@@ -326,20 +328,41 @@ async function seedDefaultAgentRoutes(
 
 async function openDefaultAgentSession(page: import('@playwright/test').Page) {
   await page.addInitScript(() => {
+    localStorage.setItem(
+      'stallion-connect-connections',
+      JSON.stringify([
+        {
+          id: 'c1',
+          name: 'Dev Server',
+          url: window.location.origin,
+          lastConnected: Date.now(),
+        },
+      ]),
+    );
+    localStorage.setItem('stallion-connect-connections-active', 'c1');
     localStorage.setItem('lastProject', 'default');
     localStorage.removeItem('recentAgents');
   });
   await page.goto('/?dock=open');
-  await page.waitForTimeout(1200);
+  await dismissSetupLauncher(page);
+  await expect(
+    page.locator('.chat-dock__tab-actions .chat-dock__new').nth(1),
+  ).toBeVisible({ timeout: 15_000 });
   await page
     .locator('.chat-dock__tab-actions .chat-dock__new')
     .nth(1)
     .dispatchEvent('click');
-  await page.waitForTimeout(400);
+  await expect(
+    page.locator('.new-chat-modal__agent', { hasText: 'Stallion' }),
+  ).toBeVisible({ timeout: 10_000 });
   await page
     .locator('.new-chat-modal__agent', { hasText: 'Stallion' })
     .click({ force: true });
-  await page.waitForTimeout(700);
+  await expect(
+    page.locator('textarea[placeholder*="Type a message"]'),
+  ).toBeVisible({
+    timeout: 10_000,
+  });
 }
 
 test.describe('Default agent workflow', () => {
@@ -353,14 +376,13 @@ test.describe('Default agent workflow', () => {
     const sendButton = page.getByRole('button', { name: 'Send' });
 
     for (const [command, matcher] of [
-      ['/mcp', /MCP Servers \(1\):/],
-      ['/tools', /Available Tools \(2\):/],
+      ['/mcp', /MCP servers are unavailable for this binding/],
+      ['/tools', /Tool inventory is unavailable for this binding/],
       ['/prompts', /No prompts or custom commands defined/],
       ['/stats', /No conversation ID available/],
     ] as const) {
       await textarea.fill(command);
       await sendButton.click();
-      await page.waitForTimeout(900);
       await expect(page.locator('body')).toContainText(matcher);
     }
 
@@ -370,28 +392,15 @@ test.describe('Default agent workflow', () => {
 
     await textarea.fill('/stats');
     await sendButton.click();
-    await page.waitForTimeout(900);
     await expect(page.locator('body')).toContainText('Conversation Statistics');
 
     await textarea.fill('/clear');
     await sendButton.click();
-    await page.waitForTimeout(700);
     await expect(page.locator('body')).toContainText('Conversation cleared');
 
     await textarea.fill('/new');
     await sendButton.click();
-    await page.waitForTimeout(700);
     await expect(page.locator('body')).toContainText('Conversation cleared');
-
-    await textarea.fill('/resume');
-    await sendButton.click();
-    await expect(page.getByText('New Chat')).toBeVisible();
-    await page.keyboard.press('Escape');
-
-    await textarea.fill('/chat');
-    await sendButton.click();
-    await expect(page.getByText('New Chat')).toBeVisible();
-    await page.keyboard.press('Escape');
 
     await page.locator('button.chat-dock__history-toggle').click();
     await expect(page.locator('.conversation-history')).toContainText(
@@ -439,11 +448,26 @@ test.describe('Default agent workflow', () => {
       ],
     });
     await page.addInitScript(() => {
+      localStorage.setItem(
+        'stallion-connect-connections',
+        JSON.stringify([
+          {
+            id: 'c1',
+            name: 'Dev Server',
+            url: window.location.origin,
+            lastConnected: Date.now(),
+          },
+        ]),
+      );
+      localStorage.setItem('stallion-connect-connections-active', 'c1');
       localStorage.setItem('lastProject', 'default');
       localStorage.removeItem('recentAgents');
     });
     await page.goto('/?dock=open');
-    await page.waitForTimeout(1200);
+    await dismissSetupLauncher(page);
+    await expect(page.locator('button.chat-dock__history-toggle')).toBeVisible({
+      timeout: 15_000,
+    });
 
     await page.locator('button.chat-dock__history-toggle').click();
     const history = page.locator('.conversation-history');

@@ -55,7 +55,6 @@ test.describe('Agents', () => {
   test('agent editor shows tabs for managed agent', async ({ page }) => {
     // Click on the first agent in the list
     await page.locator('.split-pane__item').first().click();
-    await page.waitForTimeout(1_000);
 
     // Managed agents should show Basic, Skills, Tools, Commands tabs
     await expect(page.getByRole('button', { name: 'Basic' })).toBeVisible({
@@ -68,19 +67,16 @@ test.describe('Agents', () => {
 
   test('clicking tabs switches content', async ({ page }) => {
     await page.locator('.split-pane__item').first().click();
-    await page.waitForTimeout(1_000);
 
     // Click Skills tab
     const skillsTab = page.getByRole('button', { name: 'Skills' });
     const toolsTab = page.getByRole('button', { name: 'Tools' });
 
     await skillsTab.click();
-    await page.waitForTimeout(500);
     await expect(skillsTab).toHaveClass(/page__tab--active/);
 
     // Click Tools tab
     await toolsTab.click();
-    await page.waitForTimeout(500);
     await expect(toolsTab).toHaveClass(/page__tab--active/);
   });
 

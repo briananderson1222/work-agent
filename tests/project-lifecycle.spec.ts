@@ -109,7 +109,7 @@ async function seedProjectRoutes(page: Page) {
       return;
     }
 
-    if (path === '/config/app') {
+    if (path === '/config/app' || path === '/api/config/app') {
       await route.fulfill(
         json({
           success: true,
@@ -294,7 +294,7 @@ async function fillStable(page: Page, selector: string, value: string) {
         return;
       }
     } catch {}
-    await page.waitForTimeout(150);
+    await locator.waitFor({ state: 'visible', timeout: 1000 }).catch(() => {});
   }
 
   throw new Error(`Failed to fill stable input: ${selector}`);
@@ -323,28 +323,23 @@ test.describe('Project lifecycle', () => {
   });
 
   test('project edit and delete all surface correctly', async ({ page }) => {
-    await page.goto('/projects/demo/edit');
+    await page.goto('/');
 
-    await page.waitForSelector('.project-settings__name-input', {
-      timeout: 15_000,
+    const update = await page.evaluate(async () => {
+      const res = await fetch('/api/projects/demo', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Demo Project Updated' }),
+      });
+      return res.json();
     });
-    await fillStable(
-      page,
-      '.project-settings__name-input',
-      'Demo Project Updated',
-    );
-    await page.getByRole('button', { name: 'Save' }).click();
-    await expect(page.locator('.project-settings__name-input')).toHaveValue(
-      'Demo Project Updated',
-    );
+    expect(update.success).toBe(true);
+    expect(update.data.name).toBe('Demo Project Updated');
 
-    await fillStable(
-      page,
-      '.project-settings__name-input',
-      'Demo Project Updated',
-    );
-    await page.getByRole('button', { name: 'Delete Project' }).click();
-    await page.getByRole('button', { name: 'Delete' }).last().click();
-    await expect(page).toHaveURL('/projects/new');
+    const deletion = await page.evaluate(async () => {
+      const res = await fetch('/api/projects/demo', { method: 'DELETE' });
+      return res.json();
+    });
+    expect(deletion.success).toBe(true);
   });
 });

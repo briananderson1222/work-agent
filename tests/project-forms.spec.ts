@@ -115,7 +115,7 @@ async function fillStable(page: Page, selector: string, value: string) {
         return;
       }
     } catch {}
-    await page.waitForTimeout(150);
+    await locator.waitFor({ state: 'visible', timeout: 1_000 }).catch(() => {});
   }
 
   throw new Error(`Failed to fill stable input: ${selector}`);

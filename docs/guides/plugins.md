@@ -92,7 +92,7 @@ All fields:
 
 | Field | Description |
 |-------|-------------|
-| `type` | Provider type — built-in types: `auth`, `branding`, `userIdentity`, `userDirectory`, `agentRegistry`, `integrationRegistry`, `skillRegistry`, `pluginRegistry`, `settings`, `scheduler`, `notification`, `llm`, `embedding`, `vectorDb`, `layoutType`, `acpConnections`, `promptRegistry`, `template`. Custom types also supported via the generic provider registry. |
+| `type` | Provider type — built-in types: `auth`, `branding`, `userIdentity`, `userDirectory`, `agentRegistry`, `integrationRegistry`, `skillRegistry`, `pluginRegistry`, `settings`, `scheduler`, `notification`, `llm`, `embedding`, `vectorDb`, `layoutType`, `acpConnections`, `acpConnectionRegistry`, `promptRegistry`, `template`. Custom types also supported via the generic provider registry. |
 | `module` | Path to the JS module (relative to plugin root) |
 | `layout` | Optional — scope this provider to a specific layout slug |
 
