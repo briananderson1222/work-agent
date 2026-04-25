@@ -3,6 +3,7 @@ import type {
   ProviderSession,
   ProviderSessionStartInput,
 } from './provider.js';
+import type { RunFailureKind, RunStatus } from './runs.js';
 import type { CanonicalRuntimeEvent } from './runtime-events.js';
 
 export type OrchestrationCommand =
@@ -28,6 +29,29 @@ export interface OrchestrationSessionSummary extends ProviderSession {
 export interface OrchestrationSessionDetail {
   session: OrchestrationSessionSummary;
   events: CanonicalRuntimeEvent[];
+}
+
+export type AgentRunStatus = RunStatus;
+
+export type AgentRunFailureKind = RunFailureKind;
+
+export interface AgentRunSummary {
+  runId: string;
+  sessionId: string;
+  providerId: string;
+  source: 'orchestration';
+  executionClass: 'managed' | 'connected' | 'unknown';
+  status: AgentRunStatus;
+  cwd?: string;
+  runtimeThreadId?: string;
+  startedAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  failureKind?: AgentRunFailureKind;
+  failureMessage?: string;
+  retryEligible: boolean;
+  attempt: number;
+  eventCount: number;
 }
 
 export interface TerminalProcessSummary {

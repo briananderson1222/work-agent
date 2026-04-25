@@ -32,6 +32,7 @@
     "start:ui": "npx serve dist-ui",
     "cli": "tsx ./src-server/cli.ts",
     "test": "vitest run",
+    "test:e2e:schedule": "PLAYWRIGHT_BROWSERS_PATH=0 playwright test tests/schedule-runs.spec.ts",
     "test:watch": "vitest",
     "test:android": "PLAYWRIGHT_BROWSERS_PATH=0 playwright test --project=android",
     "lint": "biome lint src-server/ src-ui/ packages/",

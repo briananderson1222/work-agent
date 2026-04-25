@@ -13,8 +13,6 @@ import {
   errorMessage,
   getBody,
   param,
-  runOutputSchema,
-  schedulerOpenSchema,
   validate,
 } from './schemas.js';
 
@@ -117,22 +115,17 @@ export function createSchedulerRoutes(
   app.get('/jobs/:target/logs', async (c) => {
     try {
       const count = parseInt(c.req.query('count') || '20', 10);
-      const data = await schedulerService.getJobLogs(param(c, 'target'), count);
+      const providerId = c.req.query('providerId');
+      const data = providerId
+        ? await schedulerService.getJobLogsForProvider(
+            providerId,
+            param(c, 'target'),
+            count,
+          )
+        : await schedulerService.getJobLogs(param(c, 'target'), count);
       return c.json({ success: true, data });
     } catch (error: unknown) {
       logger.error('Failed to get job logs', { error });
-      return c.json({ success: false, error: errorMessage(error) }, 500);
-    }
-  });
-
-  // Read a run's output content by its log path
-  app.post('/runs/output', validate(runOutputSchema), async (c) => {
-    try {
-      const { path } = getBody(c);
-      const content = await schedulerService.readRunFile(path);
-      return c.json({ success: true, data: { content } });
-    } catch (error: unknown) {
-      logger.error('Failed to read run output', { error });
       return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
@@ -202,37 +195,6 @@ export function createSchedulerRoutes(
       return c.json({ success: true });
     } catch (error: unknown) {
       logger.error('Failed to remove job', { error });
-      return c.json({ success: false, error: errorMessage(error) }, 500);
-    }
-  });
-
-  // Open a file with the system default handler (restricted to scheduler logs)
-  app.post('/open', validate(schedulerOpenSchema), async (c) => {
-    try {
-      const { path: filePath } = getBody(c);
-      const { realpathSync } = await import('node:fs');
-      const { join } = await import('node:path');
-      const { resolveHomeDir } = await import('../utils/paths.js');
-      const real = realpathSync(filePath);
-      const logsDir = realpathSync(join(resolveHomeDir(), 'scheduler', 'logs'));
-      if (!real.startsWith(logsDir)) {
-        return c.json(
-          { success: false, error: 'Path outside scheduler logs' },
-          403,
-        );
-      }
-      const { execFile } = await import('node:child_process');
-      const cmd =
-        process.platform === 'darwin'
-          ? 'open'
-          : process.platform === 'win32'
-            ? 'start'
-            : 'xdg-open';
-      execFile(cmd, [real], { windowsHide: true }, (err) => {
-        if (err) logger.error('Failed to open file', { error: err });
-      });
-      return c.json({ success: true });
-    } catch (error: unknown) {
       return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });

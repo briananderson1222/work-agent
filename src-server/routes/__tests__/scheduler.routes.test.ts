@@ -63,7 +63,6 @@ function createMockService() {
         output: '/path/to/output.md',
       },
     ]),
-    readRunFile: vi.fn().mockResolvedValue('# Report content'),
     addJob: vi.fn().mockResolvedValue('created'),
     editJob: vi.fn().mockResolvedValue('updated'),
     runJob: vi.fn().mockResolvedValue('started'),
@@ -162,19 +161,6 @@ describe('Scheduler Routes', () => {
     expect(body.success).toBe(true);
     expect(body.data[0]).toHaveProperty('timestamp');
     expect(body.data[0]).toHaveProperty('status');
-  });
-
-  test('POST /runs/output returns { success, data: { content } }', async () => {
-    const { app } = setup();
-    const body = await json(
-      await app.request('/runs/output', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ path: '/tmp/output.md' }),
-      }),
-    );
-    expect(body.success).toBe(true);
-    expect(body.data.content).toBe('# Report content');
   });
 
   test('POST /jobs creates a job and returns { success, data }', async () => {

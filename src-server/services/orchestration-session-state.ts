@@ -1,4 +1,9 @@
-import type { OrchestrationSessionSummary } from '@stallion-ai/contracts/orchestration';
+import type {
+  AgentRunFailureKind,
+  AgentRunStatus,
+  AgentRunSummary,
+  OrchestrationSessionSummary,
+} from '@stallion-ai/contracts/orchestration';
 import type {
   ProviderKind,
   ProviderSession,
@@ -146,6 +151,112 @@ export function buildOrchestrationSessionSummary(options: {
   };
 }
 
+export function buildAgentRunSummary(options: {
+  persisted?: ProviderSession;
+  loaded?: ProviderSession;
+  events?: CanonicalRuntimeEvent[];
+  executionClass?: AgentRunSummary['executionClass'];
+}): AgentRunSummary {
+  const base = options.loaded ?? options.persisted;
+  if (!base) {
+    throw new Error('A persisted or loaded session is required');
+  }
+
+  const events = options.events ?? [];
+  const lastEvent = events.at(-1);
+  const lastError = findTerminalFailureEvent(events);
+  const configured = [...events]
+    .reverse()
+    .find((event) => event.method === 'session.configured');
+  const lastResolvedRequestIds = new Set(
+    events
+      .filter((event) => event.method === 'request.resolved')
+      .map((event) => event.requestId),
+  );
+  const hasOpenRequest = events.some(
+    (event) =>
+      event.method === 'request.opened' &&
+      event.requestId &&
+      !lastResolvedRequestIds.has(event.requestId),
+  );
+
+  const status = deriveAgentRunStatus({
+    sessionStatus: base.status,
+    events,
+    hasOpenRequest,
+  });
+  const failureKind =
+    status === 'failed' && lastError
+      ? classifyAgentRunFailure(lastError)
+      : undefined;
+  const runtimeThreadId = extractRuntimeThreadId(base.resumeCursor);
+
+  return {
+    runId: base.threadId,
+    sessionId: base.threadId,
+    providerId: base.provider,
+    source: 'orchestration',
+    executionClass: options.executionClass ?? 'unknown',
+    status,
+    ...(configured?.method === 'session.configured' && configured.cwd
+      ? { cwd: configured.cwd }
+      : {}),
+    ...(runtimeThreadId ? { runtimeThreadId } : {}),
+    startedAt: base.createdAt,
+    updatedAt: lastEvent?.createdAt ?? base.updatedAt,
+    ...(isTerminalAgentRunStatus(status)
+      ? { completedAt: lastEvent?.createdAt ?? base.updatedAt }
+      : {}),
+    ...(failureKind ? { failureKind } : {}),
+    ...(lastError?.method === 'runtime.error'
+      ? { failureMessage: lastError.message }
+      : {}),
+    retryEligible: failureKind ? isAgentRunRetryEligible(failureKind) : false,
+    attempt: 1,
+    eventCount: events.length,
+  };
+}
+
+export function classifyAgentRunFailure(
+  event: Extract<CanonicalRuntimeEvent, { method: 'runtime.error' }>,
+): AgentRunFailureKind {
+  const code = event.code?.toLowerCase() ?? '';
+  const message = event.message.toLowerCase();
+  if (code.includes('offline') || message.includes('offline')) {
+    return 'runtime_offline';
+  }
+  if (code.includes('recover') || message.includes('recover')) {
+    return 'runtime_recovery';
+  }
+  if (code.includes('timeout') || message.includes('timeout')) {
+    return 'timeout';
+  }
+  if (code.includes('cancel') || message.includes('cancel')) {
+    return 'cancelled';
+  }
+  if (code.includes('tool')) {
+    return 'tool_error';
+  }
+  if (event.retriable === true) {
+    return 'runtime_recovery';
+  }
+  if (code.includes('agent')) {
+    return 'agent_error';
+  }
+  if (event.retriable === false) {
+    return 'agent_error';
+  }
+  return 'unknown';
+}
+
+export function isAgentRunRetryEligible(kind: AgentRunFailureKind): boolean {
+  return (
+    kind === 'runtime_offline' ||
+    kind === 'runtime_recovery' ||
+    kind === 'timeout'
+  );
+}
+
 export async function recoverOrchestrationSessions(options: {
   adapterRegistry: IProviderAdapterRegistry;
   eventStore?: EventStore;
@@ -201,4 +312,87 @@ function mapOrchestrationSessionState(
   if (state === 'errored') return 'error';
   if (state === 'exited') return 'closed';
   return 'ready';
+}
+
+function deriveAgentRunStatus(options: {
+  sessionStatus: ProviderSession['status'];
+  events: CanonicalRuntimeEvent[];
+  hasOpenRequest: boolean;
+}): AgentRunStatus {
+  let status: AgentRunStatus | null = null;
+  for (const event of options.events) {
+    switch (event.method) {
+      case 'session.started':
+        status = 'starting';
+        break;
+      case 'session.state-changed':
+        if (event.to === 'running') status = 'running';
+        if (event.to === 'awaiting-approval') status = 'waiting_for_approval';
+        if (event.to === 'completed') status = 'completed';
+        if (event.to === 'aborted') status = 'cancelled';
+        if (event.to === 'errored') status = 'failed';
+        break;
+      case 'request.opened':
+        status = 'waiting_for_approval';
+        break;
+      case 'request.resolved':
+        status = 'running';
+        break;
+      case 'runtime.error':
+        status = 'failed';
+        break;
+      case 'turn.started':
+        status = 'running';
+        break;
+      case 'turn.aborted':
+        status = 'cancelled';
+        break;
+      case 'turn.completed':
+        status = 'completed';
+        break;
+      case 'session.exited':
+        status ??= 'cancelled';
+        break;
+    }
+  }
+
+  if (status) return status;
+
+  if (options.hasOpenRequest) return 'waiting_for_approval';
+
+  if (options.sessionStatus === 'closed') return 'cancelled';
+  if (options.sessionStatus === 'error') return 'failed';
+  if (options.sessionStatus === 'running') return 'running';
+  if (options.sessionStatus === 'connecting') return 'starting';
+  return 'running';
+}
+
+function isTerminalAgentRunStatus(status: AgentRunStatus): boolean {
+  return (
+    status === 'completed' || status === 'failed' || status === 'cancelled'
+  );
+}
+
+function extractRuntimeThreadId(resumeCursor: unknown): string | undefined {
+  if (
+    resumeCursor &&
+    typeof resumeCursor === 'object' &&
+    'codexThreadId' in resumeCursor &&
+    typeof resumeCursor.codexThreadId === 'string'
+  ) {
+    return resumeCursor.codexThreadId;
+  }
+  return undefined;
+}
+
+function findTerminalFailureEvent(
+  events: CanonicalRuntimeEvent[],
+): Extract<CanonicalRuntimeEvent, { method: 'runtime.error' }> | undefined {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event.method === 'turn.completed') return undefined;
+    if (event.method === 'turn.aborted') return undefined;
+    if (event.method === 'runtime.error') return event;
+  }
+  return undefined;
 }

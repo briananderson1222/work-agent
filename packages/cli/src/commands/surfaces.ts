@@ -364,21 +364,6 @@ async function runScheduleCommand(args: string[]) {
       );
       return;
     }
-    case 'output': {
-      const path =
-        parsed.positionals[1] ||
-        (typeof parsed.flags.path === 'string' ? parsed.flags.path : undefined);
-      if (!path) {
-        throw new Error(
-          'Provide a scheduler output path as an argument or --path=<path>.',
-        );
-      }
-      await requestAndPrint(apiBase, '/scheduler/runs/output', {
-        method: 'POST',
-        body: JSON.stringify({ path }),
-      });
-      return;
-    }
     case 'create': {
       const body = await loadJsonPayload(parsed);
       await requestAndPrint(apiBase, '/scheduler/jobs', {
@@ -438,8 +423,35 @@ async function runScheduleCommand(args: string[]) {
     }
     default:
       throw new Error(
-        "Unknown schedule action. Use 'list', 'jobs', 'providers', 'stats', 'status', 'preview', 'logs', 'output', 'create', 'update', 'run', 'enable', 'disable', or 'delete'.",
+        "Unknown schedule action. Use 'list', 'jobs', 'providers', 'stats', 'status', 'preview', 'logs', 'create', 'update', 'run', 'enable', 'disable', or 'delete'.",
       );
+  }
+}
+
+async function runRunsCommand(args: string[]) {
+  const parsed = parseCoreArgs(args);
+  const apiBase = resolveApiBase(parsed);
+  const action = requirePositional(parsed, 0, 'runs action');
+
+  switch (action) {
+    case 'list':
+      await requestAndPrint(apiBase, '/api/runs');
+      return;
+    case 'read': {
+      const runId = requirePositional(parsed, 1, 'run id');
+      await requestAndPrint(apiBase, `/api/runs/${encodeURIComponent(runId)}`);
+      return;
+    }
+    case 'output': {
+      const body = await loadJsonPayload(parsed);
+      await requestAndPrint(apiBase, '/api/runs/output', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      return;
+    }
+    default:
+      throw new Error("Unknown runs action. Use 'list', 'read', or 'output'.");
   }
 }
 
@@ -868,6 +880,9 @@ export async function runSurfaceCommand(
       return;
     case 'schedule':
       await runScheduleCommand(args);
+      return;
+    case 'runs':
+      await runRunsCommand(args);
       return;
     case 'knowledge':
       await runKnowledgeCommand(args);

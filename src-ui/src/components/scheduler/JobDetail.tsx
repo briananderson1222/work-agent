@@ -1,9 +1,6 @@
+import type { RunSummary } from '@stallion-ai/contracts/runs';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  useFetchRunOutput,
-  useJobLogs,
-  useOpenArtifact,
-} from '../../hooks/useScheduler';
+import { useFetchRunOutputRef, useRunsQuery } from '../../hooks/useScheduler';
 
 const IconX = () => (
   <svg
@@ -70,41 +67,71 @@ export function RateCell({ rate }: { rate: number | undefined }) {
 export function JobDetail({
   name,
   autoOpenRun,
+  providerId,
 }: {
   name: string;
   autoOpenRun?: string | null;
+  providerId?: string;
 }) {
-  const { data: logs = [] } = useJobLogs(name);
-  const fetchOutput = useFetchRunOutput();
-  const openArtifact = useOpenArtifact();
+  const { data: runs = [] } = useRunsQuery();
+  const fetchOutput = useFetchRunOutputRef();
   const [viewIdx, setViewIdx] = useState<number | null>(null);
   const [outputContent, setOutputContent] = useState<string | null>(null);
   const autoOpened = useRef(false);
 
-  const reversedLogs = useMemo(() => [...logs].reverse(), [logs]);
+  const scheduleRuns = useMemo(
+    () =>
+      runs.filter(
+        (run: RunSummary) =>
+          run.source === 'schedule' &&
+          run.sourceId === name &&
+          (!providerId || run.providerId === providerId),
+      ),
+    [name, providerId, runs],
+  );
+  const reversedRuns = useMemo(
+    () => [...scheduleRuns].reverse(),
+    [scheduleRuns],
+  );
 
   const handleViewOutput = useCallback(
     async (i: number) => {
       setViewIdx(i);
       setOutputContent(null);
       try {
-        const data = await fetchOutput.mutateAsync(reversedLogs[i].output);
+        const outputRef = reversedRuns[i].outputRef;
+        if (!outputRef) {
+          setOutputContent('No output available');
+          return;
+        }
+        const data = await fetchOutput.mutateAsync(outputRef);
         setOutputContent(data.content);
       } catch {
         setOutputContent('Failed to load output');
       }
     },
-    [fetchOutput, reversedLogs],
+    [fetchOutput, reversedRuns],
   );
 
   useEffect(() => {
-    if (autoOpened.current || !autoOpenRun || !reversedLogs.length) return;
-    const idx = reversedLogs.findIndex((r) => r.id === autoOpenRun);
+    if (autoOpened.current || !autoOpenRun || !reversedRuns.length) return;
+    const qualifiedLogId = autoOpenRun?.startsWith('schedule:')
+      ? autoOpenRun.split(':').at(-1)
+      : autoOpenRun;
+    const decodedLogId = qualifiedLogId
+      ? decodeURIComponent(qualifiedLogId)
+      : qualifiedLogId;
+    const idx = reversedRuns.findIndex(
+      (run) =>
+        run.runId === autoOpenRun ||
+        run.metadata?.legacyLogId === decodedLogId ||
+        run.outputRef?.artifactId === decodedLogId,
+    );
     if (idx >= 0) {
       autoOpened.current = true;
       handleViewOutput(idx);
     }
-  }, [autoOpenRun, reversedLogs, handleViewOutput]);
+  }, [autoOpenRun, reversedRuns, handleViewOutput]);
 
   const handleDownload = () => {
     if (!outputContent || viewIdx === null) return;
@@ -112,14 +139,12 @@ export function JobDetail({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download =
-      (reversedLogs[viewIdx].output || 'output.txt').split('/').pop() ||
-      'output.txt';
+    a.download = `${reversedRuns[viewIdx].sourceId || 'run'}-${reversedRuns[viewIdx].attempt}.txt`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
-  if (!reversedLogs.length)
+  if (!reversedRuns.length)
     return <div className="schedule__detail-empty">No run history</div>;
 
   return (
@@ -136,8 +161,8 @@ export function JobDetail({
           </tr>
         </thead>
         <tbody>
-          {reversedLogs.map((r, i: number) => (
-            <tr key={r.startedAt}>
+          {reversedRuns.map((r, i: number) => (
+            <tr key={r.runId}>
               <td>
                 {new Date(r.startedAt).toLocaleString(undefined, {
                   month: 'short',
@@ -147,24 +172,28 @@ export function JobDetail({
                 })}
               </td>
               <td
-                className={`schedule__log-status ${r.success ? 'schedule__log-status--ok' : 'schedule__log-status--fail'}`}
+                className={`schedule__log-status ${r.status === 'completed' ? 'schedule__log-status--ok' : 'schedule__log-status--fail'}`}
               >
-                {r.success ? '✓' : '✗'}
+                {r.status === 'completed' ? '✓' : '✗'}
               </td>
               <td>
-                {r.durationSecs != null ? `${r.durationSecs.toFixed(1)}s` : '-'}
+                {typeof r.metadata?.durationSecs === 'number'
+                  ? `${r.metadata.durationSecs.toFixed(1)}s`
+                  : '-'}
               </td>
-              <td>{r.missedCount || '-'}</td>
+              <td>{(r.metadata?.missedCount as number | undefined) || '-'}</td>
               <td>
-                {r.manual ? 'manual' : 'cron'}
-                {r.attempt && r.attempt > 1
+                {r.metadata?.manual ? 'manual' : 'cron'}
+                {r.attempt > 1
                   ? ` (retry ${r.attempt - 1}/${(r.maxAttempts ?? 1) - 1})`
                   : ''}
               </td>
               <td>
                 <button
                   onClick={() => handleViewOutput(i)}
-                  disabled={fetchOutput.isPending && viewIdx === i}
+                  disabled={
+                    !r.outputRef || (fetchOutput.isPending && viewIdx === i)
+                  }
                   className="schedule__action-btn"
                 >
                   Output
@@ -196,14 +225,6 @@ export function JobDetail({
               {outputContent === null ? 'Loading...' : outputContent}
             </pre>
             <div className="schedule__modal-footer">
-              <button
-                className="schedule__modal-cancel"
-                onClick={() =>
-                  openArtifact.mutate(reversedLogs[viewIdx].output)
-                }
-              >
-                Open File
-              </button>
               <button
                 className="schedule__modal-submit"
                 onClick={handleDownload}

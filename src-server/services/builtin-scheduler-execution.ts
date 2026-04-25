@@ -87,6 +87,7 @@ export async function executeSchedulerJobAttempt({
     broadcast({
       event: 'job.completed',
       job: job.name,
+      provider: 'built-in',
       id,
       success: true,
       duration_secs: durationSecs,
@@ -121,6 +122,7 @@ export async function executeSchedulerJobAttempt({
       broadcast({
         event: 'job.retrying',
         job: job.name,
+        provider: 'built-in',
         id,
         error: error.message,
         attempt,
@@ -130,6 +132,7 @@ export async function executeSchedulerJobAttempt({
       broadcast({
         event: 'job.failed',
         job: job.name,
+        provider: 'built-in',
         id,
         error: error.message,
       });

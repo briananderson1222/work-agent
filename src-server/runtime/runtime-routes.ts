@@ -43,6 +43,7 @@ import { createProjectRoutes } from '../routes/projects.js';
 import { createPromptRoutes } from '../routes/prompts.js';
 import { createProviderRoutes } from '../routes/providers.js';
 import { createRegistryRoutes } from '../routes/registry.js';
+import { createRunRoutes } from '../routes/runs.js';
 import { createSchedulerRoutes } from '../routes/scheduler.js';
 import { createSkillRoutes } from '../routes/skills.js';
 import { createSystemRoutes } from '../routes/system.js';
@@ -66,6 +67,7 @@ import type { OrchestrationService } from '../services/orchestration-service.js'
 import type { ProjectService } from '../services/project-service.js';
 import { PromptService } from '../services/prompt-service.js';
 import type { ProviderService } from '../services/provider-service.js';
+import { RunService } from '../services/run-service.js';
 import type { SchedulerService } from '../services/scheduler-service.js';
 import type { SkillService } from '../services/skill-service.js';
 import type { TerminalService } from '../services/terminal-service.js';
@@ -408,6 +410,13 @@ export function configureRuntimeRoutes(
   context.app.route(
     '/scheduler',
     createSchedulerRoutes(schedulerService, context.logger),
+  );
+  context.app.route(
+    '/api/runs',
+    createRunRoutes(
+      new RunService(context.orchestrationService, schedulerService),
+      context.logger,
+    ),
   );
   schedulerService.setNotificationService(notificationService);
   context.app.route(

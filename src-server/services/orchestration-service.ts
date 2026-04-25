@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import type {
+  AgentRunSummary,
   OrchestrationCommand,
   OrchestrationSessionDetail,
   OrchestrationSessionSummary,
@@ -23,6 +24,7 @@ import {
 import type { EventBus } from './event-bus.js';
 import type { EventStore, OrchestrationCommandReceipt } from './event-store.js';
 import {
+  buildAgentRunSummary,
   buildOrchestrationSessionSummary,
   projectOrchestrationEventToReadModel,
   recoverOrchestrationSessions,
@@ -196,6 +198,43 @@ export class OrchestrationService {
   async listLoadedSessionReadModel(): Promise<OrchestrationSessionSummary[]> {
     const sessions = await this.listSessionReadModel();
     return sessions.filter((session) => session.isLoaded);
+  }
+
+  async listAgentRuns(): Promise<AgentRunSummary[]> {
+    this.initialize();
+    await this.listSessions();
+
+    const persistedSessions = this.options.eventStore?.readSessions() ?? [];
+    const persistedByThread = new Map(
+      persistedSessions.map((session) => [session.threadId, session]),
+    );
+    const threadIds = new Set<string>([
+      ...persistedByThread.keys(),
+      ...this.sessionReadModel.keys(),
+    ]);
+
+    return [...threadIds]
+      .map((threadId) => {
+        const events = this.options.eventStore?.listEvents(threadId) ?? [];
+        const provider =
+          persistedByThread.get(threadId)?.provider ??
+          this.sessionReadModel.get(threadId)?.provider;
+        return buildAgentRunSummary({
+          persisted: persistedByThread.get(threadId),
+          loaded: this.sessionReadModel.get(threadId),
+          events: events.map((event) => event.payload),
+          executionClass: provider
+            ? (this.options.adapterRegistry.get(provider)?.metadata
+                .executionClass ?? 'unknown')
+            : 'unknown',
+        });
+      })
+      .sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  }
+
+  async readAgentRun(runId: string): Promise<AgentRunSummary | null> {
+    const runs = await this.listAgentRuns();
+    return runs.find((run) => run.runId === runId) ?? null;
   }
 
   async readSession(

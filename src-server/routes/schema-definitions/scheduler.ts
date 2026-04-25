@@ -17,7 +17,6 @@ export const addJobSchema = z.object({
   prompt: z.string().min(1),
   agent: z.string().optional(),
   provider: z.string().optional(),
-  openArtifact: z.string().optional(),
   notifyStart: z.boolean().optional(),
   trustAllTools: z.boolean().optional(),
   retryCount: z.number().int().min(0).max(10).optional(),
@@ -29,17 +28,8 @@ export const editJobSchema = z.object({
   prompt: z.string().optional(),
   agent: z.string().optional(),
   enabled: z.boolean().optional(),
-  openArtifact: z.string().optional(),
   notifyStart: z.boolean().optional(),
   trustAllTools: z.boolean().optional(),
   retryCount: z.number().int().min(0).max(10).optional(),
   retryDelaySecs: z.number().int().min(0).max(3600).optional(),
-});
-
-export const runOutputSchema = z.object({
-  path: z.string().min(1),
-});
-
-export const schedulerOpenSchema = z.object({
-  path: z.string().min(1),
 });

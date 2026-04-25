@@ -20,7 +20,6 @@ export interface SchedulerJob {
   prompt: string;
   agent?: string;
   enabled: boolean;
-  openArtifact?: string;
   notifyStart?: boolean;
   retryCount?: number;
   retryDelaySecs?: number;
@@ -50,7 +49,6 @@ export interface AddJobOpts {
   cron?: string;
   prompt: string;
   agent?: string;
-  openArtifact?: string;
   notifyStart?: boolean;
   retryCount?: number;
   retryDelaySecs?: number;
@@ -82,6 +80,7 @@ export interface SchedulerEvent {
     | 'job.retrying'
     | 'job.missed';
   job: string;
+  provider?: string;
   id?: string;
   success?: boolean;
   duration_secs?: number;

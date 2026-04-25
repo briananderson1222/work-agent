@@ -134,6 +134,7 @@ Core Workspace:
   stallion notifications <action> Manage inbox and approval notifications
   stallion monitoring <action>  Query monitoring stats, metrics, and events
   stallion schedule <action>    Manage scheduled jobs and scheduler status
+  stallion runs <action>        Read global run history through the neutral runs API
   stallion knowledge <action>   Query knowledge status, search, namespaces, and documents
   stallion auth <action>        Check auth status and user directory info
   stallion branding <action>    Read resolved branding config
@@ -262,9 +263,7 @@ export async function runCli(argv: string[]): Promise<void> {
           break;
         case 'registry':
           if (
-            ['agents', 'skills', 'integrations', 'plugins'].includes(
-              subArgs[0],
-            )
+            ['agents', 'skills', 'integrations', 'plugins'].includes(subArgs[0])
           ) {
             await runRegistryCatalogCommand(subArgs);
             break;
@@ -439,6 +438,7 @@ export async function runCli(argv: string[]): Promise<void> {
     case 'notifications':
     case 'monitoring':
     case 'schedule':
+    case 'runs':
     case 'knowledge':
     case 'auth':
     case 'branding':

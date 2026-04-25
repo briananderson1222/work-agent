@@ -1,6 +1,7 @@
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import type { RunOutputRef, RunSummary } from '@stallion-ai/contracts/runs';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { _getApiBase } from '../api';
-import { useApiQuery } from '../query-core';
+import { type QueryConfig, useApiQuery } from '../query-core';
 
 async function schedulerFetch<T>(path: string): Promise<T> {
   const apiBase = await _getApiBase();
@@ -32,6 +33,32 @@ async function schedulerMutate(path: string, method: string, body?: unknown) {
   }
   return result.data;
 }
+
+async function runsFetch<T>(path = ''): Promise<T> {
+  const apiBase = await _getApiBase();
+  const response = await fetch(`${apiBase}/api/runs${path}`);
+  if (!response.ok) {
+    throw new Error(`Runs API error: ${response.status}`);
+  }
+  const result = await response.json();
+  if (!result.success) {
+    throw new Error(result.error || 'Unknown runs error');
+  }
+  return result.data;
+}
+
+export const runsQueries = {
+  list: () => ({
+    queryKey: ['runs'] as const,
+    queryFn: () => runsFetch<RunSummary[]>(),
+    staleTime: 30_000,
+  }),
+  detail: (runId: string) => ({
+    queryKey: ['runs', runId] as const,
+    queryFn: () => runsFetch<RunSummary>(`/${encodeURIComponent(runId)}`),
+    staleTime: 30_000,
+  }),
+};
 
 export function useSchedulerJobs() {
   return useApiQuery(
@@ -65,10 +92,13 @@ export function useSchedulerStatus() {
   );
 }
 
-export function useJobLogs(target: string | null) {
+export function useJobLogs(target: string | null, providerId?: string) {
+  const providerQuery = providerId
+    ? `?providerId=${encodeURIComponent(providerId)}`
+    : '';
   return useApiQuery(
-    ['scheduler', 'logs', target ?? ''],
-    () => schedulerFetch<any[]>(`/jobs/${target}/logs`),
+    ['scheduler', 'logs', target ?? '', providerId ?? ''],
+    () => schedulerFetch<any[]>(`/jobs/${target}/logs${providerQuery}`),
     { staleTime: 30_000, enabled: !!target },
   );
 }
@@ -84,12 +114,33 @@ export function usePreviewSchedule(cron: string | null) {
   );
 }
 
+export function useRunsQuery(config?: QueryConfig<RunSummary[]>) {
+  return useQuery({
+    ...runsQueries.list(),
+    ...config,
+  });
+}
+
+export function useRunQuery(
+  runId: string | null | undefined,
+  config?: QueryConfig<RunSummary>,
+) {
+  return useQuery({
+    ...runsQueries.detail(runId ?? ''),
+    ...config,
+    enabled: !!runId && (config?.enabled ?? true),
+  });
+}
+
 export function useRunJob() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (target: string) =>
       schedulerMutate(`/jobs/${target}/run`, 'POST'),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['scheduler'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['scheduler'] });
+      queryClient.invalidateQueries({ queryKey: runsQueries.list().queryKey });
+    },
   });
 }
 
@@ -137,7 +188,6 @@ export function useAddJob() {
       prompt?: string;
       agent?: string;
       provider?: string;
-      openArtifact?: string;
       notifyStart?: boolean;
       trustAllTools?: boolean;
     }) => schedulerMutate('/jobs', 'POST', options),
@@ -145,15 +195,23 @@ export function useAddJob() {
   });
 }
 
-export function useFetchRunOutput() {
+export function useFetchRunOutputRef() {
   return useMutation({
-    mutationFn: (outputPath: string) =>
-      schedulerMutate('/runs/output', 'POST', { path: outputPath }),
-  });
-}
-
-export function useOpenArtifact() {
-  return useMutation({
-    mutationFn: (path: string) => schedulerMutate('/open', 'POST', { path }),
+    mutationFn: async (outputRef: RunOutputRef) => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(`${apiBase}/api/runs/output`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(outputRef),
+      });
+      if (!response.ok) {
+        throw new Error(`Runs API error: ${response.status}`);
+      }
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || 'Unknown runs error');
+      }
+      return result.data;
+    },
   });
 }

@@ -34,6 +34,13 @@ describe('CLI surface commands over HTTP', () => {
     connections: [] as any[],
     tools: [] as any[],
     notifications: [] as any[],
+    runs: [
+      {
+        runId: 'run-1',
+        source: 'schedule',
+        status: 'completed',
+      },
+    ] as any[],
     scheduleJobs: [] as any[],
     monitoringEvents: [{ type: 'event', value: 'historical' }],
     notificationActionCalls: [] as Array<{ id: string; actionId: string }>,
@@ -180,6 +187,18 @@ describe('CLI surface commands over HTTP', () => {
 
       if (method === 'GET' && url.pathname === '/scheduler/jobs') {
         sendJson(200, { success: true, data: state.scheduleJobs });
+        return;
+      }
+      if (method === 'GET' && url.pathname === '/api/runs') {
+        sendJson(200, { success: true, data: state.runs });
+        return;
+      }
+      if (method === 'GET' && url.pathname === '/api/runs/run-1') {
+        sendJson(200, { success: true, data: state.runs[0] });
+        return;
+      }
+      if (method === 'POST' && url.pathname === '/api/runs/output') {
+        sendJson(200, { success: true, data: { content: 'run output' } });
         return;
       }
       if (method === 'GET' && url.pathname === '/scheduler/providers') {
@@ -480,6 +499,13 @@ describe('CLI surface commands over HTTP', () => {
     state.connections = [];
     state.tools = [];
     state.notifications = [];
+    state.runs = [
+      {
+        runId: 'run-1',
+        source: 'schedule',
+        status: 'completed',
+      },
+    ];
     state.scheduleJobs = [];
     state.monitoringEvents = [{ type: 'event', value: 'historical' }];
     state.notificationActionCalls = [];
@@ -489,7 +515,7 @@ describe('CLI surface commands over HTTP', () => {
     state.voiceSessions = [];
   });
 
-  test('supports connections, tools, notifications, monitoring, schedule, and knowledge surfaces', async () => {
+  test('supports connections, tools, notifications, monitoring, schedule, runs, and knowledge surfaces', async () => {
     const { runCli } = await import('../cli.js');
 
     await runCli([
@@ -571,6 +597,14 @@ describe('CLI surface commands over HTTP', () => {
       '0 9 * * *',
       '1',
       `--api-base=${apiBase}`,
+    ]);
+    await runCli(['runs', 'list', `--api-base=${apiBase}`]);
+    await runCli(['runs', 'read', 'run-1', `--api-base=${apiBase}`]);
+    await runCli([
+      'runs',
+      'output',
+      `--api-base=${apiBase}`,
+      '--data={"source":"schedule","providerId":"built-in","runId":"run-1","artifactId":"log-1","kind":"text"}',
     ]);
 
     await runCli(['knowledge', 'status', `--api-base=${apiBase}`]);

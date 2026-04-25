@@ -115,6 +115,7 @@ class FakeAdapter implements ProviderAdapterShape {
       capabilities: ['agent-runtime'],
       runtimeId: `${provider}-runtime`,
       builtin: true,
+      executionClass: provider === 'bedrock' ? 'managed' : 'connected',
     };
     this.prerequisites = prerequisites;
     this.startSession.mockImplementation(async (input) => {
@@ -518,6 +519,46 @@ describe('OrchestrationService', () => {
           finishReason: 'stop',
         }),
       ],
+    });
+  });
+
+  test('lists read-only agent run summaries from orchestration events', async () => {
+    eventStore.upsertSession({
+      provider: 'claude',
+      threadId: 'thread-run',
+      status: 'running',
+      model: 'sonnet',
+      createdAt: '2026-04-11T00:00:00.000Z',
+      updatedAt: '2026-04-11T00:00:01.000Z',
+    });
+    eventStore.appendEvent({
+      provider: 'claude',
+      threadId: 'thread-run',
+      eventId: 'evt-request',
+      createdAt: '2026-04-11T00:00:02.000Z',
+      method: 'request.opened',
+      requestId: 'req-1',
+      requestType: 'approval',
+      title: 'Allow command',
+    } as any);
+
+    const runs = await service.listAgentRuns();
+    const run = await service.readAgentRun('thread-run');
+
+    expect(runs).toEqual([
+      expect.objectContaining({
+        runId: 'thread-run',
+        sessionId: 'thread-run',
+        providerId: 'claude',
+        source: 'orchestration',
+        executionClass: 'connected',
+        status: 'waiting_for_approval',
+        retryEligible: false,
+      }),
+    ]);
+    expect(run).toMatchObject({
+      runId: 'thread-run',
+      status: 'waiting_for_approval',
     });
   });
 

@@ -102,6 +102,71 @@ describe('CodexAdapterTransport', () => {
     });
   });
 
+  test('ignores notifications for foreign Codex subagent threads', async () => {
+    const transport = new CodexAdapterTransport(
+      () => new Date('2026-04-11T00:00:00Z'),
+    );
+    const processHandle = new FakeCodexProcess();
+    const record = createCodexSessionRecord({
+      externalThreadId: 'thread-foreign-filter',
+      process: processHandle,
+      provider: 'codex',
+      threadId: 'thread-foreign-filter',
+      model: 'gpt-5-codex',
+      nowIso: () => '2026-04-11T00:00:00Z',
+    });
+
+    transport.registerSession(record);
+    transport.setCodexThreadId(record, 'codex-thread-main');
+
+    transport.handleStdoutLine(
+      record,
+      JSON.stringify({
+        method: 'item/agentMessage/delta',
+        params: {
+          threadId: 'codex-thread-subagent',
+          turnId: 'turn-subagent',
+          itemId: 'message-subagent',
+          delta: 'foreign text',
+        },
+      }),
+    );
+    transport.handleStdoutLine(
+      record,
+      JSON.stringify({
+        method: 'turn/completed',
+        params: {
+          threadId: 'codex-thread-subagent',
+          turn: {
+            id: 'turn-subagent',
+            status: 'completed',
+          },
+        },
+      }),
+    );
+
+    expect(record.turnOutput.has('turn-subagent')).toBe(false);
+    expect(record.activeTurnId).toBeUndefined();
+    expect(record.session.resumeCursor).toBeUndefined();
+
+    const iterator = transport.streamEvents()[Symbol.asyncIterator]();
+    transport.handleStdoutLine(
+      record,
+      JSON.stringify({
+        method: 'thread/status/changed',
+        params: {
+          threadId: 'codex-thread-main',
+          status: { type: 'active', activeFlags: [] },
+        },
+      }),
+    );
+
+    expect(await nextEvent(iterator, 'main-thread event')).toMatchObject({
+      method: 'session.state-changed',
+      threadId: 'thread-foreign-filter',
+    });
+  });
+
   test('writes JSON-RPC requests and resolves session lookup helpers', async () => {
     const transport = new CodexAdapterTransport(
       () => new Date('2026-04-11T00:00:00Z'),

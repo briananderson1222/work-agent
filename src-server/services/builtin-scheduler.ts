@@ -14,7 +14,6 @@ import {
   getStoredJobView,
   readSchedulerJobLogs,
   readSchedulerRunFile,
-  readSchedulerRunOutput,
   readStoredJobs,
   type StoredJob,
   writeStoredJobs,
@@ -104,6 +103,7 @@ export class BuiltinScheduler implements ISchedulerProvider {
         this.broadcast({
           event: 'job.missed',
           job: job.name,
+          provider: this.id,
           missedCount: count,
         });
         this.notificationService?.schedule('scheduler', {
@@ -131,7 +131,12 @@ export class BuiltinScheduler implements ISchedulerProvider {
     const id = `${job.name}-${Date.now()}`;
     const startedAt = new Date().toISOString();
     this.running.add(job.name);
-    this.broadcast({ event: 'job.started', job: job.name, id });
+    this.broadcast({
+      event: 'job.started',
+      job: job.name,
+      provider: this.id,
+      id,
+    });
 
     try {
       if (!this.chatFn)
@@ -210,7 +215,6 @@ export class BuiltinScheduler implements ISchedulerProvider {
       cron: opts.cron,
       prompt: opts.prompt,
       agent: opts.agent,
-      openArtifact: opts.openArtifact,
       notifyStart: opts.notifyStart,
       retryCount: opts.retryCount,
       retryDelaySecs: opts.retryDelaySecs,
@@ -260,13 +264,6 @@ export class BuiltinScheduler implements ISchedulerProvider {
 
   async getJobLogs(target: string, count = 20): Promise<SchedulerLogEntry[]> {
     return readSchedulerJobLogs(target, count);
-  }
-
-  async getRunOutput(target: string): Promise<string> {
-    const logs = readSchedulerJobLogs(target);
-    const last = logs[logs.length - 1];
-    if (!last?.output) return '';
-    return readSchedulerRunOutput(last.output);
   }
 
   async readRunFile(path: string): Promise<string> {

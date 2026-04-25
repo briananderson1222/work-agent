@@ -4,6 +4,7 @@
  * Routes CRUD to the provider that owns each job.
  */
 
+import type { RunOutputRef, RunSummary } from '@stallion-ai/contracts/runs';
 import type {
   AddJobOpts,
   SchedulerJob,
@@ -22,6 +23,10 @@ import {
   nextCronTimes,
 } from './builtin-scheduler.js';
 import type { NotificationService } from './notification-service.js';
+import {
+  parseScheduleRunId,
+  projectSchedulerLogToRun,
+} from './run-projection.js';
 import { SSEBroadcaster } from './sse-broadcaster.js';
 
 export class SchedulerService {
@@ -201,26 +206,87 @@ export class SchedulerService {
     return p.getJobLogs(target, count);
   }
 
-  async getRunOutput(target: string): Promise<string> {
-    const p = await this.findJobProvider(target);
-    return p.getRunOutput?.(target) ?? '';
+  async getJobLogsForProvider(
+    providerId: string,
+    target: string,
+    count?: number,
+  ): Promise<SchedulerLogEntry[]> {
+    return this.getProvider(providerId).getJobLogs(target, count);
   }
 
-  async readRunFile(path: string): Promise<string> {
-    // Try each provider
-    for (const p of this.providers.values()) {
-      try {
-        if (p.readRunFile) return await p.readRunFile(path);
-      } catch (e) {
-        console.debug(
-          'Failed to read run file from scheduler provider:',
-          p.id,
-          e,
-        );
-        /* not this provider */
-      }
+  async listRunSummaries(filters?: {
+    providerId?: string;
+    sourceId?: string;
+  }): Promise<RunSummary[]> {
+    const providers = filters?.providerId
+      ? [this.getProvider(filters.providerId)]
+      : [...this.providers.values()];
+
+    const runs = (
+      await Promise.all(
+        providers.map(async (provider) => {
+          const jobs = await provider.listJobs().catch(() => []);
+          const matchingJobs = filters?.sourceId
+            ? jobs.filter((job) => job.name === filters.sourceId)
+            : jobs;
+          const jobRuns = await Promise.all(
+            matchingJobs.map(async (job) => {
+              const logs = await provider.getJobLogs(job.name).catch(() => []);
+              return logs.map((log) =>
+                projectSchedulerLogToRun(provider.id, log),
+              );
+            }),
+          );
+          return jobRuns.flat();
+        }),
+      )
+    ).flat();
+
+    return runs.sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  }
+
+  async readRunSummary(runId: string): Promise<RunSummary | null> {
+    const parsed = parseScheduleRunId(runId);
+    if (!parsed) return null;
+    const logs = await this.getJobLogsForProvider(
+      parsed.providerId,
+      parsed.jobName,
+    ).catch(() => []);
+    const log = logs.find((entry) => entry.id === parsed.logId);
+    return log ? projectSchedulerLogToRun(parsed.providerId, log) : null;
+  }
+
+  async readOutputRef(ref: RunOutputRef): Promise<string> {
+    if (ref.source !== 'schedule') {
+      throw new Error(`Unsupported run output source '${ref.source}'`);
     }
-    throw new Error('No provider could read this file');
+    const parsed = parseScheduleRunId(ref.runId);
+    if (!parsed || parsed.providerId !== ref.providerId) {
+      throw new Error('Invalid schedule run output reference');
+    }
+    const run = await this.readRunSummary(ref.runId);
+    if (!run?.outputRef || run.outputRef.artifactId !== ref.artifactId) {
+      throw new Error('Run output reference not found');
+    }
+    const parsedRun = parseScheduleRunId(ref.runId);
+    if (!parsedRun) {
+      throw new Error('Invalid schedule run output reference');
+    }
+    const logs = await this.getJobLogsForProvider(
+      parsedRun.providerId,
+      parsedRun.jobName,
+    );
+    const log = logs.find((entry) => entry.id === parsedRun.logId);
+    if (!log?.output) {
+      throw new Error('Run output not found');
+    }
+    const provider = this.getProvider(ref.providerId);
+    if (!provider.readRunFile) {
+      throw new Error(
+        `Scheduler provider '${ref.providerId}' cannot read run output`,
+      );
+    }
+    return provider.readRunFile(log.output);
   }
 
   async previewSchedule(cron: string, count = 5): Promise<string[]> {

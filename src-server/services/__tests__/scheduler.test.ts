@@ -284,12 +284,14 @@ describe('BuiltinScheduler', () => {
     expect(logs[0].success).toBe(false);
   });
 
-  test('runJob writes output file readable by getRunOutput', async () => {
+  test('runJob writes output file readable through the provider file guard', async () => {
     chatFnBehavior = { ok: true, text: 'captured output' };
     await scheduler.addJob({ name: 'output-job', prompt: 'test' });
     await scheduler.runJob('output-job');
     await new Promise((r) => setTimeout(r, 50));
-    const output = await scheduler.getRunOutput('output-job');
+    const logs = await scheduler.getJobLogs('output-job');
+    expect(logs[0].output).toBeTruthy();
+    const output = await scheduler.readRunFile(logs[0].output!);
     expect(output).toBe('captured output');
   });
 

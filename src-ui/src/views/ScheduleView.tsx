@@ -7,7 +7,6 @@ import { useNavigation } from '../contexts/NavigationContext';
 import { useToast } from '../contexts/ToastContext';
 import {
   useDeleteJob,
-  useOpenArtifact,
   useRunJob,
   useSchedulerEvents,
   useSchedulerJobs,
@@ -24,6 +23,17 @@ import { buildEnrichedSchedulerJobs } from './schedule/utils';
 import './ScheduleView.css';
 import './page-layout.css';
 
+function parseQualifiedScheduleRun(runId: string | null) {
+  if (!runId?.startsWith('schedule:')) return null;
+  const [, providerId, jobName, logId, ...rest] = runId.split(':');
+  if (!providerId || !jobName || !logId || rest.length) return null;
+  return {
+    providerId: decodeURIComponent(providerId),
+    jobName: decodeURIComponent(jobName),
+    logId: decodeURIComponent(logId),
+  };
+}
+
 export function ScheduleView() {
   const { data: jobs = [], isLoading, isError: jobsError } = useSchedulerJobs();
   const { data: stats, isLoading: loadingStats } = useSchedulerStats();
@@ -39,7 +49,6 @@ export function ScheduleView() {
   const runJob = useRunJob();
   const toggleJob = useToggleJob();
   const deleteJob = useDeleteJob();
-  const openArtifact = useOpenArtifact();
   const { updateParams } = useNavigation();
   const { showToast } = useToast();
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -68,8 +77,15 @@ export function ScheduleView() {
     const params = new URLSearchParams(window.location.search);
     const jobParam = params.get('job');
     const runParam = params.get('run');
-    if (jobParam && jobs.some((j) => j.name === jobParam)) {
-      setExpanded(jobParam);
+    const qualifiedRun = parseQualifiedScheduleRun(runParam);
+    const resolvedJobParam = qualifiedRun?.jobName ?? jobParam;
+    const jobMatches = jobs.filter((j) => j.name === resolvedJobParam);
+    const matchedJob =
+      qualifiedRun && jobMatches.length > 1
+        ? jobMatches.find((j) => j.provider === qualifiedRun.providerId)
+        : jobMatches[0];
+    if (matchedJob) {
+      setExpanded(`${matchedJob.provider}:${matchedJob.name}`);
       if (runParam) setAutoOpenRun(runParam);
       deepLinked.current = true;
       updateParams({ job: null, run: null });
@@ -217,9 +233,6 @@ export function ScheduleView() {
               onEdit={setEditingJob}
               onExpand={setExpanded}
               onFilterChange={setFilterText}
-              onOpenArtifact={(artifactPath) =>
-                openArtifact.mutate(artifactPath)
-              }
               onToggle={(job, running) => {
                 if (running) {
                   setConfirmAction({

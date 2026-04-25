@@ -115,6 +115,19 @@ export function createOrchestrationRoutes(
     return c.json({ success: true, data });
   });
 
+  app.get('/runs', async (c) => {
+    const data = await orchestrationService.listAgentRuns();
+    return c.json({ success: true, data });
+  });
+
+  app.get('/runs/:runId', async (c) => {
+    const data = await orchestrationService.readAgentRun(c.req.param('runId'));
+    if (!data) {
+      return c.json({ success: false, error: 'Run not found' }, 404);
+    }
+    return c.json({ success: true, data });
+  });
+
   app.get('/sessions/:threadId/events', async (c) => {
     const detail = await orchestrationService.readSession(
       c.req.param('threadId'),

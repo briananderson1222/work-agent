@@ -122,6 +122,8 @@ describe('Orchestration Routes', () => {
           updatedAt: '2026-03-28T00:00:01.000Z',
         },
       ]),
+      listAgentRuns: vi.fn(),
+      readAgentRun: vi.fn(),
       readSession: vi.fn(),
       dispatch: vi.fn(),
     };
@@ -152,6 +154,77 @@ describe('Orchestration Routes', () => {
         }),
       ],
     });
+  });
+
+  test('GET /runs exposes a read-only agent run ledger surface', async () => {
+    const service = {
+      listProviders: vi.fn(),
+      listSessions: vi.fn().mockResolvedValue([]),
+      listSessionReadModel: vi.fn(),
+      listLoadedSessionReadModel: vi.fn(),
+      listAgentRuns: vi.fn().mockResolvedValue([
+        {
+          runId: 'thread-run',
+          sessionId: 'thread-run',
+          providerId: 'codex',
+          source: 'orchestration',
+          executionClass: 'connected',
+          status: 'failed',
+          startedAt: '2026-03-28T00:00:00.000Z',
+          updatedAt: '2026-03-28T00:00:02.000Z',
+          completedAt: '2026-03-28T00:00:02.000Z',
+          failureKind: 'timeout',
+          failureMessage: 'timeout',
+          retryEligible: true,
+          attempt: 1,
+          eventCount: 2,
+        },
+      ]),
+      readAgentRun: vi.fn().mockResolvedValue({
+        runId: 'thread-run',
+        sessionId: 'thread-run',
+        providerId: 'codex',
+        source: 'orchestration',
+        executionClass: 'connected',
+        status: 'failed',
+        startedAt: '2026-03-28T00:00:00.000Z',
+        updatedAt: '2026-03-28T00:00:02.000Z',
+        completedAt: '2026-03-28T00:00:02.000Z',
+        failureKind: 'timeout',
+        failureMessage: 'timeout',
+        retryEligible: true,
+        attempt: 1,
+        eventCount: 2,
+      }),
+      readSession: vi.fn(),
+      dispatch: vi.fn(),
+    };
+    const app = createOrchestrationRoutes(service as any, {
+      eventBus: new EventBus(),
+      logger: { debug: vi.fn() },
+    });
+
+    const listRes = await app.request('/runs');
+    expect(await listRes.json()).toEqual({
+      success: true,
+      data: [
+        expect.objectContaining({
+          runId: 'thread-run',
+          status: 'failed',
+          retryEligible: true,
+        }),
+      ],
+    });
+
+    const detailRes = await app.request('/runs/thread-run');
+    expect(await detailRes.json()).toEqual({
+      success: true,
+      data: expect.objectContaining({
+        runId: 'thread-run',
+        failureKind: 'timeout',
+      }),
+    });
+    expect(service.dispatch).not.toHaveBeenCalled();
   });
 
   test('GET /sessions/:threadId and /sessions/:threadId/events return detail and event history', async () => {

@@ -18,7 +18,6 @@ export interface StoredJob {
   prompt: string;
   agent?: string;
   enabled: boolean;
-  openArtifact?: string;
   notifyStart?: boolean;
   retryCount?: number;
   retryDelaySecs?: number;
@@ -59,10 +58,6 @@ export function readSchedulerJobLogs(
 
 export function getSchedulerRunOutputPath(id: string): string {
   return join(SCHEDULER_LOGS_DIR, `${id}.log`);
-}
-
-export function readSchedulerRunOutput(path: string): string {
-  return readFileSync(path, 'utf-8');
 }
 
 export function readSchedulerRunFile(path: string): string {

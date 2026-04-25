@@ -107,7 +107,6 @@ export interface ISchedulerProvider {
   enableJob(target: string): Promise<void>;
   disableJob(target: string): Promise<void>;
   getJobLogs(target: string, count?: number): Promise<SchedulerLogEntry[]>;
-  getRunOutput?(target: string): Promise<string>;
   readRunFile?(path: string): Promise<string>;
   getStats(): Promise<SchedulerProviderStats>;
   getStatus(): Promise<SchedulerProviderStatus>;

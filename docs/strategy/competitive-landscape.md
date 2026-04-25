@@ -2,7 +2,7 @@
 
 > Snapshot of the AI agent tool ecosystem. Includes direct competitors, inspiration repos, industry gaps, and a "steal list" of features worth adopting. Refresh quarterly.
 
-*Last updated: 2026-04-11*
+*Last updated: 2026-04-25*
 
 ---
 
@@ -112,6 +112,27 @@ These are the open-source projects we actively track for ideas, patterns, and co
 
 ---
 
+### multica-ai/multica
+
+**What it is:** GitHub-connected agent workbench with daemon-executed tasks, issue assignment, direct chat, autopilots, and per-task workspaces.
+
+**Key architectural decisions:**
+- Durable task lifecycle with queued, dispatched, running, completed, failed, and cancelled states
+- Daemon-side runtime execution with concurrency limits, heartbeats, cancellation polling, and orphan recovery
+- Retry taxonomy separating runtime/offline/timeout failures from agent errors
+- Codex app-server integration filters notifications by tracked thread ID so subagent or sibling-thread output does not leak into the main task
+- Bare-clone cache plus per-task git worktrees for isolated repo checkout
+
+**What to watch:** daemon task leasing/recovery, Codex app-server handling, repo cache/worktree safety
+
+**Stallion parallel:** orchestration event store, connected runtime adapters, Ralph/team execution, hermetic temp-home runs
+
+**Stallion stance:** Borrow the operational mechanics, not the hosted issue-board control plane. Keep run status as a read model over orchestration events and keep worktree isolation opt-in for autonomous workflows.
+
+**Check frequency:** Quarterly
+
+---
+
 ## Broader Landscape
 
 | Tool | Category | Key Strength | Threat Level |
@@ -170,6 +191,9 @@ Concrete features worth adopting or adapting, with source attribution and priori
 | Credential pool failover | Hermes | Auto-failover on 402, credential rotation | Low | Backlog |
 | Request-scoped plugin hooks | Hermes | Correlation IDs and lifecycle events for plugins | Medium | Phase 2 |
 | Gateway pattern | Hermes | One command definition drives all surfaces (CLI, UI, messaging) | Low | Backlog |
+| Agent run ledger | Multica | Durable run projection with lifecycle, failure kind, retry eligibility | High | Phase 1 |
+| Codex foreign-thread filtering | Multica | Ignore Codex notifications from untracked subagent/sibling thread IDs | High | Phase 1 |
+| Opt-in worktree isolation | Multica | Isolated autonomous run workspace with unique instance, temp home, ports, and cleanup | Medium | Phase 3 |
 
 ---
 

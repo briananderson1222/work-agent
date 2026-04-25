@@ -23,11 +23,12 @@ export {
   useAddJob,
   useDeleteJob,
   useEditJob,
-  useFetchRunOutput,
+  useFetchRunOutputRef,
   useJobLogs,
-  useOpenArtifact,
   usePreviewSchedule,
   useRunJob,
+  useRunQuery,
+  useRunsQuery,
   useSchedulerJobs,
   useSchedulerProviders,
   useSchedulerStats,
@@ -55,6 +56,31 @@ export interface SchedulerProviderInfo {
   displayName: string;
   capabilities: string[];
   formFields?: SchedulerFormField[];
+}
+
+export function getSchedulerEventInvalidationKeys(
+  event: SchedulerEvent['event'],
+): Array<readonly unknown[]> {
+  switch (event) {
+    case 'job.started':
+    case 'job.missed':
+      return [['scheduler']];
+    case 'job.completed':
+    case 'job.failed':
+    case 'job.retrying':
+      return [['scheduler'], ['runs']];
+    default:
+      return [['scheduler']];
+  }
+}
+
+function invalidateSchedulerEventQueries(
+  queryClient: ReturnType<typeof useQueryClient>,
+  event: SchedulerEvent['event'],
+) {
+  for (const queryKey of getSchedulerEventInvalidationKeys(event)) {
+    queryClient.invalidateQueries({ queryKey });
+  }
 }
 
 /** Subscribe to scheduler SSE events with exponential backoff reconnection. */
@@ -110,6 +136,7 @@ export function useSchedulerEvents(enabled = true) {
               }, 5 * 60_000),
             );
             showToast(`🚀 Job '${evt.job}' started`);
+            invalidateSchedulerEventQueries(qc, evt.event);
           } else if (evt.event === 'job.completed') {
             runningRef.current.delete(evt.job);
             missedRef.current.delete(evt.job);
@@ -125,6 +152,7 @@ export function useSchedulerEvents(enabled = true) {
                 variant: 'primary',
               },
             ]);
+            invalidateSchedulerEventQueries(qc, evt.event);
           } else if (evt.event === 'job.failed') {
             runningRef.current.delete(evt.job);
             missedRef.current.delete(evt.job);
@@ -148,10 +176,13 @@ export function useSchedulerEvents(enabled = true) {
               );
             }
             recentErrorRef.current.delete(evt.job);
+            invalidateSchedulerEventQueries(qc, evt.event);
+          } else if (evt.event === 'job.retrying') {
+            invalidateSchedulerEventQueries(qc, evt.event);
           } else if (evt.event === 'job.missed') {
             missedRef.current.set(evt.job, evt.missedCount ?? 1);
+            invalidateSchedulerEventQueries(qc, evt.event);
           }
-          qc.invalidateQueries({ queryKey: ['scheduler'] });
         } catch {
           /* ignore parse errors */
         }

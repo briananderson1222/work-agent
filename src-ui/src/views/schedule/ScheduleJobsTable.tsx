@@ -15,20 +15,6 @@ const IconPlay = () => (
   </svg>
 );
 
-const IconFile = () => (
-  <svg
-    viewBox="0 0 16 16"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="1.5"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M9 1.5H4a1 1 0 00-1 1v11a1 1 0 001 1h8a1 1 0 001-1V5.5L9 1.5z" />
-    <path d="M9 1.5V5.5h4" />
-  </svg>
-);
-
 const IconX = () => (
   <svg
     viewBox="0 0 16 16"
@@ -86,7 +72,6 @@ export function ScheduleJobsTable({
   onEdit,
   onExpand,
   onFilterChange,
-  onOpenArtifact,
   onToggle,
   sortDir,
   sortKey,
@@ -105,13 +90,14 @@ export function ScheduleJobsTable({
   onEdit: (job: SchedulerJob) => void;
   onExpand: (jobName: string | null) => void;
   onFilterChange: (value: string) => void;
-  onOpenArtifact: (artifactPath: string) => void;
   onToggle: (job: SchedulerJob, running: boolean) => void;
   sortDir: 'asc' | 'desc';
   sortKey: string;
   sortedJobs: Array<SchedulerJob & { successRate: number }>;
   toggleSort: (key: string) => void;
 }) {
+  const jobKey = (job: SchedulerJob) => `${job.provider}:${job.name}`;
+
   return (
     <div className="schedule__table-wrap">
       <div className="schedule__filter">
@@ -161,17 +147,18 @@ export function ScheduleJobsTable({
           </thead>
           <tbody>
             {sortedJobs.map((job) => {
-              const isExpanded = expanded === job.name;
+              const key = jobKey(job);
+              const isExpanded = expanded === key;
               const running = isRunning(job.name);
               const missed = getMissedCount(job.name);
 
               return (
-                <Fragment key={job.id}>
+                <Fragment key={key}>
                   <tr
                     data-testid={`job-row-${job.name}`}
                     className={`schedule__row ${isExpanded ? 'schedule__row--expanded' : ''}`}
                     aria-expanded={isExpanded}
-                    onClick={() => onExpand(isExpanded ? null : job.name)}
+                    onClick={() => onExpand(isExpanded ? null : key)}
                   >
                     <td className="schedule__td schedule__td--name">
                       <span
@@ -262,16 +249,6 @@ export function ScheduleJobsTable({
                         >
                           {running ? <IconSpinner /> : <IconPlay />}
                         </button>
-                        {job.openArtifact && (
-                          <button
-                            title="Open artifact"
-                            aria-label={`Open artifact for ${job.name}`}
-                            onClick={() => onOpenArtifact(job.openArtifact!)}
-                            className="schedule__action-btn"
-                          >
-                            <IconFile />
-                          </button>
-                        )}
                         <button
                           title="Delete"
                           aria-label={`Delete ${job.name}`}
@@ -292,18 +269,6 @@ export function ScheduleJobsTable({
                         <div className="schedule__detail">
                           <div className="schedule__detail-header">
                             <span>{job.name} — Run History</span>
-                            <div className="schedule__detail-actions">
-                              {job.openArtifact && (
-                                <button
-                                  onClick={() =>
-                                    onOpenArtifact(job.openArtifact!)
-                                  }
-                                  className="page__btn-primary schedule__detail-artifact-btn"
-                                >
-                                  Open Latest Artifact
-                                </button>
-                              )}
-                            </div>
                           </div>
                           {(job.description ||
                             job.prompt ||
@@ -349,9 +314,8 @@ export function ScheduleJobsTable({
                           )}
                           <JobDetail
                             name={job.name}
-                            autoOpenRun={
-                              expanded === job.name ? autoOpenRun : null
-                            }
+                            providerId={job.provider}
+                            autoOpenRun={expanded === key ? autoOpenRun : null}
                           />
                         </div>
                       </td>
