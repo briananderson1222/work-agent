@@ -266,6 +266,8 @@ export {
   useConnectionQuery,
   useConnectionsQuery,
   useConversationsQuery,
+  useConvertPlaybookToSkillMutation,
+  useConvertSkillToPlaybookMutation,
   useCoreUpdateStatusQuery,
   useCreateACPConnectionMutation,
   useCreateAgentMutation,

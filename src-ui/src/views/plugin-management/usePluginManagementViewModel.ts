@@ -246,6 +246,7 @@ export function usePluginManagementViewModel() {
     removeMutation.mutate(name, {
       onSuccess: async () => {
         setMessage({ type: 'success', text: `Removed ${name}.` });
+        deselectPlugin();
         await reloadClientPluginRegistry();
       },
       onError: (error) => setMessage({ type: 'error', text: error.message }),

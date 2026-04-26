@@ -2,6 +2,12 @@ import type {
   ACPConnectionConfig,
   ACPStatusValue,
 } from '@stallion-ai/contracts/acp';
+import type {
+  GuidanceAssetReference,
+  ProviderCapabilityFreshness,
+  ProviderCapabilityInventory,
+  ProviderCapabilityStatus,
+} from '@stallion-ai/contracts/catalog';
 import type { AppConfig } from '@stallion-ai/contracts/config';
 import type { ProviderKind } from '@stallion-ai/contracts/provider';
 import type {
@@ -16,10 +22,16 @@ import type {
   RuntimeConnectionView,
 } from '@stallion-ai/contracts/tool';
 import type { ProviderAdapterShape } from '../providers/adapter-shape.js';
+import { providerCatalogOps } from '../telemetry/metrics.js';
 
 export type ACPConnectionStatus = {
   id: string;
   status?: ACPStatusValue;
+  slashCommands?: Array<{
+    name: string;
+    description?: string;
+    hint?: string;
+  }>;
 };
 
 export const MODEL_CAPABILITY_SET = new Set<ConnectionCapability>([
@@ -146,14 +158,19 @@ function runtimeModelOptionsForAdapter(
     case 'codex':
       return [
         {
-          id: 'gpt-5.3-codex',
-          name: 'GPT-5.3 Codex',
-          originalId: 'gpt-5.3-codex',
+          id: 'gpt-5.5',
+          name: 'GPT-5.5',
+          originalId: 'gpt-5.5',
         },
         {
-          id: 'gpt-5.3-codex-spark',
-          name: 'GPT-5.3 Codex Spark',
-          originalId: 'gpt-5.3-codex-spark',
+          id: 'gpt-5.4',
+          name: 'GPT-5.4',
+          originalId: 'gpt-5.4',
+        },
+        {
+          id: 'gpt-5.4-mini',
+          name: 'GPT-5.4 Mini',
+          originalId: 'gpt-5.4-mini',
         },
       ];
     default:
@@ -256,6 +273,166 @@ function buildRuntimeCatalogStatus({
   };
 }
 
+function recordRuntimeCatalogStatus({
+  adapter,
+  runtimeId,
+  catalog,
+}: {
+  adapter: ProviderAdapterShape;
+  runtimeId: string;
+  catalog: RuntimeCatalogStatus | undefined;
+}): void {
+  providerCatalogOps.add(1, {
+    op: 'resolve_catalog',
+    provider: adapter.provider,
+    runtimeId,
+    source: catalog?.source ?? 'none',
+    hasLiveDiscovery: Boolean(adapter.listModels),
+    modelCount: catalog?.models.length ?? 0,
+    fallbackModelCount: catalog?.fallbackModels.length ?? 0,
+  });
+}
+
+function providerCapabilityStatusFor(
+  enabled: boolean,
+  prerequisites: Prerequisite[],
+  catalog: RuntimeCatalogStatus | undefined,
+): ProviderCapabilityStatus {
+  if (!enabled) return 'disabled';
+  if (hasRequiredMissing(prerequisites)) return 'warning';
+  if (!catalog || catalog.source === 'none') return 'unknown';
+  return 'ready';
+}
+
+function providerCapabilityFreshnessFor(
+  catalog: RuntimeCatalogStatus | undefined,
+): ProviderCapabilityFreshness {
+  if (!catalog) return 'unknown';
+  if (catalog.source === 'live') return 'live';
+  if (catalog.source === 'cached') return 'cached';
+  if (catalog.source === 'fallback') return 'stale';
+  return 'unknown';
+}
+
+function runtimeCapabilityProvenance({
+  connectionId,
+  connectionName,
+}: {
+  connectionId: string;
+  connectionName: string;
+}): GuidanceAssetReference {
+  return {
+    kind: 'provider-capability',
+    id: connectionId,
+    name: connectionName,
+    owner: 'provider',
+    providerId: connectionId,
+    connectionId,
+  };
+}
+
+function buildRuntimeCapabilityInventory({
+  adapter,
+  id,
+  displayName,
+  enabled,
+  prerequisites,
+  catalog,
+  commands,
+}: {
+  adapter: ProviderAdapterShape;
+  id: string;
+  displayName: string;
+  enabled: boolean;
+  prerequisites: Prerequisite[];
+  catalog: RuntimeCatalogStatus | undefined;
+  commands: Awaited<
+    ReturnType<NonNullable<ProviderAdapterShape['getCommands']>>
+  >;
+}): ProviderCapabilityInventory {
+  const visibleModels =
+    catalog && catalog.models.length > 0
+      ? catalog.models
+      : (catalog?.fallbackModels ?? []);
+  return {
+    providerId: adapter.provider,
+    connectionId: id,
+    displayName,
+    status: providerCapabilityStatusFor(enabled, prerequisites, catalog),
+    authStatus: hasRequiredMissing(prerequisites)
+      ? 'unauthenticated'
+      : 'unknown',
+    checkedAt: catalog?.fetchedAt ?? undefined,
+    freshness: providerCapabilityFreshnessFor(catalog),
+    source: 'provider',
+    message: catalog?.reason ?? undefined,
+    models: visibleModels.map((model) => ({
+      id: model.id,
+      name: model.name,
+      provider: adapter.provider,
+    })),
+    skills: [],
+    slashCommands: (commands ?? []).map((command) => ({
+      id: command.name.replace(/^\//, ''),
+      name: `/${command.name.replace(/^\//, '')}`,
+      description: command.description,
+      inputHint: command.argumentHint,
+      provenance: runtimeCapabilityProvenance({
+        connectionId: id,
+        connectionName: displayName,
+      }),
+    })),
+  };
+}
+
+function buildACPCapabilityInventory({
+  status,
+  configuredCount,
+  connectedCount,
+  enabled,
+}: {
+  status: { connections?: ACPConnectionStatus[] };
+  configuredCount: number;
+  connectedCount: number;
+  enabled: boolean;
+}): ProviderCapabilityInventory {
+  const slashCommands = (status.connections ?? []).flatMap((connection) =>
+    (connection.slashCommands ?? []).map((command) => ({
+      id: `${connection.id}:${command.name.replace(/^\//, '')}`,
+      name: command.name.startsWith('/') ? command.name : `/${command.name}`,
+      description: command.description,
+      inputHint: command.hint,
+      provenance: runtimeCapabilityProvenance({
+        connectionId: connection.id,
+        connectionName: connection.id,
+      }),
+    })),
+  );
+
+  return {
+    providerId: 'acp',
+    connectionId: 'acp',
+    displayName: 'ACP',
+    status: !enabled
+      ? 'disabled'
+      : configuredCount === 0
+        ? 'warning'
+        : connectedCount > 0
+          ? 'ready'
+          : 'warning',
+    authStatus: configuredCount > 0 ? 'unknown' : 'unauthenticated',
+    freshness: connectedCount > 0 ? 'live' : 'unknown',
+    source: 'provider',
+    message:
+      configuredCount === 0
+        ? 'Configure an ACP command connection to expose external runtime capabilities.'
+        : undefined,
+    models: [],
+    skills: [],
+    slashCommands,
+  };
+}
+
 export async function listRuntimeConnectionsForAdapters(options: {
   adapters: ProviderAdapterShape[];
   appConfig: AppConfig;
@@ -276,11 +453,18 @@ export async function listRuntimeConnectionsForAdapters(options: {
         settings,
         liveModelOptions,
       });
+      recordRuntimeCatalogStatus({
+        adapter,
+        runtimeId: id,
+        catalog: runtimeCatalog,
+      });
+      const commands = (await adapter.getCommands?.().catch(() => [])) ?? [];
+      const name = settings.name?.trim() || adapter.metadata.displayName;
       return {
         id,
         kind: 'runtime',
         type: id,
-        name: settings.name?.trim() || adapter.metadata.displayName,
+        name,
         enabled,
         description: adapter.metadata.description,
         capabilities: [...adapter.metadata.capabilities],
@@ -291,6 +475,15 @@ export async function listRuntimeConnectionsForAdapters(options: {
           executionClass: adapter.metadata.executionClass ?? 'connected',
         },
         runtimeCatalog,
+        capabilityInventory: buildRuntimeCapabilityInventory({
+          adapter,
+          id,
+          displayName: name,
+          enabled,
+          prerequisites,
+          catalog: runtimeCatalog,
+          commands,
+        }),
         prerequisites,
         status: statusFromPrerequisites(enabled, prerequisites),
         lastCheckedAt: null,
@@ -335,6 +528,12 @@ export async function listRuntimeConnectionsForAdapters(options: {
       connectedCount,
       executionClass: 'external',
     },
+    capabilityInventory: buildACPCapabilityInventory({
+      status: options.acpStatus,
+      configuredCount,
+      connectedCount,
+      enabled: acpEnabled,
+    }),
     prerequisites: acpPrerequisites,
     status: acpEnabled
       ? configuredCount > 0

@@ -22,6 +22,36 @@ async function forceClick(
 
 test.describe('Settings', () => {
   test.beforeEach(async ({ page }) => {
+    await page.route('**/api/system/status', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ready: true,
+          acp: { connected: false, connections: [] },
+          clis: {},
+          prerequisites: [],
+          providers: {
+            configuredChatReady: true,
+            configured: [
+              {
+                id: 'settings-test-runtime',
+                type: 'codex',
+                enabled: true,
+                capabilities: ['llm'],
+              },
+            ],
+            detected: { ollama: false, bedrock: false },
+          },
+          capabilities: {
+            chat: {
+              ready: true,
+              source: 'settings-test-runtime',
+            },
+          },
+        }),
+      }),
+    );
     await goToSettings(page);
   });
 

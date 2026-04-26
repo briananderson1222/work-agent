@@ -63,6 +63,11 @@ function mapCodexModelCatalogEntry(model: any): {
   };
 }
 
+type CodexModelListResult = {
+  data?: Array<any>;
+  nextCursor?: string | null;
+};
+
 export class CodexAdapter implements ProviderAdapterShape {
   readonly provider = 'codex' as const;
   readonly metadata = {
@@ -196,12 +201,18 @@ export class CodexAdapter implements ProviderAdapterShape {
       processHandle.stdin.write(
         `${JSON.stringify({ jsonrpc: '2.0', method: 'initialized' })}\n`,
       );
-      const result = await sendRequest<{ data?: Array<any> }>('model/list', {
-        cursor: null,
-        limit: null,
-        includeHidden: false,
-      });
-      return (result.data ?? [])
+      const models: any[] = [];
+      let cursor: string | null | undefined = null;
+      do {
+        const result: CodexModelListResult = await sendRequest('model/list', {
+          cursor,
+          limit: null,
+          includeHidden: false,
+        });
+        models.push(...(result.data ?? []));
+        cursor = result.nextCursor;
+      } while (cursor);
+      return models
         .map(mapCodexModelCatalogEntry)
         .filter((entry): entry is NonNullable<typeof entry> => !!entry);
     } finally {

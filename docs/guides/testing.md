@@ -17,13 +17,19 @@
 ## Running Tests
 
 ```bash
-npm run verify                    # default local gate: lint, typecheck, unit, product e2e, live smoke e2e
+npm run verify:static             # pre-commit lane: lint, manifest lint, typecheck, unit
+npm run verify                    # no-shortcuts local gate: verify:static plus full Playwright coverage
 npm test                          # vitest watch mode
 npx vitest run                    # single run
 npm run test:coverage             # with coverage report
 npm run install:playwright        # install repo-local Chromium once
+npm run install:playwright:ci     # install Chromium plus OS dependencies for CI runners
 npm run test:e2e:product          # promoted product Playwright suite via ./stallion temp-home instance
 npm run test:e2e:smoke-live       # live app smoke via ./stallion temp-home instance
+npm run test:e2e:extended         # non-default extended Playwright bucket
+npm run test:e2e:audit            # audit-style Playwright bucket
+npm run test:e2e:screenshot       # screenshot/visual artifact bucket
+npm run verify:e2e:full           # no-shortcuts E2E evidence gate across all buckets plus Android
 PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test               # e2e
 PLAYWRIGHT_BROWSERS_PATH=0 npx playwright test tests/foo.spec.ts  # single e2e
 npm run test:connected-agents         # focused connected-agents server suite
@@ -33,6 +39,13 @@ npm run test:connected-agents         # focused connected-agents server suite
 start a temporary `./stallion` instance, set `PW_BASE_URL`/`STALLION_PORT`, run
 Playwright with repo-local browsers, and stop the instance in cleanup. Use these
 scripts for verification claims instead of ad hoc default-port runs.
+
+Playwright spec ownership is tracked in `tests/e2e-manifest.mjs`. Add every new
+`tests/**/*.spec.ts` file to exactly one bucket when it is introduced. The
+`npm run verify:static` lane validates manifest ownership without starting
+Stallion. `npm run verify` and CI's Full Playwright Coverage job run
+`npm run verify:e2e:full`; use that evidence for any no-shortcuts full-coverage
+claim.
 
 ## Durable Verification Lanes
 

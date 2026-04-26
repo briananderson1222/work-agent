@@ -68,6 +68,12 @@ export function resolveViewFromPath(
       return { type: 'connections-runtime-edit', id };
     }
   }
+  if (path === '/connections/runtimes') {
+    return { type: 'connections-runtimes' };
+  }
+  if (path === '/connections/acp') {
+    return { type: 'connections-acp' };
+  }
   if (path === '/connections/tools') {
     return { type: 'connections-tools' };
   }
@@ -183,8 +189,12 @@ export function getPathForView(view: NavigationView): string | null {
       return '/connections/providers';
     case 'connections-provider-edit':
       return `/connections/providers/${view.id}`;
+    case 'connections-runtimes':
+      return '/connections/runtimes';
     case 'connections-runtime-edit':
       return `/connections/runtimes/${view.id}`;
+    case 'connections-acp':
+      return '/connections/acp';
     case 'connections-tools':
       return '/connections/tools';
     case 'connections-tool-edit':

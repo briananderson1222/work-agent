@@ -134,7 +134,7 @@ test.describe('Coding Layout Plan Panel', () => {
     ).toBeVisible();
 
     await page
-      .getByRole('button', { name: /Codex Runtime .*Codex app-server runtime/ })
+      .getByRole('button', { name: /Codex .*Codex app-server runtime/ })
       .click();
 
     const composer = page.getByPlaceholder(/Type a message/);

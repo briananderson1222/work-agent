@@ -208,6 +208,46 @@ export function ACPConnectionDetailModal({
             </div>
           )}
 
+          {conn.slashCommands && conn.slashCommands.length > 0 && (
+            <div>
+              <div style={sectionLabel}>
+                Native Commands ({conn.slashCommands.length})
+              </div>
+              <div
+                style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}
+              >
+                {conn.slashCommands.map((command) => (
+                  <div
+                    key={command.name}
+                    style={{
+                      fontSize: '13px',
+                      padding: '8px 10px',
+                      borderRadius: '6px',
+                      background: 'var(--bg-tertiary)',
+                    }}
+                  >
+                    <div style={{ fontWeight: 500 }}>
+                      {command.name.startsWith('/')
+                        ? command.name
+                        : `/${command.name}`}
+                    </div>
+                    {command.description && (
+                      <div
+                        style={{
+                          fontSize: '12px',
+                          color: 'var(--text-muted)',
+                          marginTop: '4px',
+                        }}
+                      >
+                        {command.description}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {conn.sessionId && (
             <div>
               <div style={sectionLabel}>Session</div>

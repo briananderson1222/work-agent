@@ -3,11 +3,13 @@
  */
 
 import { Hono } from 'hono';
+import type { PromptService } from '../services/prompt-service.js';
 import type { SkillService } from '../services/skill-service.js';
 import { skillOps } from '../telemetry/metrics.js';
 import {
   errorMessage,
   getBody,
+  guidanceConversionSchema,
   localSkillCreateSchema,
   localSkillUpdateSchema,
   param,
@@ -18,6 +20,9 @@ import {
 export function createSkillRoutes(
   skillService: SkillService,
   getProjectHomeDir: () => string,
+  conversionDeps?: {
+    promptService: PromptService;
+  },
 ) {
   const app = new Hono();
 
@@ -89,6 +94,74 @@ export function createSkillRoutes(
       return c.json({ success: false, error: errorMessage(error) }, 400);
     }
   });
+
+  app.post(
+    '/:name/convert-to-playbook',
+    validate(guidanceConversionSchema),
+    async (c) => {
+      if (!conversionDeps) {
+        return c.json(
+          { success: false, error: 'Playbook conversion is unavailable' },
+          501,
+        );
+      }
+      try {
+        const skillName = param(c, 'name');
+        const body = (getBody(c) ?? {}) as { name?: string };
+        const skill = await skillService.getSkill(skillName);
+        const content = skill.body?.trim();
+        if (!content) {
+          return c.json(
+            { success: false, error: `Skill '${skillName}' has no body` },
+            400,
+          );
+        }
+        const name = body.name?.trim() || skill.name;
+        const existingPlaybook = (
+          await conversionDeps.promptService.listPrompts()
+        ).some((playbook) => playbook.name === name);
+        if (existingPlaybook) {
+          return c.json(
+            { success: false, error: `Playbook '${name}' already exists` },
+            409,
+          );
+        }
+        const source =
+          skill.source === 'registry'
+            ? 'registry'
+            : skill.source === 'plugin'
+              ? 'plugin'
+              : 'user';
+        const now = new Date().toISOString();
+        const created = await conversionDeps.promptService.addPrompt(
+          {
+            name,
+            content,
+            description: skill.description,
+            category: skill.category,
+            tags: skill.tags,
+            agent: skill.agent,
+            global: skill.global,
+          },
+          {
+            kind: 'asset',
+            action: 'skill-to-playbook',
+            convertedAt: now,
+            asset: {
+              kind: 'skill',
+              id: skill.name,
+              name: skill.name,
+              owner: source,
+            },
+          },
+        );
+        skillOps.add(1, { operation: 'convert-to-playbook' });
+        return c.json({ success: true, data: created }, 201);
+      } catch (error: unknown) {
+        return c.json({ success: false, error: errorMessage(error) }, 400);
+      }
+    },
+  );
 
   // Remove skill
   app.delete('/:name', async (c) => {

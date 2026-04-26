@@ -13,8 +13,14 @@ const selectionState = {
 
 let localSkillsMock: any[] = [];
 let registrySkillsMock: any[] = [];
+let editableSkillMock: any;
+const convertSkillToPlaybookMutateMock = vi.fn();
 
 vi.mock('@stallion-ai/sdk', () => ({
+  useConvertSkillToPlaybookMutation: () => ({
+    isPending: false,
+    mutate: convertSkillToPlaybookMutateMock,
+  }),
   useCreateLocalSkillMutation: () => ({
     isPending: false,
     mutateAsync: vi.fn().mockResolvedValue(undefined),
@@ -25,7 +31,7 @@ vi.mock('@stallion-ai/sdk', () => ({
     isLoading: false,
   }),
   useSkillContentQuery: () => ({ data: undefined }),
-  useSkillQuery: () => ({ data: undefined }),
+  useSkillQuery: () => ({ data: editableSkillMock }),
   useSkillsQuery: () => ({ data: localSkillsMock }),
   useUninstallSkillMutation: () => ({ isPending: false, mutate: vi.fn() }),
   useUpdateLocalSkillMutation: () => ({
@@ -67,8 +73,10 @@ afterEach(() => {
   selectionState.deselect.mockReset();
   navigateMock.mockReset();
   showToastMock.mockReset();
+  convertSkillToPlaybookMutateMock.mockReset();
   localSkillsMock = [];
   registrySkillsMock = [];
+  editableSkillMock = undefined;
 });
 
 describe('SkillsView', () => {
@@ -114,5 +122,63 @@ describe('SkillsView', () => {
 
     expect(screen.getByText('installed-skill')).toBeTruthy();
     expect(screen.queryByText('Registry Only Skill')).toBeNull();
+  });
+
+  test('renders guidance tabs for switching between playbooks and skills', () => {
+    render(<SkillsView />);
+
+    expect(screen.getByRole('button', { name: 'Playbooks' })).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Skills' })).toBeTruthy();
+  });
+
+  test('opens skill to playbook conversion review for editable skills', () => {
+    selectionState.selectedId = 'installed-skill';
+    localSkillsMock = [
+      {
+        name: 'installed-skill',
+        description: 'Installed locally',
+        source: 'local',
+      },
+    ];
+    editableSkillMock = {
+      name: 'installed-skill',
+      body: 'Do things',
+      description: 'Installed locally',
+      source: 'local',
+    };
+
+    render(<SkillsView />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create Playbook' }));
+
+    expect(screen.getByText('Create Playbook From Skill')).toBeTruthy();
+    expect(
+      screen.getAllByDisplayValue('installed-skill').length,
+    ).toBeGreaterThan(1);
+  });
+
+  test('opens skill to playbook conversion review for installed registry skills', () => {
+    selectionState.selectedId = 'registry-skill';
+    localSkillsMock = [
+      {
+        name: 'registry-skill',
+        description: 'Installed from registry',
+        source: 'registry',
+      },
+    ];
+    editableSkillMock = {
+      name: 'registry-skill',
+      body: 'Use the registry skill',
+      description: 'Installed from registry',
+      source: 'registry',
+    };
+
+    render(<SkillsView />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create Playbook' }));
+
+    expect(screen.getByText('Create Playbook From Skill')).toBeTruthy();
+    expect(
+      screen.getAllByDisplayValue('registry-skill').length,
+    ).toBeGreaterThan(1);
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
 });

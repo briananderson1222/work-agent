@@ -1,7 +1,11 @@
 import { expect, test } from '@playwright/test';
 
 const BASE = process.env.PW_BASE_URL ?? 'http://localhost:5274';
-const API = BASE.replace(/:\d+$/, ':3242');
+const API =
+  process.env.PW_API_BASE_URL ??
+  (process.env.STALLION_PORT
+    ? `http://localhost:${process.env.STALLION_PORT}`
+    : BASE.replace(/:\d+$/, ':3242'));
 
 test.describe('Notification System', () => {
   test.beforeEach(async () => {
@@ -189,15 +193,16 @@ test.describe('Notification System', () => {
       }),
     });
 
-    // The SSE bridge in useServerEvents should push this into the ToastStore
-    // which renders via NotificationContainer
-    // Give SSE a moment to deliver
-    await page.waitForTimeout(2000);
-
-    // Check if the notification text appears anywhere on the page
-    const pageContent = await page.textContent('body');
-    // The notification should appear as a toast — check for the title text
-    const hasNotification = pageContent?.includes('UI Toast Test');
+    const hasNotification = await expect
+      .poll(
+        async () => (await page.textContent('body'))?.includes('UI Toast Test'),
+        { timeout: 3000 },
+      )
+      .toBe(true)
+      .then(
+        () => true,
+        () => false,
+      );
 
     // Take a screenshot for visual verification regardless
     await page.screenshot({
@@ -221,9 +226,6 @@ test.describe('Notification System', () => {
     await page.goto(BASE);
     await page.waitForSelector('[class*="app-"]', { timeout: 10_000 });
 
-    // Wait for SSE connection to establish
-    await page.waitForTimeout(1000);
-
     // Fire notification with navigateTo metadata from within the page context
     await page.evaluate(async (api) => {
       await fetch(`${api}/notifications`, {
@@ -243,9 +245,6 @@ test.describe('Notification System', () => {
       });
     }, API);
 
-    // Wait for SSE delivery + render
-    await page.waitForTimeout(2000);
-
     // Take screenshot
     await page.screenshot({
       path: 'tests/screenshots/notification-with-view-button.png',
@@ -257,8 +256,15 @@ test.describe('Notification System', () => {
     const hasViewButton = await viewButton.isVisible().catch(() => false);
 
     // Verify the notification appeared (with or without View button rendering)
-    const pageContent = await page.textContent('body');
-    expect(pageContent).toContain('New article in Tech Feed');
+    await expect
+      .poll(
+        async () =>
+          (await page.textContent('body'))?.includes(
+            'New article in Tech Feed',
+          ),
+        { timeout: 5000 },
+      )
+      .toBe(true);
 
     if (hasViewButton) {
       // View button rendered — the navigateTo metadata was passed through
@@ -280,7 +286,9 @@ test.describe('Notification System', () => {
     const bellButton = page.locator('button[title="Notifications"]');
     if (await bellButton.isVisible()) {
       await bellButton.click();
-      await page.waitForTimeout(500);
+      await expect(
+        page.getByText('Notifications', { exact: true }),
+      ).toBeVisible();
       await page.screenshot({
         path: 'tests/screenshots/notification-history-open.png',
         fullPage: false,

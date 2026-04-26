@@ -362,6 +362,37 @@ async function seedConnectionsRoutes(page: Page) {
 
     await route.fulfill(json({ success: true, data: [] }));
   });
+
+  await page.route('**/acp/**', async (route) => {
+    const url = new URL(route.request().url());
+    const path = url.pathname;
+
+    if (path === '/acp/connections') {
+      await route.fulfill(json({ success: true, data: [] }));
+      return;
+    }
+
+    if (path === '/acp/registry') {
+      await route.fulfill(
+        json({
+          success: true,
+          data: [
+            {
+              id: 'kiro',
+              name: 'Kiro CLI',
+              command: 'kiro',
+              args: ['--acp'],
+              description: 'Connect Kiro through ACP',
+              installed: false,
+            },
+          ],
+        }),
+      );
+      return;
+    }
+
+    await route.fulfill(json({ success: true, data: [] }));
+  });
 }
 
 async function forceClickRole(
@@ -410,6 +441,8 @@ test.describe('Connections CRUD', () => {
     await expect(
       page.getByRole('button', { name: /Codex Runtime/ }),
     ).toBeVisible();
+    await expect(page.getByText('ACP Connections')).toBeVisible();
+    await expect(page.getByRole('button', { name: /Kiro CLI/ })).toBeVisible();
     await expect(
       page.getByRole('button', { name: /Filesystem Tools/ }),
     ).toBeVisible();

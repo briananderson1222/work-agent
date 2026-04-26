@@ -23,7 +23,7 @@ describe('ProjectSidebarNav', () => {
     const buttons = screen.getAllByRole('button');
     expect(buttons.map((button) => button.textContent?.trim())).toEqual([
       'Agents',
-      'Playbooks',
+      'Guidance',
       'Registry',
       'Connections',
       'Plugins',

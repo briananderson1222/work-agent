@@ -1,43 +1,52 @@
 # E2E Coverage Matrix
 
 Snapshot of the primary app surface and its current Playwright coverage. The
-default product gate is `npm run test:e2e:product`; it runs the promoted
+full coverage gate is `npm run verify:e2e:full`; it runs the promoted product
+suite, live smoke, extended, audit, screenshot, and Android buckets. The
+product bucket itself is `npm run test:e2e:product`, which runs the promoted
 cross-surface suite through `scripts/run-e2e-suite.mjs` against a temporary
 `./stallion` instance.
+
+`tests/e2e-manifest.mjs` is the source of truth for spec ownership. Every
+top-level and Android Playwright spec must be assigned to exactly one bucket:
+`product`, `smoke-live`, `extended`, `audit`, `screenshot`, `quarantine`, or
+`android`. Product, smoke-live, extended, audit, and screenshot buckets are run
+through `scripts/run-e2e-suite.mjs`; Android remains a separate Playwright
+project. CI's Full Playwright Coverage job and the local `npm run verify` gate
+both use the full contract, so new specs must update this manifest before they
+can stay green.
 
 ## Core Nav
 
 | Surface | Current specs | Coverage level | Main gaps |
 |---|---|---|---|
-| Projects | `project-lifecycle`, `project-forms`, `project-architecture`, `project-agent-scoping`, coding-layout specs | partial | Create and key project affordances are promoted; richer edit/delete UI assertions and unsaved-change coverage remain the main gaps |
-| Agents | `agents`, `default-agent-workflow`, `builtin-runtime-workflow` | partial | Create and chat/runtime flows are promoted; edit/delete and deeper managed-vs-connected CRUD paths still need explicit regression lanes |
-| Playbooks | `playbooks`, `prompts` | partial | Good create/delete coverage, but edit, duplicate, import, and guarded navigation are not covered as a unified lane |
-| Registry | `registry`, `registry-install`, `system-registry`, `skills` | partial | Browse/install/remove/detail behavior is promoted, but update assertions are still not uniform across every catalog tab |
+| Projects | `project-lifecycle`, `project-forms`, `project-architecture`, `project-agent-scoping`, coding-layout specs | full | Create, settings edit, delete, project agent scoping, restore/navigation, unsaved guard, and failed-save error coverage are promoted |
+| Agents | `agents`, `default-agent-workflow`, `builtin-runtime-workflow`; `acp-project-context` remains extended for ACP-specific context checks | full | Managed and connected create/edit/delete, tab shape, unsaved guard, failed-save error, runtime option persistence, chat/runtime flows, and ACP connection context are covered |
+| Playbooks / Skills | `playbooks`, `skills`, `prompts` | full | Current Guidance tabs cover Playbooks and Skills. Product coverage includes create/edit/delete where supported, duplicate, markdown import, guarded navigation, Playbook-to-Skill conversion, Skill-to-Playbook conversion, duplicate-destination errors, source labeling, and legacy `/prompts` compatibility as a secondary path |
+| Registry | `registry`, `registry-install`, `system-registry`, `skills` | full | Registry tabs cover Agents, Skills, Integrations, and Plugins with detail preview, search empty state, install/remove, installed-state reflection, action failure messaging, and plugin install/remove promotion |
 | Connections | `connections-crud`, `connect-modal`, `connect-reconnect-banner`, parts of `settings`, runtime/provider chat specs | full | CRUD lane exists for provider, runtime, and tool-server flows; remaining work is maintenance, not missing ownership |
-| Plugins | `plugin-update`, `plugin-system`, `plugin-preview` | partial | Preview, install/remove API, bundle serving, and update flows are promoted; mixed plugin-type UI lifecycle still needs breadth |
-| Schedule | `schedule-runs` | partial | Run history and output deep links are promoted; add/edit/delete schedule CRUD remains the main gap |
-| Monitoring | `monitoring` | smoke | Dedicated shell smoke is promoted; no filter/search/time-range/assertion lane yet |
+| Plugins | `plugin-update`, `plugin-system`, `plugin-preview` | full | Preview, install/remove API, bundle serving, update success/failure, detail metadata, settings persistence, provider toggles, changelog expansion, and selected-plugin remove recovery are promoted |
+| Schedule | `schedule`, `schedule-runs` | full | Hermetic CRUD coverage includes add, edit, duplicate, run, filter, enable/disable, delete, run history, and output deep links |
+| Monitoring | `monitoring` | full | Hermetic history coverage includes sidebar stats, active and historical agents, metrics, event type filters, free-text search, agent/conversation/tool/trace chips, time-range fetching, and clear/reset empty state |
 
 ## Assessment
 
 - The app now has a promoted product Playwright gate covering primary nav,
   connections, registry, plugins, schedule run history, and orchestration/chat
   flows.
-- The remaining gap is not "no e2e"; it is full CRUD depth for every primary
-  surface.
-- Regressions can still slip through when a page has API-only assertions or
-  smoke-level coverage instead of a surface-owned workflow lane.
+- Phase 0 of the full-coverage completion plan added manifest ownership so new
+  specs cannot silently fall out of a bucket.
+- The primary product surfaces now have surface-owned workflow lanes instead of
+  relying on shell-only checks.
+- Regressions can still slip through when newly added specs are not assigned to
+  a manifest bucket or when feature work changes a UI contract without updating
+  the owning lane.
 
 ## Priority Lanes
 
-1. Projects
-   - Add a durable create/edit/delete project lane with agent/layout assignment and unsaved-change behavior.
-2. Agents
-   - Expand from create smoke to full CRUD: edit, delete, type switching, and connected runtime settings persistence.
-3. Monitoring
-   - Add filter/search/time-range coverage so the page is validated beyond shell render.
-4. Schedule
-   - Replace environment-dependent checks with hermetic add/edit/run/delete schedule coverage.
+1. Keep the manifest audit green for new specs.
+2. Expand screenshot and extended buckets when a surface gains visual or
+   runtime-only behavior that is not suitable for the hermetic product gate.
 
 ## Coverage Standard
 

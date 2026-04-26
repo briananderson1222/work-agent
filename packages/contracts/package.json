@@ -20,6 +20,7 @@
     "./project": "./src/project.ts",
     "./runtime": "./src/runtime.ts",
     "./runtime-events": "./src/runtime-events.ts",
+    "./runs": "./src/runs.ts",
     "./provider": "./src/provider.ts",
     "./orchestration": "./src/orchestration.ts",
     "./scheduler": "./src/scheduler.ts",

@@ -58,6 +58,19 @@ async function seedProjectRoutes(page: Page) {
     },
   };
 
+  await page.route('**/config/app', async (route) => {
+    await route.fulfill(
+      json({
+        success: true,
+        data: {
+          apiBase: '',
+          defaultModel: 'codex-mini',
+          region: 'us-east-1',
+        },
+      }),
+    );
+  });
+
   await page.route('**/api/**', async (route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -341,5 +354,28 @@ test.describe('Project lifecycle', () => {
       return res.json();
     });
     expect(deletion.success).toBe(true);
+  });
+
+  test('project settings guards unsaved navigation and surfaces failed saves', async ({
+    page,
+  }) => {
+    await page.goto('/projects/demo/edit');
+    await expect(page).toHaveURL(/\/projects\/demo\/edit$/);
+
+    const nameInput = page.locator('.project-settings__name-input');
+    await expect(nameInput).toBeVisible();
+    await nameInput.fill('Draft Project Name');
+    await expect(page.getByText('unsaved')).toBeVisible();
+
+    await page.getByRole('button', { name: '← Back' }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('dialog')).not.toBeVisible();
+    await expect(nameInput).toHaveValue('Draft Project Name');
+
+    await nameInput.fill('Reject Save');
+    await page.getByRole('button', { name: 'Save' }).click();
+    await expect(page.getByText('Name rejected by policy')).toBeVisible();
+    await expect(page).toHaveURL(/\/projects\/demo\/edit$/);
   });
 });

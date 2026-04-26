@@ -99,6 +99,14 @@ export const providerOps = meter.createCounter('stallion.provider.operations', {
   description: 'Provider register/remove/health events',
 });
 
+export const providerCatalogOps = meter.createCounter(
+  'stallion.provider.catalog.operations',
+  {
+    description:
+      'Provider runtime catalog discovery events by source and fallback usage',
+  },
+);
+
 export const adapterSessionStartDuration = meter.createHistogram(
   'stallion.adapter.session_start_duration',
   {

@@ -52,6 +52,9 @@ export function buildContextOptions(
     { value: GLOBAL_CONTEXT, label: 'Global', icon: '🌐' },
   ];
   for (const project of projects) {
+    if (!project) {
+      continue;
+    }
     options.push({
       value: project.slug,
       label: project.name,

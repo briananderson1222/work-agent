@@ -1,7 +1,34 @@
 export interface PlaybookSourceContext {
-  kind: 'agent' | 'plugin' | 'user';
+  kind: 'agent' | 'plugin' | 'user' | 'asset';
   agentSlug?: string;
   conversationId?: string;
+  asset?: GuidanceAssetReference;
+  action?: GuidanceAssetConversionAction;
+  convertedAt?: string;
+}
+
+export type GuidanceAssetReferenceKind =
+  | 'playbook'
+  | 'skill'
+  | 'provider-capability';
+export type GuidanceAssetSourceOwner =
+  | 'user'
+  | 'registry'
+  | 'plugin'
+  | 'provider';
+export type GuidanceAssetConversionAction =
+  | 'playbook-to-skill'
+  | 'skill-to-playbook'
+  | 'provider-capability-to-playbook'
+  | 'provider-capability-to-skill';
+
+export interface GuidanceAssetReference {
+  kind: GuidanceAssetReferenceKind;
+  id: string;
+  name: string;
+  owner: GuidanceAssetSourceOwner;
+  providerId?: string;
+  connectionId?: string;
 }
 
 export interface PlaybookProvenance {
@@ -104,9 +131,67 @@ export interface Skill extends RegistryItem {
   body?: string;
   resources?: Array<{ name: string; path: string }>;
   scripts?: Array<{ name: string; path: string }>;
+  provenance?: PlaybookProvenance;
 }
 
 export interface InstallResult {
   success: boolean;
   message: string;
+}
+
+export type ProviderCapabilityStatus =
+  | 'ready'
+  | 'warning'
+  | 'error'
+  | 'disabled'
+  | 'unknown';
+export type ProviderCapabilityAuthStatus =
+  | 'authenticated'
+  | 'unauthenticated'
+  | 'unknown';
+export type ProviderCapabilityFreshness =
+  | 'live'
+  | 'cached'
+  | 'stale'
+  | 'unknown';
+
+export interface ProviderCapabilityModel {
+  id: string;
+  name: string;
+  provider?: string;
+  capabilities?: Record<string, unknown>;
+}
+
+export interface ProviderNativeSkill {
+  id: string;
+  name: string;
+  description?: string;
+  path?: string;
+  scope?: string;
+  enabled: boolean;
+  provenance: GuidanceAssetReference;
+}
+
+export interface ProviderNativeSlashCommand {
+  id: string;
+  name: string;
+  description?: string;
+  inputHint?: string;
+  provenance: GuidanceAssetReference;
+}
+
+export interface ProviderCapabilityInventory {
+  providerId: string;
+  connectionId?: string;
+  displayName: string;
+  status: ProviderCapabilityStatus;
+  authStatus: ProviderCapabilityAuthStatus;
+  version?: string | null;
+  checkedAt?: string;
+  freshness: ProviderCapabilityFreshness;
+  source: GuidanceAssetSourceOwner;
+  message?: string;
+  models: ProviderCapabilityModel[];
+  skills: ProviderNativeSkill[];
+  slashCommands: ProviderNativeSlashCommand[];
 }

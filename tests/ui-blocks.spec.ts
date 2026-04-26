@@ -106,7 +106,9 @@ test.describe('Structured UI blocks', () => {
     await expect(page.getByText('All checks passed')).toBeVisible();
     await expect(page.getByText('Coverage')).toBeVisible();
     await expect(page.getByText('98%')).toBeVisible();
-    await expect(page.getByText('Artifacts')).toBeVisible();
+    await expect(
+      page.getByRole('heading', { name: 'Artifacts' }),
+    ).toBeVisible();
     await expect(page.getByText('report.md')).toBeVisible();
     await expect(page.getByText('generated')).toBeVisible();
   });

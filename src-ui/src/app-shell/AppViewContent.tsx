@@ -2,6 +2,7 @@ import { NewProjectModal } from '../components/NewProjectModal';
 import { NotificationsPage } from '../pages/NotificationsPage';
 import { ProfilePage } from '../pages/ProfilePage';
 import type { AgentSummary, NavigationView } from '../types';
+import { ACPConnectionsView } from '../views/ACPConnectionsView';
 import { AgentsView } from '../views/AgentsView';
 import { ConnectionsHub } from '../views/ConnectionsHub';
 import { IntegrationsView } from '../views/IntegrationsView';
@@ -90,6 +91,12 @@ export function AppViewContent({
         onNavigate={onNavigate}
       />
     );
+  }
+  if (currentView.type === 'connections-runtimes') {
+    return <RuntimeConnectionView onNavigate={onNavigate} />;
+  }
+  if (currentView.type === 'connections-acp') {
+    return <ACPConnectionsView agents={agents} onNavigate={onNavigate} />;
   }
   if (
     currentView.type === 'connections-tools' ||

@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ACPConfig } from '@stallion-ai/contracts/acp';
+import type { PlaybookProvenance } from '@stallion-ai/contracts/catalog';
 import type { ToolDef, ToolMetadata } from '@stallion-ai/contracts/tool';
 
 export interface SkillConfigRecord {
@@ -16,6 +17,7 @@ export interface SkillConfigRecord {
   category?: string;
   agent?: string;
   global?: boolean;
+  provenance?: PlaybookProvenance;
 }
 
 export async function loadIntegrationConfig(

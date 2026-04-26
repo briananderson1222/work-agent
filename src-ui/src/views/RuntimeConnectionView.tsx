@@ -144,6 +144,8 @@ export function RuntimeConnectionView({
       : connectionTypeLabel(form?.type ?? '');
   const runtimeCatalog = (form as RuntimeConnectionViewData | null)
     ?.runtimeCatalog;
+  const capabilityInventory = (form as RuntimeConnectionViewData | null)
+    ?.capabilityInventory;
 
   return (
     <SplitPaneLayout
@@ -298,6 +300,59 @@ export function RuntimeConnectionView({
                     </span>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {capabilityInventory && (
+              <div className="editor-field">
+                <label className="editor-label">Provider Capabilities</label>
+                <p className="editor-help">
+                  {capabilityInventory.displayName} ·{' '}
+                  {capabilityInventory.freshness} inventory ·{' '}
+                  {capabilityInventory.status}
+                </p>
+                {capabilityInventory.message && (
+                  <p className="editor-help">{capabilityInventory.message}</p>
+                )}
+                {capabilityInventory.models.length > 0 && (
+                  <>
+                    <div className="editor-label">Models</div>
+                    <div className="plugins__caps">
+                      {capabilityInventory.models.map((model) => (
+                        <span key={model.id} className="plugins__cap">
+                          {model.name}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {capabilityInventory.slashCommands.length > 0 && (
+                  <>
+                    <div className="editor-label">Native Commands</div>
+                    <div className="plugins__registry-list">
+                      {capabilityInventory.slashCommands.map((command) => (
+                        <div
+                          key={command.id}
+                          className="plugins__registry-item"
+                        >
+                          <div className="plugins__registry-info">
+                            <div className="plugins__registry-name">
+                              {command.name}
+                              <span className="plugins__cap plugins__cap--ref">
+                                read-only
+                              </span>
+                            </div>
+                            {command.description && (
+                              <div className="plugins__registry-desc">
+                                {command.description}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
             )}
 

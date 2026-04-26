@@ -11,7 +11,10 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, extname, join } from 'node:path';
-import type { GuidanceAsset } from '@stallion-ai/contracts/catalog';
+import type {
+  GuidanceAsset,
+  PlaybookProvenance,
+} from '@stallion-ai/contracts/catalog';
 import { skillToGuidanceAsset } from '@stallion-ai/contracts/guidance-assets';
 import {
   extractResourceLinks,
@@ -47,6 +50,7 @@ interface EditableSkillInput {
   category?: string;
   agent?: string;
   global?: boolean;
+  provenance?: PlaybookProvenance;
 }
 
 export class SkillService {
@@ -224,11 +228,13 @@ export class SkillService {
     source?: string;
     path?: string;
     installed?: boolean;
+    provenance?: PlaybookProvenance;
   }> {
     return Array.from(this.registry.values()).map((s) => {
       let version: string | undefined;
       let source: string | undefined;
       let path: string | undefined;
+      let provenance: PlaybookProvenance | undefined;
       if (s.location) {
         const metaPath = join(dirname(s.location), '.stallion-meta.json');
         if (existsSync(metaPath)) {
@@ -243,6 +249,7 @@ export class SkillService {
             source = config.source;
             path = config.path;
             version = config.version ?? version;
+            provenance = config.provenance;
           } catch {}
         }
       }
@@ -253,6 +260,7 @@ export class SkillService {
         source,
         path,
         installed: true,
+        provenance,
       };
     });
   }
@@ -325,6 +333,7 @@ export class SkillService {
           typeof frontmatter.global === 'boolean'
             ? frontmatter.global
             : config.global,
+        provenance: config.provenance,
       };
     } catch {
       return config;
@@ -358,6 +367,7 @@ export class SkillService {
       category: input.category,
       agent: input.agent,
       global: input.global,
+      provenance: input.provenance,
     });
     await this.discoverSkills(projectHomeDir, projectSlug);
     return { success: true, message: `Created ${input.name}` };
@@ -378,6 +388,7 @@ export class SkillService {
       category: updates.category ?? current.category,
       agent: updates.agent ?? current.agent,
       global: updates.global ?? current.global,
+      provenance: updates.provenance ?? current.provenance,
     };
     const skillDir = this.resolveSkillDir(projectHomeDir, name, projectSlug);
     await mkdir(skillDir, { recursive: true });
@@ -397,6 +408,7 @@ export class SkillService {
       category: next.category,
       agent: next.agent,
       global: next.global,
+      provenance: next.provenance,
     });
     await this.discoverSkills(projectHomeDir, projectSlug);
     return { success: true, message: `Updated ${next.name}` };

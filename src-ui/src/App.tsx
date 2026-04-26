@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AppViewContent } from './app-shell/AppViewContent';
 import { getPathForView, resolveViewFromPath } from './app-shell/routing';
 import { ChatDock } from './components/ChatDock';
+import { GlobalVoiceButton } from './components/GlobalVoiceButton';
 import { Header } from './components/Header';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { ShortcutsCheatsheet } from './components/ShortcutsCheatsheet';
@@ -303,6 +304,7 @@ function App() {
           </div>
 
           <ChatDock onRequestAuth={handleAuthError} />
+          <GlobalVoiceButton />
           {featureSettings.voiceS2SEnabled && <VoicePill />}
         </div>
       </div>

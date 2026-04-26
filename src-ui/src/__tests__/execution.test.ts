@@ -481,9 +481,9 @@ describe('execution utils', () => {
             models: [],
             fallbackModels: [
               {
-                id: 'gpt-5.3-codex',
-                name: 'GPT-5.3 Codex',
-                originalId: 'gpt-5.3-codex',
+                id: 'gpt-5.5',
+                name: 'GPT-5.5',
+                originalId: 'gpt-5.5',
               },
             ],
           },
@@ -502,9 +502,9 @@ describe('execution utils', () => {
       },
       visibleModels: [
         {
-          id: 'gpt-5.3-codex',
-          name: 'GPT-5.3 Codex',
-          originalId: 'gpt-5.3-codex',
+          id: 'gpt-5.5',
+          name: 'GPT-5.5',
+          originalId: 'gpt-5.5',
         },
       ],
     });

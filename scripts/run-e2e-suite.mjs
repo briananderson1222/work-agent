@@ -1,43 +1,32 @@
 import { spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createServer } from 'node:net';
+import {
+  getSpecsForSuite,
+  validateE2EManifest,
+} from '../tests/e2e-manifest.mjs';
 
-const PRODUCT_SPECS = [
-  'tests/project-lifecycle.spec.ts',
-  'tests/project-forms.spec.ts',
-  'tests/project-agent-scoping.spec.ts',
-  'tests/project-architecture.spec.ts',
-  'tests/agents.spec.ts',
-  'tests/default-agent-workflow.spec.ts',
-  'tests/builtin-runtime-workflow.spec.ts',
-  'tests/playbooks.spec.ts',
-  'tests/prompts.spec.ts',
-  'tests/registry.spec.ts',
-  'tests/registry-install.spec.ts',
-  'tests/system-registry.spec.ts',
-  'tests/skills.spec.ts',
-  'tests/connections-crud.spec.ts',
-  'tests/connect-modal.spec.ts',
-  'tests/connect-reconnect-banner.spec.ts',
-  'tests/plugin-update.spec.ts',
-  'tests/plugin-preview.spec.ts',
-  'tests/plugin-system.spec.ts',
-  'tests/schedule-runs.spec.ts',
-  'tests/monitoring.spec.ts',
-  'tests/orchestration-provider-picker.spec.ts',
-  'tests/orchestration-chat-flow.spec.ts',
-  'tests/orchestration-recovery.spec.ts',
-  'tests/new-chat-provider-managed.spec.ts',
+const SUPPORTED_SUITES = [
+  'product',
+  'smoke-live',
+  'extended',
+  'audit',
+  'screenshot',
 ];
-
-const SMOKE_LIVE_SPECS = ['tests/ui-crud-smoke.spec.ts'];
 
 function parseSuite(argv) {
   const suiteArg = argv.find((arg) => arg.startsWith('--suite='));
   const suite = suiteArg?.split('=')[1] ?? 'product';
-  if (!['product', 'smoke-live'].includes(suite)) {
-    throw new Error(`Unknown E2E suite '${suite}'. Use product or smoke-live.`);
+  if (!SUPPORTED_SUITES.includes(suite)) {
+    throw new Error(
+      `Unknown E2E suite '${suite}'. Use ${SUPPORTED_SUITES.join(', ')}.`,
+    );
   }
   return suite;
+}
+
+function shouldListSpecs(argv) {
+  return argv.includes('--list') || argv.includes('--dry-run');
 }
 
 async function findFreePort() {
@@ -115,8 +104,25 @@ function run(command, args, options = {}) {
 }
 
 async function main() {
-  const suite = parseSuite(process.argv.slice(2));
-  const specs = suite === 'product' ? PRODUCT_SPECS : SMOKE_LIVE_SPECS;
+  const argv = process.argv.slice(2);
+  const suite = parseSuite(argv);
+  const manifestResult = validateE2EManifest({
+    rootDir: process.cwd(),
+    readFile: (filePath) => readFileSync(filePath, 'utf8'),
+  });
+  if (!manifestResult.valid) {
+    throw new Error(
+      `E2E manifest is invalid:\n${manifestResult.errors.join('\n')}`,
+    );
+  }
+  const specs = getSpecsForSuite(suite);
+  if (specs.length === 0) {
+    throw new Error(`E2E suite '${suite}' has no specs.`);
+  }
+  if (shouldListSpecs(argv)) {
+    console.log(JSON.stringify({ suite, specs }, null, 2));
+    return;
+  }
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const instance = `e2e-${suite}-${suffix}`;
   const serverPort = await findFreePortBlock(3);
@@ -138,6 +144,7 @@ async function main() {
         ...process.env,
         PLAYWRIGHT_BROWSERS_PATH: '0',
         PW_BASE_URL: `http://localhost:${uiPort}`,
+        PW_API_BASE_URL: `http://localhost:${serverPort}`,
         STALLION_PORT: String(serverPort),
       },
     });

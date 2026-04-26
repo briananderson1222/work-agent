@@ -2,7 +2,7 @@ import type { Playbook } from '@stallion-ai/contracts/catalog';
 import { playbookToGuidanceAsset } from '@stallion-ai/contracts/guidance-assets';
 import {
   useAgentsQuery,
-  useCreateLocalSkillMutation,
+  useConvertPlaybookToSkillMutation,
   useCreatePlaybookMutation,
   useDeletePlaybookMutation,
   useImportPlaybooksMutation,
@@ -53,6 +53,7 @@ export function usePlaybooksViewModel() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showRunModal, setShowRunModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showConvertToSkillModal, setShowConvertToSkillModal] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
@@ -64,7 +65,15 @@ export function usePlaybooksViewModel() {
     data?: AgentOption[];
   };
   const trackRunMutation = useTrackPlaybookRunMutation();
-  const createLocalSkillMutation = useCreateLocalSkillMutation();
+  const convertToSkillMutation = useConvertPlaybookToSkillMutation({
+    onSuccess: (_result, input) => {
+      setShowConvertToSkillModal(false);
+      showToast('Skill package created');
+      navigate(`/skills/${encodeURIComponent(input.name || form.name.trim())}`);
+    },
+    onError: (error) =>
+      showToast(error.message || 'Failed to package playbook as skill'),
+  });
 
   const handleRun = useCallback(
     async (resolvedContent: string, agentSlug: string) => {
@@ -217,7 +226,7 @@ export function usePlaybooksViewModel() {
           playbook.name === form.name.trim() && playbook.id !== selectedId,
       )
     ) {
-      showToast('A prompt with this name already exists');
+      showToast('A playbook with this name already exists');
       return;
     }
     const payload = buildPlaybookPayload(form);
@@ -257,31 +266,25 @@ export function usePlaybooksViewModel() {
     importMutation.mutate(items);
   }
 
-  async function handlePackageAsSkill() {
-    if (!form.name.trim() || !form.content.trim()) {
-      showToast('Name and content are required');
+  function handlePackageAsSkill() {
+    if (!selectedId) {
+      showToast('Save the playbook before packaging it as a skill');
       return;
     }
-    try {
-      await createLocalSkillMutation.mutateAsync({
-        name: form.name.trim(),
-        body: form.content,
-        description: form.description || undefined,
-        category: form.category || undefined,
-        tags: form.tags
-          ? form.tags
-              .split(',')
-              .map((tag) => tag.trim())
-              .filter(Boolean)
-          : undefined,
-        agent: form.agent || undefined,
-        global: form.global || undefined,
-      });
-      showToast('Skill package created');
-      navigate(`/skills/${encodeURIComponent(form.name.trim())}`);
-    } catch {
-      showToast('Failed to package playbook as skill');
+    if (dirty) {
+      showToast('Save the playbook before packaging it as a skill');
+      return;
     }
+    setShowConvertToSkillModal(true);
+  }
+
+  function confirmPackageAsSkill(name: string) {
+    if (!selectedId) return;
+    convertToSkillMutation.mutate({ id: selectedId, name });
+  }
+
+  function navigateWithGuard(path: string) {
+    guard(() => navigate(path));
   }
 
   return {
@@ -298,6 +301,8 @@ export function usePlaybooksViewModel() {
     handleDuplicate,
     handleImport,
     handlePackageAsSkill,
+    navigateWithGuard,
+    confirmPackageAsSkill,
     handleRun,
     handleSave,
     importPending: importMutation.isPending,
@@ -319,10 +324,12 @@ export function usePlaybooksViewModel() {
     setSearch,
     setShowDeleteModal,
     setShowImportModal,
+    setShowConvertToSkillModal,
     setShowRunModal,
     setSortBy,
     showDeleteModal,
     showImportModal,
+    showConvertToSkillModal,
     showRunModal,
     sortBy,
     startNew,
@@ -330,5 +337,6 @@ export function usePlaybooksViewModel() {
     touched,
     updateField,
     updatePending: updateMutation.isPending,
+    convertToSkillPending: convertToSkillMutation.isPending,
   };
 }

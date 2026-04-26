@@ -9,6 +9,12 @@ describe('app-shell routing', () => {
       type: 'connections-provider-edit',
       id: 'demo',
     });
+    expect(resolveViewFromPath('/connections/runtimes')).toEqual({
+      type: 'connections-runtimes',
+    });
+    expect(resolveViewFromPath('/connections/acp')).toEqual({
+      type: 'connections-acp',
+    });
     expect(resolveViewFromPath('/projects/demo/layouts/coding')).toEqual({
       type: 'layout',
       projectSlug: 'demo',
@@ -49,5 +55,11 @@ describe('app-shell routing', () => {
         layoutSlug: 'coding',
       }),
     ).toBe('/projects/alpha/layouts/coding');
+    expect(getPathForView({ type: 'connections-runtimes' })).toBe(
+      '/connections/runtimes',
+    );
+    expect(getPathForView({ type: 'connections-acp' })).toBe(
+      '/connections/acp',
+    );
   });
 });

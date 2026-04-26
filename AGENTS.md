@@ -53,7 +53,12 @@ All of the following must pass before a task is considered complete:
 1. `npx biome check src-server/ src-ui/ packages/` — no lint or format errors
 2. `npx tsc --noEmit` — no type errors
 3. `npm test` — all unit tests pass
-4. If UI changes: manual smoke test or Playwright spec
+4. If UI changes: `npm run verify:e2e:full` unless the task is explicitly scoped to a narrower Playwright lane
+
+For local pre-commit-style validation, `npm run verify:static` runs the lint,
+manifest, typecheck, and unit-test gate without launching Stallion. `npm run
+verify` is the no-shortcuts gate and includes the full Playwright coverage
+contract.
 
 Never skip these gates. If a gate fails, fix the issue before marking done.
 
@@ -93,6 +98,12 @@ The `playwright.config.ts` reads `PW_BASE_URL` from the environment. Run tests a
 ```bash
 PW_BASE_URL=http://localhost:<ui-port> npx playwright test tests/<feature>.spec.ts
 ```
+
+The full Playwright coverage contract is `npm run verify:e2e:full`. It runs the
+product, smoke-live, extended, audit, screenshot, and Android buckets. Every
+top-level or Android Playwright spec must be assigned to exactly one bucket in
+`tests/e2e-manifest.mjs`; update that manifest when adding, moving, or deleting
+specs.
 
 Tests live in `tests/` and follow these conventions:
 - `import { test, expect } from '@playwright/test'`

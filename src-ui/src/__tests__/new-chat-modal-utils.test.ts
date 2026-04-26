@@ -29,6 +29,23 @@ describe('new-chat-modal-utils', () => {
     ]);
   });
 
+  test('buildContextOptions skips null project entries defensively', () => {
+    expect(
+      buildContextOptions([
+        null,
+        { slug: 'project-a', name: 'Project A' } as any,
+      ] as any),
+    ).toEqual([
+      { value: GLOBAL_CONTEXT, label: 'Global', icon: '🌐' },
+      {
+        value: 'project-a',
+        label: 'Project A',
+        icon: '📁',
+        workingDirectory: undefined,
+      },
+    ]);
+  });
+
   test('filterContextOptions matches labels case-insensitively', () => {
     const options = buildContextOptions([
       { slug: 'project-a', name: 'Alpha Project' } as any,

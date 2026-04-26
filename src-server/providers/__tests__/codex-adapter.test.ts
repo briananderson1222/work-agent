@@ -487,36 +487,52 @@ describe('CodexAdapter', () => {
         result: {
           data: [
             {
-              id: 'gpt-5.3-codex',
-              model: 'gpt-5.3-codex',
-              displayName: 'GPT-5.3 Codex',
-            },
-            {
-              model: 'gpt-5.3-codex-spark',
-              displayName: 'GPT-5.3 Codex Spark',
+              id: 'gpt-5.4',
+              model: 'gpt-5.4',
+              displayName: 'GPT-5.4',
             },
           ],
+          nextCursor: 'next-page',
+        },
+      })}\n`,
+    );
+    await flushIo();
+    processHandle!.stdout.write(
+      `${JSON.stringify({
+        id: '3',
+        result: {
+          data: [
+            {
+              model: 'gpt-5.5',
+              displayName: 'GPT-5.5',
+            },
+          ],
+          nextCursor: null,
         },
       })}\n`,
     );
 
     await expect(listModelsPromise).resolves.toEqual([
       {
-        id: 'gpt-5.3-codex',
-        name: 'GPT-5.3 Codex',
-        originalId: 'gpt-5.3-codex',
+        id: 'gpt-5.4',
+        name: 'GPT-5.4',
+        originalId: 'gpt-5.4',
       },
       {
-        id: 'gpt-5.3-codex-spark',
-        name: 'GPT-5.3 Codex Spark',
-        originalId: 'gpt-5.3-codex-spark',
+        id: 'gpt-5.5',
+        name: 'GPT-5.5',
+        originalId: 'gpt-5.5',
       },
     ]);
 
-    const writtenMethods = processHandle.stdin.lines.map(
-      (line) => parseLine(line).method,
-    );
-    expect(writtenMethods).toEqual(['initialize', 'initialized', 'model/list']);
+    const writtenMessages = processHandle.stdin.lines.map(parseLine);
+    expect(writtenMessages.map((message) => message.method)).toEqual([
+      'initialize',
+      'initialized',
+      'model/list',
+      'model/list',
+    ]);
+    expect(writtenMessages[3].params.cursor).toBe('next-page');
   });
 
   test('publishes a warning for malformed JSON-RPC payloads', async () => {

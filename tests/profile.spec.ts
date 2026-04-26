@@ -56,6 +56,31 @@ const MOCK_INSIGHTS = {
   days: 14,
 };
 
+const STATUS_READY = {
+  ready: true,
+  acp: { connected: false, connections: [] },
+  clis: {},
+  prerequisites: [],
+  providers: {
+    configuredChatReady: true,
+    configured: [
+      {
+        id: 'profile-test-runtime',
+        type: 'codex',
+        enabled: true,
+        capabilities: ['llm'],
+      },
+    ],
+    detected: { ollama: false, bedrock: false },
+  },
+  capabilities: {
+    chat: {
+      ready: true,
+      source: 'profile-test-runtime',
+    },
+  },
+};
+
 function setupRoutes(page: import('@playwright/test').Page) {
   return Promise.all([
     page.route('**/api/analytics/usage*', (route) => {
@@ -91,11 +116,7 @@ function setupRoutes(page: import('@playwright/test').Page) {
     ),
     page.route('**/api/system/status', (route) =>
       route.fulfill({
-        json: {
-          prerequisites: [],
-          acp: { connections: [] },
-          ready: true,
-        },
+        json: STATUS_READY,
       }),
     ),
     page.route('**/api/system/capabilities', (route) =>
@@ -117,17 +138,44 @@ function setupRoutes(page: import('@playwright/test').Page) {
     page.route('**/api/analytics/rescan', (route) =>
       route.fulfill({ json: { data: MOCK_USAGE } }),
     ),
+    page.route('**/events', (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body: 'data: {"event":"connected"}\n\n',
+      }),
+    ),
   ]);
 }
 
 test.describe('Profile Page', () => {
   test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem(
+        'stallion-connect-connections',
+        JSON.stringify([
+          {
+            id: 'profile-server',
+            name: 'Profile Test Server',
+            url: window.location.origin,
+            lastConnected: Date.now(),
+          },
+        ]),
+      );
+      localStorage.setItem(
+        'stallion-connect-connections-active',
+        'profile-server',
+      );
+    });
     await setupRoutes(page);
   });
 
   test('navigates to profile via header button', async ({ page }) => {
     await page.goto('/');
-    const profileBtn = page.getByRole('button', { name: 'Profile' });
+    const profileBtn = page.getByRole('button', {
+      name: 'Profile',
+      exact: true,
+    });
     await profileBtn.click();
     await expect(page).toHaveURL(/\/profile/);
     await expect(page.locator('.profile-page')).toBeVisible();
@@ -139,10 +187,10 @@ test.describe('Profile Page', () => {
     await expect(page.locator('.profile-hero-subtitle')).toContainText(
       '42 messages',
     );
-    await expect(page.getByLabel('Recent usage graph')).toBeVisible();
+    await expect(page.getByLabel('Usage activity overview')).toBeVisible();
   });
 
-  test('renders a usage graph inside the first hero card when activity data exists', async ({
+  test('renders chart columns inside the first hero card when activity data exists', async ({
     page,
   }) => {
     await page.goto('/profile');
@@ -156,14 +204,13 @@ test.describe('Profile Page', () => {
     ).toBeVisible();
   });
 
-  test('renders a usage graph inside the first hero card when activity data exists', async ({
+  test('renders activity timeline columns when activity data exists', async ({
     page,
   }) => {
     await page.goto('/profile');
 
-    const heroCard = page.locator('.profile-container > .profile-card').first();
     await expect(
-      heroCard.locator('[data-testid^="chart-col-"]').first(),
+      page.locator('.profile-timeline [data-testid^="chart-col-"]').first(),
     ).toBeVisible();
   });
 
@@ -259,9 +306,8 @@ test.describe('Profile Page', () => {
     await expect(
       page.getByText('Start your journey with your first message'),
     ).toBeVisible();
-    await expect(
-      page.getByText('your first messages will light up this graph.'),
-    ).toBeVisible();
+    await expect(page.getByText('No tool usage yet')).toBeVisible();
+    await expect(page.getByText('No agent usage yet')).toBeVisible();
     await expect(page.getByText('No model data yet')).toBeVisible();
     await expect(page.getByText('No agent data yet')).toBeVisible();
     await expect(
@@ -289,7 +335,8 @@ test.describe('Profile Page', () => {
       if (msg.type() === 'error') errors.push(msg.text());
     });
     await page.goto('/profile');
-    await page.waitForTimeout(1000);
+    await expect(page.locator('.profile-page')).toBeVisible();
+    await expect(page.locator('.usage-stats-panel')).toBeVisible();
     expect(errors).toEqual([]);
   });
 

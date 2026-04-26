@@ -177,6 +177,7 @@ export type NavigationView =
   | { type: 'connections-provider-edit'; id: string }
   | { type: 'connections-runtimes' }
   | { type: 'connections-runtime-edit'; id: string }
+  | { type: 'connections-acp' }
   | { type: 'connections-tools' }
   | { type: 'connections-tool-edit'; id: string }
   | { type: 'connections-knowledge' }

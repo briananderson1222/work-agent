@@ -61,6 +61,13 @@ describe('connection-service helpers', () => {
               originalId: 'gpt-5.4-codex',
             },
           ],
+          getCommands: async () => [
+            {
+              name: 'resume',
+              description: 'Resume a session',
+              passthrough: true,
+            },
+          ],
         },
       ] as any,
       appConfig: {
@@ -71,7 +78,15 @@ describe('connection-service helpers', () => {
         },
       } as any,
       acpConnections: [{ id: 'kiro', enabled: true }] as any,
-      acpStatus: { connections: [{ id: 'kiro', status: 'available' }] },
+      acpStatus: {
+        connections: [
+          {
+            id: 'kiro',
+            status: 'available',
+            slashCommands: [{ name: '/plan', description: 'Plan work' }],
+          },
+        ],
+      },
     });
 
     expect(connections).toEqual([
@@ -96,8 +111,27 @@ describe('connection-service helpers', () => {
             },
           ],
           fallbackModels: expect.arrayContaining([
-            expect.objectContaining({ id: 'gpt-5.3-codex' }),
+            expect.objectContaining({ id: 'gpt-5.5' }),
           ]),
+        }),
+        capabilityInventory: expect.objectContaining({
+          providerId: 'codex',
+          connectionId: 'codex-runtime',
+          freshness: 'live',
+          models: [
+            {
+              id: 'gpt-5.4-codex',
+              name: 'GPT-5.4 Codex',
+              provider: 'codex',
+            },
+          ],
+          slashCommands: [
+            expect.objectContaining({
+              id: 'resume',
+              name: '/resume',
+              description: 'Resume a session',
+            }),
+          ],
         }),
       }),
       expect.objectContaining({
@@ -107,6 +141,15 @@ describe('connection-service helpers', () => {
           configuredCount: 1,
           connectedCount: 1,
           executionClass: 'external',
+        }),
+        capabilityInventory: expect.objectContaining({
+          providerId: 'acp',
+          slashCommands: [
+            expect.objectContaining({
+              id: 'kiro:plan',
+              name: '/plan',
+            }),
+          ],
         }),
       }),
     ]);

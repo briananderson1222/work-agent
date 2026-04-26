@@ -66,14 +66,15 @@ export function ProjectSettingsView({ slug }: { slug: string }) {
   const isDirty =
     !isLoading && !!form && JSON.stringify(form) !== JSON.stringify(savedForm);
   const { guard, DiscardModal } = useUnsavedGuard(isDirty);
-  const workingDirectory = normalizeWorkingDirectory(
-    form.workingDirectory ?? '',
-  );
-  const workingDirectoryLeaf = getWorkingDirectoryLeaf(workingDirectory);
 
   if (isLoading || !form) {
     return <div className="project-settings__loading">Loading…</div>;
   }
+
+  const workingDirectory = normalizeWorkingDirectory(
+    form.workingDirectory ?? '',
+  );
+  const workingDirectoryLeaf = getWorkingDirectoryLeaf(workingDirectory);
 
   function setField<K extends keyof ProjectForm>(
     key: K,

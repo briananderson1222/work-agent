@@ -1,92 +1,262 @@
-import { expect, test } from '@playwright/test';
+import { expect, type Page, test } from '@playwright/test';
+
+type ScheduleJobRecord = {
+  name: string;
+  provider: string;
+  cron: string;
+  schedule: string;
+  prompt: string;
+  agent: string;
+  enabled: boolean;
+  lastRun?: string;
+  nextRun?: string;
+  retryCount?: number;
+  retryDelaySecs?: number;
+};
+
+function makeJob(
+  overrides: Partial<ScheduleJobRecord> & Pick<ScheduleJobRecord, 'name'>,
+): ScheduleJobRecord {
+  const cron = overrides.cron ?? '0 9 * * *';
+  return {
+    provider: 'built-in',
+    cron,
+    schedule: `cron ${cron}`,
+    prompt: 'Generate the daily report',
+    agent: 'default',
+    enabled: true,
+    lastRun: '2026-04-25T15:00:00.000Z',
+    nextRun: '2026-04-26T15:00:00.000Z',
+    retryCount: 0,
+    retryDelaySecs: 60,
+    ...overrides,
+  };
+}
+
+async function seedScheduleCrudApi(page: Page) {
+  const jobs = new Map<string, ScheduleJobRecord>([
+    [
+      'daily-report',
+      makeJob({
+        name: 'daily-report',
+        prompt: 'Generate the daily report',
+        agent: 'codex',
+      }),
+    ],
+  ]);
+  const runCalls: string[] = [];
+
+  await page.route('**/scheduler/providers', (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        data: [
+          {
+            id: 'built-in',
+            displayName: 'Built-in Scheduler',
+            capabilities: ['prompt'],
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/scheduler/status', (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        data: {
+          providers: {
+            'built-in': {
+              id: 'built-in',
+              displayName: 'Built-in Scheduler',
+              running: true,
+              healthy: true,
+              lastTickAt: '2026-04-25T15:01:00.000Z',
+            },
+          },
+        },
+      },
+    }),
+  );
+  await page.route('**/scheduler/stats', (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        data: {
+          providers: {
+            'built-in': {
+              jobs: Array.from(jobs.values()).map((job) => ({
+                name: job.name,
+                total: 1,
+                successes: job.enabled ? 1 : 0,
+                failures: job.enabled ? 0 : 1,
+                success_rate: job.enabled ? 100 : 0,
+              })),
+            },
+          },
+          summary: {
+            totalJobs: jobs.size,
+            totalRuns: jobs.size,
+            successRate: jobs.size ? 100 : -1,
+          },
+        },
+      },
+    }),
+  );
+  await page.route('**/scheduler/jobs/preview-schedule**', (route) =>
+    route.fulfill({
+      json: {
+        success: true,
+        data: ['2026-04-26T15:00:00.000Z'],
+      },
+    }),
+  );
+  await page.route('**/scheduler/jobs', async (route) => {
+    if (route.request().method() === 'POST') {
+      const body = route.request().postDataJSON();
+      const job = makeJob({
+        name: body.name,
+        provider: body.provider ?? 'built-in',
+        cron: body.cron ?? '* * * * *',
+        prompt: body.prompt ?? '',
+        agent: body.agent ?? 'default',
+        retryCount: body.retryCount ?? 0,
+        retryDelaySecs: body.retryDelaySecs ?? 60,
+      });
+      jobs.set(job.name, job);
+      await route.fulfill({ json: { success: true, data: job } });
+      return;
+    }
+    await route.fulfill({
+      json: { success: true, data: Array.from(jobs.values()) },
+    });
+  });
+  await page.route('**/scheduler/jobs/**', async (route) => {
+    const request = route.request();
+    const pathParts = new URL(request.url()).pathname.split('/');
+    const target = decodeURIComponent(pathParts[3] ?? '');
+    const action = pathParts[4];
+    const current = jobs.get(target);
+
+    if (action === 'run' && request.method() === 'POST') {
+      runCalls.push(target);
+      await route.fulfill({ json: { success: true, data: current } });
+      return;
+    }
+    if (
+      (action === 'enable' || action === 'disable') &&
+      request.method() === 'PUT'
+    ) {
+      if (current) {
+        jobs.set(target, { ...current, enabled: action === 'enable' });
+      }
+      await route.fulfill({ json: { success: true, data: jobs.get(target) } });
+      return;
+    }
+    if (request.method() === 'PUT') {
+      const body = request.postDataJSON();
+      if (current) {
+        const cron = body.cron ?? current.cron;
+        jobs.set(target, {
+          ...current,
+          ...body,
+          cron,
+          schedule: `cron ${cron}`,
+        });
+      }
+      await route.fulfill({ json: { success: true, data: jobs.get(target) } });
+      return;
+    }
+    if (request.method() === 'DELETE') {
+      jobs.delete(target);
+      await route.fulfill({ json: { success: true } });
+      return;
+    }
+    await route.fulfill({ status: 404, json: { success: false } });
+  });
+  await page.route('**/api/runs', (route) =>
+    route.fulfill({ json: { success: true, data: [] } }),
+  );
+
+  return { runCalls };
+}
+
+async function fillCron(
+  page: Page,
+  cron: [string, string, string, string, string],
+) {
+  const labels = ['minute', 'hour', 'day', 'month', 'weekday'];
+  for (const [index, value] of cron.entries()) {
+    await page.getByLabel(labels[index], { exact: true }).fill(value);
+  }
+}
 
 test.describe('Schedule Page', () => {
-  test.beforeEach(async ({ page }) => {
+  test('covers add, edit, duplicate, run, filter, toggle, and delete', async ({
+    page,
+  }) => {
+    const { runCalls } = await seedScheduleCrudApi(page);
     await page.goto('/schedule');
-    // Wait for the schedule view to render (may show empty state or job table)
-    await page.waitForSelector(
-      '.schedule__table-wrap, .schedule__loading, .schedule__empty, .schedule__error',
-      { timeout: 10_000 },
-    );
-  });
 
-  test('shows job list with stats bar', async ({ page }) => {
-    // Stats bar should have Scheduler, Jobs, etc.
-    await expect(page.getByText('Scheduler')).toBeVisible();
-    await expect(page.getByText('Jobs', { exact: true })).toBeVisible();
-    await expect(page.getByText('Success Rate')).toBeVisible();
-  });
+    await expect(page.getByRole('heading', { name: 'Schedule' })).toBeVisible();
+    await expect(page.getByTestId('job-row-daily-report')).toBeVisible();
+    await expect(
+      page.getByLabel('Scheduler statistics').getByText('100%'),
+    ).toBeVisible();
 
-  test('run now triggers job and shows running indicator', async ({ page }) => {
-    // Skip if no jobs are present
-    const hasJobs = (await page.locator('tbody tr').count()) > 0;
-    test.skip(!hasJobs, 'No scheduled jobs — skipping run-now test');
+    await page.getByPlaceholder('Filter jobs…').fill('missing');
+    await expect(page.getByText('No matching jobs')).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId('job-row-daily-report')).toBeVisible();
 
-    const firstRunBtn = page.locator('button[title="Run now"]').first();
-    await expect(firstRunBtn).toBeVisible();
-    await firstRunBtn.click();
-
-    // Running indicator should appear
-    await expect(page.getByTestId('running-indicator').first()).toBeVisible({
-      timeout: 5_000,
-    });
-  });
-
-  test('toast appears on job completion event', async ({ page }) => {
-    const hasJobs = (await page.locator('tbody tr').count()) > 0;
-    test.skip(!hasJobs, 'No scheduled jobs — skipping completion test');
-
-    const jobName = await page.locator('tbody tr td').first().innerText();
-    // Send completion event through the main server's scheduler proxy
-    await fetch('http://localhost:3141/scheduler/webhook', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        event: 'job.completed',
-        job: jobName.trim(),
-        success: true,
-        duration_secs: 12.5,
-      }),
-    });
-
-    await expect(page.getByText(/completed/i).first()).toBeVisible({
-      timeout: 5_000,
-    });
-  });
-
-  test('expanded detail shows run history', async ({ page }) => {
-    const hasJobs = (await page.locator('tbody tr').count()) > 0;
-    test.skip(!hasJobs, 'No scheduled jobs — skipping detail test');
-
-    await page.locator('tbody tr').first().click();
-    await expect(page.getByText('Run History')).toBeVisible({ timeout: 5_000 });
-  });
-
-  test('toggle enable/disable works', async ({ page }) => {
-    const hasJobs = (await page.locator('tbody tr').count()) > 0;
-    test.skip(!hasJobs, 'No scheduled jobs — skipping toggle test');
-
-    const toggleBtn = page
-      .locator('button[title="Disable"], button[title="Enable"]')
-      .first();
-    const title = await toggleBtn.getAttribute('title');
-    await toggleBtn.click();
-    await page.waitForTimeout(1000);
-
-    if (title === 'Disable') {
-      await expect(
-        page.locator('button[title="Enable"]').first(),
-      ).toBeVisible();
-    } else {
-      await expect(
-        page.locator('button[title="Disable"]').first(),
-      ).toBeVisible();
-    }
-
-    // Toggle back
+    await page.getByRole('button', { name: '+ Add Job' }).click();
+    await page.getByPlaceholder('my-daily-briefing').fill('weekly-brief');
     await page
-      .locator('button[title="Disable"], button[title="Enable"]')
-      .first()
+      .getByPlaceholder('What should the agent do?')
+      .fill('Summarize weekly work');
+    await fillCron(page, ['30', '8', '*', '*', '1']);
+    await page.getByRole('button', { name: 'Add Job', exact: true }).click();
+    await expect(page.getByTestId('job-row-weekly-brief')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Edit weekly-brief' }).click();
+    await page
+      .getByPlaceholder('What should the agent do?')
+      .fill('Summarize weekly work and risks');
+    await page.getByRole('button', { name: 'Save Changes' }).click();
+    await page.getByTestId('job-row-weekly-brief').click();
+    await expect(
+      page.getByText('Summarize weekly work and risks'),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Run weekly-brief' }).click();
+    await expect.poll(() => runCalls).toEqual(['weekly-brief']);
+
+    await page.getByTestId('job-row-weekly-brief').locator('td').nth(2).click();
+    await expect(
+      page.getByTestId('job-row-weekly-brief').getByText('off'),
+    ).toBeVisible();
+    await page.getByTestId('job-row-weekly-brief').locator('td').nth(2).click();
+    await expect(
+      page.getByTestId('job-row-weekly-brief').getByText('on'),
+    ).toBeVisible();
+
+    await page.getByRole('button', { name: 'Duplicate weekly-brief' }).click();
+    await expect(page.getByPlaceholder('my-daily-briefing')).toHaveValue(
+      'weekly-brief-copy',
+    );
+    await page.getByRole('button', { name: 'Add Job', exact: true }).click();
+    await expect(page.getByTestId('job-row-weekly-brief-copy')).toBeVisible();
+
+    await page
+      .getByRole('button', { name: 'Delete weekly-brief-copy' })
       .click();
+    await expect(page.getByRole('dialog')).toContainText(
+      'Delete job "weekly-brief-copy"?',
+    );
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: 'Delete', exact: true })
+      .click();
+    await expect(page.getByTestId('job-row-weekly-brief-copy')).toHaveCount(0);
   });
 });

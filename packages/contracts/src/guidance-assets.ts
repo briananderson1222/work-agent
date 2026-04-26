@@ -45,5 +45,6 @@ export function skillToGuidanceAsset(skill: Skill): GuidanceAsset {
       resources: skill.resources,
       scripts: skill.scripts,
     },
+    provenance: skill.provenance,
   };
 }

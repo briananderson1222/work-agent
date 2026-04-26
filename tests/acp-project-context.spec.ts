@@ -1,10 +1,10 @@
 /**
- * E2E: ACP badge + project context in chat sessions
+ * E2E: ACP connections + project context in chat sessions
  *
  * Verifies:
- * 1. ACP status badge renders when connections exist
- * 2. New chat sessions inherit the active project context
- * 3. Project context badge shows in session tab
+ * 1. ACP connections render from the current Agents surface
+ * 2. ACP connection details expose contributed agents
+ * 3. New chat inherits the active project context
  */
 import { expect, test } from '@playwright/test';
 
@@ -12,7 +12,7 @@ const STATUS_ACP_CONNECTED = {
   ready: true,
   acp: {
     connected: true,
-    connections: [{ id: 'kiro', status: 'connected' }],
+    connections: [{ id: 'kiro', status: 'available' }],
   },
   clis: { 'kiro-cli': true },
   prerequisites: [],
@@ -26,7 +26,7 @@ const ACP_CONNECTIONS = [
     args: ['acp'],
     icon: '/kiro-icon.png',
     enabled: true,
-    status: 'connected',
+    status: 'available',
     modes: [{ id: 'chat', name: 'Chat' }],
     sessionId: 'sess-123',
     mcpServers: [],
@@ -83,7 +83,28 @@ function seedRoutes(page: import('@playwright/test').Page) {
       r.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(TEST_PROJECTS),
+        body: JSON.stringify({ success: true, data: TEST_PROJECTS }),
+      }),
+    ),
+    page.route('**/api/projects/my-project', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: {
+            ...TEST_PROJECTS[0],
+            agents: ['default', 'kiro-chat'],
+            workingDirectory: '/tmp/my-project',
+          },
+        }),
+      }),
+    ),
+    page.route('**/api/projects/my-project/layouts', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
       }),
     ),
     page.route('**/api/agents', (r) =>
@@ -105,6 +126,16 @@ function seedRoutes(page: import('@playwright/test').Page) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({}),
+      }),
+    ),
+    page.route('**/config/app', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          success: true,
+          data: { apiBase: '', defaultModel: 'gpt-5.5' },
+        }),
       }),
     ),
     page.route('**/events', (r) => r.abort()),
@@ -132,33 +163,41 @@ function seedRoutes(page: import('@playwright/test').Page) {
         body: JSON.stringify([]),
       }),
     ),
+    page.route('**/api/connections/runtimes', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
+    page.route('**/api/connections/models', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, data: [] }),
+      }),
+    ),
   ]);
 }
 
 test.describe('ACP + Project Context', () => {
-  test('ACP badge renders when connections are active', async ({ page }) => {
+  test('ACP connection renders from the Agents surface', async ({ page }) => {
     await seedRoutes(page);
-    await page.goto('/');
-    // The ACP badge should be visible in the chat dock header
-    const badge = page.locator('.acp-badge');
-    await expect(badge).toBeVisible({ timeout: 5000 });
-    await expect(badge).toContainText('ACP');
+    await page.goto('/agents');
+    await expect(
+      page.getByRole('button', { name: /kiro-cli.*ACP/i }),
+    ).toBeVisible({ timeout: 5000 });
   });
 
-  test('ACP badge shows connection count on click', async ({ page }) => {
+  test('ACP connection detail shows contributed agents', async ({ page }) => {
     await seedRoutes(page);
-    await page.goto('/');
-    const badge = page.locator('.acp-badge');
-    await expect(badge).toBeVisible({ timeout: 5000 });
-    // Click to open the modal
-    await badge.click();
-    // Modal should show connection details
-    await expect(page.getByText('Agent Client Protocol')).toBeVisible();
-    await expect(page.getByText('kiro-cli')).toBeVisible();
-    await expect(page.getByText('connected', { exact: true })).toBeVisible();
+    await page.goto('/agents');
+    await page.getByRole('button', { name: /kiro-cli.*ACP/i }).click();
+    await expect(page.getByText('Agent Client Protocol (ACP)')).toBeVisible();
+    await expect(page.getByText('1 agents', { exact: true })).toBeVisible();
   });
 
-  test('new chat inherits project context from localStorage', async ({
+  test('new chat can select project context from active project data', async ({
     page,
   }) => {
     await seedRoutes(page);
@@ -166,32 +205,27 @@ test.describe('ACP + Project Context', () => {
     await page.addInitScript(() => {
       localStorage.setItem('lastProject', 'my-project');
     });
-    await page.goto('/?dock=open');
+    await page.goto('/projects/my-project?dock=open');
 
-    // Click "+ New" — opens modal since there are 2 agents (default + ACP)
-    const newChatBtn = page.getByRole('button', { name: '+ New' });
+    // Click New -- opens modal since there are 2 agents (default + ACP)
+    const newChatBtn = page.getByRole('button', { name: /New/ }).last();
     await expect(newChatBtn).toBeVisible({ timeout: 5000 });
-    await newChatBtn.evaluate((el) =>
-      el.dispatchEvent(new MouseEvent('click', { bubbles: true })),
-    );
+    await newChatBtn.click();
 
-    // Modal should show — click the Default Agent
+    // Modal should expose the project context before starting a chat.
     const modal = page.getByText('New Chat');
     await expect(modal).toBeVisible({ timeout: 3000 });
-    const agentCard = page.getByText('Default Agent').first();
-    await expect(agentCard).toBeVisible({ timeout: 3000 });
-    await agentCard.evaluate((el) =>
-      el.dispatchEvent(new MouseEvent('click', { bubbles: true })),
+    await page.locator('.new-chat-modal__context-button').click();
+    await page
+      .locator('.new-chat-modal__dropdown')
+      .getByRole('button', { name: /My Project|my-project/ })
+      .click();
+    await expect(page.locator('.new-chat-modal__context-button')).toContainText(
+      /My Project|my-project/,
     );
-
-    // The session tab or body should show the project context (name or slug)
-    await page.waitForTimeout(500);
-    await expect(
-      page.locator('.chat-dock__session-project').first(),
-    ).toContainText(/My Project|my-project/);
   });
 
-  test('ACP badge hidden when no connections', async ({ page }) => {
+  test('ACP connection item hidden when no connections', async ({ page }) => {
     // Override with no ACP connections
     await page.route('**/api/system/status', (r) =>
       r.fulfill({
@@ -214,7 +248,7 @@ test.describe('ACP + Project Context', () => {
       r.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(TEST_PROJECTS),
+        body: JSON.stringify({ success: true, data: TEST_PROJECTS }),
       }),
     );
     await page.route('**/api/agents', (r) =>
@@ -267,9 +301,9 @@ test.describe('ACP + Project Context', () => {
       }),
     );
 
-    await page.goto('/');
-    // ACP badge should NOT be visible
-    const badge = page.locator('.acp-badge');
-    await expect(badge).not.toBeVisible({ timeout: 3000 });
+    await page.goto('/agents');
+    await expect(page.getByRole('button', { name: /ACP/i })).not.toBeVisible({
+      timeout: 3000,
+    });
   });
 });

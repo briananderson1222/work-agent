@@ -123,4 +123,28 @@ describe('playbooks utils', () => {
       } as Playbook),
     ).toBe('refined by planner');
   });
+
+  test('formatPlaybookProvenanceSummary describes asset conversion sources', () => {
+    expect(
+      formatPlaybookProvenanceSummary({
+        id: 'pb-1',
+        name: 'Converted',
+        content: 'Draft the plan',
+        provenance: {
+          createdFrom: {
+            kind: 'asset',
+            action: 'skill-to-playbook',
+            asset: {
+              kind: 'skill',
+              id: 'research-skill',
+              name: 'Research Skill',
+              owner: 'user',
+            },
+          },
+        },
+        createdAt: '2026-04-11T10:00:00Z',
+        updatedAt: '2026-04-11T11:00:00Z',
+      } as Playbook),
+    ).toBe('created from Research Skill');
+  });
 });

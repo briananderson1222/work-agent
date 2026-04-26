@@ -199,10 +199,13 @@ export function configureRuntimeRoutes(
       context.getVoltAgent,
     ),
   );
+  const promptService = new PromptService();
   context.app.route(
     '/api/skills',
-    createSkillRoutes(context.skillService, () =>
-      context.configLoader.getProjectHomeDir(),
+    createSkillRoutes(
+      context.skillService,
+      () => context.configLoader.getProjectHomeDir(),
+      { promptService },
     ),
   );
   context.app.route(
@@ -433,7 +436,10 @@ export function configureRuntimeRoutes(
   );
   context.app.route('/api/voice', createVoiceRoutes(context.voiceService));
 
-  const promptRoutes = createPromptRoutes(new PromptService(), context.logger);
+  const promptRoutes = createPromptRoutes(promptService, context.logger, {
+    skillService: context.skillService,
+    getProjectHomeDir: () => context.configLoader.getProjectHomeDir(),
+  });
   context.app.route('/api/prompts', promptRoutes);
   context.app.route('/api/playbooks', promptRoutes);
 

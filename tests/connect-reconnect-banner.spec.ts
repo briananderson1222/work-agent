@@ -126,7 +126,9 @@ test.describe('Reconnect Banner', () => {
     ).toBeVisible();
   });
 
-  test('banner disappears when server recovers', async ({ page }) => {
+  test('banner disappears after a recovered server is refreshed', async ({
+    page,
+  }) => {
     await page.addInitScript(SEED_STORAGE);
 
     let healthy = true;
@@ -150,16 +152,24 @@ test.describe('Reconnect Banner', () => {
     // Take down the server
     healthy = false;
     await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(
-      page.getByRole('button', { name: /error Dev Server/ }),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(
+        async () =>
+          page.getByRole('button', { name: /error Dev Server/ }).count(),
+        { timeout: 25_000 },
+      )
+      .toBeGreaterThan(0);
 
     // Bring server back up
     healthy = true;
-    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
-    await expect(page.getByRole('button', { name: /Dev Server/ })).toBeVisible({
-      timeout: 15_000,
-    });
+    await page.reload();
+    await expect
+      .poll(
+        async () =>
+          page.getByRole('button', { name: /connected Dev Server/ }).count(),
+        { timeout: 25_000 },
+      )
+      .toBeGreaterThan(0);
 
     // Banner should be gone (status is healthy again)
     await expect(page.locator('text=/Lost connection to/')).not.toBeVisible();

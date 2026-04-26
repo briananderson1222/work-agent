@@ -8,7 +8,7 @@ test.describe('Prompts Compatibility', () => {
     await page.waitForSelector('.split-pane', { timeout: 15_000 });
 
     await expect(page.locator('.split-pane')).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Playbooks' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Guidance' })).toBeVisible();
   });
 
   test('/api/prompts remains available as a compatibility alias', async ({

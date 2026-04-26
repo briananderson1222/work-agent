@@ -29,6 +29,13 @@ export function AgentEditorSkillsTab({
               <span className="editor__tools-server-count">
                 {form.skills.length} enabled
               </span>
+              <button
+                type="button"
+                className="editor-enrich-btn"
+                onClick={() => onNavigate({ type: 'skills' })}
+              >
+                + new
+              </button>
               {!locked && (
                 <button
                   type="button"

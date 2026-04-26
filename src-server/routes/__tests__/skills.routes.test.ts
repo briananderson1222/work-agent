@@ -16,6 +16,7 @@ function setup() {
       source: 'registry',
       installedAt: '2026-01-01',
       path: '/skills/test-skill',
+      body: 'Do things',
     }),
     installSkill: vi
       .fn()
@@ -31,8 +32,18 @@ function setup() {
       .mockResolvedValue({ success: true, message: 'Removed' }),
   };
   const getProjectHomeDir = vi.fn().mockReturnValue('/home/test');
-  const app = createSkillRoutes(skillService as any, getProjectHomeDir);
-  return { app, skillService, getProjectHomeDir };
+  const promptService = {
+    listPrompts: vi.fn().mockResolvedValue([]),
+    addPrompt: vi.fn().mockResolvedValue({
+      id: 'pb-1',
+      name: 'test-skill',
+      content: 'Do things',
+    }),
+  };
+  const app = createSkillRoutes(skillService as any, getProjectHomeDir, {
+    promptService: promptService as any,
+  });
+  return { app, skillService, getProjectHomeDir, promptService };
 }
 
 async function json(res: Response) {
@@ -117,6 +128,45 @@ describe('Skill Routes', () => {
       { body: 'Updated body' },
       '/home/test',
     );
+  });
+
+  test('POST /:name/convert-to-playbook creates a playbook with asset provenance', async () => {
+    const { app, promptService } = setup();
+    const res = await app.request('/test-skill/convert-to-playbook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'Converted Playbook' }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(promptService.addPrompt).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Converted Playbook',
+        content: expect.any(String),
+      }),
+      expect.objectContaining({
+        kind: 'asset',
+        action: 'skill-to-playbook',
+        asset: expect.objectContaining({
+          kind: 'skill',
+          id: 'test-skill',
+          name: 'test-skill',
+        }),
+      }),
+    );
+  });
+
+  test('POST /:name/convert-to-playbook rejects duplicate playbook names', async () => {
+    const { app, promptService } = setup();
+    promptService.listPrompts.mockResolvedValue([{ name: 'test-skill' }]);
+
+    const res = await app.request('/test-skill/convert-to-playbook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(409);
   });
 
   test('DELETE /:name removes a skill', async () => {

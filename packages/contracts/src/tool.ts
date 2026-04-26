@@ -1,3 +1,5 @@
+import type { ProviderCapabilityInventory } from './catalog';
+
 export interface ToolPermissions {
   filesystem?: boolean;
   network?: boolean;
@@ -112,6 +114,7 @@ export interface ConnectionConfig {
 export interface RuntimeConnectionView extends ConnectionConfig {
   kind: 'runtime';
   runtimeCatalog?: RuntimeCatalogStatus;
+  capabilityInventory?: ProviderCapabilityInventory;
 }
 
 export interface RuntimeConnectionSettings {

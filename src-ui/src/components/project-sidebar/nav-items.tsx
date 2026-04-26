@@ -26,7 +26,7 @@ export const PROJECT_SIDEBAR_NAV_ITEMS: Array<{
   },
   {
     type: 'playbooks',
-    label: 'Playbooks',
+    label: 'Guidance',
     icon: (
       <svg
         width="15"

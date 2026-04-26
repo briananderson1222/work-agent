@@ -1,9 +1,28 @@
 import { z } from 'zod';
 
 export const promptSourceContextSchema = z.object({
-  kind: z.enum(['agent', 'plugin', 'user']),
+  kind: z.enum(['agent', 'plugin', 'user', 'asset']),
   agentSlug: z.string().optional(),
   conversationId: z.string().optional(),
+  action: z
+    .enum([
+      'playbook-to-skill',
+      'skill-to-playbook',
+      'provider-capability-to-playbook',
+      'provider-capability-to-skill',
+    ])
+    .optional(),
+  convertedAt: z.string().optional(),
+  asset: z
+    .object({
+      kind: z.enum(['playbook', 'skill', 'provider-capability']),
+      id: z.string(),
+      name: z.string(),
+      owner: z.enum(['user', 'registry', 'plugin', 'provider']),
+      providerId: z.string().optional(),
+      connectionId: z.string().optional(),
+    })
+    .optional(),
 });
 
 // Prompts
@@ -37,6 +56,12 @@ export const localSkillCreateSchema = z.object({
   tags: z.array(z.string()).optional(),
   agent: z.string().optional(),
   global: z.boolean().optional(),
+  provenance: z
+    .object({
+      createdFrom: promptSourceContextSchema.optional(),
+      updatedFrom: promptSourceContextSchema.optional(),
+    })
+    .optional(),
 });
 
 export const localSkillUpdateSchema = localSkillCreateSchema
@@ -44,6 +69,12 @@ export const localSkillUpdateSchema = localSkillCreateSchema
   .refine((obj) => Object.keys(obj).length > 0, {
     message: 'At least one field is required',
   });
+
+export const guidanceConversionSchema = z
+  .object({
+    name: z.string().min(1).max(200).optional(),
+  })
+  .optional();
 
 // Projects
 export const projectCreateSchema = z

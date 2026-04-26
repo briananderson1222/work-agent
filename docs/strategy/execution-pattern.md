@@ -2,7 +2,7 @@
 
 > How any AI agent (Claude Code, Codex, Hermes, or any other) picks up work from the roadmap, implements it, and updates the strategy docs. This document is self-contained -- an agent should be able to follow it without prior conversation context.
 
-*Last updated: 2026-04-12*
+*Last updated: 2026-04-26*
 
 ---
 
@@ -49,6 +49,22 @@ Every task in the roadmap has a **"Done when"** statement. Read it before writin
 
 If the task changes user-visible behavior and there is no durable automated proof for that behavior yet, add one as part of the task. A roadmap item is not fully complete if it relies only on memory, manual local setup quirks, or one-time human signoff to prevent regression.
 
+### Step 4a: Define telemetry before implementation
+
+Every non-trivial plan must include a **Telemetry** section before execution begins. Treat telemetry as part of the implementation contract, not a cleanup item.
+
+At minimum, the plan must state:
+
+- which user/system events are worth counting
+- whether each event should be a counter, histogram, or trace span
+- the instrument name in `src-server/telemetry/metrics.ts`
+- required attributes such as source, provider, connection type, outcome, reason, fallback source, or freshness
+- where the event is emitted in the server/UI/plugin flow
+- how fallback, degraded, retry, and error paths are tracked
+- which test or smoke lane proves the instrumentation call exists
+
+If a feature intentionally has no telemetry, the plan must say why. Acceptable reasons are narrow: pure copy/docs changes, dead-code removal with no runtime path, or test-only refactors.
+
 ### Step 5: Implement
 
 Follow the project's conventions:
@@ -56,7 +72,7 @@ Follow the project's conventions:
 - **Code style**: See `CLAUDE.md` -- immutable patterns, small files (<800 lines), small functions (<50 lines)
 - **Data fetching**: `useQuery`/`useMutation` from `@tanstack/react-query`, SDK hooks preferred
 - **Navigation**: Use `setLayout()` from `useNavigation()`, never raw `navigate()`
-- **New features**: Must include OTel instrumentation (`src-server/telemetry/metrics.ts`)
+- **New features**: Must include OTel instrumentation from the plan's Telemetry section (`src-server/telemetry/metrics.ts`)
 - **Tests**: 80% coverage minimum. TDD when adding new functionality.
 
 ### Step 6: Run CI gates
@@ -67,14 +83,19 @@ Before considering the task done:
 npx biome check src-server/ src-ui/ packages/   # Lint + format
 npx tsc --noEmit                                  # Type check
 npm test                                          # Unit tests
+npm run verify:static                             # Combined pre-commit/static gate
 ```
 
 All three must pass. No exceptions.
 
-If UI changes were made, also run a manual smoke test or relevant Playwright spec:
+If UI changes were made, run the full Playwright coverage contract unless the
+task is explicitly scoped to a narrower lane:
 ```bash
-PW_BASE_URL=http://localhost:<ui-port> npx playwright test tests/<feature>.spec.ts
+npm run verify:e2e:full
 ```
+
+Every new or moved Playwright spec must be assigned in `tests/e2e-manifest.mjs`
+before the task is done.
 
 ### Step 7: Mark the task done
 
@@ -145,9 +166,11 @@ Before marking any task complete, verify:
 - [ ] Tests pass (`npm test`)
 - [ ] Task-specific "Done when" criteria met
 - [ ] A reusable automated verification lane exists for the behavior changed, or an explicit existing lane is referenced
+- [ ] Plan includes a Telemetry section, or explicitly documents why telemetry is not applicable
 - [ ] No hardcoded secrets or credentials
 - [ ] No mutation patterns (immutable preferred)
-- [ ] New features have OTel instrumentation
+- [ ] New features have OTel instrumentation wired through existing `src-server/telemetry/metrics.ts` patterns
+- [ ] Fallback/degraded/error paths are counted when the feature can enter those states
 - [ ] Strategy docs updated if insights discovered
 
 ---

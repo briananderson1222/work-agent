@@ -97,12 +97,13 @@ async function mockScheduleRunsApi(page: import('@playwright/test').Page) {
       }),
     }),
   );
-  await page.route('**/api/runs', (route) =>
+  const fulfillRuns = (route: import('@playwright/test').Route) =>
     route.fulfill({
       contentType: 'application/json',
       body: JSON.stringify({ success: true, data: [run] }),
-    }),
-  );
+    });
+  await page.route('**/api/runs', fulfillRuns);
+  await page.route('**/api/runs?*', fulfillRuns);
   await page.route('**/api/runs/output', async (route) => {
     expect(route.request().method()).toBe('POST');
     expect(route.request().postDataJSON()).toEqual(outputRef);
@@ -123,14 +124,21 @@ test.describe('Schedule run history', () => {
     await mockScheduleRunsApi(page);
     await page.goto('/schedule');
 
-    await expect(page.getByRole('heading', { name: 'Schedule' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Schedule' })).toBeVisible({
+      timeout: 15_000,
+    });
     await expect(page.getByText('daily-report')).toBeVisible();
     await expect(
       page.getByLabel('Scheduler statistics').getByText('100%'),
     ).toBeVisible();
 
     await page.getByTestId('job-row-daily-report').click();
-    await expect(page.getByText(/daily-report.*Run History/)).toBeVisible();
+    await expect(
+      page.locator('.schedule__detail-header').getByText('daily-report'),
+    ).toBeVisible();
+    await expect(
+      page.locator('.schedule__detail-header').getByText('Run History'),
+    ).toBeVisible();
     await expect(
       page.getByRole('button', { name: /open artifact/i }),
     ).toHaveCount(0);
@@ -147,7 +155,12 @@ test.describe('Schedule run history', () => {
     await mockScheduleRunsApi(page);
     await page.goto(`/schedule?run=${encodeURIComponent(runId)}`);
 
-    await expect(page.getByText(/daily-report.*Run History/)).toBeVisible();
+    await expect(
+      page.locator('.schedule__detail-header').getByText('daily-report'),
+    ).toBeVisible();
+    await expect(
+      page.locator('.schedule__detail-header').getByText('Run History'),
+    ).toBeVisible();
     await expect(
       page.getByText('Daily report output from opaque run ref'),
     ).toBeVisible();

@@ -127,5 +127,17 @@ export function formatPlaybookProvenanceSummary(
   if (source.kind === 'plugin') {
     return 'provided by plugin';
   }
+  if (source.kind === 'asset') {
+    const sourceName = source.asset?.name;
+    if (source.action === 'skill-to-playbook') {
+      return sourceName ? `created from ${sourceName}` : 'created from skill';
+    }
+    if (source.action === 'playbook-to-skill') {
+      return sourceName
+        ? `packaged from ${sourceName}`
+        : 'packaged from playbook';
+    }
+    return sourceName ? `created from ${sourceName}` : 'created from asset';
+  }
   return 'authored locally';
 }

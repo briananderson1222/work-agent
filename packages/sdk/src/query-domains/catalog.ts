@@ -33,6 +33,11 @@ interface PlaybookMutationInput {
   global?: boolean;
 }
 
+interface GuidanceConversionInput {
+  id: string;
+  name?: string;
+}
+
 interface PlaybookImportResult {
   count: number;
   failed: number;
@@ -148,6 +153,24 @@ export function useDeletePlaybookMutation(
     },
     {
       invalidateKeys: [['playbooks']],
+      onSuccess: options?.onSuccess,
+      onError: options?.onError,
+    },
+  );
+}
+
+export function useConvertPlaybookToSkillMutation(
+  options?: MutationOptions<any, GuidanceConversionInput>,
+) {
+  return useApiMutation(
+    async ({ id, name }: GuidanceConversionInput) =>
+      requestPlaybook<any>(`/${encodeURIComponent(id)}/convert-to-skill`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(name ? { name } : {}),
+      }),
+    {
+      invalidateKeys: [['playbooks'], ['skills']],
       onSuccess: options?.onSuccess,
       onError: options?.onError,
     },

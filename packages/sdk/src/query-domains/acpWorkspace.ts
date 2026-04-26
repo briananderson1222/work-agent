@@ -29,6 +29,7 @@ export interface ACPConnectionInfo {
   modes: string[];
   sessionId: string | null;
   mcpServers: string[];
+  slashCommands?: AcpSlashCommandDescriptor[];
   currentModel: string | null;
   source?: 'user' | 'plugin';
   interactive?: {

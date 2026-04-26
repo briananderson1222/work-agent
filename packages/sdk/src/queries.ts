@@ -80,6 +80,7 @@ export {
 export {
   type IntegrationViewModel,
   type RegistryCatalogTab,
+  useConvertPlaybookToSkillMutation,
   useCreatePlaybookMutation,
   useDeleteIntegrationMutation,
   useDeletePlaybookMutation,
@@ -224,6 +225,7 @@ export {
   useToggleJob,
 } from './query-domains/scheduler';
 export {
+  useConvertSkillToPlaybookMutation,
   useCreateLocalSkillMutation,
   useInstallSkillMutation,
   useRegistrySkillsQuery,

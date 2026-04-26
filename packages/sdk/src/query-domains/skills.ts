@@ -152,6 +152,38 @@ export function useUpdateLocalSkillMutation() {
   });
 }
 
+export function useConvertSkillToPlaybookMutation() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      name,
+      playbookName,
+    }: {
+      name: string;
+      playbookName?: string;
+    }) => {
+      const apiBase = await _getApiBase();
+      const response = await fetch(
+        `${apiBase}/api/skills/${encodeURIComponent(name)}/convert-to-playbook`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(playbookName ? { name: playbookName } : {}),
+        },
+      );
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.error || result.message || 'Conversion failed');
+      }
+      return result.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['playbooks'] });
+      queryClient.invalidateQueries({ queryKey: ['skills'] });
+    },
+  });
+}
+
 export function useSkillContentQuery(
   id: string | undefined,
   config?: QueryConfig<any>,

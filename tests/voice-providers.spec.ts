@@ -15,14 +15,26 @@
  *  - Visual: screenshot of Advanced tab voice section (desktop + mobile)
  */
 import { expect, test } from '@playwright/test';
+import {
+  seedActiveChats,
+  seedOrchestrationRoutes,
+} from './helpers/orchestration';
 
 // Seed a connected server so the app skips onboarding
-const SEED_STORAGE = `
-  window.localStorage.setItem('stallion-connect-connections', JSON.stringify([
-    { id: 'c1', name: 'Dev Server', url: 'http://localhost:3141', lastConnected: Date.now() }
-  ]));
+const SEED_STORAGE = () => {
+  window.localStorage.setItem(
+    'stallion-connect-connections',
+    JSON.stringify([
+      {
+        id: 'c1',
+        name: 'Dev Server',
+        url: window.location.origin,
+        lastConnected: Date.now(),
+      },
+    ]),
+  );
   window.localStorage.setItem('stallion-connect-connections-active', 'c1');
-`;
+};
 
 const CAPABILITIES_RESPONSE = JSON.stringify({
   voice: {
@@ -58,6 +70,24 @@ const STATUS_READY = JSON.stringify({
   acp: { connected: false, connections: [] },
   clis: {},
   prerequisites: [],
+  providers: {
+    configuredChatReady: true,
+    configured: [
+      {
+        id: 'voice-test-runtime',
+        type: 'codex',
+        enabled: true,
+        capabilities: ['llm'],
+      },
+    ],
+    detected: { ollama: false, bedrock: false },
+  },
+  capabilities: {
+    chat: {
+      ready: true,
+      source: 'voice-test-runtime',
+    },
+  },
 });
 
 /** Open the Settings view (flat layout — no tabs). */
@@ -138,18 +168,18 @@ test.describe('Voice Providers — Settings UI', () => {
     await openSettings(page);
     await expect(page.locator('text=Message Context')).toBeVisible();
     // Timezone should always be visible
-    await expect(page.locator('text=Timezone')).toBeVisible();
+    await expect(page.getByText('Timezone', { exact: true })).toBeVisible();
   });
 
   test('context provider toggle changes enabled state', async ({ page }) => {
     await openSettings(page);
-    // Find the Timezone checkbox and verify it's interactive
-    const timezoneLabel = page.locator('label', { hasText: 'Timezone' });
-    const checkbox = timezoneLabel.locator('input[type="checkbox"]');
-    await expect(checkbox).toBeVisible();
-    await expect(checkbox).toBeEnabled();
-    // Click and verify no errors (state update is handled by external store)
-    await timezoneLabel.click();
+    const timezoneToggle = page.locator('.settings__feature-toggle', {
+      has: page.getByText('Timezone', { exact: true }),
+    });
+    const toggle = timezoneToggle.getByRole('switch');
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toBeEnabled();
+    await timezoneToggle.click({ force: true });
   });
 
   test('WisprFlow hint is displayed below STT dropdown', async ({ page }) => {
@@ -170,7 +200,10 @@ test.describe('Voice Providers — Settings UI', () => {
   test('screenshot: voice settings section (desktop)', async ({ page }) => {
     await openSettings(page);
     // Scroll to the voice section
-    await page.locator('text=Voice Providers').scrollIntoViewIfNeeded();
+    await page
+      .locator('#section-voice')
+      .getByText('Voice & Features', { exact: true })
+      .scrollIntoViewIfNeeded();
     await page.screenshot({
       path: '/tmp/wa-voice-settings-desktop.png',
       clip: { x: 0, y: 0, width: 1280, height: 800 },
@@ -297,6 +330,29 @@ test.describe('Voice Providers — GlobalVoiceButton', () => {
 
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(SEED_STORAGE);
+    await page.addInitScript(() => {
+      function SpeechRecognitionMock(this: any) {
+        this.continuous = false;
+        this.interimResults = false;
+        this.start = () => this.onstart?.();
+        this.stop = () => this.onend?.();
+        this.abort = () => {};
+        this.onstart = null;
+        this.onresult = null;
+        this.onerror = null;
+        this.onend = null;
+      }
+      (window as any).SpeechRecognition = SpeechRecognitionMock;
+      (window as any).webkitSpeechRecognition = SpeechRecognitionMock;
+      Object.defineProperty(navigator, 'mediaDevices', {
+        configurable: true,
+        value: {
+          getUserMedia: async () => ({
+            getTracks: () => [{ stop: () => {} }],
+          }),
+        },
+      });
+    });
     await page.route('**/api/**', (r) => {
       r.fulfill({
         status: 200,
@@ -324,18 +380,6 @@ test.describe('Voice Providers — GlobalVoiceButton', () => {
     page,
   }) => {
     await page.goto('/');
-    await page.waitForTimeout(2000);
-    // The button is only rendered when SpeechRecognition is supported — stub it
-    await page.addInitScript(`
-      window.SpeechRecognition = function() {
-        this.continuous = false; this.interimResults = false;
-        this.start = () => {}; this.stop = () => {}; this.abort = () => {};
-        this.onstart = null; this.onresult = null; this.onerror = null; this.onend = null;
-      };
-    `);
-    await page.reload();
-    await page.waitForTimeout(2000);
-
     const btn = page.locator('[data-testid="global-voice-button"]');
     await expect(btn).toBeVisible();
 
@@ -349,15 +393,10 @@ test.describe('Voice Providers — GlobalVoiceButton', () => {
   test('screenshot: GlobalVoiceButton on mobile home screen', async ({
     page,
   }) => {
-    await page.addInitScript(`
-      window.SpeechRecognition = function() {
-        this.continuous = false; this.interimResults = false;
-        this.start = () => {}; this.stop = () => {}; this.abort = () => {};
-        this.onstart = null; this.onresult = null; this.onerror = null; this.onend = null;
-      };
-    `);
     await page.goto('/');
-    await page.waitForTimeout(2500);
+    await expect(
+      page.locator('[data-testid="global-voice-button"]'),
+    ).toBeVisible();
     await page.screenshot({
       path: '/tmp/wa-global-voice-mobile.png',
       fullPage: false,
@@ -367,51 +406,79 @@ test.describe('Voice Providers — GlobalVoiceButton', () => {
 
 test.describe('Voice Providers — VoiceOrb in chat input', () => {
   test.beforeEach(async ({ page }) => {
+    await seedActiveChats(page, [
+      {
+        sessionId: 'session-voice',
+        conversationId: 'conv-1',
+        agentSlug: 'dev-agent',
+        model: 'claude-sonnet',
+        provider: 'bedrock',
+        providerOptions: {},
+        orchestrationSessionStarted: false,
+        ephemeralMessages: [],
+        inputHistory: [],
+      },
+    ]);
+    await seedOrchestrationRoutes(page);
+    await page.route('**/api/system/capabilities', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: CAPABILITIES_RESPONSE,
+      }),
+    );
     // Stub SpeechRecognition (not available in headless Chromium)
-    await page.addInitScript(`
-      window.SpeechRecognition = function() {
-        this.continuous = false; this.interimResults = false;
+    await page.addInitScript(() => {
+      function SpeechRecognitionMock(this: any) {
+        this.continuous = false;
+        this.interimResults = false;
         this.start = () => this.onstart?.();
         this.stop = () => this.onend?.();
         this.abort = () => {};
-        this.onstart = null; this.onresult = null; this.onerror = null; this.onend = null;
-      };
-    `);
+        this.onstart = null;
+        this.onresult = null;
+        this.onerror = null;
+        this.onend = null;
+      }
+      (window as any).SpeechRecognition = SpeechRecognitionMock;
+      (window as any).webkitSpeechRecognition = SpeechRecognitionMock;
+      Object.defineProperty(navigator, 'mediaDevices', {
+        configurable: true,
+        value: {
+          getUserMedia: async () => ({
+            getTracks: () => [{ stop: () => {} }],
+          }),
+        },
+      });
+    });
   });
 
   test('VoiceOrb renders in chat input when SpeechRecognition is available', async ({
     page,
   }) => {
-    // Use real server (needs agents loaded for chat input to render)
-    await page.goto('/?dock=open');
-    await page.locator('button:has-text("+ New")').click();
+    await page.goto('/projects/dev/layouts/code?chat=conv-1');
+    await page.getByRole('button', { name: 'Expand', exact: true }).click();
     const orb = page.locator('[data-testid="voice-orb"]');
     await expect(orb).toBeVisible({ timeout: 10000 });
   });
 
   test('VoiceOrb changes appearance while listening', async ({ page }) => {
-    await page.goto('/?dock=open');
-    await page.locator('button:has-text("+ New")').click();
+    await page.goto('/projects/dev/layouts/code?chat=conv-1');
+    await page.getByRole('button', { name: 'Expand', exact: true }).click();
 
     const orb = page.locator('[data-testid="voice-orb"]');
     await expect(orb).toBeVisible();
 
-    // Simulate press-and-hold
-    await orb.dispatchEvent('pointerdown', { pointerId: 1, bubbles: true });
-    await page.waitForTimeout(300);
+    await orb.click();
 
-    // While listening, title changes to "Release to send"
-    await expect(orb).toHaveAttribute('title', 'Release to send');
+    await expect(orb).toHaveAttribute('title', 'Click to stop');
 
-    // Release
-    await orb.dispatchEvent('pointerup', { bubbles: true });
-    await page.waitForTimeout(300);
-    await expect(orb).toHaveAttribute('title', 'Hold to speak');
+    await orb.click();
+    await expect(orb).toHaveAttribute('title', 'Click to speak');
   });
 
   test('screenshot: chat input with VoiceOrb visible', async ({ page }) => {
-    await page.goto('/');
-    await page.waitForTimeout(2500);
+    await page.goto('/projects/dev/layouts/code?chat=conv-1');
     // Scroll to bottom so chat input is visible
     const chatInput = page
       .locator('.chat-input-area, [class*="chat-input"]')
@@ -436,7 +503,7 @@ test.describe('Voice Providers — useMobileSettings cleanup', () => {
     );
 
     await page.goto('/');
-    await page.waitForTimeout(1500);
+    await expect(page.locator('body')).toBeVisible();
 
     const stored = await page.evaluate(() => {
       const raw = localStorage.getItem('stallion-feature-settings');

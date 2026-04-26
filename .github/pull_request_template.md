@@ -7,12 +7,11 @@
 
 - [ ] `npm run build:sdk`
 - [ ] `npm run build:connect`
-- [ ] `npx tsc --noEmit --skipLibCheck`
-- [ ] `npm run lint`
+- [ ] `npm run verify:static`
 - [ ] `npm run build:server`
 - [ ] `npm run build:ui`
-- [ ] `npm test -- --run`
-- [ ] Targeted Playwright or manual smoke test when UI behavior changed
+- [ ] `npm run verify:e2e:full` for UI behavior, route, runtime, registry, guidance, schedule, monitoring, or Playwright-manifest changes
+- [ ] New or changed Playwright specs are assigned in `tests/e2e-manifest.mjs`
 
 ## Risks
 

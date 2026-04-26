@@ -1,5 +1,6 @@
 import { SplitPaneLayout } from '../components/SplitPaneLayout';
-import { useNavigation } from '../contexts/NavigationContext';
+import { GuidanceConversionModal } from './GuidanceConversionModal';
+import { GuidanceTabs } from './GuidanceTabs';
 import { PlaybooksEditor } from './playbooks/PlaybooksEditor';
 import { PlaybooksModalStack } from './playbooks/PlaybooksModalStack';
 import { usePlaybooksViewModel } from './playbooks/usePlaybooksViewModel';
@@ -11,7 +12,6 @@ import './page-layout.css';
 import './editor-layout.css';
 
 export function PlaybooksView() {
-  const { navigate } = useNavigation();
   const viewModel = usePlaybooksViewModel();
   const DiscardModal = viewModel.DiscardModal;
 
@@ -27,6 +27,10 @@ export function PlaybooksView() {
 
   return (
     <div className="page page--full">
+      <GuidanceTabs
+        active="playbooks"
+        onNavigate={viewModel.navigateWithGuard}
+      />
       <SplitPaneLayout
         label="playbooks"
         title="Playbooks"
@@ -69,7 +73,7 @@ export function PlaybooksView() {
             </button>
             <button
               className="split-pane__add-btn split-pane__add-btn--secondary"
-              onClick={() => navigate('/skills')}
+              onClick={() => viewModel.navigateWithGuard('/skills')}
             >
               Open Skills
             </button>
@@ -122,6 +126,23 @@ export function PlaybooksView() {
         onConfirmDelete={viewModel.confirmDelete}
         onImport={viewModel.handleImport}
         onRun={viewModel.handleRun}
+      />
+
+      <GuidanceConversionModal
+        isOpen={viewModel.showConvertToSkillModal}
+        title="Create Skill From Playbook"
+        sourceName={viewModel.form.name}
+        destinationLabel="Skill"
+        confirmLabel="Create Skill"
+        defaultName={viewModel.form.name}
+        pending={viewModel.convertToSkillPending}
+        notes={[
+          'Body, description, tags, category, and scope are copied.',
+          'The Playbook remains unchanged.',
+          'The new Skill records this Playbook as its source.',
+        ]}
+        onCancel={() => viewModel.setShowConvertToSkillModal(false)}
+        onConfirm={viewModel.confirmPackageAsSkill}
       />
 
       <DiscardModal />

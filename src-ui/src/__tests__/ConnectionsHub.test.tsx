@@ -78,6 +78,21 @@ vi.mock('@stallion-ai/sdk', () => ({
       },
     },
   }),
+  useACPConnectionRegistryQuery: () => ({
+    data: [
+      {
+        id: 'kiro',
+        name: 'Kiro CLI',
+        command: 'kiro',
+        args: ['--acp'],
+        description: 'Connect Kiro through ACP',
+        installed: false,
+      },
+    ],
+  }),
+  useACPConnectionsQuery: () => ({
+    data: [],
+  }),
 }));
 
 vi.mock('../contexts/NavigationContext', () => ({
@@ -112,5 +127,13 @@ describe('ConnectionsHub', () => {
     expect(modelSection?.textContent).not.toContain('Stallion Built-In');
     expect(knowledgeSection?.textContent).toContain('Stallion Built-In');
     expect(screen.queryByText('+ Add a model connection')).toBeNull();
+  });
+
+  test('surfaces ACP registry entries from the main connections hub', () => {
+    render(<ConnectionsHub />);
+
+    expect(screen.getByText('ACP Connections')).toBeTruthy();
+    expect(screen.getByText('Kiro CLI')).toBeTruthy();
+    expect(screen.getByText('kiro --acp')).toBeTruthy();
   });
 });

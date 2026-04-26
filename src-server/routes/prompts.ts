@@ -1,6 +1,11 @@
-import type { PlaybookSourceContext } from '@stallion-ai/contracts/catalog';
+import type {
+  GuidanceAssetSourceOwner,
+  Playbook,
+  PlaybookSourceContext,
+} from '@stallion-ai/contracts/catalog';
 import { Hono } from 'hono';
 import type { PromptService } from '../services/prompt-service.js';
+import type { SkillService } from '../services/skill-service.js';
 import { promptOps } from '../telemetry/metrics.js';
 import {
   INTERNAL_API_TOKEN_HEADER,
@@ -10,6 +15,7 @@ import type { Logger } from '../utils/logger.js';
 import {
   errorMessage,
   getBody,
+  guidanceConversionSchema,
   param,
   promptCreateSchema,
   promptOutcomeSchema,
@@ -31,6 +37,44 @@ type PromptCreateBody = {
 
 type PromptUpdateBody = Partial<PromptCreateBody>;
 
+type ConversionBody = {
+  name?: string;
+};
+
+function getPlaybookAssetOwner(playbook: Playbook): GuidanceAssetSourceOwner {
+  return playbook.source?.startsWith('plugin:') ? 'plugin' : 'user';
+}
+
+function createPlaybookToSkillProvenance(playbook: Playbook) {
+  const now = new Date().toISOString();
+  const asset = {
+    kind: 'playbook' as const,
+    id: playbook.id,
+    name: playbook.name,
+    owner: getPlaybookAssetOwner(playbook),
+  };
+  return {
+    createdFrom: {
+      kind: 'asset' as const,
+      action: 'playbook-to-skill' as const,
+      convertedAt: now,
+      asset,
+    },
+    updatedFrom: {
+      kind: 'asset' as const,
+      action: 'playbook-to-skill' as const,
+      convertedAt: now,
+      asset,
+    },
+  };
+}
+
+function assertSafeLocalSkillName(name: string) {
+  if (name.includes('/') || name.includes('\\') || name.includes('..')) {
+    throw new Error('Skill name cannot contain path separators');
+  }
+}
+
 function splitSourceContext<
   T extends { _sourceContext?: PlaybookSourceContext },
 >(body: T, trustedInternalRequest: boolean) {
@@ -41,7 +85,14 @@ function splitSourceContext<
   };
 }
 
-export function createPromptRoutes(service: PromptService, logger: Logger) {
+export function createPromptRoutes(
+  service: PromptService,
+  logger: Logger,
+  conversionDeps?: {
+    skillService: SkillService;
+    getProjectHomeDir: () => string;
+  },
+) {
   const app = new Hono();
 
   app.get('/providers', (c) => {
@@ -90,6 +141,61 @@ export function createPromptRoutes(service: PromptService, logger: Logger) {
       return c.json({ success: false, error: errorMessage(error) }, 500);
     }
   });
+
+  app.post(
+    '/:id/convert-to-skill',
+    validate(guidanceConversionSchema),
+    async (c) => {
+      if (!conversionDeps) {
+        return c.json(
+          { success: false, error: 'Skill conversion is unavailable' },
+          501,
+        );
+      }
+      try {
+        const id = param(c, 'id');
+        const body = (getBody(c) ?? {}) as ConversionBody;
+        const playbook = await service.getPrompt(id);
+        if (!playbook) {
+          return c.json({ success: false, error: 'Playbook not found' }, 404);
+        }
+        const name = body.name?.trim() || playbook.name;
+        assertSafeLocalSkillName(name);
+        const existingSkill = conversionDeps.skillService
+          .listSkills()
+          .some((skill) => skill.name === name);
+        if (existingSkill) {
+          return c.json(
+            { success: false, error: `Skill '${name}' already exists` },
+            409,
+          );
+        }
+        const provenance: Playbook['provenance'] =
+          createPlaybookToSkillProvenance(playbook);
+        const result = await conversionDeps.skillService.createLocalSkill(
+          {
+            name,
+            body: playbook.content,
+            description: playbook.description,
+            category: playbook.category,
+            tags: playbook.tags,
+            agent: playbook.agent,
+            global: playbook.global,
+            provenance,
+          },
+          conversionDeps.getProjectHomeDir(),
+        );
+        if (!result.success) {
+          return c.json({ success: false, error: result.message }, 400);
+        }
+        promptOps.add(1, { op: 'convert-to-skill' });
+        return c.json({ success: true, data: { name, provenance } }, 201);
+      } catch (error: unknown) {
+        logger.error('Failed to convert playbook to skill', { error });
+        return c.json({ success: false, error: errorMessage(error) }, 400);
+      }
+    },
+  );
 
   app.put('/:id', validate(promptUpdateSchema), async (c) => {
     try {

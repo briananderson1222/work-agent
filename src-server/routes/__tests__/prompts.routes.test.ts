@@ -235,4 +235,81 @@ describe('Prompt Routes', () => {
     const body = await json(res);
     expect(body.data.stats.qualityScore).toBe(100);
   });
+
+  test('POST /:id/convert-to-skill creates a local skill with asset provenance', async () => {
+    const svc = createMockPromptService();
+    const created = await svc.addPrompt({
+      name: 'Research Plan',
+      content: 'Draft the plan',
+      description: 'Reusable research workflow',
+      tags: ['research'],
+      global: true,
+    });
+    const skillService = {
+      listSkills: vi.fn(() => []),
+      createLocalSkill: vi
+        .fn()
+        .mockResolvedValue({ success: true, message: 'Created' }),
+    };
+    const app = createPromptRoutes(svc as any, mockLogger, {
+      skillService: skillService as any,
+      getProjectHomeDir: () => '/home/test',
+    });
+
+    const res = await app.request(`/${created.id}/convert-to-skill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'research-skill' }),
+    });
+
+    expect(res.status).toBe(201);
+    expect(skillService.createLocalSkill).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'research-skill',
+        body: 'Draft the plan',
+        description: 'Reusable research workflow',
+        tags: ['research'],
+        global: true,
+        provenance: {
+          createdFrom: expect.objectContaining({
+            kind: 'asset',
+            action: 'playbook-to-skill',
+            asset: expect.objectContaining({
+              kind: 'playbook',
+              id: created.id,
+              name: 'Research Plan',
+            }),
+          }),
+          updatedFrom: expect.objectContaining({
+            kind: 'asset',
+            action: 'playbook-to-skill',
+          }),
+        },
+      }),
+      '/home/test',
+    );
+  });
+
+  test('POST /:id/convert-to-skill rejects duplicate skill names', async () => {
+    const svc = createMockPromptService();
+    const created = await svc.addPrompt({
+      name: 'Research Plan',
+      content: 'x',
+    });
+    const app = createPromptRoutes(svc as any, mockLogger, {
+      skillService: {
+        listSkills: vi.fn(() => [{ name: 'Research Plan' }]),
+        createLocalSkill: vi.fn(),
+      } as any,
+      getProjectHomeDir: () => '/home/test',
+    });
+
+    const res = await app.request(`/${created.id}/convert-to-skill`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+
+    expect(res.status).toBe(409);
+  });
 });
