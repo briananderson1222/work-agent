@@ -25,3 +25,23 @@ Work-agent is the brownfield proving ground for Veritas. The goal is not to pres
 - Keep adapters generic enough for other repos.
 - Make brownfield initialization produce reviewable recommendations instead of one-shot enforcement.
 - Help agents see what is required, what is candidate, and what should be deleted.
+
+## Surface Prove-Out
+
+Work-agent also proves that Veritas can sit on top of the broader Kontour Surface trust substrate.
+
+The local Veritas checkout can generate a work-agent evidence artifact with embedded `surface.input`:
+
+```bash
+VERITAS_REPO=/path/to/kontourai/veritas
+node "$VERITAS_REPO/bin/veritas.mjs" shadow run --working-tree --format feedback --run-id work-agent-surface-shadow
+```
+
+Surface can import the resulting artifact:
+
+```bash
+SURFACE_REPO=/path/to/kontourai/surface
+node "$SURFACE_REPO/bin/surface.mjs" report --adapter veritas --input .veritas/evidence/work-agent-surface-shadow.json --format summary
+```
+
+This keeps proof lanes, proof families, and verification budgets as Veritas workflow mechanics while exposing their portable output as Surface claims, evidence, policies, and events.
