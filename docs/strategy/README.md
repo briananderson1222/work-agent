@@ -17,6 +17,9 @@
 | [execution-pattern.md](execution-pattern.md) | How any AI or human picks up and progresses work | Before starting any task |
 | [vision/ai-ui-bridge.md](vision/ai-ui-bridge.md) | The AI <-> UI bridge north star | When working on bridge-related features |
 | [ideation-log.md](ideation-log.md) | Running log of ideation session outputs | When reviewing past ideation |
+| [veritas/work-agent-proving-ground.md](veritas/work-agent-proving-ground.md) | How this repo informs Veritas itself | When changing Veritas guidance or proof lanes |
+| [veritas/proof-family-promotion-workflow.md](veritas/proof-family-promotion-workflow.md) | Promotion/demotion rules for proof families | Before making candidate checks required |
+| [veritas/evidence-retention-policy.md](veritas/evidence-retention-policy.md) | What Veritas artifacts should be committed | Before adding generated evidence |
 
 ## Related Plans
 
@@ -35,7 +38,7 @@ These are **living documents**, not frozen specs. They evolve as the project evo
 
 ```
 1. Read constitution.md     → Understand identity and constraints
-2. Read CLAUDE.md (root)    → Technical conventions and CI gates
+2. Read AGENTS.md (root)    → Technical conventions and CI gates
 3. Read roadmap.md          → Find the active phase and an unclaimed task
 4. Read execution-pattern.md → Follow the work pickup process
 5. Create a branch, implement, verify, mark done

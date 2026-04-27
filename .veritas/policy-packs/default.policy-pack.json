@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "name": "work-agent-veritas-default",
+  "description": "Veritas policy pack for brownfield adoption in work-agent. Product-specific structural checks remain proof lanes until they prove reusable.",
+  "rules": [
+    {
+      "id": "required-work-agent-governance-artifacts",
+      "classification": "hard-invariant",
+      "stage": "block",
+      "message": "Required work-agent governance, CI, and Veritas artifacts must exist.",
+      "owner": "repo-core",
+      "rollback_switch": null,
+      "match": {
+        "artifacts": [
+          ".github/dependabot.yml",
+          ".github/workflows/ci.yml",
+          ".github/workflows/ci-extended.yml",
+          ".github/ISSUE_TEMPLATE/bug-report.yml",
+          ".github/ISSUE_TEMPLATE/feature-request.yml",
+          ".github/ISSUE_TEMPLATE/docs-issue.yml",
+          ".github/ISSUE_TEMPLATE/config.yml",
+          ".github/pull_request_template.md",
+          ".veritas/GOVERNANCE.md",
+          ".veritas/README.md",
+          ".veritas/repo.adapter.json",
+          ".veritas/policy-packs/default.policy-pack.json",
+          ".veritas/team/default.team-profile.json",
+          "docs/reference/contracts.md",
+          "SECURITY.md",
+          "AGENTS.md",
+          "CLAUDE.md"
+        ]
+      }
+    },
+    {
+      "id": "baseline-proof-lane",
+      "classification": "hard-invariant",
+      "stage": "block",
+      "message": "The primary PR workflow must execute the baseline proof lane and the connected-agents suite.",
+      "owner": "repo-core",
+      "rollback_switch": null,
+      "match": {
+        "workflow": ".github/workflows/ci.yml"
+      }
+    },
+    {
+      "id": "ai-instruction-files-synced",
+      "classification": "hard-invariant",
+      "stage": "warn",
+      "message": "Agent instruction files should include the Veritas brownfield governance block.",
+      "owner": "repo-maintainers",
+      "rollback_switch": null,
+      "match": {
+        "governance-block": ["AGENTS.md", "CLAUDE.md"]
+      }
+    },
+    {
+      "id": "forbid-shared-root-imports",
+      "classification": "promotable-policy",
+      "stage": "block",
+      "message": "New code should not import from the @stallion-ai/shared root; use contracts or explicit helper subpaths.",
+      "owner": "repo-architecture",
+      "rollback_switch": "disable-shared-root-import-check",
+      "match": {
+        "pattern": "@stallion-ai/shared"
+      }
+    },
+    {
+      "id": "brownfield-gap-log-present",
+      "classification": "promotable-policy",
+      "stage": "recommend",
+      "message": "Brownfield Veritas adoption should leave a gap log so local workarounds can become Veritas product improvements.",
+      "owner": "repo-maintainers",
+      "rollback_switch": "skip-brownfield-gap-log",
+      "match": {
+        "artifacts": ["docs/strategy/veritas/brownfield-gap-log.md"]
+      }
+    }
+  ]
+}

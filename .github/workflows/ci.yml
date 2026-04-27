@@ -30,7 +30,7 @@ jobs:
         id: fast_ci
         run: npm run ci:fast
 
-      - name: Guidance report
+      - name: Veritas report
         if: always()
         env:
           BASE_REF: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
@@ -44,15 +44,15 @@ jobs:
             elif [ "$FAST_CI_RESULT" = "failure" ]; then
               BASELINE_STATUS="failed"
             fi
-            node scripts/guidance-report.mjs \
-              --run-id guidance-${{ github.run_id }} \
+            npm exec -- veritas report \
+              --run-id veritas-${{ github.run_id }} \
               --source-ref "${{ github.event_name }}:${{ github.ref }}" \
               --baseline-ci-fast-status "$BASELINE_STATUS" \
               --changed-from "$BASE_REF" \
               --changed-to "$HEAD_REF" \
               || true
           else
-            echo "Skipping guidance-report: no diff range available" >> "$GITHUB_STEP_SUMMARY"
+            echo "Skipping Veritas report: no diff range available" >> "$GITHUB_STEP_SUMMARY"
           fi
 
   connected-agents:

@@ -1,0 +1,43 @@
+name: GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - README.md
+      - docs/**
+      - scripts/build-github-pages.mjs
+      - package.json
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: github-pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Build Pages site
+        run: npm run docs:pages:build
+
+      - name: Publish Pages site
+        uses: peaceiris/actions-gh-pages@e9c66a37f080288a11235e32cbe2dc5fb3a679cc # v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist-pages
+          publish_branch: gh-pages
+          keep_files: true

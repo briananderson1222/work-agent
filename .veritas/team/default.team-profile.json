@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "id": "work-agent-default",
+  "name": "work-agent Default",
+  "description": "Brownfield Veritas adoption profile for Stallion/work-agent. Start in shadow mode, keep product proof lanes explicit, and promote rules only after evidence.",
+  "defaults": {
+    "mode": "shadow",
+    "new_rule_stage": "recommend"
+  },
+  "review_preferences": {
+    "human_signoff_required_for_stage_promotion": true,
+    "reviewer_confidence_scale": ["low", "medium", "high"],
+    "major_rewrite_definition": "A major rewrite replaces a product boundary, proof-lane contract, or runtime integration rather than making local edits."
+  },
+  "promotion_preferences": {
+    "proof_lanes_required_before_block": ["repo-governance"],
+    "warnings_block_in_ci": false,
+    "require_consistent_eval_before_promotion": true
+  }
+}

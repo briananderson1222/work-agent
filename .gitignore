@@ -1,5 +1,6 @@
 node_modules/
 dist/
+dist-pages/
 dist-ui/
 dist-ui-*/
 dist-server/
@@ -45,3 +46,9 @@ docs/plans/
 qa-reports/
 docs/audits/
 .omx/
+
+# Generated Veritas artifacts; commit only curated fixtures/examples.
+.veritas/evidence/
+.veritas/eval-drafts/
+.veritas/evals/
+.veritas/checkins/

@@ -33,3 +33,11 @@ export const editJobSchema = z.object({
   retryCount: z.number().int().min(0).max(10).optional(),
   retryDelaySecs: z.number().int().min(0).max(3600).optional(),
 });
+
+export const schedulerOpenSchema = z.object({
+  source: z.string().optional(),
+  providerId: z.string().optional(),
+  runId: z.string().optional(),
+  artifactId: z.string().min(1),
+  kind: z.string().optional(),
+});

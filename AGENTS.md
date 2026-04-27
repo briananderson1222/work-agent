@@ -180,3 +180,8 @@ All `spawn()` and `execSync()` calls MUST include `windowsHide: true` to prevent
 ### Observability (OTel)
 
 Every new feature MUST include OpenTelemetry instrumentation. Import instruments from `src-server/telemetry/metrics.ts` and record counters/histograms for meaningful operations (CRUD, lifecycle events, durations). If a new metric instrument is needed, add it to `metrics.ts` following the existing `stallion.<domain>.<metric>` naming convention.
+
+<!-- veritas:governance-block:start -->
+This repo uses Veritas for AI governance. Read `.veritas/GOVERNANCE.md` before making changes.
+After changes, run `veritas shadow run` and address any FAIL lines before finishing.
+<!-- veritas:governance-block:end -->

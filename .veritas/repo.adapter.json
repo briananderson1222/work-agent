@@ -1,0 +1,303 @@
+{
+  "name": "work-agent",
+  "kind": "repo-adapter",
+  "policy": {
+    "defaultFalsePositiveReview": "unknown",
+    "defaultPromotionCandidate": false,
+    "defaultOverrideOrBypass": false
+  },
+  "graph": {
+    "version": 1,
+    "defaultResolution": {
+      "phase": "Phase 1 (Harden & Onboard)",
+      "workstream": "Entity Hierarchy & Navigation Restructure",
+      "matchedArtifacts": ["docs/strategy/roadmap.md"]
+    },
+    "nonSliceableInvariants": [
+      "CLI/API/UI parity",
+      "SDK contract integrity",
+      "plugin/core boundary protection",
+      "mandatory CI coverage",
+      "Veritas evidence before promotion"
+    ],
+    "resolverPrecedence": [
+      "explicit roadmap task or issue reference in prompt/branch/PR title",
+      "matching initiative plan under docs/plans/**",
+      "matching local artifact under .omx/plans/**",
+      "matching Veritas governance artifact under .veritas/**",
+      "active initiative from docs/strategy/roadmap.md",
+      "multi-workstream fallback suppresses promotion"
+    ],
+    "resolutionRules": [
+      {
+        "id": "initiative-plan",
+        "match": { "patterns": ["docs/plans/"] },
+        "resolution": {
+          "phase": "Phase 1 (Harden & Onboard)",
+          "workstream": "Entity Hierarchy & Navigation Restructure",
+          "matchedArtifacts": ["docs/plans/**"]
+        }
+      },
+      {
+        "id": "local-plan",
+        "match": { "patterns": [".omx/plans/"] },
+        "resolution": {
+          "phase": "Phase 1 (Harden & Onboard)",
+          "workstream": "Entity Hierarchy & Navigation Restructure",
+          "matchedArtifacts": [".omx/plans/**"]
+        }
+      },
+      {
+        "id": "veritas-governance",
+        "match": { "patterns": [".veritas/"] },
+        "resolution": {
+          "phase": "Veritas Brownfield Adoption",
+          "workstream": "Trust Surface Migration",
+          "matchedArtifacts": [".veritas/**"]
+        }
+      }
+    ],
+    "nodes": [
+      {
+        "id": "product.src-server",
+        "kind": "product-surface",
+        "label": "src-server",
+        "patterns": ["src-server/"]
+      },
+      {
+        "id": "product.src-ui",
+        "kind": "product-surface",
+        "label": "src-ui",
+        "patterns": ["src-ui/"]
+      },
+      {
+        "id": "package.cli",
+        "kind": "shared-package",
+        "label": "packages/cli",
+        "patterns": ["packages/cli/"]
+      },
+      {
+        "id": "package.connect",
+        "kind": "shared-package",
+        "label": "packages/connect",
+        "patterns": ["packages/connect/"]
+      },
+      {
+        "id": "package.contracts",
+        "kind": "shared-contract-surface",
+        "label": "packages/contracts",
+        "patterns": ["packages/contracts/"]
+      },
+      {
+        "id": "package.sdk",
+        "kind": "shared-contract-surface",
+        "label": "packages/sdk",
+        "patterns": ["packages/sdk/"]
+      },
+      {
+        "id": "package.shared",
+        "kind": "shared-package",
+        "label": "packages/shared",
+        "patterns": ["packages/shared/"]
+      },
+      {
+        "id": "example.catalog",
+        "kind": "example-surface",
+        "label": "examples/*",
+        "patterns": ["examples/"]
+      },
+      {
+        "id": "delivery.github",
+        "kind": "delivery-surface",
+        "label": ".github/**",
+        "patterns": [".github/"]
+      },
+      {
+        "id": "tooling.scripts",
+        "kind": "tooling-surface",
+        "label": "scripts/**",
+        "patterns": ["scripts/"]
+      },
+      {
+        "id": "documentation.general",
+        "kind": "documentation-surface",
+        "label": "docs/**",
+        "patterns": ["docs/"]
+      },
+      {
+        "id": "governance.veritas",
+        "kind": "governance-surface",
+        "label": ".veritas/**",
+        "governance-locked": true,
+        "patterns": [".veritas/"]
+      },
+      {
+        "id": "governance.strategy",
+        "kind": "governance-surface",
+        "label": "docs/strategy/**",
+        "patterns": ["docs/strategy/"]
+      },
+      {
+        "id": "governance.plans",
+        "kind": "governance-surface",
+        "label": "docs/plans/**",
+        "patterns": ["docs/plans/"]
+      },
+      {
+        "id": "governance.local-plans",
+        "kind": "governance-surface",
+        "label": ".omx/plans/**",
+        "patterns": [".omx/plans/"]
+      },
+      {
+        "id": "verification.tests",
+        "kind": "verification-surface",
+        "label": "tests/**",
+        "patterns": ["tests/"]
+      },
+      {
+        "id": "governance.root-manifests",
+        "kind": "governance-surface",
+        "label": "root manifests",
+        "patterns": [
+          "package.json",
+          "package-lock.json",
+          "README.md",
+          "AGENTS.md",
+          "CLAUDE.md",
+          ".gitignore"
+        ]
+      }
+    ]
+  },
+  "evidence": {
+    "artifactDir": ".veritas/evidence",
+    "reportTransport": "github-step-summary",
+    "proofLanes": [
+      {
+        "id": "repo-governance",
+        "command": "npm run proof:repo-governance",
+        "method": "validation",
+        "summary": "Runs the required Veritas/work-agent governance family and feeds native proof-family reporting."
+      },
+      {
+        "id": "repo-guardrails",
+        "command": "npm run proof:repo-guardrails",
+        "method": "validation",
+        "summary": "Compatibility aggregator for the former convergence checks. Transitional only; not the default required lane."
+      },
+      {
+        "id": "architecture-boundaries",
+        "command": "npm run proof:architecture-boundaries",
+        "method": "validation",
+        "summary": "Candidate family lane for package/import and architecture-boundary checks while catch evidence is measured."
+      },
+      {
+        "id": "ui-data-access",
+        "command": "npm run proof:ui-data-access",
+        "method": "validation",
+        "summary": "Candidate family lane for SDK hook/raw-fetch guidance while product tests absorb behavior checks."
+      },
+      {
+        "id": "runtime-contracts",
+        "command": "npm run proof:runtime-contracts",
+        "method": "validation",
+        "summary": "Candidate family lane for runtime/ACP/Codex structure; connected-agents remains the behavioral proof."
+      },
+      {
+        "id": "retired-surfaces",
+        "command": "npm run proof:retired-surfaces",
+        "method": "validation",
+        "summary": "Candidate family lane for deleted surface tombstones with explicit expiry/review requirements."
+      },
+      {
+        "id": "migration-tombstones",
+        "command": "npm run proof:migration-tombstones",
+        "method": "validation",
+        "summary": "Advisory family lane for low-severity refactor-shape tombstones that should be retired or softened."
+      },
+      {
+        "id": "static-verification",
+        "command": "npm run verify:static",
+        "method": "validation",
+        "summary": "Runs Biome, TypeScript, and unit tests."
+      },
+      {
+        "id": "sdk-builds",
+        "command": "npm run build:sdk && npm run build:connect",
+        "method": "validation",
+        "summary": "Builds shared SDK and connect packages."
+      },
+      {
+        "id": "app-builds",
+        "command": "npm run build:server && npm run build:ui",
+        "method": "validation",
+        "summary": "Builds server and UI artifacts."
+      },
+      {
+        "id": "connected-agents",
+        "command": "npm run test:connected-agents",
+        "method": "validation",
+        "summary": "Runs provider and orchestration integration tests for connected agent runtimes."
+      }
+    ],
+    "proofFamilyManifests": [
+      ".veritas/proof-families/repo-guardrails.families.json"
+    ],
+    "requiredProofLaneIds": ["repo-governance"],
+    "defaultProofLaneIds": ["repo-governance"],
+    "surfaceProofRoutes": [
+      {
+        "nodeIds": [
+          "package.sdk",
+          "package.contracts",
+          "package.connect",
+          "package.shared"
+        ],
+        "proofLaneIds": [
+          "repo-governance",
+          "architecture-boundaries",
+          "sdk-builds",
+          "static-verification"
+        ]
+      },
+      {
+        "nodeIds": ["product.src-ui"],
+        "proofLaneIds": [
+          "repo-governance",
+          "ui-data-access",
+          "static-verification",
+          "app-builds"
+        ]
+      },
+      {
+        "nodeIds": ["product.src-server"],
+        "proofLaneIds": [
+          "repo-governance",
+          "runtime-contracts",
+          "connected-agents",
+          "static-verification",
+          "app-builds"
+        ]
+      },
+      {
+        "nodeIds": [
+          "delivery.github",
+          "tooling.scripts",
+          "governance.veritas",
+          "governance.root-manifests"
+        ],
+        "proofLaneIds": ["repo-governance"]
+      },
+      {
+        "nodeIds": [
+          "documentation.general",
+          "governance.strategy",
+          "governance.plans"
+        ],
+        "proofLaneIds": ["repo-governance"]
+      }
+    ],
+    "uncoveredPathPolicy": "warn"
+  }
+}

@@ -2,7 +2,7 @@
 
 > What makes Stallion AI different from every other AI agent tool. Organized by investment tier with honest current-state assessments. Updated as capabilities evolve.
 
-*Last updated: 2026-04-11*
+*Last updated: 2026-04-26*
 
 ---
 
@@ -21,11 +21,12 @@ These are the capabilities that no competitor replicates. They define Stallion's
 - Plugin manifest supports layouts, agents, providers, integrations, tools, knowledge namespaces, prompts, skills, settings
 - 8 example plugins demonstrating the pattern (demo-layout, enterprise-layout, minimal-layout, shared-providers, etc.)
 - Plugin build system handles externalization, hot-reload via `stallion plugin dev`
+- `stallion plugin create` scaffolds layout, provider, and full plugin starters
 
 **What's aspirational:**
 - A thriving ecosystem of community-created layouts
 - One-click install from a browsable registry
-- `stallion plugin create` scaffolding that gets a new layout running in under 5 minutes
+- Hosted public plugin registry and templates that make publishing community plugins routine
 
 **What competitors do:**
 - Cursor/Windsurf: Fixed UI, no plugin layouts
@@ -62,16 +63,16 @@ These are the capabilities that no competitor replicates. They define Stallion's
 
 **What exists today:**
 - Three adapter types: `bedrock-adapter`, `claude-adapter`, `codex-adapter`
+- Ollama adapter support
 - ACP manager with probe, bridge, lifecycle management for external CLIs
 - `CanonicalRuntimeEvent` contract normalizes events across all runtimes
 - `OrchestrationService` manages sessions across providers
 - `ConnectionService` manages model + runtime connections
 - Per-agent `AgentExecutionConfig` for runtime selection
+- `ProviderKind` is an extensible string contract, so new providers no longer require a closed union edit
 
 **What's aspirational:**
 - Plugin-registerable runtime adapters (currently hard-coded in `stallion-runtime.ts`)
-- `ProviderKind` as extensible string (currently closed union: `'bedrock' | 'claude' | 'codex'`)
-- Ollama as a first-class adapter alongside the existing three
 - Automatic provider failover (inspired by Hermes credential pool)
 
 **What competitors do:**
@@ -109,12 +110,13 @@ These are strong architectural decisions that differentiate Stallion in specific
 - Agent configs are JSON files in `~/.stallion-ai/agents/`
 - MCP server configs are JSON in `~/.stallion-ai/integrations/`
 - ACP connections are JSON in `~/.stallion-ai/config/acp.json`
+- `stallion export --format=agents-md` produces a structured `AGENTS.md`
+- `stallion export --format=claude-desktop` produces `claude_desktop_config.json`
+- `stallion import` reads supported external config formats back into Stallion
 
 **What's aspirational:**
-- `stallion export --format=agents-md` produces valid AGENTS.md (Codex convention)
-- `stallion export --format=claude-desktop` produces `claude_desktop_config.json`
-- `stallion import` reads configs from other tools
-- Shared MCP server definitions across all providers (inspired by Happier's "define once" pattern)
+- Broader import/export coverage for more agent tools and workspace formats
+- Shared MCP server definitions across all providers with richer effective-state reporting
 
 ---
 
