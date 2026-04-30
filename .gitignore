@@ -46,6 +46,7 @@ docs/plans/
 qa-reports/
 docs/audits/
 .omx/
+.fallow/
 
 # Generated Veritas artifacts; commit only curated fixtures/examples.
 .veritas/evidence/
